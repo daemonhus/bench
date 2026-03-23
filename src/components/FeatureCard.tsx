@@ -1,0 +1,534 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { useAnnotationStore } from '../stores/annotation-store';
+import { useRepoStore } from '../stores/repo-store';
+import { useUIStore } from '../stores/ui-store';
+import { gitApi } from '../core/api';
+import { detectLanguage, ensureLanguageRegistered } from '../core/language-map';
+import { highlight, renderToken } from '../core/tokenizer';
+import { InlineMarkdown } from '../core/markdown';
+import type { Feature, FeatureKind, FeatureStatus } from '../core/types';
+
+interface FeatureCardProps {
+  feature: Feature;
+  isExpanded: boolean;
+  onToggle: () => void;
+  onScrollTo?: () => void;
+  compact?: boolean;
+}
+
+const KIND_COLORS: Record<FeatureKind, string> = {
+  interface:   '#2563eb',
+  source:      '#16a34a',
+  sink:        '#ea580c',
+  dependency:  '#7c3aed',
+  externality: '#6b7280',
+};
+
+const KIND_LABELS: Record<FeatureKind, string> = {
+  interface:   'Interface',
+  source:      'Source',
+  sink:        'Sink',
+  dependency:  'Dependency',
+  externality: 'Externality',
+};
+
+const STATUS_LABELS: Record<FeatureStatus, string> = {
+  draft:       'Draft',
+  active:      'Active',
+  deprecated:  'Deprecated',
+  removed:     'Removed',
+  orphaned:    'Orphaned',
+};
+
+const ALL_KINDS: FeatureKind[] = ['interface', 'source', 'sink', 'dependency', 'externality'];
+const ALL_STATUSES: FeatureStatus[] = ['draft', 'active', 'deprecated', 'removed', 'orphaned'];
+
+const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
+const METHOD_COLORS: Record<string, string> = {
+  GET: '#16a34a',
+  POST: '#2563eb',
+  PUT: '#d97706',
+  PATCH: '#7c3aed',
+  DELETE: '#dc2626',
+  HEAD: '#6b7280',
+  OPTIONS: '#6b7280',
+};
+
+function extractMethod(title: string): { method: string; path: string } | null {
+  const upper = title.toUpperCase();
+  for (const m of HTTP_METHODS) {
+    if (upper.startsWith(m + ' ')) {
+      return { method: m, path: title.slice(m.length + 1) };
+    }
+  }
+  return null;
+}
+
+export const FeatureCard: React.FC<FeatureCardProps> = ({
+  feature,
+  isExpanded,
+  onToggle,
+  onScrollTo,
+  compact = false,
+}) => {
+  const updateFeature = useAnnotationStore((s) => s.updateFeature);
+  const deleteFeature = useAnnotationStore((s) => s.deleteFeature);
+  const addComment = useAnnotationStore((s) => s.addComment);
+  const updateComment = useAnnotationStore((s) => s.updateComment);
+  const deleteComment = useAnnotationStore((s) => s.deleteComment);
+  const fetchCommentsForFeature = useAnnotationStore((s) => s.fetchCommentsForFeature);
+  const featureComments = useAnnotationStore((s) => s.getCommentsForFeature(feature.id));
+
+  const [editing, setEditing] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  // Comment state
+  const [replyText, setReplyText] = useState('');
+  const [submittingReply, setSubmittingReply] = useState(false);
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editCommentText, setEditCommentText] = useState('');
+  const [showAllComments, setShowAllComments] = useState(false);
+
+  // Edit state
+  const [title, setTitle] = useState(feature.title);
+  const [description, setDescription] = useState(feature.description ?? '');
+  const [kind, setKind] = useState<FeatureKind>(feature.kind);
+  const [status, setStatus] = useState<FeatureStatus>(feature.status);
+  const [operation, setOperation] = useState(feature.operation ?? '');
+  const [direction, setDirection] = useState(feature.direction ?? '');
+  const [protocol, setProtocol] = useState(feature.protocol ?? '');
+  const [tagsInput, setTagsInput] = useState((feature.tags ?? []).join(', '));
+
+  const fp = feature as Feature & { effectiveAnchor?: { fileId?: string; commitId?: string; lineRange?: { start: number; end: number } }; confidence?: string };
+  const lineRange = fp.effectiveAnchor?.lineRange ?? feature.anchor.lineRange;
+  const confidence = fp.confidence;
+  const isOrphaned = feature.status === 'orphaned' || confidence === 'orphaned';
+
+  const [snippet, setSnippet] = useState<{ lines: string[]; startLine: number; lang: string } | null>(null);
+
+  useEffect(() => {
+    if (!isExpanded || !lineRange || !feature.anchor.fileId) { setSnippet(null); return; }
+    const commitId = fp.effectiveAnchor?.commitId ?? feature.anchor.commitId;
+    if (!commitId) return;
+    const lang = detectLanguage(feature.anchor.fileId) ?? '';
+    const CONTEXT = 1;
+    let cancelled = false;
+    gitApi.getFileContent(commitId, feature.anchor.fileId)
+      .then(async ({ content }) => {
+        if (lang) await ensureLanguageRegistered(lang);
+        if (cancelled) return;
+        const all = content.split('\n');
+        const from = Math.max(0, lineRange.start - 1 - CONTEXT);
+        const to = Math.min(all.length, lineRange.start - 1 + 5);
+        setSnippet({ lines: all.slice(from, to), startLine: from + 1, lang });
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [isExpanded, lineRange?.start, lineRange?.end, feature.anchor.fileId, feature.anchor.commitId]);
+
+  // Fetch comments when expanded
+  useEffect(() => {
+    if (isExpanded) {
+      fetchCommentsForFeature(feature.id);
+    }
+  }, [isExpanded, feature.id, fetchCommentsForFeature]);
+
+  const sortedComments = useMemo(
+    () => [...featureComments].sort((a, b) => a.timestamp.localeCompare(b.timestamp)),
+    [featureComments],
+  );
+
+  const handleSubmitReply = () => {
+    const trimmed = replyText.trim();
+    if (!trimmed) return;
+    setSubmittingReply(true);
+    addComment({
+      id: `CMT-${Date.now()}`,
+      anchor: { ...feature.anchor },
+      author: 'you',
+      text: trimmed,
+      timestamp: new Date().toISOString(),
+      threadId: `T-${feature.id}`,
+      featureId: feature.id,
+    });
+    setReplyText('');
+    setSubmittingReply(false);
+  };
+
+  const handleSave = () => {
+    const tags = tagsInput.split(',').map((t) => t.trim()).filter(Boolean);
+    updateFeature(feature.id, { title, description, kind, status, operation: operation || undefined, direction: (direction || undefined) as 'in' | 'out' | undefined, protocol: protocol || undefined, tags });
+    setEditing(false);
+  };
+
+  const handleCancelEdit = () => {
+    setTitle(feature.title);
+    setDescription(feature.description ?? '');
+    setKind(feature.kind);
+    setStatus(feature.status);
+    setOperation(feature.operation ?? '');
+    setDirection(feature.direction ?? '');
+    setProtocol(feature.protocol ?? '');
+    setTagsInput((feature.tags ?? []).join(', '));
+    setEditing(false);
+  };
+
+  const handleStartEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditing(true);
+    setConfirmDelete(false);
+  };
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirmDelete) { setConfirmDelete(true); return; }
+    deleteFeature(feature.id);
+  };
+
+  const handleCancelDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setConfirmDelete(false);
+  };
+
+  const handleCommitClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!feature.anchor.commitId) return;
+    useRepoStore.getState().selectCommit(feature.anchor.commitId);
+    useUIStore.getState().setViewMode('browse');
+    if (feature.anchor.fileId) useRepoStore.getState().selectFile(feature.anchor.fileId);
+  };
+
+  const kindColor = KIND_COLORS[feature.kind] ?? '#6b7280';
+
+  const headerActions = (
+    <div className="feature-card-actions" onClick={(e) => e.stopPropagation()}>
+      <button className="comment-icon-btn" onClick={handleStartEdit} title="Edit">&#x270E;</button>
+      {!confirmDelete ? (
+        <button className="comment-icon-btn comment-icon-btn-danger" onClick={handleDelete} title="Delete">&#x2715;</button>
+      ) : (
+        <span className="finding-delete-confirm">
+          <button className="finding-delete-yes" onClick={handleDelete}>Delete</button>
+          <button className="finding-delete-no" onClick={handleCancelDelete}>No</button>
+        </span>
+      )}
+    </div>
+  );
+
+  return (
+    <div className={`feature-card${isExpanded ? ' feature-card-expanded' : ''}${isOrphaned ? ' feature-card-orphaned' : ''}`}>
+      {headerActions}
+
+      {/* Collapsed header */}
+      {!isExpanded && (
+        <div className="feature-card-header" onClick={onToggle}>
+          <div className="feature-card-header-top">
+            {feature.kind === 'interface' ? (() => {
+              const op = feature.operation?.toUpperCase();
+              const parsed = op ? null : extractMethod(feature.title);
+              const method = op ?? parsed?.method;
+              return method ? (
+                <span className="feature-method-badge" style={{ background: METHOD_COLORS[method] ?? kindColor }}>{method}</span>
+              ) : (
+                <span className="feature-kind-badge" style={{ background: kindColor }}>{KIND_LABELS[feature.kind]}</span>
+              );
+            })() : (
+              <span className="feature-kind-badge" style={{ background: kindColor }}>
+                {KIND_LABELS[feature.kind as FeatureKind] ?? feature.kind}
+              </span>
+            )}
+            {!compact && feature.protocol && <span className="feature-chip">{feature.protocol}</span>}
+            {!compact && feature.direction && (
+              <span className={`feature-direction-badge feature-direction-badge--${feature.direction}`}>
+                {feature.direction === 'in' ? '← IN' : '→ OUT'}
+              </span>
+            )}
+            <span className={`feature-status-badge feature-status-badge--${feature.status}`}>
+              {STATUS_LABELS[feature.status] ?? feature.status}
+            </span>
+          </div>
+          {feature.kind === 'interface' ? (() => {
+            const op = feature.operation?.toUpperCase();
+            const parsed = op ? null : extractMethod(feature.title);
+            const method = op ?? parsed?.method;
+            const displayTitle = method ? (op ? feature.title : parsed?.path ?? feature.title) : feature.title;
+            return <code className="feature-endpoint-path">{displayTitle}</code>;
+          })() : (
+            <span className="feature-title">{feature.title}</span>
+          )}
+        </div>
+      )}
+
+      {/* Expanded header (always show title + toggle) */}
+      {isExpanded && (
+        <div className="feature-card-header" onClick={onToggle}>
+          <div className="feature-card-header-top">
+            {feature.kind === 'interface' ? (() => {
+              const op = feature.operation?.toUpperCase();
+              const parsed = op ? null : extractMethod(feature.title);
+              const method = op ?? parsed?.method;
+              return method ? (
+                <span className="feature-method-badge" style={{ background: METHOD_COLORS[method] ?? kindColor }}>{method}</span>
+              ) : (
+                <span className="feature-kind-badge" style={{ background: kindColor }}>{KIND_LABELS[feature.kind]}</span>
+              );
+            })() : (
+              <span className="feature-kind-badge" style={{ background: kindColor }}>
+                {KIND_LABELS[feature.kind] ?? feature.kind}
+              </span>
+            )}
+            {feature.kind === 'interface' ? (() => {
+              const op = feature.operation?.toUpperCase();
+              const parsed = op ? null : extractMethod(feature.title);
+              const method = op ?? parsed?.method;
+              const displayTitle = method ? (op ? feature.title : parsed?.path ?? feature.title) : feature.title;
+              return <code className="feature-endpoint-path">{displayTitle}</code>;
+            })() : (
+              <span className="feature-title">{feature.title}</span>
+            )}
+            {!compact && feature.protocol && (
+              <span className="feature-chip">{feature.protocol}</span>
+            )}
+            {!compact && feature.direction && (
+              <span className={`feature-direction-badge feature-direction-badge--${feature.direction}`}>
+                {feature.direction === 'in' ? '← IN' : '→ OUT'}
+              </span>
+            )}
+            <span className={`feature-status-badge feature-status-badge--${feature.status}`}>
+              {STATUS_LABELS[feature.status] ?? feature.status}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {confidence && confidence !== 'exact' && (
+        <div className="finding-card-meta">
+          <span className={`finding-confidence finding-confidence-${confidence}`}>
+            {confidence === 'moved' ? 'Moved' : 'Orphaned'}
+          </span>
+        </div>
+      )}
+
+      {isExpanded && (
+        <div className="feature-card-body">
+          {!editing ? (
+            <>
+              {feature.description && (
+                <div className="feature-description">
+                  {feature.description}
+                </div>
+              )}
+
+              {feature.tags && feature.tags.length > 0 && (
+                <div className="feature-meta-row" style={{ marginBottom: 4 }}>
+                  {feature.tags.map((tag) => (
+                    <span key={tag} className="feature-tag-pill">{tag}</span>
+                  ))}
+                </div>
+              )}
+
+              {snippet && lineRange && (
+                <div className="feature-snippet">
+                  {snippet.lines.map((line, i) => {
+                    const lineNum = snippet.startLine + i;
+                    const isHighlighted = lineNum >= lineRange.start && lineNum <= lineRange.end;
+                    const tokens = snippet.lang ? highlight(line, snippet.lang) : [{ type: 'text' as const, value: line }];
+                    return (
+                      <div key={i} className={`feature-snippet-row${isHighlighted ? ' feature-snippet-row-highlight' : ''}`}>
+                        <span className="feature-snippet-ln">{lineNum}</span>
+                        <code className="feature-snippet-code">{tokens.map((t, ti) => renderToken(t, ti))}</code>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="finding-edit-form">
+              <div className="finding-form-row">
+                <input
+                  className="finding-input"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Title"
+                />
+              </div>
+              <div className="finding-form-row">
+                <textarea
+                  className="finding-input"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Description"
+                  rows={3}
+                  style={{ resize: 'vertical' }}
+                />
+              </div>
+              <div className="finding-form-row" style={{ display: 'flex', gap: 6 }}>
+                <select className="finding-edit-select" value={kind} onChange={(e) => setKind(e.target.value as FeatureKind)}>
+                  {ALL_KINDS.map((k) => <option key={k} value={k}>{KIND_LABELS[k]}</option>)}
+                </select>
+                <select className="finding-edit-select" value={status} onChange={(e) => setStatus(e.target.value as FeatureStatus)}>
+                  {ALL_STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
+                </select>
+              </div>
+              {(kind === 'interface') && (
+                <div className="finding-form-row">
+                  <input
+                    className="finding-input"
+                    value={operation}
+                    onChange={(e) => setOperation(e.target.value)}
+                    placeholder="Operation (GET, POST, query, rpc GetUser…)"
+                  />
+                </div>
+              )}
+              <div className="finding-form-row" style={{ display: 'flex', gap: 6 }}>
+                <input
+                  className="finding-input"
+                  value={protocol}
+                  onChange={(e) => setProtocol(e.target.value)}
+                  placeholder="Protocol (rest, grpc, ...)"
+                  style={{ flex: 1 }}
+                />
+                <select className="finding-edit-select" value={direction} onChange={(e) => setDirection(e.target.value)}>
+                  <option value="">Direction</option>
+                  <option value="in">in</option>
+                  <option value="out">out</option>
+                </select>
+              </div>
+              <div className="finding-form-row">
+                <input
+                  className="finding-input"
+                  value={tagsInput}
+                  onChange={(e) => setTagsInput(e.target.value)}
+                  placeholder="Tags (comma-separated)"
+                />
+              </div>
+              <div className="finding-edit-actions">
+                <button className="finding-edit-save" onClick={handleSave}>Save</button>
+                <button className="finding-edit-cancel" onClick={handleCancelEdit}>Cancel</button>
+              </div>
+            </div>
+          )}
+
+          <div className="finding-comments" onClick={(e) => e.stopPropagation()}>
+            {(() => {
+              const hiddenCount = sortedComments.length > 1 && !showAllComments ? sortedComments.length - 1 : 0;
+              const visibleComments = hiddenCount > 0 ? sortedComments.slice(-1) : sortedComments;
+
+              const renderComment = (c: typeof sortedComments[0]) => (
+                <div key={c.id} className={`finding-comment${editingCommentId === c.id ? ' finding-comment-editing' : ''}`}>
+                  <div className="finding-comment-header">
+                    <span className="finding-comment-author">{c.author}</span>
+                    <span className="finding-comment-time">
+                      {new Date(c.timestamp).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}{' '}{new Date(c.timestamp).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    {editingCommentId !== c.id && (
+                      <div className="comment-card-header-right" style={{ marginLeft: 'auto' }}>
+                        <button
+                          className="comment-icon-btn"
+                          onClick={() => { setEditingCommentId(c.id); setEditCommentText(c.text); }}
+                          title="Edit"
+                        >&#x270E;</button>
+                        <button
+                          className="comment-icon-btn comment-icon-btn-danger"
+                          onClick={() => deleteComment(c.id)}
+                          title="Delete"
+                        >&#x2715;</button>
+                      </div>
+                    )}
+                  </div>
+                  {editingCommentId === c.id ? (
+                    <div>
+                      <textarea
+                        className="comment-textarea"
+                        value={editCommentText}
+                        onChange={(e) => setEditCommentText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                            updateComment(editingCommentId!, editCommentText.trim());
+                            setEditingCommentId(null);
+                          }
+                          if (e.key === 'Escape') setEditingCommentId(null);
+                        }}
+                        rows={2}
+                        autoFocus
+                      />
+                      <div className="comment-form-actions">
+                        <button className="comment-btn comment-btn-cancel" onClick={() => setEditingCommentId(null)}>Cancel</button>
+                        <button
+                          className="comment-btn comment-btn-submit"
+                          onClick={() => {
+                            if (editCommentText.trim()) {
+                              updateComment(editingCommentId!, editCommentText.trim());
+                              setEditingCommentId(null);
+                            }
+                          }}
+                          disabled={!editCommentText.trim()}
+                        >Save</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="finding-comment-text">
+                      <InlineMarkdown text={c.text} />
+                    </div>
+                  )}
+                </div>
+              );
+
+              return (
+                <>
+                  {hiddenCount > 0 && (
+                    <button className="finding-comments-toggle" onClick={() => setShowAllComments(true)}>
+                      {hiddenCount} previous {hiddenCount === 1 ? 'comment' : 'comments'}
+                    </button>
+                  )}
+                  {showAllComments && sortedComments.length > 1 && (
+                    <button className="finding-comments-toggle" onClick={() => setShowAllComments(false)}>
+                      Hide previous comments
+                    </button>
+                  )}
+                  {visibleComments.map(renderComment)}
+                </>
+              );
+            })()}
+
+            <div className="finding-comment-compose">
+              <textarea
+                placeholder="Reply..."
+                value={replyText}
+                onChange={(e) => setReplyText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && replyText.trim()) {
+                    handleSubmitReply();
+                  }
+                }}
+                rows={1}
+              />
+              <button
+                disabled={!replyText.trim() || submittingReply}
+                onClick={handleSubmitReply}
+              >
+                &rarr;
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="overview-card-meta">
+        {feature.anchor.fileId && (
+          <span className="overview-comment-file" title={feature.anchor.fileId} onClick={(e) => { e.stopPropagation(); onScrollTo?.(); }}>
+            {feature.anchor.fileId.split('/').pop()}
+            {lineRange && `:${lineRange.start}`}
+          </span>
+        )}
+        <span className="overview-card-meta-right">
+          {feature.anchor.commitId && (
+            <span className="overview-commit-ref overview-commit-link" onClick={handleCommitClick}>
+              {feature.anchor.commitId.slice(0, 7)}
+            </span>
+          )}
+        </span>
+      </div>
+    </div>
+  );
+};

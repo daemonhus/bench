@@ -1,0 +1,317 @@
+/* ----- Diff View Container ----- */
+.diff-view {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: auto;
+  background: var(--bg-primary);
+  padding-bottom: 5vh;
+}
+
+/* ----- Diff Row (CSS Grid: gutter | oldLine | newLine | content) ----- */
+.diff-row {
+  display: grid;
+  grid-template-columns: var(--gutter-width) var(--line-num-width) var(--line-num-width) 1fr;
+  line-height: var(--line-height);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-code);
+  border-bottom: 1px solid transparent;
+  min-height: var(--line-height);
+}
+
+/* Browse mode: 3-column grid (gutter | line# | content) */
+.diff-row.browse-row {
+  grid-template-columns: var(--gutter-width) var(--line-num-width) 1fr;
+}
+
+/* Strikethrough for deleted lines in browse mode */
+.diff-row-delete-strikethrough .code-content code {
+  text-decoration: line-through;
+  text-decoration-color: var(--diff-delete-text);
+  opacity: 0.7;
+}
+
+.diff-row:hover {
+  background: var(--hover-subtle);
+}
+
+.diff-row-insert {
+  background: var(--diff-insert-bg);
+}
+
+.diff-row-insert:hover {
+  background: color-mix(in srgb, var(--accent-green) 22%, transparent);
+}
+
+.diff-row-delete {
+  background: var(--diff-delete-bg);
+}
+
+.diff-row-delete:hover {
+  background: color-mix(in srgb, var(--status-open) 22%, transparent);
+}
+
+.diff-row-normal {
+  background: transparent;
+}
+
+/* Character-level edit highlights */
+.edit-highlight {
+  border-radius: 2px;
+}
+
+.diff-row-insert .edit-highlight {
+  background: var(--diff-edit-insert-bg);
+}
+
+.diff-row-delete .edit-highlight {
+  background: var(--diff-edit-delete-bg);
+}
+
+.diff-code-edit {
+  background: var(--diff-edit-insert-bg);
+  border-radius: 2px;
+}
+
+/* Scroll-to highlight animation */
+.scroll-highlight {
+  animation: highlightFade 2s ease-out;
+}
+
+@keyframes highlightFade {
+  0% {
+    background: color-mix(in srgb, var(--accent-blue) 30%, transparent);
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+/* Persistent highlight for selected finding/comment range */
+.diff-row.highlight-range {
+  background: color-mix(in srgb, var(--accent-blue) 12%, transparent);
+}
+
+.diff-row.highlight-range .line-number {
+  color: var(--accent-blue);
+}
+
+/* ----- Action Gutter ----- */
+.action-gutter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--gutter-width);
+  cursor: pointer;
+  user-select: none;
+  color: var(--text-muted);
+  font-size: var(--font-size-small);
+  position: relative;
+}
+
+.action-gutter:hover {
+  color: var(--text-secondary);
+  background: var(--hover-muted);
+}
+
+.gutter-symbol {
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.gutter-add-icon {
+  opacity: 0;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--accent-blue);
+  transition: opacity var(--transition-fast);
+}
+
+.diff-row:hover .gutter-add-icon {
+  opacity: 0.6;
+}
+
+.diff-row:hover .gutter-add-icon:hover {
+  opacity: 1;
+}
+
+/* ----- Comment Gutter Indicator ----- */
+.action-gutter.has-comment::after {
+  content: '';
+  position: absolute;
+  right: 3px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent-blue);
+  opacity: 0.6;
+}
+
+/* ----- Comment Drag Bar ----- */
+.comment-drag-bar {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 3px;
+  background: var(--accent-blue);
+  pointer-events: none;
+  z-index: var(--z-sticky);
+}
+
+.comment-drag-bar-first {
+  top: 50%;
+  bottom: 0;
+  border-radius: 2px 2px 0 0;
+}
+
+.comment-drag-bar-middle {
+  top: 0;
+  bottom: 0;
+}
+
+.comment-drag-bar-last {
+  top: 0;
+  bottom: 50%;
+  border-radius: 0 0 2px 2px;
+}
+
+.comment-drag-bar-single {
+  top: 25%;
+  bottom: 25%;
+  border-radius: 2px;
+}
+
+.diff-row-insert .gutter-symbol {
+  color: color-mix(in srgb, var(--accent-green) 70%, transparent);
+}
+
+.diff-row-delete .gutter-symbol {
+  color: color-mix(in srgb, var(--status-open) 70%, transparent);
+}
+
+.finding-dots {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+}
+
+.finding-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ----- Finding Bar (vertical range indicator) ----- */
+.finding-bar {
+  position: relative;
+}
+
+.finding-bar::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  width: 3px;
+  background: var(--finding-bar-color, var(--text-muted));
+}
+
+.finding-bar-first::before {
+  top: 50%;
+  bottom: 0;
+  border-radius: 2px 2px 0 0;
+}
+
+.finding-bar-middle::before {
+  top: 0;
+  bottom: 0;
+}
+
+.finding-bar-last::before {
+  top: 0;
+  bottom: 50%;
+  border-radius: 0 0 2px 2px;
+}
+
+.finding-bar-single::before {
+  top: 25%;
+  bottom: 25%;
+  border-radius: 2px;
+}
+
+/* ----- Line Numbers ----- */
+.line-number {
+  text-align: right;
+  padding-right: 12px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-code);
+  line-height: var(--line-height);
+  user-select: none;
+  cursor: pointer;
+}
+
+.line-number:hover {
+  color: var(--text-secondary);
+}
+
+/* ----- Code Content ----- */
+.code-content {
+  padding-left: 12px;
+  white-space: var(--code-white-space);
+  word-break: var(--code-word-break);
+  tab-size: var(--tab-size);
+  line-height: var(--line-height);
+}
+
+.code-content code {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-code);
+}
+
+/* ----- Comment Range Indicators ----- */
+.comment-range-first {
+  border-left: 3px solid var(--comment-range-border);
+  border-top: 1px solid var(--comment-range-border);
+}
+
+.comment-range-middle {
+  border-left: 3px solid var(--comment-range-border);
+}
+
+.comment-range-last {
+  border-left: 3px solid var(--comment-range-border);
+  border-bottom: 1px solid var(--comment-range-border);
+}
+
+.comment-range-single {
+  border-left: 3px solid var(--comment-range-border);
+  border-top: 1px solid var(--comment-range-border);
+  border-bottom: 1px solid var(--comment-range-border);
+}
+
+.in-comment-range {
+  background: color-mix(in srgb, var(--accent-blue) 6%, transparent);
+}
+
+.diff-row-insert.in-comment-range {
+  background: color-mix(in srgb, var(--accent-green) 20%, transparent);
+}
+
+.diff-row-delete.in-comment-range {
+  background: color-mix(in srgb, var(--status-open) 20%, transparent);
+}
+
+/* ----- Mobile Code View ----- */
+@media (max-width: 639px) {
+  /* Keep code scrollable horizontally, don't wrap */
+  .diff-view {
+    overflow-x: auto;
+  }
+
+  /* Slightly narrower gutter to save space */
+  .diff-row.browse-row {
+    grid-template-columns: 20px 36px 1fr;
+  }
+}

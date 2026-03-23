@@ -1,0 +1,359 @@
+/* ----- Repo Name (inline in breadcrumb) ----- */
+.path-repo-name {
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color var(--transition-base);
+  font-weight: 600;
+}
+
+.path-repo-name:hover {
+  color: var(--accent-blue);
+}
+
+/* ----- Quick Add Buttons (vuln + comment icons) ----- */
+.quick-add-buttons {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 6px;
+  margin-right: 8px;
+  padding-right: 12px;
+  border-right: 1px solid var(--border-default);
+}
+
+.quick-add-btn {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 2px 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color var(--transition-base), border-color var(--transition-base), background var(--transition-base);
+}
+
+.quick-add-btn:hover {
+  border-color: var(--border-default);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+.quick-add-vuln:hover {
+  color: var(--severity-high);
+}
+
+.quick-add-comment:hover {
+  color: var(--accent-purple);
+}
+
+.quick-add-feature:hover {
+  color: #7c3aed;
+}
+
+/*
+ * ----- Modal / Popover Pattern -----
+ *
+ * Use these classes for any "create new item" dialog in the app.
+ * Do NOT invent new overlay/panel classes — reuse this system for consistency.
+ *
+ * Structure:
+ *   <div class="quick-add-overlay">          ← fixed overlay, subtle dark bg, click-outside to close
+ *     <div class="quick-add-popover">         ← floating panel, ~560px wide, top-center aligned
+ *       <div class="quick-add-popover-header">
+ *         Title
+ *         <span class="quick-add-scope">Scope label</span>  ← optional context badge (e.g. "Project", filename)
+ *       </div>
+ *       <input class="finding-edit-input" />                ← primary text input (blue focus ring)
+ *       <textarea class="finding-edit-textarea" />          ← multi-line input
+ *       <div class="finding-edit-row">                      ← label + control, horizontal
+ *         <label class="finding-edit-label">Label</label>   ← min-width 54px, muted
+ *         <select class="finding-edit-select" />
+ *         <input class="finding-edit-input-sm" />           ← compact input for secondary fields
+ *       </div>
+ *       <div class="quick-add-row-pair">                    ← 2-column grid for paired fields
+ *         <div class="finding-edit-row">...</div>
+ *         <div class="finding-edit-row">...</div>
+ *       </div>
+ *       <div class="finding-edit-actions">                  ← buttons row, bottom of form
+ *         <button class="finding-edit-save">Add X</button>  ← primary action, blue filled
+ *         <button class="finding-edit-cancel">Cancel</button>
+ *       </div>
+ *     </div>
+ *   </div>
+ *
+ * Used by: App.tsx (New Finding / New Comment), FeaturesView.tsx (New Feature)
+ * See also: finding-edit-* classes in findings.css for the field/button styles.
+ */
+.quick-add-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-overlay);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 80px;
+  background: var(--overlay-dark);
+}
+
+.quick-add-popover {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  padding: 20px 24px;
+  width: 560px;
+  max-width: 92vw;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: var(--shadow-popup);
+}
+
+.quick-add-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  letter-spacing: var(--tracking-snug);
+  color: var(--text-primary);
+}
+
+.quick-add-scope {
+  font-size: var(--font-size-small);
+  font-weight: 400;
+  color: var(--text-muted);
+  background: var(--bg-surface);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.quick-add-confirm-discard {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 8px 0;
+  font-size: var(--font-size-ui);
+  color: var(--text-secondary);
+}
+
+.quick-add-confirm-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Comment type toggle with labels */
+.comment-type-toggle.quick-add-type-toggle {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.quick-add-type-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  white-space: nowrap;
+}
+
+.quick-add-type-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.quick-add-type-label {
+  font-size: var(--font-size-small);
+}
+
+/* Side-by-side pair of finding-edit-row within the quick-add popover */
+.quick-add-row-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+@media (max-width: 639px) {
+  .quick-add-overlay {
+    align-items: flex-end;
+    padding-top: 0;
+  }
+
+  .quick-add-popover {
+    width: 100%;
+    max-width: 100%;
+    max-height: 85vh;
+    overflow-y: auto;
+    border-radius: 12px 12px 0 0;
+    border-bottom: none;
+    padding: 20px 16px;
+  }
+
+  .quick-add-row-pair {
+    grid-template-columns: 1fr;
+  }
+}
+
+.file-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  height: var(--header-height);
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-default);
+  flex-shrink: 0;
+}
+
+.file-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.file-header h1 {
+  font-size: var(--font-size-small);
+  font-weight: 500;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.slug-home {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 20px;
+  border-radius: 4px;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--transition-base), color var(--transition-base);
+  font-weight: 700;
+  font-size: 13px;
+  vertical-align: middle;
+}
+
+.slug-home:hover {
+  background: var(--accent-blue-subtle);
+  color: var(--accent-blue);
+}
+
+.slug-home-active {
+  background: color-mix(in srgb, var(--accent-blue) 20%, transparent);
+  color: var(--accent-blue);
+  cursor: default;
+}
+
+.no-file-hint {
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.no-file-hint:hover {
+  color: var(--accent-blue);
+}
+
+.path-sep {
+  color: var(--text-muted);
+  margin: 0 4px;
+}
+
+.path-segment {
+  color: var(--accent-blue);
+  cursor: pointer;
+  transition: color var(--transition-base);
+}
+
+.path-segment:hover {
+  color: var(--accent-blue);
+  text-decoration: underline;
+}
+
+.path-filename {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* ----- Navigation Buttons ----- */
+.nav-buttons {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.nav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--transition-base), color var(--transition-base);
+}
+
+.nav-btn:hover:not(:disabled) {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+.nav-btn:disabled {
+  color: var(--text-muted);
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.file-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.header-separator {
+  width: 1px;
+  height: 16px;
+  background: var(--border-default);
+  flex-shrink: 0;
+}
+
+.file-stats {
+  display: flex;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-small);
+}
+
+.stat-additions {
+  color: var(--diff-insert-text);
+}
+
+.stat-deletions {
+  color: var(--diff-delete-text);
+}
+
+/* ----- Mobile File Header ----- */
+@media (max-width: 639px) {
+  .file-header {
+    padding: 0 8px;
+  }
+
+  .file-header h1 {
+    max-width: 40vw;
+  }
+
+  /* Hide nav back/forward buttons on mobile to save space */
+  .nav-buttons {
+    display: none;
+  }
+}

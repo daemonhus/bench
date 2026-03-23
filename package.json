@@ -1,0 +1,36 @@
+{
+  "name": "bench",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "dev:backend": "cd backend && go run ./cmd/server -repo .",
+    "build:backend": "npm run build && cp -r dist backend/dist && cd backend && go build -o bench-server ./cmd/server"
+  },
+  "dependencies": {
+    "@visx/hierarchy": "^3.12.0",
+    "@visx/shape": "^3.12.0",
+    "diff-match-patch": "^1.0.5",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "refractor": "^4.8.1",
+    "zustand": "^4.5.5"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "@types/diff-match-patch": "^1.0.36",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "jsdom": "^25.0.1",
+    "typescript": "^5.6.3",
+    "vite": "^6.0.0",
+    "vitest": "^2.1.5"
+  }
+}

@@ -1,0 +1,902 @@
+/* ----- Baseline Status Section ----- */
+.baseline-status-section {
+  margin-bottom: 24px;
+  padding: 16px 18px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+.baseline-status-empty {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.baseline-status-label {
+  color: var(--text-muted);
+  font-size: var(--font-size-ui);
+}
+
+.baseline-status-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  gap: 8px;
+}
+
+.baseline-status-badge {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-blue);
+}
+
+.baseline-status-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.baseline-status-detail {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.baseline-commit-range {
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.baseline-commit-range-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  line-height: 22px;
+}
+
+.baseline-commit-range-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  width: 28px;
+  flex-shrink: 0;
+}
+
+.baseline-commit-subject {
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.baseline-snapshot-stats {
+  color: var(--text-muted);
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+.baseline-summary-text {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  font-style: italic;
+}
+
+.baseline-action-btn {
+  font-size: 13px;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  padding: 8px 18px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-default);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.baseline-action-btn:hover {
+  background: var(--bg-surface);
+  border-color: rgba(148, 163, 184, 0.22);
+}
+
+.baseline-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.baseline-action-btn-primary {
+  background: var(--accent-blue);
+  color: #fff;
+  border-color: var(--accent-blue);
+  box-shadow: 0 1px 8px rgba(129, 140, 248, 0.25);
+}
+
+.baseline-action-btn-primary:hover {
+  background: color-mix(in srgb, var(--accent-blue) 88%, white);
+  box-shadow: 0 2px 12px rgba(129, 140, 248, 0.35);
+}
+
+.baseline-action-btn-outline {
+  color: var(--text-muted);
+  border-color: var(--border-default);
+  background: transparent;
+}
+
+.baseline-action-btn-outline:hover {
+  color: var(--text-primary);
+  background: var(--bg-surface);
+}
+
+.baseline-action-btn-danger {
+  color: var(--severity-critical);
+  border-color: var(--severity-critical);
+}
+
+.baseline-action-btn-danger:hover {
+  background: color-mix(in srgb, var(--severity-critical) 10%, transparent);
+}
+
+.baseline-delta-section {
+  margin-top: 10px;
+  border-top: 1px solid var(--border-muted);
+  padding-top: 8px;
+}
+
+.baseline-delta-toggle {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+}
+
+.baseline-delta-toggle:hover {
+  color: var(--text-primary);
+}
+
+.baseline-delta-counts {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+  font-weight: 400;
+}
+
+.baseline-delta-count-new {
+  color: var(--accent-green);
+  font-size: 11px;
+}
+
+.baseline-delta-count-removed {
+  color: var(--severity-high);
+  font-size: 11px;
+}
+
+.baseline-delta-count-files {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.baseline-delta-details {
+  margin-top: 8px;
+}
+
+.baseline-delta-group {
+  margin-bottom: 12px;
+}
+
+.baseline-delta-group-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0 0 6px;
+}
+
+.delta-file-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.delta-file-link {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--accent-blue);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.delta-file-link:hover {
+  text-decoration: underline;
+}
+
+.delta-file-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 2px 0;
+}
+
+.delta-file-stat {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: nowrap;
+  display: flex;
+  gap: 2px;
+  min-width: 64px;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+
+.delta-file-added {
+  color: var(--severity-info, #3fb950);
+}
+
+.delta-file-deleted {
+  color: var(--severity-high, #f85149);
+}
+
+/* ----- Set Baseline Modal ----- */
+/* .set-baseline-overlay base styles live in shared/components.css (.overlay-backdrop) */
+
+.set-baseline-modal {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  width: min(480px, 90vw);
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-lg);
+}
+
+.set-baseline-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.set-baseline-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.set-baseline-hint {
+  margin: 0;
+  padding: 8px 16px 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.set-baseline-body {
+  padding: 12px 16px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-height: 0;
+}
+
+.set-baseline-branch-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.set-baseline-branch-row label {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.set-baseline-branch-row select {
+  flex: 1;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.set-baseline-commit-list {
+  overflow-y: auto;
+  flex: 1;
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  min-height: 120px;
+  max-height: 300px;
+}
+
+.set-baseline-commit-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 12px;
+  border-bottom: 1px solid var(--border-muted, var(--border-default));
+}
+
+.set-baseline-commit-row:last-child {
+  border-bottom: none;
+}
+
+.set-baseline-commit-row:hover {
+  background: color-mix(in srgb, var(--accent-blue) 8%, transparent);
+}
+
+.set-baseline-commit-row.selected {
+  background: var(--accent-blue-subtle);
+}
+
+.set-baseline-commit-subject {
+  flex: 1;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.set-baseline-commit-date {
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.set-baseline-loading {
+  padding: 16px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.set-baseline-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border-default);
+}
+
+/* ----- Delta View ----- */
+.delta-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.delta-header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 33px 40px;
+  border-bottom: 1px solid var(--border-default);
+  flex-shrink: 0;
+}
+
+.delta-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.delta-history-toggle {
+  flex-shrink: 0;
+}
+
+.delta-header-left-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.delta-header-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.delta-header-sub {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.delta-header-label {
+  font-weight: 700;
+  font-size: var(--font-size-lg);
+  color: var(--text-primary);
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  letter-spacing: var(--tracking-snug);
+  line-height: var(--leading-tight);
+}
+
+.delta-header-label-clickable {
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 2px 6px;
+  margin: -2px -6px;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.delta-header-label-clickable:hover {
+  background: var(--bg-surface);
+}
+
+.delta-header-label-active {
+  color: var(--accent-blue);
+}
+
+.delta-header-label-icon {
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+.delta-header-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.delta-header-date {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.delta-header-stats {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.delta-stat {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+.delta-stat-new {
+  background: var(--accent-green-subtle);
+  color: var(--accent-green);
+}
+
+.delta-stat-removed {
+  background: var(--severity-high-subtle);
+  color: var(--severity-high);
+}
+
+.delta-stat-files {
+  background: var(--accent-blue-subtle);
+  color: var(--accent-blue);
+}
+
+.delta-header-right {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.delta-header-commit-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 14px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-muted);
+  border-radius: var(--radius-md);
+}
+
+.delta-header-commit-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  min-width: 0;
+}
+
+.delta-header-commit-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wider);
+  width: 50px;
+  flex-shrink: 0;
+}
+
+.delta-at-head-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-green, #3fb950);
+  background: color-mix(in srgb, var(--accent-green, #3fb950) 12%, transparent);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+
+.delta-body-wrap {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.delta-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 28px 40px;
+}
+
+/* ----- History drawer (inside delta-body-wrap) ----- */
+.delta-history-drawer {
+  width: 280px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border-default);
+  background: var(--bg-secondary);
+  overflow: hidden;
+}
+
+.delta-history-drawer .delta-sidebar-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 12px;
+}
+
+.past-baseline-card-active {
+  border-color: var(--accent-blue);
+  background: var(--bg-surface);
+}
+
+.delta-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.baseline-action-btn-active {
+  background: var(--bg-surface);
+  border-color: var(--text-muted);
+  color: var(--text-primary);
+}
+
+/* ----- Delta Sidebar (app-level right panel) ----- */
+.delta-sidebar-wrapper {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-secondary);
+  border-left: 1px solid var(--border-default);
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+}
+
+.delta-sidebar-resize-handle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 4px;
+  cursor: col-resize;
+  z-index: 2;
+  background: transparent;
+}
+
+.delta-sidebar-resize-handle:hover,
+.delta-sidebar-resize-handle:active {
+  background: var(--accent-blue);
+  opacity: 0.5;
+}
+
+.delta-sidebar-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+}
+
+.delta-sidebar {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.delta-sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-default);
+  flex-shrink: 0;
+}
+
+.delta-sidebar-title {
+  font-size: var(--font-size-ui);
+  font-weight: 600;
+  letter-spacing: var(--tracking-snug);
+  color: var(--text-primary);
+}
+
+.delta-sidebar-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 12px;
+}
+
+.delta-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-muted);
+  font-size: 14px;
+  gap: 8px;
+}
+
+.delta-link {
+  color: var(--accent-blue);
+  cursor: pointer;
+}
+
+.delta-link:hover {
+  text-decoration: underline;
+}
+
+.delta-removed-id {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ----- Delta Edit Pencil ----- */
+.delta-edit-pencil {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 5px 8px;
+  border-radius: var(--radius-sm);
+  transition: color var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast);
+  vertical-align: middle;
+  margin-left: 2px;
+}
+
+.delta-edit-pencil:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+  border-color: var(--text-muted);
+}
+
+/* ----- Delta Header Summary ----- */
+.delta-header-summary,
+.delta-header-summary-inline {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ----- Delta Edit Panel ----- */
+.delta-edit-panel {
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--border-default);
+  background: var(--bg-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.delta-edit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.delta-edit-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.delta-edit-input {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: var(--font-sans);
+  padding: 8px 12px;
+  outline: none;
+  max-width: 300px;
+  transition: border-color var(--transition-fast);
+}
+
+.delta-edit-input:focus {
+  border-color: var(--accent-blue);
+  box-shadow: var(--shadow-focus-blue);
+}
+
+.delta-edit-textarea {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: var(--font-sans);
+  padding: 8px 12px;
+  resize: vertical;
+  outline: none;
+  max-width: 500px;
+  transition: border-color var(--transition-fast);
+}
+
+.delta-edit-textarea:focus {
+  border-color: var(--accent-blue);
+  box-shadow: var(--shadow-focus-blue);
+}
+
+.delta-edit-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.delta-edit-confirm-delete {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* ----- Past Baseline Cards ----- */
+.past-baseline-card {
+  padding: 12px 14px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: border-color var(--transition-base), background var(--transition-base);
+}
+.past-baseline-card:hover {
+  border-color: var(--accent-blue);
+  background: var(--bg-secondary);
+}
+.past-baseline-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.past-baseline-seq {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--accent-blue);
+}
+.past-baseline-reviewer {
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.past-baseline-card-commits {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+.past-baseline-card-stats {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.past-baseline-stat-sep {
+  margin: 0 4px;
+  color: var(--text-muted);
+}
+.past-baseline-card-summary {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ----- Mobile responsive ----- */
+@media (max-width: 639px) {
+  /* Status bar: stack left and right sections vertically */
+  .delta-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 16px 10px;
+  }
+
+  .delta-header-left {
+    align-self: flex-start;
+    width: 100%;
+  }
+
+  .delta-header-right {
+    flex-direction: row;
+    align-items: center;
+    width: 100%;
+    gap: 10px;
+  }
+
+  /* Commit info box stretches to fill, Compare button stays right */
+  .delta-header-commit-rows {
+    flex: 1;
+    min-width: 0;
+  }
+
+  /* Stats pills wrap rather than overflow */
+  .delta-header-stats {
+    flex-wrap: wrap;
+  }
+
+  /* Body: edge-to-edge cards, headers with 10px indent */
+  .delta-body {
+    padding: 16px 0;
+  }
+
+  .delta-body .findings-title-row,
+  .delta-body .overview-section-title,
+  .delta-body .overview-subsection-title {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .delta-body .findings-title-row {
+    flex-wrap: wrap;
+  }
+}

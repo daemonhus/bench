@@ -1,0 +1,260 @@
+package model
+
+// Anchor locates a finding or comment within a file at a specific commit.
+type Anchor struct {
+	FileID    string     `json:"fileId"`
+	CommitID  string     `json:"commitId"`
+	LineRange *LineRange `json:"lineRange,omitempty"`
+}
+
+type LineRange struct {
+	Start int `json:"start"`
+	End   int `json:"end"`
+}
+
+type Finding struct {
+	ID             string  `json:"id"`
+	ExternalID     string  `json:"externalId,omitempty"`
+	Anchor         Anchor  `json:"anchor"`
+	Severity       string  `json:"severity"`
+	Title          string  `json:"title"`
+	Description    string  `json:"description"`
+	CWE            string  `json:"cwe"`
+	CVE            string  `json:"cve"`
+	Vector         string  `json:"vector"`
+	Score          float64 `json:"score"`
+	Status         string  `json:"status"`
+	Source         string  `json:"source"`
+	Category       string  `json:"category"`
+	CreatedAt      string  `json:"createdAt"`
+	ResolvedCommit *string `json:"resolvedCommit,omitempty"`
+	LineHash       string  `json:"lineHash,omitempty"`
+	CommentCount   int     `json:"commentCount,omitempty"`
+}
+
+type Comment struct {
+	ID             string  `json:"id"`
+	Anchor         Anchor  `json:"anchor"`
+	Author         string  `json:"author"`
+	Text           string  `json:"text"`
+	CommentType    string  `json:"commentType,omitempty"`
+	Timestamp      string  `json:"timestamp"`
+	ThreadID       string  `json:"threadId"`
+	ParentID       *string `json:"parentId,omitempty"`
+	FindingID      *string `json:"findingId,omitempty"`
+	FeatureID      *string `json:"featureId,omitempty"`
+	ResolvedCommit *string `json:"resolvedCommit,omitempty"`
+	LineHash       string  `json:"lineHash,omitempty"`
+}
+
+// AnnotationPosition records where an annotation is at a specific commit.
+// Only stored when position or confidence changes (delta storage).
+type AnnotationPosition struct {
+	AnnotationID   string  `json:"annotationId"`
+	AnnotationType string  `json:"annotationType"` // "finding" or "comment"
+	CommitID       string  `json:"commitId"`
+	FileID         *string `json:"fileId,omitempty"`
+	LineStart      *int    `json:"lineStart,omitempty"`
+	LineEnd        *int    `json:"lineEnd,omitempty"`
+	Confidence     string  `json:"confidence"` // "exact", "moved", "orphaned"
+	CreatedAt      string  `json:"createdAt"`
+}
+
+type FindingWithPosition struct {
+	Finding
+	EffectiveAnchor *Anchor `json:"effectiveAnchor,omitempty"`
+	Confidence      string  `json:"confidence,omitempty"`
+}
+
+type CommentWithPosition struct {
+	Comment
+	EffectiveAnchor *Anchor `json:"effectiveAnchor,omitempty"`
+	Confidence      string  `json:"confidence,omitempty"`
+}
+
+type Feature struct {
+	ID             string   `json:"id"`
+	Anchor         Anchor   `json:"anchor"`
+	Kind           string   `json:"kind"` // interface|source|sink|dependency|externality
+	Title          string   `json:"title"`
+	Description    string   `json:"description,omitempty"`
+	Operation      string   `json:"operation,omitempty"` // HTTP method, gRPC method, GraphQL operation type, etc.
+	Direction      string   `json:"direction,omitempty"` // in|out
+	Protocol       string   `json:"protocol,omitempty"`
+	Status         string   `json:"status"` // draft|active|deprecated|removed|orphaned
+	Tags           []string `json:"tags"`
+	Source         string   `json:"source,omitempty"`
+	CreatedAt      string   `json:"createdAt"`
+	ResolvedCommit *string  `json:"resolvedCommit,omitempty"`
+	LineHash       string   `json:"lineHash,omitempty"`
+}
+
+type FeatureWithPosition struct {
+	Feature
+	EffectiveAnchor *Anchor `json:"effectiveAnchor,omitempty"`
+	Confidence      string  `json:"confidence,omitempty"`
+}
+
+type ReconcileFileStatus struct {
+	FileID               string `json:"fileId"`
+	RequestedCommit      string `json:"requestedCommit"`
+	LastReconciledCommit string `json:"lastReconciledCommit,omitempty"`
+	IsReconciled         bool   `json:"isReconciled"`
+	CommitsAhead         int    `json:"commitsAhead"`
+	NeedsRebase          bool   `json:"needsRebase"`
+}
+
+type ReconciledHead struct {
+	ReconciledHead    *string            `json:"reconciledHead"`
+	GitHead           string             `json:"gitHead"`
+	IsFullyReconciled bool               `json:"isFullyReconciled"`
+	Unreconciled      []UnreconciledFile `json:"unreconciled,omitempty"`
+}
+
+type UnreconciledFile struct {
+	FileID               string `json:"fileId"`
+	LastReconciledCommit string `json:"lastReconciledCommit"`
+	CommitsAhead         int    `json:"commitsAhead"`
+}
+
+type CommitInfo struct {
+	Hash      string `json:"hash"`
+	ShortHash string `json:"shortHash"`
+	Author    string `json:"author"`
+	Date      string `json:"date"`
+	Subject   string `json:"subject"`
+}
+
+type BranchInfo struct {
+	Name      string `json:"name"`
+	Head      string `json:"head"`
+	IsCurrent bool   `json:"isCurrent"`
+	IsRemote  bool   `json:"isRemote"`
+}
+
+type GraphCommit struct {
+	Hash      string   `json:"hash"`
+	ShortHash string   `json:"shortHash"`
+	Author    string   `json:"author"`
+	Date      string   `json:"date"`
+	Subject   string   `json:"subject"`
+	Parents   []string `json:"parents"`
+	Refs      []string `json:"refs"`
+}
+
+type FileEntry struct {
+	Path string `json:"path"`
+	Type string `json:"type"`
+}
+
+type DiffResult struct {
+	Raw         string `json:"raw"`
+	FullContent string `json:"fullContent"`
+}
+
+// GrepMatch is a single search hit from git grep.
+type GrepMatch struct {
+	File string `json:"file"`
+	Line int    `json:"line"`
+	Text string `json:"text"`
+}
+
+// BlameLine is a single line from git blame output.
+type BlameLine struct {
+	CommitHash string `json:"commit"`
+	Author     string `json:"author"`
+	AuthorDate string `json:"date"`
+	Line       int    `json:"line"`
+	Text       string `json:"text"`
+}
+
+// ReviewProgress tracks that a file was reviewed.
+type ReviewProgress struct {
+	FileID     string `json:"fileId"`
+	CommitID   string `json:"commitId"`
+	Reviewer   string `json:"reviewer"`
+	Note       string `json:"note,omitempty"`
+	ReviewedAt string `json:"reviewedAt"`
+}
+
+// ReviewCoverage summarizes review state for a set of files.
+type ReviewCoverage struct {
+	TotalFiles  int                `json:"totalFiles"`
+	Reviewed    int                `json:"reviewed"`
+	Unreviewed  int                `json:"unreviewed"`
+	Stale       int                `json:"stale"`
+	CoveragePct float64            `json:"coveragePct"`
+	Files       []ReviewFileStatus `json:"files,omitempty"`
+}
+
+// ReviewFileStatus is the review state of a single file.
+type ReviewFileStatus struct {
+	Path       string `json:"path"`
+	Status     string `json:"status"` // "reviewed", "stale", "unreviewed"
+	ReviewedAt string `json:"reviewedAt,omitempty"`
+	Reviewer   string `json:"reviewer,omitempty"`
+	Note       string `json:"note,omitempty"`
+}
+
+// FindingSummaryRow is an aggregate count for review summary.
+type FindingSummaryRow struct {
+	Severity string `json:"severity"`
+	Status   string `json:"status"`
+	Count    int    `json:"count"`
+}
+
+// ProjectStats is the summary data the platform needs for dashboards.
+type ProjectStats struct {
+	FindingsTotal  int            `json:"findingsTotal"`
+	FindingsOpen   int            `json:"findingsOpen"`
+	BySeverity     map[string]int `json:"bySeverity"`
+	BySeverityOpen map[string]int `json:"bySeverityOpen"`
+	ByStatus       map[string]int `json:"byStatus"`
+	ByCategory     map[string]int `json:"byCategory"`
+	CommentsTotal  int            `json:"commentsTotal"`
+	CommentsOpen   int            `json:"commentsOpen"`
+	FeaturesTotal  int            `json:"featuresTotal"`
+	FeaturesActive int            `json:"featuresActive"`
+	ByKind         map[string]int `json:"byKind"`
+}
+
+// Baseline is an atomic snapshot of the project's state at a specific commit.
+type Baseline struct {
+	ID             string         `json:"id"`
+	Seq            int            `json:"seq"`
+	CommitID       string         `json:"commitId"`
+	Reviewer       string         `json:"reviewer"`
+	Summary        string         `json:"summary"`
+	CreatedAt      string         `json:"createdAt"`
+	FindingsTotal  int            `json:"findingsTotal"`
+	FindingsOpen   int            `json:"findingsOpen"`
+	BySeverity     map[string]int `json:"bySeverity"`
+	ByStatus       map[string]int `json:"byStatus"`
+	ByCategory     map[string]int `json:"byCategory"`
+	CommentsTotal  int            `json:"commentsTotal"`
+	CommentsOpen   int            `json:"commentsOpen"`
+	FindingIDs     []string       `json:"findingIds"`
+	FeaturesTotal  int            `json:"featuresTotal"`
+	FeaturesActive int            `json:"featuresActive"`
+	ByKind         map[string]int `json:"byKind"`
+	FeatureIDs     []string       `json:"featureIds"`
+}
+
+// FileStat describes line-level change stats for a single file.
+type FileStat struct {
+	Path    string `json:"path"`
+	Added   int    `json:"added"`
+	Deleted int    `json:"deleted"`
+}
+
+// BaselineDelta describes changes since a previous baseline.
+type BaselineDelta struct {
+	SinceBaseline     *Baseline    `json:"sinceBaseline"`
+	HeadCommit        string       `json:"headCommit"`
+	NewFindings       []Finding    `json:"newFindings"`
+	RemovedFindingIDs []string     `json:"removedFindingIds"`
+	ChangedFiles      []FileStat   `json:"changedFiles"`
+	CurrentStats      ProjectStats `json:"currentStats"`
+	NewFeatures       []Feature    `json:"newFeatures"`
+	RemovedFeatureIDs []string     `json:"removedFeatureIds"`
+}

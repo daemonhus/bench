@@ -1,0 +1,218 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+    paths-ignore:
+      - "docs/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  resolve-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      should_release: ${{ steps.resolve.outputs.should_release }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version
+        id: resolve
+        run: |
+          set -euo pipefail
+
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+            echo "Tag push: releasing ${GITHUB_REF_NAME}"
+            exit 0
+          fi
+
+          BASE=$(cat VERSION | tr -d '[:space:]')
+          echo "VERSION file: ${BASE}"
+
+          # Find the highest existing patch for this major.minor
+          LAST_PATCH=$(git tag --list "v${BASE}.*" --sort=-v:refname | head -n1)
+
+          if [ -z "$LAST_PATCH" ]; then
+            PATCH=0
+          else
+            PATCH="${LAST_PATCH##*.}"
+            PATCH=$((PATCH + 1))
+          fi
+
+          NEW_TAG="v${BASE}.${PATCH}"
+          echo "version=${NEW_TAG}" >> "$GITHUB_OUTPUT"
+          echo "should_release=true" >> "$GITHUB_OUTPUT"
+          echo "Auto-release: ${NEW_TAG}"
+
+  release:
+    needs: [resolve-version]
+    if: needs.resolve-version.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: Build frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Copy frontend dist into backend
+        run: cp -r dist backend/dist
+
+      - name: Build release artifacts
+        env:
+          VERSION: ${{ needs.resolve-version.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p release
+
+          build_and_package() {
+            local name="$1" pkg="$2" goos="$3" goarch="$4"
+            local base="${name}_${VERSION}_${goos}_${goarch}"
+            local out="release/${base}"
+
+            if [ "$goos" = "windows" ]; then
+              CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" \
+                go build -C backend -trimpath -ldflags='-s -w' \
+                -o "../${out}.exe" "$pkg"
+              zip -j "release/${base}.zip" "${out}.exe"
+              rm "${out}.exe"
+            else
+              CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" \
+                go build -C backend -trimpath -ldflags='-s -w' \
+                -o "../${out}" "$pkg"
+              tar -czf "release/${base}.tar.gz" -C release "${base}"
+              rm "${out}"
+            fi
+          }
+
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
+            GOOS="${target%/*}" GOARCH="${target#*/}"
+            build_and_package benchd ./cmd/server "$GOOS" "$GOARCH"
+            build_and_package bench  ./cmd/cli    "$GOOS" "$GOARCH"
+          done
+
+          cd release && sha256sum * > checksums.txt
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.resolve-version.outputs.version }}
+          files: release/*
+          generate_release_notes: true
+
+  docker:
+    needs: [resolve-version]
+    if: needs.resolve-version.outputs.should_release == 'true'
+    strategy:
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          push: true
+          outputs: type=image,name=ghcr.io/${{ github.repository }},push-by-digest=true,name-canonical=true
+          cache-from: type=gha,scope=${{ matrix.platform }}
+          cache-to: type=gha,scope=${{ matrix.platform }},mode=max
+
+      - name: Export digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          mkdir -p /tmp/digests
+          touch "/tmp/digests/${DIGEST#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  docker-merge:
+    needs: [resolve-version, docker]
+    if: needs.resolve-version.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digest-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=${{ needs.resolve-version.outputs.version }}
+            type=raw,value=latest
+            type=sha
+
+      - name: Create and push manifest
+        run: |
+          docker buildx imagetools create \
+            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf "ghcr.io/${GITHUB_REPOSITORY}@sha256:%s " *)
+        working-directory: /tmp/digests
