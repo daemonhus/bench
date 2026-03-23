@@ -1,0 +1,37 @@
+/* ----- Annotation appear animation ----- */
+@keyframes annotation-appear {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ----- Finding departing (status-filtered out) animation ----- */
+@keyframes finding-fade-out {
+  0% { opacity: 1; }
+  70% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-4px); }
+}
+
+.finding-departing {
+  animation: finding-fade-out 2s ease-out forwards;
+}
+
+.finding-departing .finding-card {
+  animation: none;
+}
+
+/* ----- Scroll-to highlight pulse ----- */
+@keyframes scroll-highlight {
+  0%   { box-shadow: 0 0 0 0   rgba(129, 140, 248, 0.6); }
+  40%  { box-shadow: 0 0 0 4px rgba(129, 140, 248, 0.4); }
+  100% { box-shadow: 0 0 0 4px rgba(129, 140, 248, 0); }
+}
+
+.scroll-target-highlight {
+  animation: scroll-highlight 2.8s ease-out;
+}

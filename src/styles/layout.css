@@ -1,0 +1,32 @@
+/* ----- App Shell (tab bar + grid below) ----- */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ----- App Layout (grid below tab bar) ----- */
+.app-layout {
+  display: grid;
+  /* grid-template-columns set inline via style for dynamic sidebar width */
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ----- Main Panel ----- */
+.main-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ----- Mobile Drawer Backdrop ----- */
+.mobile-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: calc(var(--z-modal) - 1);
+  backdrop-filter: blur(1px);
+}

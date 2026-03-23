@@ -1,0 +1,74 @@
+/* ----- Syntax Token Colors ----- */
+.token.keyword,
+span.tok-keyword {
+  color: #ff7b72;
+}
+
+.token.string,
+span.tok-string {
+  color: #a5d6ff;
+}
+
+.token.comment,
+span.tok-comment {
+  color: #8b949e;
+  font-style: italic;
+}
+
+.token.number,
+span.tok-number {
+  color: #79c0ff;
+}
+
+.token.builtin,
+span.tok-builtin {
+  color: #d2a8ff;
+}
+
+.token.class-name,
+span.tok-class {
+  color: #ffa657;
+}
+
+.token.function,
+span.tok-function {
+  color: #d2a8ff;
+}
+
+.token.operator,
+span.tok-operator {
+  color: #ff7b72;
+}
+
+.token.punctuation,
+span.tok-punctuation {
+  color: var(--text-secondary);
+}
+
+/* ----- Selection ----- */
+.code-content ::selection {
+  background: color-mix(in srgb, var(--accent-blue) 30%, transparent);
+}
+
+/* ----- Scrollbar Styling ----- */
+.diff-view::-webkit-scrollbar,
+.sidebar-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.diff-view::-webkit-scrollbar-track,
+.sidebar-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.diff-view::-webkit-scrollbar-thumb,
+.sidebar-content::-webkit-scrollbar-thumb {
+  background: var(--bg-surface);
+  border-radius: 4px;
+}
+
+.diff-view::-webkit-scrollbar-thumb:hover,
+.sidebar-content::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+

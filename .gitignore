@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Build output
+/dist/
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+
+# Environment and local config
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# VitePress build artifacts
+docs/.vitepress/cache/
+docs/.vitepress/dist/

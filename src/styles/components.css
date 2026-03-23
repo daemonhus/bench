@@ -1,0 +1,309 @@
+/* ============================================================
+   Bench Shared Component Styles
+   Reusable primitives used by both bench and platform.
+   Depends on tokens.css being loaded first.
+
+   Primitives defined here:
+     .truncate                                  — single-line text ellipsis
+     .overlay-backdrop                          — fixed modal/overlay backdrop
+     .panel-header                              — header row with border-bottom
+     .icon-btn / --blue / --danger              — small bordered icon button
+     .seg-control / .seg-btn / .seg-btn-active  — segmented control
+       aliases: .activity-kind-toggles / .activity-kind-toggle / .activity-kind-toggle-active
+     .toggle-btn / .toggle-btn-active           — ghost binary toggle
+     .select / .select-sm / .select-mono        — native <select> base
+   ============================================================ */
+
+/* ----- Utilities ----- */
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/* ----- Overlay Backdrop ----- */
+/* Fixed full-screen scrim for modals and dialogs. */
+
+.overlay-backdrop,
+.shortcuts-overlay,
+.set-baseline-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay-heavy);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal);
+}
+
+/* ----- Panel Header Row ----- */
+/* Flex row pinned to --header-height with a bottom divider.            */
+/* Each component adds its own padding and background.                  */
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  height: var(--header-height);
+  border-bottom: 1px solid var(--border-default);
+  flex-shrink: 0;
+}
+
+/* ----- Icon Button ----- */
+/* Small bordered button for card actions (edit, delete, etc.).         */
+/* Apply intent modifier on the specific action class for hover colour. */
+
+.icon-btn,
+.finding-action-btn {
+  background: none;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xs);
+  padding: 3px 5px;
+  cursor: pointer;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color var(--transition-base), border-color var(--transition-base), background var(--transition-base);
+}
+
+.icon-btn--blue:hover {
+  color: var(--accent-blue);
+  border-color: var(--accent-blue);
+  background: color-mix(in srgb, var(--accent-blue) 8%, transparent);
+}
+
+.icon-btn--danger:hover {
+  color: var(--status-open);
+  border-color: var(--status-open);
+  background: color-mix(in srgb, var(--status-open) 8%, transparent);
+}
+
+/* ----- Segmented Control ----- */
+/* Pill container with a floating active pill. No borders or dividers. */
+
+.seg-control,
+.activity-kind-toggles {
+  display: inline-flex;
+  align-items: center;
+  background: var(--bg-surface);
+  border-radius: 8px;
+  padding: 3px;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.seg-btn,
+.activity-kind-toggle {
+  padding: 10px 16px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-base);
+  color: var(--text-muted);
+  font-size: var(--font-size-small);
+  font-family: var(--font-sans);
+  font-weight: 450;
+  letter-spacing: var(--tracking-wide);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+  white-space: nowrap;
+  line-height: 1.4;
+  user-select: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.seg-btn:hover,
+.activity-kind-toggle:hover {
+  color: var(--text-primary);
+  background: var(--hover-muted);
+}
+
+.seg-btn-active,
+.activity-kind-toggle-active {
+  background: var(--accent-blue-subtle);
+  color: var(--accent-blue);
+  font-weight: 500;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.28), 0 0 0 1px rgba(129, 140, 248, 0.18);
+  cursor: default;
+}
+
+.seg-btn::before,
+.activity-kind-toggle::before {
+  content: '';
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-right: 5px;
+  vertical-align: -2px;
+  flex-shrink: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 14 14' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M4 7h6' stroke='%2355606f' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-size: 14px 14px;
+}
+
+.seg-btn-active::before,
+.activity-kind-toggle-active::before {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 14 14' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='7' cy='7' r='6' stroke='%23818cf8' stroke-width='1.5'/%3E%3Cpath d='M4.5 7l2 2 3-3.5' stroke='%23818cf8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+.seg-btn-active:hover,
+.activity-kind-toggle-active:hover {
+  background: var(--accent-blue-subtle);
+  color: var(--accent-blue);
+}
+
+/* ----- Ghost Toggle Button ----- */
+/* For binary toggles — no border at rest, fills on active.          */
+
+.toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 10px 14px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: var(--font-size-small);
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.toggle-btn:hover {
+  background: var(--hover-muted);
+  color: var(--text-primary);
+}
+
+.toggle-btn-active {
+  background: var(--accent-blue-subtle);
+  color: var(--accent-blue);
+  cursor: default;
+}
+
+.toggle-btn-active:hover {
+  background: var(--accent-blue-subtle);
+  color: var(--accent-blue);
+}
+
+/* ----- Select base ----- */
+/* Apply to all <select> elements for consistent appearance.          */
+
+.select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: var(--bg-tertiary);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2355606f'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-ui);
+  padding: 13px 40px 13px 14px;
+  cursor: pointer;
+  outline: none;
+  transition: border-color var(--transition-base), box-shadow var(--transition-base);
+}
+
+.select:hover {
+  border-color: rgba(148, 163, 184, 0.28);
+}
+
+.select:focus {
+  border-color: var(--accent-blue);
+  box-shadow: var(--shadow-focus-blue);
+}
+
+.select option {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+/* Compact variant — same look, less vertical padding */
+.select-sm {
+  font-size: var(--font-size-small);
+  padding: 11px 36px 11px 12px;
+  background-position: right 12px center;
+}
+
+/* Monospace variant — for commit hashes, file paths, branch names */
+.select-mono {
+  font-family: var(--font-mono);
+}
+
+/* ----- Severity dot indicator ----- */
+.severity-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.severity-dot-inline {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ----- Severity count badge ----- */
+.severity-count-badge {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  color: var(--sev-color);
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--sev-color) 12%, transparent);
+  white-space: nowrap;
+}
+
+/* ----- Status badges ----- */
+.status-badge {
+  font-size: var(--font-size-xs);
+  padding: 2px 7px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: var(--tracking-wide);
+  flex-shrink: 0;
+}
+
+.status-draft {
+  background: var(--status-draft-subtle);
+  color: var(--status-draft);
+}
+
+.status-open {
+  background: var(--status-open-subtle);
+  color: var(--status-open);
+}
+
+.status-in-progress {
+  background: var(--status-in-progress-subtle);
+  color: var(--status-in-progress);
+}
+
+.status-false-positive {
+  background: var(--status-false-positive-subtle);
+  color: var(--status-false-positive);
+}
+
+.status-accepted {
+  background: var(--status-accepted-subtle);
+  color: var(--status-accepted);
+}
+
+.status-closed {
+  background: var(--status-closed-subtle);
+  color: var(--status-closed);
+}

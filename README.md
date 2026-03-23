@@ -1,0 +1,54 @@
+<div align="center">
+
+# | ▔▔▔ |
+
+**A devilishy good workbench for code reviews and long-lived annotations**
+
+</div>
+
+Most code review tooling is built around CI pipelines and issue trackers; Bench is built around the code itself.
+
+A structured workspace for findings, comments, and features: all anchored to file and line ranges and tracked across commits, so they stay accurate as the code evolves. A baseline system lets you snapshot the review state and measure progress over time, or since you (or your agent) last looked at the codebase.
+
+Ships with a CLI and MCP, for flexible integration into your workflow.
+
+## Quick Start
+
+```bash
+docker run -p 8080:8080 -v /path/to/repo:/repo:ro -v bench-data:/data ghcr.io/daemonhus/bench:latest
+```
+
+Open **http://localhost:5173**. To install CLI (Mac, see Releases for all platforms):
+
+```bash
+curl -L https://github.com/daemonhus/bench/releases/latest/download/bench_<version>_darwin_arm64.tar.gz | tar xz
+sudo mv bench /usr/local/bin/
+```
+
+## MCP
+
+All tools are available over Streamable HTTP (JSON-RPC 2.0):
+
+```bash
+claude mcp add --transport http bench http://localhost:8080/mcp
+```
+
+## Docker
+
+```bash
+docker build -f Dockerfile -t bench ..   # context is repo root (needs shared/)
+docker run -p 8080:8080 -v /path/to/repo:/repo:ro -v bench-data:/data bench
+```
+
+## Development
+
+Install dependencies, and start the server with:
+
+```bash
+npm install
+./dev.sh /path/to/git/repo    # starts Vite (5173) + Go backend (8080)
+```
+
+## License
+
+[Elastic License 2.0](LICENSE) — free to use personally or within your organisation; you may not offer it as a hosted or managed service to third parties.

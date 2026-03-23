@@ -1,0 +1,52 @@
+/* ----- Folder View (vim netrw-style) ----- */
+.folder-view {
+  flex: 1;
+  overflow-y: auto;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-code);
+  line-height: var(--line-height);
+  padding: 4px 0;
+}
+
+.folder-header {
+  padding: 6px 16px;
+  color: var(--text-muted);
+  font-size: var(--font-size-small);
+  border-bottom: 1px solid var(--border-muted);
+  margin-bottom: 2px;
+}
+
+.folder-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 16px;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  white-space: nowrap;
+}
+
+.folder-entry:hover {
+  background: var(--hover-muted);
+}
+
+.folder-entry-dir .folder-icon {
+  color: var(--accent-blue);
+  font-weight: 500;
+}
+
+.folder-entry-file .folder-name {
+  color: var(--text-primary);
+}
+
+.folder-count {
+  color: var(--text-muted);
+  font-size: var(--font-size-small);
+  margin-left: auto;
+}
+
+.folder-empty {
+  padding: 24px 16px;
+  color: var(--text-muted);
+  text-align: center;
+}
