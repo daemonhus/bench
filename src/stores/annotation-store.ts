@@ -151,7 +151,11 @@ export const useAnnotationStore = create<AnnotationState>((set, get) => ({
     set((state) => ({
       comments: [...state.comments, comment],
     }));
-    commentsApi.create(comment).catch((err) => {
+    commentsApi.create(comment).then((created) => {
+      set((state) => ({
+        comments: state.comments.map((c) => c.id === comment.id ? created as Comment : c),
+      }));
+    }).catch((err) => {
       console.error('Failed to create comment:', err);
       set((state) => ({
         comments: state.comments.filter((c) => c.id !== comment.id),
@@ -228,11 +232,17 @@ export const useAnnotationStore = create<AnnotationState>((set, get) => ({
 
   fetchCommentsForFinding: async (findingId) => {
     const fetched = await commentsApi.list(undefined, undefined, findingId);
-    // Merge into store: replace any existing comments for this finding, add new ones
     set((state) => {
-      const existingIds = new Set(state.comments.map((c) => c.id));
-      const newComments = (fetched as Comment[]).filter((c) => !existingIds.has(c.id));
-      return { comments: [...state.comments, ...newComments] };
+      const fetchedComments = fetched as Comment[];
+      const fetchedIds = new Set(fetchedComments.map((c) => c.id));
+      // Remove any temp comments for this finding (temp IDs start with CMT- and aren't in server response)
+      const withoutTemps = state.comments.filter(
+        (c) => c.findingId !== findingId || fetchedIds.has(c.id)
+      );
+      // Add any fetched comments not already in state
+      const existingIds = new Set(withoutTemps.map((c) => c.id));
+      const newComments = fetchedComments.filter((c) => !existingIds.has(c.id));
+      return { comments: [...withoutTemps, ...newComments] };
     });
   },
 

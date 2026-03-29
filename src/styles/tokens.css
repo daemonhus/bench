@@ -17,7 +17,7 @@
 
   /* Text */
   --text-primary: #e4eaf4;
-  --text-secondary: #8892a4;
+  --text-secondary: #9ba5b8;
   --text-muted: #55606f;
 
   /* Borders — translucent; rely on shadows for depth, not hard lines */
@@ -60,6 +60,12 @@
   --comment-range-border: var(--accent-blue);
   --btn-success: #238636;
   --btn-success-hover: #2ea043;
+
+  /* Tooltips — always dark regardless of theme */
+  --tooltip-bg: #1e293b;
+  --tooltip-text: #dde5f0;
+  --tooltip-border: rgba(148, 163, 184, 0.14);
+  --tooltip-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
 
   /* Typography */
   --font-mono: 'SF Mono', 'Fira Code', 'JetBrains Mono', 'Cascadia Code', Menlo,
@@ -186,17 +192,19 @@
    Light theme overrides
    ============================================================ */
 [data-theme="light"] {
-  --bg-primary: #ffffff;
-  --bg-secondary: #f6f8fa;
-  --bg-tertiary: #eef1f5;
-  --bg-surface: #e4e8ef;
+  /* Inverted depth hierarchy: cloud canvas, white cards pop */
+  --bg-primary: #edf1f7;    /* app canvas — cool cloud grey */
+  --bg-secondary: #ffffff;  /* panels, sidebar, tab bar — pure white */
+  --bg-tertiary: #f4f6fb;   /* inset fields, description blocks, hover states */
+  --bg-surface: #e4e8f0;    /* UI controls: pill toggles, badges, tracks */
 
   --text-primary: #0d1117;
-  --text-secondary: #57606a;
-  --text-muted: #9ca3af;
+  --text-secondary: #474f58;
+  --text-muted: #6b7280;   /* gray-500, ~4.6:1 on white — passes AA for UI text */
 
-  --border-default: rgba(0, 0, 0, 0.1);
-  --border-muted: rgba(0, 0, 0, 0.05);
+  /* Slightly stronger borders for better definition on light */
+  --border-default: rgba(0, 0, 0, 0.12);
+  --border-muted: rgba(0, 0, 0, 0.06);
 
   --diff-insert-bg: rgba(40, 167, 69, 0.12);
   --diff-insert-text: #1a6830;
@@ -225,6 +233,17 @@
 
   --search-match: rgba(200, 150, 0, 0.25);
   --search-match-active: rgba(200, 150, 0, 0.5);
+
+  /* Semantic colors: improved contrast on light backgrounds */
+  --severity-medium: #b45309;      /* amber-700, ~4.7:1 on white */
+  --severity-info: #4b5563;        /* gray-600,  ~5.9:1 on white */
+  --status-in-progress: #a16207;   /* yellow-700, ~3.5:1 on white */
+  --status-accepted: #7c3aed;      /* violet-700, ~4.8:1 on white */
+  --status-draft: #64748b;         /* slate-500,  ~4.6:1 on white */
+  --status-false-positive: #64748b;
+
+  /* Segmented controls / active pill shadow — matches light accent */
+  --seg-active-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(79, 70, 229, 0.2);
 }
 
 /* Light-mode syntax highlighting */

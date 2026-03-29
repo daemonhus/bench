@@ -281,7 +281,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 0 8px rgba(255, 255, 255, 0.06);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.06), var(--shadow-sm);
   transition: box-shadow var(--transition-base), background var(--transition-base), color var(--transition-base);
 }
 
@@ -319,12 +319,12 @@
   font-family: var(--font-sans);
   font-weight: 400;
   line-height: 1.4;
-  color: var(--text-primary);
-  background: #1e293b;
-  border: 1px solid var(--border-default);
+  color: var(--tooltip-text);
+  background: var(--tooltip-bg);
+  border: 1px solid var(--tooltip-border);
   border-radius: 4px;
   padding: 5px 10px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+  box-shadow: var(--tooltip-shadow);
   pointer-events: none;
   opacity: 0;
   transition: opacity var(--transition-base) ease;

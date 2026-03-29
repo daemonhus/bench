@@ -900,3 +900,9 @@
     flex-wrap: wrap;
   }
 }
+
+/* ── Light mode overrides ─────────────────────────────────────────── */
+
+[data-theme="light"] .delta-header {
+  background: #ffffff;
+}
