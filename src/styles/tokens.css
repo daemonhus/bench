@@ -182,6 +182,73 @@
   --category-dependencies:     #78716c;
 }
 
+/* ============================================================
+   Light theme overrides
+   ============================================================ */
+[data-theme="light"] {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f6f8fa;
+  --bg-tertiary: #eef1f5;
+  --bg-surface: #e4e8ef;
+
+  --text-primary: #0d1117;
+  --text-secondary: #57606a;
+  --text-muted: #9ca3af;
+
+  --border-default: rgba(0, 0, 0, 0.1);
+  --border-muted: rgba(0, 0, 0, 0.05);
+
+  --diff-insert-bg: rgba(40, 167, 69, 0.12);
+  --diff-insert-text: #1a6830;
+  --diff-insert-accent: rgba(40, 167, 69, 0.3);
+  --diff-delete-bg: rgba(203, 36, 49, 0.12);
+  --diff-delete-text: #86181d;
+  --diff-delete-accent: rgba(203, 36, 49, 0.3);
+  --diff-edit-insert-bg: rgba(40, 167, 69, 0.28);
+  --diff-edit-delete-bg: rgba(203, 36, 49, 0.28);
+
+  --accent-blue: #4f46e5;
+  --accent-purple: #7c3aed;
+  --accent-green: #059669;
+
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.12), 0 1px 4px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-popup: 0 12px 40px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-focus-blue: 0 0 0 3px rgba(79, 70, 229, 0.2);
+
+  --overlay-dark: rgba(0, 0, 0, 0.3);
+  --overlay-heavy: rgba(0, 0, 0, 0.45);
+
+  --hover-subtle: rgba(0, 0, 0, 0.04);
+  --hover-muted: rgba(0, 0, 0, 0.07);
+
+  --search-match: rgba(200, 150, 0, 0.25);
+  --search-match-active: rgba(200, 150, 0, 0.5);
+}
+
+/* Light-mode syntax highlighting */
+[data-theme="light"] .token.keyword,
+[data-theme="light"] span.tok-keyword { color: #d01040; }
+[data-theme="light"] .token.string,
+[data-theme="light"] span.tok-string { color: #0a7a4a; }
+[data-theme="light"] .token.comment,
+[data-theme="light"] span.tok-comment { color: #6a737d; }
+[data-theme="light"] .token.number,
+[data-theme="light"] span.tok-number { color: #005cc5; }
+[data-theme="light"] .token.builtin,
+[data-theme="light"] span.tok-builtin { color: #6f42c1; }
+[data-theme="light"] .token.class-name,
+[data-theme="light"] span.tok-class { color: #e36209; }
+[data-theme="light"] .token.function,
+[data-theme="light"] span.tok-function { color: #6f42c1; }
+[data-theme="light"] .token.operator,
+[data-theme="light"] span.tok-operator { color: #d01040; }
+[data-theme="light"] .token.type,
+[data-theme="light"] span.tok-type { color: #005cc5; }
+[data-theme="light"] .token.variable,
+[data-theme="light"] span.tok-variable { color: #24292e; }
+
 @media (max-width: 639px) {
   :root {
     --font-size-xs: 12px;
