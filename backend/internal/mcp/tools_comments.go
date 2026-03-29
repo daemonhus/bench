@@ -164,12 +164,12 @@ func toolCreateComment(deps *toolDeps) Tool {
 			"type": "object",
 			"properties": {
 				"file": {"type": "string", "description": "File path"},
-				"commit": {"type": "string", "description": "Commit hash"},
+				"commit": {"type": "string", "description": "Commit hash or ref (e.g. HEAD, branch name, or full SHA)"},
 				"line_start": {"type": "integer", "description": "Start line number"},
 				"line_end": {"type": "integer", "description": "End line number"},
 				"text": {"type": "string", "description": "Comment text (markdown supported)"},
 				"author": {"type": "string", "description": "Author name (e.g. 'claude', 'reviewer-alice')"},
-				"comment_type": {"type": "string", "enum": ["feature", "improvement", "question", "concern", ""], "description": "Comment category"},
+				"comment_type": {"type": "string", "enum": ["feature", "improvement", "question", "concern", ""], "description": "Comment category (code review sense): 'feature'=feature request/suggestion, 'improvement'=non-critical enhancement, 'question'=needs clarification, 'concern'=potential issue. Not related to the Feature annotation entity."},
 				"finding_id": {"type": "string", "description": "Link to a finding ID (for finding-related discussion)"},
 				"feature_id": {"type": "string", "description": "Link to a feature ID (for feature-related discussion)"},
 				"parent_id": {"type": "string", "description": "Parent comment ID (for threading)"}
@@ -263,35 +263,38 @@ func toolCreateComment(deps *toolDeps) Tool {
 func toolUpdateComment(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "update_comment",
-		Description: "Update a comment's text.",
+		Description: "Update a comment. Only specified fields are changed.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
 				"id": {"type": "string", "description": "Comment ID"},
-				"text": {"type": "string", "description": "New comment text"}
+				"text": {"type": "string", "description": "New comment text"},
+				"comment_type": {"type": "string", "enum": ["feature", "improvement", "question", "concern", ""], "description": "Comment category (code review sense): 'feature'=feature request/suggestion, 'improvement'=non-critical enhancement, 'question'=needs clarification, 'concern'=potential issue. Not related to the Feature annotation entity."},
+				"file_id": {"type": "string", "description": "New anchor file path"},
+				"commit_id": {"type": "string", "description": "New anchor commit"},
+				"line_start": {"type": "integer", "description": "New anchor start line"},
+				"line_end": {"type": "integer", "description": "New anchor end line"}
 			},
-			"required": ["id", "text"]
+			"required": ["id"]
 		}`),
 		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
-			var p struct {
-				ID   string `json:"id"`
-				Text string `json:"text"`
-			}
-			if err := json.Unmarshal(params, &p); err != nil {
+			var raw map[string]any
+			if err := json.Unmarshal(params, &raw); err != nil {
 				return "", fmt.Errorf("invalid params: %w", err)
 			}
-			if p.ID == "" || p.Text == "" {
-				return "", fmt.Errorf("id and text are required")
+			id, _ := raw["id"].(string)
+			if id == "" {
+				return "", fmt.Errorf("id is required")
 			}
+			delete(raw, "id")
 
-			err := deps.db.UpdateComment(p.ID, map[string]any{"text": p.Text})
-			if err != nil {
+			if err := deps.db.UpdateComment(id, raw); err != nil {
 				return "", err
 			}
 			if deps.broker != nil {
 				deps.broker.Publish(events.TopicAnnotations)
 			}
-			return fmt.Sprintf("Comment %s updated.", p.ID), nil
+			return fmt.Sprintf("Comment %s updated.", id), nil
 		},
 	}
 }
@@ -332,7 +335,7 @@ func toolDeleteComment(deps *toolDeps) Tool {
 func toolResolveComment(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "resolve_comment",
-		Description: "Mark a comment as resolved at a specific commit.",
+		Description: "Mark a comment (discussion thread) as resolved at a specific commit. Use this when a review discussion is addressed, not to close a vulnerability — use resolve_finding for that.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {

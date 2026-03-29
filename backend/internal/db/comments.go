@@ -144,7 +144,12 @@ func (d *DB) UpdateComment(id string, updates map[string]any) error {
 	allowed := map[string]string{
 		"text":           "text",
 		"commentType":    "comment_type",
+		"comment_type":   "comment_type",
 		"resolvedCommit": "resolved_commit",
+		"file_id":        "anchor_file_id",
+		"commit_id":      "anchor_commit_id",
+		"line_start":     "anchor_line_start",
+		"line_end":       "anchor_line_end",
 	}
 	var setClauses []string
 	var args []any

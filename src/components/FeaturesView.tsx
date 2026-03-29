@@ -48,14 +48,26 @@ const CreateFeatureModal: React.FC<CreateFeatureModalProps> = ({ onClose, onCrea
   const [direction, setDirection] = useState<'in' | 'out' | ''>('');
   const [tagsInput, setTagsInput] = useState('');
   const [status, setStatus] = useState<FeatureStatus>('draft');
+  const [fileId, setFileId] = useState('');
+  const [lineStart, setLineStart] = useState('');
+  const [lineEnd, setLineEnd] = useState('');
   const [saving, setSaving] = useState(false);
 
   const currentCommit = useRepoStore((s) => s.currentCommit);
+  const selectedFilePath = useRepoStore((s) => s.selectedFilePath);
+
+  // Pre-fill file from currently open file
+  useEffect(() => {
+    if (selectedFilePath) setFileId(selectedFilePath);
+  }, [selectedFilePath]);
 
   const handleSave = async () => {
     if (!title.trim() || !currentCommit) return;
     setSaving(true);
     const tags = tagsInput.split(',').map(t => t.trim()).filter(Boolean);
+    const start = parseInt(lineStart, 10);
+    const end = parseInt(lineEnd, 10);
+    const lineRange = start > 0 && end > 0 ? { start, end } : undefined;
     try {
       await featuresApi.create({
         kind,
@@ -66,7 +78,7 @@ const CreateFeatureModal: React.FC<CreateFeatureModalProps> = ({ onClose, onCrea
         direction: (direction || undefined) as 'in' | 'out' | undefined,
         tags,
         status,
-        anchor: { fileId: '', commitId: currentCommit },
+        anchor: { fileId: fileId.trim(), commitId: currentCommit, lineRange },
       });
       onCreated();
       onClose();
@@ -177,6 +189,40 @@ const CreateFeatureModal: React.FC<CreateFeatureModalProps> = ({ onClose, onCrea
               <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
             ))}
           </select>
+        </div>
+
+        <div className="finding-edit-row">
+          <label className="finding-edit-label">File</label>
+          <input
+            className="finding-edit-input-sm"
+            placeholder="src/api/auth.go (optional)"
+            value={fileId}
+            onChange={e => setFileId(e.target.value)}
+            style={{ flex: 1 }}
+          />
+        </div>
+
+        <div className="finding-edit-row">
+          <label className="finding-edit-label">Lines</label>
+          <input
+            className="finding-edit-input-sm"
+            placeholder="start"
+            type="number"
+            min="1"
+            value={lineStart}
+            onChange={e => setLineStart(e.target.value)}
+            style={{ width: 64 }}
+          />
+          <span style={{ padding: '0 4px', color: 'var(--text-muted)' }}>–</span>
+          <input
+            className="finding-edit-input-sm"
+            placeholder="end"
+            type="number"
+            min="1"
+            value={lineEnd}
+            onChange={e => setLineEnd(e.target.value)}
+            style={{ width: 64 }}
+          />
         </div>
 
         <div className="finding-edit-actions">

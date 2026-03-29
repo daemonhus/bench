@@ -23,7 +23,6 @@ func registerFindingTools(deps *toolDeps) []Tool {
 		toolDeleteFinding(deps),
 		toolResolveFinding(deps),
 		toolBatchCreateFindings(deps),
-		toolBatchResolveFindings(deps),
 	}
 }
 
@@ -180,7 +179,7 @@ func toolCreateFinding(deps *toolDeps) Tool {
 			"type": "object",
 			"properties": {
 				"file": {"type": "string", "description": "File path"},
-				"commit": {"type": "string", "description": "Commit where finding was identified"},
+				"commit": {"type": "string", "description": "Commit hash or ref where the finding was identified (e.g. HEAD, branch name, or full SHA)"},
 				"line_start": {"type": "integer", "description": "Start line number"},
 				"line_end": {"type": "integer", "description": "End line number"},
 				"severity": {"type": "string", "enum": ["critical", "high", "medium", "low", "info"]},
@@ -189,8 +188,11 @@ func toolCreateFinding(deps *toolDeps) Tool {
 				"cwe": {"type": "string", "description": "CWE identifier (e.g. CWE-79)"},
 				"cve": {"type": "string", "description": "CVE identifier if applicable"},
 				"external_id": {"type": "string", "description": "External identifier from source system (e.g. F001, VULN-42)"},
-				"status": {"type": "string", "enum": ["draft", "open"], "description": "Initial status (default: draft)"},
-				"category": {"type": "string", "description": "Finding category (e.g. auth, authz, session, injection, ssrf, crypto, data-exposure, input-validation, path-traversal, deserialization, race-condition, config, error-handling, logging, business-logic, dependencies)"}
+				"status": {"type": "string", "enum": ["draft", "open"], "description": "Initial status: 'draft'=tentative, not yet confirmed as a real vulnerability; 'open'=confirmed finding ready for triage. Default: draft."},
+				"category": {"type": "string", "description": "Finding category (e.g. auth, authz, session, injection, ssrf, crypto, data-exposure, input-validation, path-traversal, deserialization, race-condition, config, error-handling, logging, business-logic, dependencies)"},
+				"vector": {"type": "string", "description": "CVSS vector string"},
+				"score": {"type": "number", "description": "CVSS score"},
+				"source": {"type": "string", "description": "Source tool or scanner (default: mcp)"}
 			},
 			"required": ["file", "commit", "severity", "title", "description"]
 		}`),
@@ -289,6 +291,11 @@ func toolUpdateFinding(deps *toolDeps) Tool {
 				"external_id": {"type": "string", "description": "External identifier from source system"},
 				"status": {"type": "string", "enum": ["draft", "open", "in-progress", "false-positive", "accepted", "closed"]},
 				"category": {"type": "string", "description": "Finding category (e.g. auth, authz, session, injection, ssrf, crypto, data-exposure, input-validation, path-traversal, deserialization, race-condition, config, error-handling, logging, business-logic, dependencies)"},
+				"vector": {"type": "string", "description": "CVSS vector string"},
+				"score": {"type": "number", "description": "CVSS score"},
+				"source": {"type": "string", "description": "Source tool or scanner"},
+				"file_id": {"type": "string", "description": "New anchor file path"},
+				"commit_id": {"type": "string", "description": "New anchor commit"},
 				"line_start": {"type": "integer", "description": "Updated start line number"},
 				"line_end": {"type": "integer", "description": "Updated end line number"}
 			},
@@ -441,7 +448,7 @@ func toolResolveFinding(deps *toolDeps) Tool {
 func toolBatchCreateFindings(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "batch_create_findings",
-		Description: "Create multiple security findings in one operation. All findings are inserted in a single transaction. Each finding is tagged with source 'mcp'. Returns the list of created finding IDs. Use this instead of repeated create_finding calls. Always set line_start and line_end to anchor findings to specific code. Descriptions should reference concrete code: function names, line numbers, variable names. Before creating findings, call list_findings (with include_resolved=true) and check for existing findings on the same files. If a finding already exists that covers the same conceptual vulnerability (even with different line ranges, CWEs, or wording), update it instead of creating a duplicate.",
+		Description: "Create multiple security findings in one operation. All findings are inserted in a single transaction. Returns the list of created finding IDs. Use this instead of repeated create_finding calls. Always set line_start and line_end to anchor findings to specific code. Descriptions should reference concrete code: function names, line numbers, variable names. Before creating findings, call list_findings (with include_resolved=true) and check for existing findings on the same files. If a finding already exists that covers the same conceptual vulnerability (even with different line ranges, CWEs, or wording), update it instead of creating a duplicate.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
@@ -450,17 +457,17 @@ func toolBatchCreateFindings(deps *toolDeps) Tool {
 					"items": {
 						"type": "object",
 						"properties": {
-							"file": {"type": "string"},
-							"commit": {"type": "string"},
-							"line_start": {"type": "integer"},
-							"line_end": {"type": "integer"},
+							"file": {"type": "string", "description": "File path"},
+							"commit": {"type": "string", "description": "Commit hash or ref where the finding was identified (e.g. HEAD, branch name, or full SHA)"},
+							"line_start": {"type": "integer", "description": "Start line number"},
+							"line_end": {"type": "integer", "description": "End line number"},
 							"severity": {"type": "string", "enum": ["critical", "high", "medium", "low", "info"]},
-							"title": {"type": "string"},
-							"description": {"type": "string"},
-							"cwe": {"type": "string"},
-							"cve": {"type": "string"},
+							"title": {"type": "string", "description": "Short title for the finding"},
+							"description": {"type": "string", "description": "Detailed description — reference concrete code: function names, line numbers, variable names"},
+							"cwe": {"type": "string", "description": "CWE identifier (e.g. CWE-79)"},
+							"cve": {"type": "string", "description": "CVE identifier if applicable"},
 							"external_id": {"type": "string", "description": "External identifier from source system (e.g. F001, VULN-42)"},
-							"status": {"type": "string", "enum": ["draft", "open"]},
+							"status": {"type": "string", "enum": ["draft", "open"], "description": "Initial status: 'draft'=tentative/unconfirmed; 'open'=confirmed, ready for triage. Default: draft."},
 							"category": {"type": "string", "description": "Finding category (e.g. auth, authz, session, injection, ssrf, crypto, data-exposure, input-validation, path-traversal, deserialization, race-condition, config, error-handling, logging, business-logic, dependencies)"}
 						},
 						"required": ["file", "commit", "severity", "title", "description"]
@@ -473,18 +480,21 @@ func toolBatchCreateFindings(deps *toolDeps) Tool {
 		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
 			var p struct {
 				Findings []struct {
-					File        string `json:"file"`
-					Commit      string `json:"commit"`
-					LineStart   int    `json:"line_start"`
-					LineEnd     int    `json:"line_end"`
-					Severity    string `json:"severity"`
-					Title       string `json:"title"`
-					Description string `json:"description"`
-					CWE         string `json:"cwe"`
-					CVE         string `json:"cve"`
-					ExternalID  string `json:"external_id"`
-					Status      string `json:"status"`
-					Category    string `json:"category"`
+					File        string  `json:"file"`
+					Commit      string  `json:"commit"`
+					LineStart   int     `json:"line_start"`
+					LineEnd     int     `json:"line_end"`
+					Severity    string  `json:"severity"`
+					Title       string  `json:"title"`
+					Description string  `json:"description"`
+					CWE         string  `json:"cwe"`
+					CVE         string  `json:"cve"`
+					ExternalID  string  `json:"external_id"`
+					Status      string  `json:"status"`
+					Category    string  `json:"category"`
+					Vector      string  `json:"vector"`
+					Score       float64 `json:"score"`
+					Source      string  `json:"source"`
 				} `json:"findings"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {
@@ -514,9 +524,16 @@ func toolBatchCreateFindings(deps *toolDeps) Tool {
 					CWE:         pf.CWE,
 					CVE:         pf.CVE,
 					Status:      status,
-					Source:      "mcp",
-					Category:    pf.Category,
-					CreatedAt:   now,
+					Vector:      pf.Vector,
+					Score:       pf.Score,
+					Source: func() string {
+						if pf.Source != "" {
+							return pf.Source
+						}
+						return "mcp"
+					}(),
+					Category:  pf.Category,
+					CreatedAt: now,
 				}
 				if pf.LineStart > 0 && pf.LineEnd > 0 {
 					f.Anchor.LineRange = &model.LineRange{Start: pf.LineStart, End: pf.LineEnd}
@@ -559,67 +576,6 @@ func toolBatchCreateFindings(deps *toolDeps) Tool {
 				deps.broker.Publish(events.TopicAnnotations)
 			}
 			return fmt.Sprintf("Created %d findings: %s", len(ids), strings.Join(ids, ", ")), nil
-		},
-	}
-}
-
-func toolBatchResolveFindings(deps *toolDeps) Tool {
-	return Tool{
-		Name:        "batch_resolve_findings",
-		Description: "Mark multiple findings as resolved in one operation. Each finding gets its resolved commit set and status transitioned to 'closed'. All updates in a single transaction. Use this instead of repeated resolve_finding calls. Before resolving, add a comment to each finding (with finding_id set) explaining why it is resolved.",
-		InputSchema: json.RawMessage(`{
-			"type": "object",
-			"properties": {
-				"findings": {
-					"type": "array",
-					"items": {
-						"type": "object",
-						"properties": {
-							"id": {"type": "string", "description": "Finding ID"},
-							"commit": {"type": "string", "description": "Commit where the finding was resolved"}
-						},
-						"required": ["id", "commit"]
-					},
-					"description": "Array of {id, commit} pairs (max 100)"
-				}
-			},
-			"required": ["findings"]
-		}`),
-		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
-			var p struct {
-				Findings []struct {
-					ID     string `json:"id"`
-					Commit string `json:"commit"`
-				} `json:"findings"`
-			}
-			if err := json.Unmarshal(params, &p); err != nil {
-				return "", fmt.Errorf("invalid params: %w", err)
-			}
-			if len(p.Findings) == 0 {
-				return "", fmt.Errorf("findings array is required and must not be empty")
-			}
-			if len(p.Findings) > 100 {
-				return "", fmt.Errorf("maximum 100 findings per batch")
-			}
-			for i, f := range p.Findings {
-				if f.ID == "" || f.Commit == "" {
-					return "", fmt.Errorf("finding %d: id and commit are required", i)
-				}
-			}
-
-			items := make([]struct{ ID, Commit string }, len(p.Findings))
-			for i, f := range p.Findings {
-				items[i] = struct{ ID, Commit string }{f.ID, f.Commit}
-			}
-
-			count, err := deps.db.BatchResolveFindings(items)
-			if err != nil {
-				return "", err
-			}
-			if deps.broker != nil {
-				deps.broker.Publish(events.TopicAnnotations)
-			}
-			return fmt.Sprintf("Resolved %d of %d findings.", count, len(p.Findings)), nil
 		},
 	}
 }

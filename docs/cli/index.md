@@ -224,14 +224,14 @@ bench features list --kind sink --status active
 # Get full details
 bench features get --id <feature-id>
 
-# Annotate an interface
+# Annotate an interface (title is the endpoint name, not the method — use --operation for that)
 bench features create \
   --file-id src/api/auth.go \
   --commit-id HEAD \
   --line-start 12 \
   --line-end 28 \
   --kind interface \
-  --title "POST /login" \
+  --title "Login endpoint" \
   --operation POST \
   --protocol rest \
   --direction in

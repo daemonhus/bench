@@ -127,6 +127,8 @@ func (d *DB) UpdateFeature(id string, updates map[string]any) (*model.Feature, e
 		"protocol":        "protocol",
 		"status":          "status",
 		"source":          "source",
+		"file_id":         "anchor_file_id",
+		"commit_id":       "anchor_commit_id",
 		"line_start":      "anchor_line_start",
 		"line_end":        "anchor_line_end",
 		"line_hash":       "line_hash",

@@ -120,7 +120,7 @@ func toolGetSummary(deps *toolDeps) Tool {
 func toolSearchFindings(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "search_findings",
-		Description: "Search findings by title or description text. Returns matching findings across all files.",
+		Description: "Full-text search across finding titles and descriptions. Use this when you know a keyword or concept (e.g. 'injection', 'token', 'eval'). For structured filtering by severity, status, or file, use list_findings instead.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
