@@ -16,6 +16,8 @@ All endpoints return JSON. Error responses use standard HTTP status codes.
 | `GET` | `/api/git/diff-files` | Files changed between two commits |
 | `GET` | `/api/git/branches` | Branch list |
 | `GET` | `/api/git/graph` | Commit graph |
+| `GET` | `/api/git/blame` | Git blame for a file |
+| `GET` | `/api/git/search` | Regex search across file contents |
 
 ### GET /api/git/commits
 
@@ -73,6 +75,7 @@ Returns `GraphCommit[]` for rendering a commit graph.
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/api/findings` | List findings |
+| `GET` | `/api/findings/{id}` | Get a finding |
 | `POST` | `/api/findings` | Create a finding |
 | `PATCH` | `/api/findings/{id}` | Update a finding |
 | `DELETE` | `/api/findings/{id}` | Delete a finding |
@@ -146,7 +149,8 @@ Returns `Comment[]`.
   "text": "This needs a prepared statement",
   "threadId": "optional-thread-id",
   "parentId": "optional-parent-comment-id",
-  "findingId": "optional-related-finding-id"
+  "findingId": "optional-related-finding-id",
+  "featureId": "optional-related-feature-id"
 }
 ```
 
@@ -156,11 +160,12 @@ Baselines are immutable snapshots of the review state at a specific git commit. 
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/baselines` | List baselines (most recent first, limit 50) |
+| `GET` | `/api/baselines` | List baselines (most recent first, default limit 20) |
 | `GET` | `/api/baselines/latest` | Most recent baseline or 404 |
 | `GET` | `/api/baselines/delta` | Delta since the latest baseline |
 | `GET` | `/api/baselines/{id}/delta` | Delta between this baseline and its predecessor |
 | `POST` | `/api/baselines` | Create a new baseline |
+| `PATCH` | `/api/baselines/{id}` | Update reviewer or summary |
 | `DELETE` | `/api/baselines/{id}` | Delete a baseline |
 
 ### POST /api/baselines
@@ -194,7 +199,11 @@ If `commitId` is omitted, defaults to the tip of the default branch (main/master
   byCategory: Record<string, number>
   commentsTotal: number
   commentsOpen: number
+  featuresTotal: number
+  featuresActive: number
+  byKind: Record<string, number>
   findingIds: string[]  // every finding ID at snapshot time
+  featureIds: string[]  // every feature ID at snapshot time
 }
 ```
 
@@ -264,6 +273,7 @@ Two delta modes:
   threadId?: string
   parentId?: string
   findingId?: string
+  featureId?: string
   resolvedCommit?: string
 }
 ```

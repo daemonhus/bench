@@ -60,6 +60,27 @@ A code review note.
 }
 ```
 
+### Feature
+
+An architectural annotation marking a security-relevant surface: API endpoint, data flow, dependency, or background externality.
+
+```typescript
+{
+  id: string
+  anchor: Anchor
+  kind: 'interface' | 'source' | 'sink' | 'dependency' | 'externality'
+  title: string
+  description?: string
+  status: 'draft' | 'active'
+  direction?: 'in' | 'out'   // data flow relative to the service
+  operation?: string          // HTTP method, gRPC method, GraphQL op, etc.
+  protocol?: string           // e.g. rest, grpc, graphql, websocket
+  source?: string
+  tags?: string[]
+  createdAt: string
+}
+```
+
 ### Baseline
 
 An immutable snapshot of review state at a point in time. Records every finding ID and aggregate stats. Never changes once created.
@@ -101,6 +122,35 @@ What changed since a baseline.
   currentStats: ProjectStats
 }
 ```
+
+## Classification Guide
+
+### Feature kinds
+
+| Kind | Use when… |
+|------|-----------|
+| `interface` | The service **exposes** this entry point — an HTTP handler, gRPC method, WebSocket endpoint, or message consumer. External actors call or send to it. |
+| `source` | The service **reads** from this — a DB query, file read, cache lookup, inbound queue. Data enters your processing pipeline at this point. |
+| `sink` | The service **writes** to this — a DB write, outbound HTTP call, file write, message publish. Data leaves your processing pipeline here. |
+| `dependency` | A third-party library or external service **as a whole** — when the security concern is about the dependency itself (trust, version, supply chain), not a specific data flow. |
+| `externality` | A background job, cron task, event handler, or async side-effect that runs **without an inbound request** triggering it. |
+
+**Ambiguous cases:**
+
+- **`interface` vs `source`:** Ask who initiates. If an external actor triggers it → `interface` (even though it produces input data). If the service itself initiates a read → `source`. An HTTP handler is `interface`; a DB query inside that handler is `source`.
+- **`sink` vs `dependency`:** Use `sink` for a specific outbound data flow (sending email, writing to S3). Use `dependency` for the library or service itself when the concern is the integration, not a specific call. A codebase can have one `dependency` for the AWS SDK and many `sink` annotations for individual S3 writes.
+- **Same system, two roles:** A database often appears as both `source` (reads) and `sink` (writes) — annotate each at its specific code location.
+- **`externality` vs `interface`:** If triggered by a scheduler or internal event → `externality`. If triggered by an inbound webhook or message → `interface` with `direction: in`.
+
+### Comment types
+
+| Type | Use when… |
+|------|-----------|
+| `concern` | Something warrants attention but isn't a confirmed vulnerability — a smell, a weak pattern, a missing control. Use a **Finding** for confirmed issues. |
+| `question` | You need clarification before making a judgment. |
+| `improvement` | A non-critical suggestion — cleaner, safer, or more robust code, not a security issue. |
+| `feature` | The comment is about a feature annotation itself (link via `featureId`). |
+| *(empty)* | A general note that doesn't fit the above. |
 
 ## Typical Review Workflow
 

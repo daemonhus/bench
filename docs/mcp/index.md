@@ -12,7 +12,7 @@ The endpoint is at `http://localhost:8080/mcp`. All tools are scoped to the sing
 
 ## Tool groups
 
-Tools are organized into six groups matching the CLI categories:
+Tools are organized into seven groups matching the CLI categories:
 
 | Group | Tools |
 |-------|-------|
@@ -116,6 +116,8 @@ No parameters.
 | `commit` | string | no | Filter by commit |
 | `severity` | string | no | Filter by severity |
 | `status` | string | no | Filter by status |
+| `category` | string | no | Filter by category |
+| `include_resolved` | bool | no | Include resolved findings (default: false) |
 
 ### get_finding
 
@@ -174,7 +176,7 @@ No parameters.
 
 ### batch_create_findings
 
-Create multiple findings in a single transaction. Accepts the same fields as `create_finding` in a `findings` array. All-or-nothing - rolls back on any error.
+Create multiple findings in a single transaction. Accepts the same fields as `create_finding` in a `findings` array (`title`, `severity`, `file`, `commit`, `line_start`, `line_end`, `description`, `cwe`, `cve`, `vector`, `score`, `status`, `source`, `category`). All-or-nothing - rolls back on any error.
 
 ---
 
@@ -183,8 +185,9 @@ Create multiple findings in a single transaction. Accepts the same fields as `cr
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `file` | string | no | Filter by file path |
-| `finding_id` | string | no | Filter by associated finding |
-| `commit` | string | no | Filter by commit |
+| `finding_id` | string | no | Filter to comments linked to this finding |
+| `feature_id` | string | no | Filter to comments linked to this feature |
+| `include_resolved` | bool | no | Include resolved comments (default: false) |
 | `full_text` | bool | no | Return full comment bodies (default: false, truncates at 120 chars) |
 
 ### get_comment / delete_comment
@@ -206,6 +209,7 @@ Create multiple findings in a single transaction. Accepts the same fields as `cr
 | `thread_id` | string | no | Thread grouping ID |
 | `parent_id` | string | no | Parent comment ID |
 | `finding_id` | string | no | Related finding ID |
+| `feature_id` | string | no | Related feature ID |
 
 ### update_comment
 
@@ -213,6 +217,7 @@ Create multiple findings in a single transaction. Accepts the same fields as `cr
 |-----------|------|----------|-------------|
 | `id` | string | yes | Comment ID |
 | `text` | string | no | New text |
+| `author` | string | no | New author name |
 
 ### resolve_comment
 

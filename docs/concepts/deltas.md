@@ -2,7 +2,7 @@
 
 A delta answers the question: **what changed since the last time I looked?**
 
-Deltas are computed against [baselines](/api/baselines) - immutable snapshots of the review state at a point in time. By comparing the current state to a baseline, you get a precise account of what findings were added, which were removed, and which files in the codebase changed underneath them.
+Deltas are computed against [baselines](/baselines) - immutable snapshots of the review state at a point in time. By comparing the current state to a baseline, you get a precise account of what findings were added, which were removed, and which files in the codebase changed underneath them.
 
 ## What a delta contains
 
