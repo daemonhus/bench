@@ -101,6 +101,9 @@ export const FindingCard: React.FC<FindingCardProps> = ({
   const [vector, setVector] = useState(finding.vector);
   const [score, setScore] = useState(finding.score);
   const [category, setCategory] = useState(finding.category ?? '');
+  const [anchorFileId, setAnchorFileId] = useState(finding.anchor.fileId ?? '');
+  const [anchorLineStart, setAnchorLineStart] = useState(finding.anchor.lineRange?.start?.toString() ?? '');
+  const [anchorLineEnd, setAnchorLineEnd] = useState(finding.anchor.lineRange?.end?.toString() ?? '');
 
   const lineRange = getEffectiveLineRange(finding);
   const confidence = getConfidence(finding);
@@ -126,6 +129,9 @@ export const FindingCard: React.FC<FindingCardProps> = ({
     setVector(finding.vector);
     setScore(finding.score);
     setCategory(finding.category ?? '');
+    setAnchorFileId(finding.anchor.fileId ?? '');
+    setAnchorLineStart(finding.anchor.lineRange?.start?.toString() ?? '');
+    setAnchorLineEnd(finding.anchor.lineRange?.end?.toString() ?? '');
     setEditing(true);
   };
 
@@ -133,7 +139,9 @@ export const FindingCard: React.FC<FindingCardProps> = ({
     e.stopPropagation();
     const trimmedTitle = title.trim();
     if (!trimmedTitle) return;
-    updateFinding(finding.id, {
+    const startNum = parseInt(anchorLineStart, 10);
+    const endNum = parseInt(anchorLineEnd, 10);
+    const updates: Record<string, unknown> = {
       title: trimmedTitle,
       description: description.trim(),
       severity,
@@ -143,8 +151,11 @@ export const FindingCard: React.FC<FindingCardProps> = ({
       cve: cve.trim(),
       vector: vector.trim(),
       score,
-      category: category,
-    });
+      category,
+    };
+    if (anchorFileId.trim()) updates['file_id'] = anchorFileId.trim();
+    if (startNum > 0 && endNum > 0) { updates['line_start'] = startNum; updates['line_end'] = endNum; }
+    updateFinding(finding.id, updates);
     setEditing(false);
   };
 
@@ -316,6 +327,40 @@ export const FindingCard: React.FC<FindingCardProps> = ({
               step="0.1"
               value={score}
               onChange={(e) => setScore(parseFloat(e.target.value) || 0)}
+            />
+          </div>
+
+          <div className="finding-edit-row">
+            <label className="finding-edit-label">File</label>
+            <input
+              className="finding-edit-input-sm"
+              value={anchorFileId}
+              onChange={(e) => setAnchorFileId(e.target.value)}
+              placeholder="src/api/auth.go"
+              style={{ flex: 1 }}
+            />
+          </div>
+
+          <div className="finding-edit-row">
+            <label className="finding-edit-label">Lines</label>
+            <input
+              className="finding-edit-input-sm"
+              type="number"
+              min="1"
+              value={anchorLineStart}
+              onChange={(e) => setAnchorLineStart(e.target.value)}
+              placeholder="start"
+              style={{ width: 64 }}
+            />
+            <span style={{ padding: '0 4px', color: 'var(--text-muted)' }}>–</span>
+            <input
+              className="finding-edit-input-sm"
+              type="number"
+              min="1"
+              value={anchorLineEnd}
+              onChange={(e) => setAnchorLineEnd(e.target.value)}
+              placeholder="end"
+              style={{ width: 64 }}
             />
           </div>
 

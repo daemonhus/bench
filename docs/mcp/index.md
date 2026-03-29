@@ -130,7 +130,7 @@ No parameters.
 | `title` | string | yes | Short title |
 | `severity` | string | yes | `critical` \| `high` \| `medium` \| `low` \| `info` |
 | `file` | string | no | File path |
-| `commit` | string | no | Git commit |
+| `commit` | string | no | Commit hash or ref (e.g. `HEAD`, branch name, or full SHA) |
 | `line_start` | int | no | Start line |
 | `line_end` | int | no | End line |
 | `description` | string | no | Detailed description |
@@ -138,7 +138,7 @@ No parameters.
 | `cve` | string | no | CVE identifier |
 | `vector` | string | no | CVSS vector |
 | `score` | float | no | CVSS score |
-| `status` | string | no | Initial status (default: `open`) |
+| `status` | string | no | Initial status: `draft` (tentative) or `open` (confirmed). Default: `draft`. |
 | `source` | string | no | Tool or scanner that found it |
 | `category` | string | no | Category label |
 
@@ -250,14 +250,14 @@ Annotate an architectural feature: an API interface, data source/sink, dependenc
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `file` | string | yes | File path |
-| `commit` | string | yes | Commit where the feature was identified |
-| `kind` | string | yes | `interface` \| `source` \| `sink` \| `dependency` \| `externality` |
-| `title` | string | yes | Short title |
+| `commit` | string | yes | Commit hash or ref (e.g. `HEAD`, branch name, or full SHA) |
+| `kind` | string | yes | `interface` (API endpoint/handler) \| `source` (data input: DB read, file read) \| `sink` (data output: DB write, outbound call) \| `dependency` (third-party lib/service) \| `externality` (background job, scheduler, side-effect) |
+| `title` | string | yes | Short label — do **not** include the HTTP method here (e.g. `"Login endpoint"`, not `"POST /login"`). Use `operation` for the method. |
 | `line_start` | int | no | Start line |
 | `line_end` | int | no | End line |
 | `description` | string | no | Detailed description |
-| `operation` | string | no | HTTP method, gRPC method, GraphQL operation type, etc. |
-| `direction` | string | no | Data flow direction: `in` \| `out` |
+| `operation` | string | no | HTTP method (GET/POST/…), gRPC method name, GraphQL operation type (query/mutation/subscription), etc. |
+| `direction` | string | no | Data flow relative to the service: `in` (entering) \| `out` (leaving) |
 | `protocol` | string | no | Protocol (e.g. `rest`, `grpc`, `graphql`, `websocket`) |
 | `status` | string | no | Initial status (default: `active`) |
 | `tags` | string[] | no | Optional tags |

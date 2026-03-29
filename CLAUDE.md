@@ -121,6 +121,8 @@ set_baseline            ← checkpoint the updated state
 
 ## MCP Tools
 
+> **When to use MCP vs CLI:** If you are connected via MCP, use MCP tools — they are the primary interface. The CLI is for human operators and shell scripting. Do not mix them: MCP uses `file`/`commit` as parameter names; the CLI uses `--file-id`/`--commit-id`. All `commit` parameters accept a hash, ref, or `HEAD`.
+
 ### git
 
 | Tool | Description |
@@ -164,7 +166,7 @@ set_baseline            ← checkpoint the updated state
 
 | Tool | Description |
 |------|-------------|
-| `create_feature` | Params: `file` (req), `commit` (req), `kind` (req: `interface`\|`source`\|`sink`\|`dependency`\|`externality`), `title` (req), `line_start`, `line_end`, `description`, `operation`, `direction` (`in`\|`out`), `protocol`, `status` (default `active`), `tags`, `source` |
+| `create_feature` | Params: `file` (req), `commit` (req), `kind` (req: `interface`\|`source`\|`sink`\|`dependency`\|`externality`), `title` (req, e.g. `"Login endpoint"` — do **not** include the HTTP method in the title; use `operation` for that), `line_start`, `line_end`, `description`, `operation` (HTTP method, gRPC method, GraphQL operation type, etc.), `direction` (`in`\|`out`), `protocol`, `status` (default `active`), `tags`, `source` |
 | `list_features` | Params: `file`, `kind`, `status` |
 | `get_feature` | Params: `id` (req) |
 | `update_feature` | Params: `id` (req), then any of: `kind`, `title`, `description`, `operation`, `direction`, `protocol`, `status`, `tags`, `line_start`, `line_end` |
@@ -198,6 +200,8 @@ set_baseline            ← checkpoint the updated state
 
 ## CLI Quick Reference
 
+> **Note:** CLI flag names differ from MCP parameter names. MCP uses `file`/`commit`; CLI uses `--file-id`/`--commit-id`. All `--commit-id` flags accept a hash, ref, or `HEAD`. For `batch-create`, pipe a JSON array of objects matching the create fields (same shape as MCP batch schemas) to stdin.
+
 ```bash
 # Git exploration
 bench git search-code --pattern "eval(" --case-insensitive
@@ -217,7 +221,7 @@ bench findings search --query "injection"
 cat findings.json | bench findings batch-create
 
 # Features
-bench features create --file-id src/api/auth.go --commit-id HEAD --kind interface --title "POST /login"
+bench features create --file-id src/api/auth.go --commit-id HEAD --kind interface --title "Login endpoint" --operation POST
 bench features list --kind sink
 bench features update --id <id> --status deprecated
 

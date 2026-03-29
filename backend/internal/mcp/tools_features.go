@@ -150,14 +150,14 @@ func toolCreateFeature(deps *toolDeps) Tool {
 			"type": "object",
 			"properties": {
 				"file": {"type": "string", "description": "File path"},
-				"commit": {"type": "string", "description": "Commit where the feature was identified"},
+				"commit": {"type": "string", "description": "Commit hash or ref where the feature was identified (e.g. HEAD, branch name, or full SHA)"},
 				"line_start": {"type": "integer", "description": "Start line number"},
 				"line_end": {"type": "integer", "description": "End line number"},
-				"kind": {"type": "string", "enum": ["interface","source","sink","dependency","externality"], "description": "Feature kind"},
-				"title": {"type": "string", "description": "Short title for the feature"},
+				"kind": {"type": "string", "enum": ["interface","source","sink","dependency","externality"], "description": "Feature kind: 'interface'=API endpoint or protocol handler (HTTP, gRPC, WebSocket), 'source'=data input (DB read, file read, inbound queue), 'sink'=data output (DB write, outbound API call, file write), 'dependency'=third-party library or external service, 'externality'=background job, scheduler, event handler, or side-effect"},
+				"title": {"type": "string", "description": "Short label for the feature — do NOT include the HTTP method or protocol prefix here (e.g. 'Login endpoint', not 'POST /login'). Use operation for the HTTP method."},
 				"description": {"type": "string", "description": "Detailed description"},
 				"operation": {"type": "string", "description": "HTTP method (GET/POST/…), gRPC method name, GraphQL operation type (query/mutation/subscription), or other protocol operation"},
-				"direction": {"type": "string", "enum": ["in","out"], "description": "Data flow direction (for interfaces/sources/sinks)"},
+				"direction": {"type": "string", "enum": ["in","out"], "description": "Data flow direction relative to the service: 'in'=data entering the service (inbound request, consumed message), 'out'=data leaving the service (outbound call, produced message, write to store)"},
 				"protocol": {"type": "string", "description": "Protocol (e.g. rest, grpc, graphql, websocket)"},
 				"status": {"type": "string", "enum": ["draft","active"], "description": "Initial status (default: active)"},
 				"tags": {"type": "array", "items": {"type": "string"}, "description": "Optional tags"},
@@ -245,7 +245,11 @@ func toolCreateFeature(deps *toolDeps) Tool {
 			if deps.broker != nil {
 				deps.broker.Publish(events.TopicAnnotations)
 			}
-			return fmt.Sprintf("Created feature %s: %s (%s)", f.ID, f.Title, f.Kind), nil
+			b, err := json.MarshalIndent(f, "", "  ")
+			if err != nil {
+				return "", err
+			}
+			return fmt.Sprintf("Created feature %s:\n%s", f.ID, string(b)), nil
 		},
 	}
 }
@@ -258,6 +262,8 @@ func toolUpdateFeature(deps *toolDeps) Tool {
 			"type": "object",
 			"properties": {
 				"id": {"type": "string", "description": "Feature ID"},
+				"file_id": {"type": "string", "description": "New anchor file path"},
+				"commit_id": {"type": "string", "description": "New anchor commit"},
 				"kind": {"type": "string", "enum": ["interface","source","sink","dependency","externality"]},
 				"title": {"type": "string"},
 				"description": {"type": "string"},
@@ -266,6 +272,7 @@ func toolUpdateFeature(deps *toolDeps) Tool {
 				"protocol": {"type": "string"},
 				"status": {"type": "string", "enum": ["draft","active","deprecated","removed","orphaned"]},
 				"tags": {"type": "array", "items": {"type": "string"}},
+				"source": {"type": "string", "description": "Source tool or scanner"},
 				"line_start": {"type": "integer"},
 				"line_end": {"type": "integer"}
 			},
@@ -345,19 +352,19 @@ func toolBatchCreateFeatures(deps *toolDeps) Tool {
 					"items": {
 						"type": "object",
 						"properties": {
-							"file": {"type": "string"},
-							"commit": {"type": "string"},
-							"line_start": {"type": "integer"},
-							"line_end": {"type": "integer"},
-							"kind": {"type": "string", "enum": ["interface","source","sink","dependency","externality"]},
-							"title": {"type": "string"},
-							"description": {"type": "string"},
-							"operation": {"type": "string"},
-							"direction": {"type": "string"},
-							"protocol": {"type": "string"},
-							"status": {"type": "string", "enum": ["draft","active"]},
-							"tags": {"type": "array", "items": {"type": "string"}},
-							"source": {"type": "string"}
+							"file": {"type": "string", "description": "File path"},
+							"commit": {"type": "string", "description": "Commit hash or ref where the feature was identified (e.g. HEAD, branch name, or full SHA)"},
+							"line_start": {"type": "integer", "description": "Start line number"},
+							"line_end": {"type": "integer", "description": "End line number"},
+							"kind": {"type": "string", "enum": ["interface","source","sink","dependency","externality"], "description": "Feature kind: 'interface'=API endpoint or protocol handler (HTTP, gRPC, WebSocket), 'source'=data input (DB read, file read, inbound queue), 'sink'=data output (DB write, outbound API call, file write), 'dependency'=third-party library or external service, 'externality'=background job, scheduler, event handler, or side-effect"},
+							"title": {"type": "string", "description": "Short label for the feature — do NOT include the HTTP method or protocol prefix here (e.g. 'Login endpoint', not 'POST /login'). Use operation for the HTTP method."},
+							"description": {"type": "string", "description": "Detailed description"},
+							"operation": {"type": "string", "description": "HTTP method (GET/POST/…), gRPC method name, GraphQL operation type (query/mutation/subscription), or other protocol operation"},
+							"direction": {"type": "string", "description": "Data flow direction relative to the service: 'in'=data entering the service (inbound request, consumed message), 'out'=data leaving the service (outbound call, produced message, write to store)"},
+							"protocol": {"type": "string", "description": "Protocol (e.g. rest, grpc, graphql, websocket)"},
+							"status": {"type": "string", "enum": ["draft","active"], "description": "Initial status (default: active)"},
+							"tags": {"type": "array", "items": {"type": "string"}, "description": "Optional tags"},
+							"source": {"type": "string", "description": "Tool or scanner that identified the feature"}
 						},
 						"required": ["file", "commit", "kind", "title"]
 					},

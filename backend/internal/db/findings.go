@@ -103,6 +103,8 @@ func (d *DB) UpdateFinding(id string, updates map[string]any) (*model.Finding, e
 		"externalId":     "external_id",
 		"external_id":    "external_id",
 		"category":       "category",
+		"file_id":        "anchor_file_id",
+		"commit_id":      "anchor_commit_id",
 		"line_start":     "anchor_line_start",
 		"line_end":       "anchor_line_end",
 		"line_hash":      "line_hash",

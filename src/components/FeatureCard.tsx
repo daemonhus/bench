@@ -98,6 +98,10 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
   const [direction, setDirection] = useState(feature.direction ?? '');
   const [protocol, setProtocol] = useState(feature.protocol ?? '');
   const [tagsInput, setTagsInput] = useState((feature.tags ?? []).join(', '));
+  const [source, setSource] = useState(feature.source ?? '');
+  const [anchorFileId, setAnchorFileId] = useState(feature.anchor.fileId ?? '');
+  const [anchorLineStart, setAnchorLineStart] = useState(feature.anchor.lineRange?.start?.toString() ?? '');
+  const [anchorLineEnd, setAnchorLineEnd] = useState(feature.anchor.lineRange?.end?.toString() ?? '');
 
   const fp = feature as Feature & { effectiveAnchor?: { fileId?: string; commitId?: string; lineRange?: { start: number; end: number } }; confidence?: string };
   const lineRange = fp.effectiveAnchor?.lineRange ?? feature.anchor.lineRange;
@@ -157,7 +161,12 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
 
   const handleSave = () => {
     const tags = tagsInput.split(',').map((t) => t.trim()).filter(Boolean);
-    updateFeature(feature.id, { title, description, kind, status, operation: operation || undefined, direction: (direction || undefined) as 'in' | 'out' | undefined, protocol: protocol || undefined, tags });
+    const startNum = parseInt(anchorLineStart, 10);
+    const endNum = parseInt(anchorLineEnd, 10);
+    const updates: Record<string, unknown> = { title, description, kind, status, operation: operation || undefined, direction: (direction || undefined) as 'in' | 'out' | undefined, protocol: protocol || undefined, tags, source: source || undefined };
+    if (anchorFileId.trim()) updates['file_id'] = anchorFileId.trim();
+    if (startNum > 0 && endNum > 0) { updates['line_start'] = startNum; updates['line_end'] = endNum; }
+    updateFeature(feature.id, updates);
     setEditing(false);
   };
 
@@ -170,6 +179,10 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
     setDirection(feature.direction ?? '');
     setProtocol(feature.protocol ?? '');
     setTagsInput((feature.tags ?? []).join(', '));
+    setSource(feature.source ?? '');
+    setAnchorFileId(feature.anchor.fileId ?? '');
+    setAnchorLineStart(feature.anchor.lineRange?.start?.toString() ?? '');
+    setAnchorLineEnd(feature.anchor.lineRange?.end?.toString() ?? '');
     setEditing(false);
   };
 
@@ -400,6 +413,42 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
                   value={tagsInput}
                   onChange={(e) => setTagsInput(e.target.value)}
                   placeholder="Tags (comma-separated)"
+                />
+              </div>
+              <div className="finding-form-row">
+                <input
+                  className="finding-input"
+                  value={source}
+                  onChange={(e) => setSource(e.target.value)}
+                  placeholder="Source (e.g. manual, semgrep)"
+                />
+              </div>
+              <div className="finding-form-row">
+                <input
+                  className="finding-input"
+                  value={anchorFileId}
+                  onChange={(e) => setAnchorFileId(e.target.value)}
+                  placeholder="Anchor file path"
+                />
+              </div>
+              <div className="finding-form-row" style={{ display: 'flex', gap: 6 }}>
+                <input
+                  className="finding-input"
+                  type="number"
+                  min="1"
+                  value={anchorLineStart}
+                  onChange={(e) => setAnchorLineStart(e.target.value)}
+                  placeholder="Line start"
+                  style={{ flex: 1 }}
+                />
+                <input
+                  className="finding-input"
+                  type="number"
+                  min="1"
+                  value={anchorLineEnd}
+                  onChange={(e) => setAnchorLineEnd(e.target.value)}
+                  placeholder="Line end"
+                  style={{ flex: 1 }}
                 />
               </div>
               <div className="finding-edit-actions">
