@@ -146,6 +146,9 @@ export function App() {
   const initialRouteApplied = useRef(false);
   const initialCommitApplied = useRef(false);
   const prevJobStatus = useRef<string | null>(null);
+  // Set to true when updating app state in response to a browser back/forward event,
+  // so updateRoute uses replaceState instead of pushState (avoids duplicate history entries).
+  const isHandlingHashChange = useRef(false);
 
   // Sidebar resize
   const resizingRef = useRef(false);
@@ -425,6 +428,7 @@ export function App() {
   // Listen for hash changes
   useEffect(() => {
     return onRouteChange((route) => {
+      isHandlingHashChange.current = true;
       setViewMode(route.mode);
       if (route.mode === 'diff' && route.from && route.to) {
         setCompareFrom(route.from);
@@ -446,8 +450,13 @@ export function App() {
     (mode: ViewMode, from?: string, to?: string, path?: string) => {
       const newHash = buildRoute(mode as Parameters<typeof buildRoute>[0], from, to, path);
       if (window.location.hash !== newHash) {
-        window.history.replaceState(null, '', newHash);
+        if (isHandlingHashChange.current) {
+          window.history.replaceState(null, '', newHash);
+        } else {
+          window.history.pushState(null, '', newHash);
+        }
       }
+      isHandlingHashChange.current = false;
     },
     [],
   );

@@ -7,6 +7,9 @@ import type { Finding, Comment, Severity, FindingStatus } from '../core/types';
 import { FINDING_CATEGORIES, getEffectiveLineRange, getConfidence } from '../core/types';
 import { InlineMarkdown } from '../core/markdown';
 import { useBranchMap } from '../core/use-branch-map';
+import { gitApi } from '../core/api';
+import { detectLanguage, ensureLanguageRegistered } from '../core/language-map';
+import { highlight, renderToken } from '../core/tokenizer';
 
 interface FindingCardProps {
   finding: Finding;
@@ -52,6 +55,7 @@ export const FindingCard: React.FC<FindingCardProps> = ({
   const fetchCommentsForFinding = useAnnotationStore((s) => s.fetchCommentsForFinding);
   const findingComments = useAnnotationStore((s) => s.getCommentsForFinding(finding.id));
   const branches = useRepoStore((s) => s.branches);
+  const viewMode = useUIStore((s) => s.viewMode);
   const reconciledHead = useReconcileStore((s) => s.head);
   const gitHead = reconciledHead?.gitHead ?? null;
 
@@ -116,6 +120,43 @@ export const FindingCard: React.FC<FindingCardProps> = ({
   const fileId = finding.anchor.fileId;
   const fileName = fileId ? fileId.split('/').pop() : null;
   const parentDir = fileId && fileId.includes('/') ? fileId.split('/').slice(-2, -1)[0] : null;
+
+  // Snippet state
+  const [fileLines, setFileLines] = useState<{ lines: string[]; lang: string } | null>(null);
+  const [extraBefore, setExtraBefore] = useState(0);
+  const [extraAfter, setExtraAfter] = useState(0);
+
+  useEffect(() => {
+    if (!isExpanded || !lineRange || !finding.anchor.fileId) { setFileLines(null); return; }
+    const commitId = finding.anchor.commitId;
+    if (!commitId) return;
+    const lang = detectLanguage(finding.anchor.fileId) ?? '';
+    let cancelled = false;
+    setExtraBefore(0);
+    setExtraAfter(0);
+    gitApi.getFileContent(commitId, finding.anchor.fileId)
+      .then(async ({ content }) => {
+        if (lang) await ensureLanguageRegistered(lang);
+        if (cancelled) return;
+        setFileLines({ lines: content.split('\n'), lang });
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [isExpanded, lineRange?.start, lineRange?.end, finding.anchor.fileId, finding.anchor.commitId]);
+
+  const snippet = useMemo(() => {
+    if (!fileLines || !lineRange) return null;
+    const CONTEXT = 1;
+    const from = Math.max(0, lineRange.start - 1 - CONTEXT - extraBefore);
+    const to = Math.min(fileLines.lines.length, lineRange.end + CONTEXT + extraAfter);
+    return {
+      lines: fileLines.lines.slice(from, to),
+      startLine: from + 1,
+      lang: fileLines.lang,
+      canExpandUp: from > 0,
+      canExpandDown: to < fileLines.lines.length,
+    };
+  }, [fileLines, lineRange, extraBefore, extraAfter]);
 
   const handleStartEdit = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -446,6 +487,32 @@ export const FindingCard: React.FC<FindingCardProps> = ({
             <div className="finding-detail-row">
               <span className="finding-detail-label">Vector</span>
               <span className="finding-detail-value finding-vector-value">{finding.vector}</span>
+            </div>
+          )}
+
+          {snippet && lineRange && viewMode !== 'browse' && (
+            <div className="feature-snippet">
+              {snippet.canExpandUp && (
+                <button className="feature-snippet-expand" onClick={() => setExtraBefore((n) => n + 5)}>
+                  ▲ 5 more
+                </button>
+              )}
+              {snippet.lines.map((line, i) => {
+                const lineNum = snippet.startLine + i;
+                const isHighlighted = lineNum >= lineRange.start && lineNum <= lineRange.end;
+                const tokens = snippet.lang ? highlight(line, snippet.lang) : [{ type: 'text' as const, value: line }];
+                return (
+                  <div key={i} className={`feature-snippet-row${isHighlighted ? ' feature-snippet-row-highlight' : ''}`}>
+                    <span className="feature-snippet-ln">{lineNum}</span>
+                    <code className="feature-snippet-code">{tokens.map((t, ti) => renderToken(t, ti))}</code>
+                  </div>
+                );
+              })}
+              {snippet.canExpandDown && (
+                <button className="feature-snippet-expand" onClick={() => setExtraAfter((n) => n + 5)}>
+                  ▼ 5 more
+                </button>
+              )}
             </div>
           )}
         </div>
