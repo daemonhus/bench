@@ -24,7 +24,7 @@ import (
 	"time"
 )
 
-const cliVersion = "0.2.0"
+var cliVersion = "dev"
 
 const defaultBaseURL = "http://localhost:8080"
 
@@ -132,7 +132,7 @@ var commands = []cmdDef{
 			{Name: "status", Param: "status", Desc: "Filter by status [draft|open|in-progress|false-positive|accepted|closed]"},
 		}},
 	{Cat: "findings", Name: "get", Desc: "Get a single finding by ID.",
-		EP: endpoint{"GET", "/api/findings"},
+		EP: endpoint{"GET", "/api/findings/{id}"},
 		Flags: []flagDef{
 			{Name: "id", Param: "id", Desc: "Finding ID", Required: true},
 		}},
@@ -195,7 +195,7 @@ var commands = []cmdDef{
 			{Name: "commit", Param: "commit", Desc: "Enrich with positions at this commit"},
 		}},
 	{Cat: "comments", Name: "get", Desc: "Get a single comment by ID.",
-		EP: endpoint{"GET", "/api/comments"},
+		EP: endpoint{"GET", "/api/comments/{id}"},
 		Flags: []flagDef{
 			{Name: "id", Param: "id", Desc: "Comment ID", Required: true},
 		}},
@@ -284,6 +284,11 @@ var commands = []cmdDef{
 			{Name: "file-id", Param: "fileId", Desc: "Filter by file path"},
 			{Name: "kind", Param: "kind", Desc: "Filter by kind [interface|source|sink|dependency|externality]"},
 			{Name: "status", Param: "status", Desc: "Filter by status [draft|active|deprecated|removed|orphaned]"},
+		}},
+	{Cat: "features", Name: "get", Desc: "Get a single feature annotation by ID.",
+		EP: endpoint{"GET", "/api/features/{id}"},
+		Flags: []flagDef{
+			{Name: "id", Param: "id", Desc: "Feature ID", Required: true},
 		}},
 	{Cat: "features", Name: "create", Desc: "Create a new feature annotation.",
 		EP: endpoint{"POST", "/api/features"},

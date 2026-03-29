@@ -1,6 +1,6 @@
 # Bench CLI
 
-Command-line interface to the bench bench. Every MCP tool is available as a CLI command - same behaviour, same data, no running server required.
+Command-line interface to the bench workbench. Requires a running `benchd` server — the CLI talks to it over REST.
 
 ## Install
 
@@ -24,10 +24,10 @@ sudo mv bench /usr/local/bin/
 ## Quick start
 
 ```bash
-# Point at any git repository
-bench --repo /path/to/project git search-code --pattern "eval("
+# Start the server first
+benchd --repo /path/to/project --db /path/to/review.db &
 
-# List findings (uses current directory by default)
+# Then use the CLI (defaults to http://localhost:8080)
 bench findings list --severity high
 
 # Set a baseline after a review session
@@ -42,14 +42,12 @@ bench baselines delta
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--url` | `http://localhost:8080` | Base URL of the bench server |
-| `--repo` | `.` | Path to the git repository |
-| `--db` | `bench.db` | Path to the SQLite database file |
 | `--version` | | Print version and exit |
 
 Global flags go **before** the category and command:
 
 ```bash
-bench --repo /path/to/repo --db /path/to/review.db findings list
+bench --url http://my-bench-server:8080 findings list
 ```
 
 You can also set the server URL via the `BENCH_URL` environment variable — useful when running bench in Docker or against a remote instance:
@@ -204,6 +202,9 @@ bench comments create \
 # List comments for a file
 bench comments list --file-id src/api/auth.go
 
+# Get full details
+bench comments get --id <comment-id>
+
 # Batch-create
 bench comments batch-create --input comments.json
 ```
@@ -219,6 +220,9 @@ bench features list --kind interface
 
 # Filter by status
 bench features list --kind sink --status active
+
+# Get full details
+bench features get --id <feature-id>
 
 # Annotate an interface
 bench features create \
@@ -305,16 +309,19 @@ bench reconcile history --id <finding-id> --type finding
 bench reconcile head
 ```
 
-## Shared database
+## Relationship to the server
 
-The CLI and server (and MCP) all use the same SQLite database:
+The CLI talks to a running `benchd` server over its REST API — it has no direct database access. Start the server first, then use the CLI against it:
 
 ```bash
-# Server running on port 8080, reviewing project at /code/myapp
-bench-srv --repo /code/myapp --db /data/myapp.db --addr :8080 &
+# Start the server
+benchd --repo /code/myapp --db /data/myapp.db &
 
-# CLI reads and writes to the same db
-bench --repo /code/myapp --db /data/myapp.db findings list
+# CLI talks to the server (default: http://localhost:8080)
+bench findings list
+
+# Or point at a remote/Docker instance
+bench --url http://docker-host:8080 findings list
 ```
 
 ## Relationship to MCP

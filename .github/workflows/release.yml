@@ -96,16 +96,20 @@ jobs:
             local name="$1" pkg="$2" goos="$3" goarch="$4"
             local base="${name}_${VERSION}_${goos}_${goarch}"
             local out="release/${base}"
+            local ldflags='-s -w'
+            if [ "$pkg" = "./cmd/cli" ]; then
+              ldflags="-s -w -X main.cliVersion=${VERSION#v}"
+            fi
 
             if [ "$goos" = "windows" ]; then
               CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" \
-                go build -C backend -trimpath -ldflags='-s -w' \
+                go build -C backend -trimpath -ldflags="$ldflags" \
                 -o "../${out}.exe" "$pkg"
               zip -j "release/${base}.zip" "${out}.exe"
               rm "${out}.exe"
             else
               CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" \
-                go build -C backend -trimpath -ldflags='-s -w' \
+                go build -C backend -trimpath -ldflags="$ldflags" \
                 -o "../${out}" "$pkg"
               tar -czf "release/${base}.tar.gz" -C release "${base}"
               rm "${out}"

@@ -28,18 +28,21 @@ func NewRouter(repo *git.Repo, database *db.DB, broker *events.Broker) http.Hand
 
 	fh := &findingsHandlers{db: database, repo: repo, reconciler: reconciler, broker: broker}
 	mux.HandleFunc("GET /api/findings", fh.list)
+	mux.HandleFunc("GET /api/findings/{id}", fh.get)
 	mux.HandleFunc("POST /api/findings", fh.create)
 	mux.HandleFunc("PATCH /api/findings/{id}", fh.update)
 	mux.HandleFunc("DELETE /api/findings/{id}", fh.delete)
 
 	ch := &commentsHandlers{db: database, repo: repo, reconciler: reconciler, broker: broker}
 	mux.HandleFunc("GET /api/comments", ch.list)
+	mux.HandleFunc("GET /api/comments/{id}", ch.get)
 	mux.HandleFunc("POST /api/comments", ch.create)
 	mux.HandleFunc("PATCH /api/comments/{id}", ch.update)
 	mux.HandleFunc("DELETE /api/comments/{id}", ch.delete)
 
 	featureh := &featuresHandlers{db: database, repo: repo, reconciler: reconciler, broker: broker}
 	mux.HandleFunc("GET /api/features", featureh.list)
+	mux.HandleFunc("GET /api/features/{id}", featureh.get)
 	mux.HandleFunc("POST /api/features", featureh.create)
 	mux.HandleFunc("PATCH /api/features/{id}", featureh.update)
 	mux.HandleFunc("DELETE /api/features/{id}", featureh.delete)

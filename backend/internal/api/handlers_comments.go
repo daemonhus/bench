@@ -137,6 +137,24 @@ func (h *commentsHandlers) create(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, c)
 }
 
+func (h *commentsHandlers) get(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "id is required")
+		return
+	}
+	comment, err := h.db.GetComment(id)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			writeError(w, http.StatusNotFound, "comment not found")
+		} else {
+			writeInternalError(w, err)
+		}
+		return
+	}
+	writeJSON(w, http.StatusOK, comment)
+}
+
 func (h *commentsHandlers) update(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if id == "" {

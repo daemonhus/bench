@@ -145,6 +145,24 @@ func (h *featuresHandlers) create(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, f)
 }
 
+func (h *featuresHandlers) get(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "id is required")
+		return
+	}
+	feature, err := h.db.GetFeature(id)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			writeError(w, http.StatusNotFound, "feature not found")
+		} else {
+			writeInternalError(w, err)
+		}
+		return
+	}
+	writeJSON(w, http.StatusOK, feature)
+}
+
 func (h *featuresHandlers) update(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if id == "" {
