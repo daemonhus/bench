@@ -12,6 +12,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -750,6 +751,145 @@ func printCommandHelp(cmd *cmdDef) {
 		}
 		tw.Flush()
 	}
+
+	// For batch commands, show the JSON item schema derived from the
+	// corresponding create command's flags.
+	for _, f := range cmd.Flags {
+		if f.Type != "batch" {
+			continue
+		}
+		var createCmd *cmdDef
+		for i := range commands {
+			if commands[i].Cat == cmd.Cat && commands[i].Name == "create" {
+				createCmd = &commands[i]
+				break
+			}
+		}
+		if createCmd == nil {
+			break
+		}
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintf(os.Stderr, "Input format (%s):\n", cmd.Cat)
+		fmt.Fprintln(os.Stderr, "  JSON array of objects. Flat anchor fields (file, commit, line_start, line_end)")
+		fmt.Fprintln(os.Stderr, "  are promoted to the nested anchor automatically. IDs are generated if omitted.")
+		var req, opt []string
+		for _, fl := range createCmd.Flags {
+			if fl.Name == "id" {
+				continue // auto-generated for batch
+			}
+			name := strings.ReplaceAll(fl.Name, "-", "_")
+			switch fl.Name {
+			case "file-id":
+				name = "file"
+			case "commit-id":
+				name = "commit"
+			}
+			if fl.Required {
+				req = append(req, name)
+			} else {
+				opt = append(opt, name)
+			}
+		}
+		sort.Strings(req)
+		sort.Strings(opt)
+		if len(req) > 0 {
+			fmt.Fprintf(os.Stderr, "    required: %s\n", strings.Join(req, ", "))
+		}
+		if len(opt) > 0 {
+			fmt.Fprintf(os.Stderr, "    optional: %s\n", strings.Join(opt, ", "))
+		}
+		break
+	}
+}
+
+// normalizeBatchItem transforms a batch JSON item into the REST API format.
+// It promotes flat anchor fields (file/commit/line_start/line_end) into the
+// nested anchor object the API expects, and auto-generates an id if absent.
+func normalizeBatchItem(raw json.RawMessage) (json.RawMessage, error) {
+	var obj map[string]any
+	if err := json.Unmarshal(raw, &obj); err != nil {
+		return nil, err
+	}
+
+	// Auto-generate id if missing.
+	if _, ok := obj["id"]; !ok {
+		obj["id"] = newID()
+	}
+
+	// Collect or create the anchor sub-object.
+	anchor, _ := obj["anchor"].(map[string]any)
+	if anchor == nil {
+		anchor = make(map[string]any)
+	}
+
+	// file / file_id / fileId → anchor.fileId
+	for _, k := range []string{"file", "file_id", "fileId"} {
+		if v, ok := obj[k]; ok {
+			anchor["fileId"] = v
+			delete(obj, k)
+		}
+	}
+	// commit / commit_id / commitId → anchor.commitId
+	for _, k := range []string{"commit", "commit_id", "commitId"} {
+		if v, ok := obj[k]; ok {
+			anchor["commitId"] = v
+			delete(obj, k)
+		}
+	}
+	// line_start / lineStart and line_end / lineEnd → anchor.lineRange
+	var lineStart, lineEnd *int
+	for _, k := range []string{"line_start", "lineStart"} {
+		if v, ok := obj[k]; ok {
+			if n, ok := anyToInt(v); ok {
+				lineStart = &n
+			}
+			delete(obj, k)
+		}
+	}
+	for _, k := range []string{"line_end", "lineEnd"} {
+		if v, ok := obj[k]; ok {
+			if n, ok := anyToInt(v); ok {
+				lineEnd = &n
+			}
+			delete(obj, k)
+		}
+	}
+	if lineStart != nil && lineEnd != nil {
+		lr, _ := anchor["lineRange"].(map[string]any)
+		if lr == nil {
+			lr = make(map[string]any)
+		}
+		lr["start"] = *lineStart
+		lr["end"] = *lineEnd
+		anchor["lineRange"] = lr
+	}
+
+	if len(anchor) > 0 {
+		obj["anchor"] = anchor
+	}
+
+	return json.Marshal(obj)
+}
+
+func newID() string {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	b[6] = (b[6] & 0x0f) | 0x40 // version 4
+	b[8] = (b[8] & 0x3f) | 0x80 // variant
+	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
+		b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
+}
+
+func anyToInt(v any) (int, bool) {
+	switch n := v.(type) {
+	case float64:
+		return int(n), true
+	case int:
+		return n, true
+	case int64:
+		return int(n), true
+	}
+	return 0, false
 }
 
 func firstSentence(s string) string {
@@ -917,7 +1057,13 @@ func main() {
 	if len(batchItems) > 0 {
 		var errors int
 		for i, item := range batchItems {
-			data, status, err := client.do(method, path, bytes.NewReader(item))
+			normalized, err := normalizeBatchItem(item)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "[%d/%d] Error normalizing item: %v\n", i+1, len(batchItems), err)
+				errors++
+				continue
+			}
+			data, status, err := client.do(method, path, bytes.NewReader(normalized))
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "[%d/%d] Error: %v\n", i+1, len(batchItems), err)
 				errors++
