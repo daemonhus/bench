@@ -183,9 +183,10 @@ The `--help` for any batch command shows the expected JSON structure:
 ```bash
 bench findings batch-create --help
 # Input format (findings):
-#   JSON array of objects. Each object supports:
-#     required: commit, description, file, severity, title
-#     optional: category, cve, cwe, external_id, line_end, line_start, status
+#   JSON array of objects. Flat anchor fields (file, commit, line_start, line_end)
+#   are promoted to the nested anchor automatically. IDs are generated if omitted.
+#     required: severity, title
+#     optional: category, commit, cve, cwe, description, file, line_end, line_start, score, source, status, vector
 ```
 
 ## comments
