@@ -24,6 +24,7 @@ func NewRouter(repo *git.Repo, database *db.DB, broker *events.Broker) http.Hand
 	mux.HandleFunc("GET /api/git/diff-files", gh.diffFiles)
 	mux.HandleFunc("GET /api/git/branches", gh.listBranches)
 	mux.HandleFunc("GET /api/git/graph", gh.graph)
+	mux.HandleFunc("GET /api/git/blame", gh.blame)
 	mux.HandleFunc("GET /api/git/search", gh.search)
 
 	fh := &findingsHandlers{db: database, repo: repo, reconciler: reconciler, broker: broker}

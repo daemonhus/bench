@@ -86,28 +86,33 @@ var commands = []cmdDef{
 			{Name: "max-results", Param: "max_results", Desc: "Maximum results to return", Type: "int"},
 		}},
 	{Cat: "git", Name: "blame", Desc: "Show git blame for a file.",
-		EP: endpoint{"GET", "/api/git/show/{commitish}/{path}"},
+		EP: endpoint{"GET", "/api/git/blame"},
 		Flags: []flagDef{
-			{Name: "commit", Param: "commitish", Desc: "Commit (default: HEAD)"},
 			{Name: "path", Param: "path", Desc: "File path", Required: true},
+			{Name: "commit", Param: "commit", Desc: "Commit (default: HEAD)"},
+			{Name: "line-start", Param: "line_start", Desc: "Start of line range", Type: "int"},
+			{Name: "line-end", Param: "line_end", Desc: "End of line range", Type: "int"},
 		}},
 	{Cat: "git", Name: "read-file", Desc: "Read file contents at a specific commit.",
 		EP: endpoint{"GET", "/api/git/show/{commitish}/{path}"},
 		Flags: []flagDef{
 			{Name: "commit", Param: "commitish", Desc: "Commit (default: HEAD)"},
 			{Name: "path", Param: "path", Desc: "File path", Required: true},
+			{Name: "line-start", Param: "line_start", Desc: "First line to return (1-indexed)", Type: "int"},
+			{Name: "line-end", Param: "line_end", Desc: "Last line to return (inclusive)", Type: "int"},
 		}},
 	{Cat: "git", Name: "list-files", Desc: "List files in the repository tree.",
 		EP: endpoint{"GET", "/api/git/tree/{commitish}"},
 		Flags: []flagDef{
 			{Name: "commit", Param: "commitish", Desc: "Commit (default: HEAD)"},
+			{Name: "prefix", Param: "prefix", Desc: "Filter to paths under this directory prefix"},
 		}},
 	{Cat: "git", Name: "diff", Desc: "Show diff between two commits for a file.",
 		EP: endpoint{"GET", "/api/git/diff"},
 		Flags: []flagDef{
 			{Name: "from", Param: "from", Desc: "From commit", Required: true},
 			{Name: "to", Param: "to", Desc: "To commit", Required: true},
-			{Name: "path", Param: "path", Desc: "File path", Required: true},
+			{Name: "path", Param: "path", Desc: "File path (optional, scopes to a single file)"},
 		}},
 	{Cat: "git", Name: "changed-files", Desc: "List files changed between two commits.",
 		EP: endpoint{"GET", "/api/git/diff-files"},
@@ -118,7 +123,10 @@ var commands = []cmdDef{
 	{Cat: "git", Name: "commits", Desc: "List recent commits.",
 		EP: endpoint{"GET", "/api/git/commits"},
 		Flags: []flagDef{
-			{Name: "limit", Param: "limit", Desc: "Max commits to return", Type: "int"},
+			{Name: "limit", Param: "limit", Desc: "Max commits to return (default: 20, max: 500)", Type: "int"},
+			{Name: "from-commit", Param: "from_commit", Desc: "Start of range (exclusive)"},
+			{Name: "to-commit", Param: "to_commit", Desc: "End of range (inclusive, default: HEAD)"},
+			{Name: "path", Param: "path", Desc: "Only commits touching this file path"},
 		}},
 	{Cat: "git", Name: "branches", Desc: "List branches.",
 		EP: endpoint{"GET", "/api/git/branches"}},
@@ -131,6 +139,8 @@ var commands = []cmdDef{
 			{Name: "commit", Param: "commit", Desc: "Enrich with positions at this commit"},
 			{Name: "severity", Param: "severity", Desc: "Filter by severity [critical|high|medium|low|info]"},
 			{Name: "status", Param: "status", Desc: "Filter by status [draft|open|in-progress|false-positive|accepted|closed]"},
+			{Name: "category", Param: "category", Desc: "Filter by category"},
+			{Name: "include-resolved", Param: "include_resolved", Desc: "Include resolved findings", Type: "bool"},
 		}},
 	{Cat: "findings", Name: "get", Desc: "Get a single finding by ID.",
 		EP: endpoint{"GET", "/api/findings/{id}"},
@@ -150,10 +160,11 @@ var commands = []cmdDef{
 			{Name: "description", Param: "description", Desc: "Detailed description"},
 			{Name: "cwe", Param: "cwe", Desc: "CWE identifier"},
 			{Name: "cve", Param: "cve", Desc: "CVE identifier"},
+			{Name: "external-id", Param: "externalId", Desc: "External identifier from source system"},
 			{Name: "vector", Param: "vector", Desc: "CVSS vector string"},
-			{Name: "score", Param: "score", Desc: "CVSS score"},
-			{Name: "status", Param: "status", Desc: "Status [draft|open|in-progress|false-positive|accepted|closed]"},
-			{Name: "source", Param: "source", Desc: "Source (e.g. manual, tool name)"},
+			{Name: "score", Param: "score", Desc: "CVSS score", Type: "float"},
+			{Name: "status", Param: "status", Desc: "Status [draft|open|in-progress|false-positive|accepted|closed] (default: open)"},
+			{Name: "source", Param: "source", Desc: "Source [pentest|tool|manual|mcp] (default: manual)"},
 			{Name: "category", Param: "category", Desc: "Finding category"},
 		}},
 	{Cat: "findings", Name: "update", Desc: "Update a finding (partial update).",
@@ -161,14 +172,15 @@ var commands = []cmdDef{
 		Flags: []flagDef{
 			{Name: "id", Param: "id", Desc: "Finding ID", Required: true},
 			{Name: "title", Param: "title", Desc: "New title"},
-			{Name: "severity", Param: "severity", Desc: "New severity"},
+			{Name: "severity", Param: "severity", Desc: "New severity [critical|high|medium|low|info]"},
 			{Name: "description", Param: "description", Desc: "New description"},
-			{Name: "status", Param: "status", Desc: "New status"},
+			{Name: "status", Param: "status", Desc: "New status [draft|open|in-progress|false-positive|accepted|closed]"},
 			{Name: "cwe", Param: "cwe", Desc: "CWE identifier"},
 			{Name: "cve", Param: "cve", Desc: "CVE identifier"},
+			{Name: "external-id", Param: "external_id", Desc: "External identifier from source system"},
 			{Name: "vector", Param: "vector", Desc: "CVSS vector string"},
-			{Name: "score", Param: "score", Desc: "CVSS score", Type: "int"},
-			{Name: "source", Param: "source", Desc: "Source tool or scanner"},
+			{Name: "score", Param: "score", Desc: "CVSS score", Type: "float"},
+			{Name: "source", Param: "source", Desc: "Source tool or scanner [pentest|tool|manual|mcp]"},
 			{Name: "category", Param: "category", Desc: "Finding category"},
 			{Name: "file-id", Param: "file_id", Desc: "New anchor file path"},
 			{Name: "commit-id", Param: "commit_id", Desc: "New anchor commit"},
@@ -180,11 +192,12 @@ var commands = []cmdDef{
 		Flags: []flagDef{
 			{Name: "id", Param: "id", Desc: "Finding ID", Required: true},
 		}},
-	{Cat: "findings", Name: "resolve", Desc: "Resolve a finding at a specific commit.",
+	{Cat: "findings", Name: "resolve", Desc: "Resolve a finding at a specific commit. Sets status to 'closed'.",
 		EP: endpoint{"PATCH", "/api/findings/{id}"},
 		Flags: []flagDef{
 			{Name: "id", Param: "id", Desc: "Finding ID", Required: true},
 			{Name: "commit", Param: "resolvedCommit", Desc: "Commit at which the finding was resolved", Required: true},
+			{Name: "status", Param: "status", Desc: "Status to set (default: closed)"},
 		}},
 	{Cat: "findings", Name: "search", Desc: "Search findings by title or description text.",
 		EP: endpoint{"GET", "/api/findings/search"},
@@ -193,7 +206,7 @@ var commands = []cmdDef{
 			{Name: "status", Param: "status", Desc: "Filter by status"},
 			{Name: "severity", Param: "severity", Desc: "Filter by severity"},
 		}},
-	{Cat: "findings", Name: "batch-create", Desc: "Create multiple findings from JSON input.",
+	{Cat: "findings", Name: "batch-create", Desc: "Create multiple findings from JSON input. Required per item: file, commit, title, severity [critical|high|medium|low|info]. Optional: status [draft|open|in-progress|false-positive|accepted|closed] (default: open), source [pentest|tool|manual|mcp] (default: manual), score (float), cwe, cve, category.",
 		EP:    endpoint{"POST", "/api/findings"},
 		Flags: []flagDef{{Name: "input", Param: "_input", Desc: "JSON file (default: stdin)", Type: "batch"}}},
 
@@ -205,6 +218,7 @@ var commands = []cmdDef{
 			{Name: "finding-id", Param: "findingId", Desc: "Filter by finding ID"},
 			{Name: "feature-id", Param: "featureId", Desc: "Filter by feature ID"},
 			{Name: "commit", Param: "commit", Desc: "Enrich with positions at this commit"},
+			{Name: "include-resolved", Param: "include_resolved", Desc: "Include resolved comments", Type: "bool"},
 		}},
 	{Cat: "comments", Name: "get", Desc: "Get a single comment by ID.",
 		EP: endpoint{"GET", "/api/comments/{id}"},
@@ -232,6 +246,7 @@ var commands = []cmdDef{
 		Flags: []flagDef{
 			{Name: "id", Param: "id", Desc: "Comment ID", Required: true},
 			{Name: "text", Param: "text", Desc: "New text"},
+			{Name: "author", Param: "author", Desc: "New author"},
 			{Name: "comment-type", Param: "commentType", Desc: "Comment type [feature|improvement|question|concern]"},
 			{Name: "file-id", Param: "file_id", Desc: "New anchor file path"},
 			{Name: "commit-id", Param: "commit_id", Desc: "New anchor commit"},
@@ -263,7 +278,10 @@ var commands = []cmdDef{
 			{Name: "commit", Param: "commitId", Desc: "Commit ID (default: HEAD)"},
 		}},
 	{Cat: "baselines", Name: "list", Desc: "List baselines.",
-		EP: endpoint{"GET", "/api/baselines"}},
+		EP: endpoint{"GET", "/api/baselines"},
+		Flags: []flagDef{
+			{Name: "limit", Param: "limit", Desc: "Maximum number to return (default: 20)", Type: "int"},
+		}},
 	{Cat: "baselines", Name: "delta", Desc: "Show changes since the latest baseline.",
 		EP: endpoint{"GET", "/api/baselines/delta"},
 		Flags: []flagDef{
@@ -358,7 +376,7 @@ var commands = []cmdDef{
 	{Cat: "reconcile", Name: "start", Desc: "Start reconciling annotations to a target commit.",
 		EP: endpoint{"POST", "/api/reconcile"},
 		Flags: []flagDef{
-			{Name: "target-commit", Param: "targetCommit", Desc: "Target commit", Required: true},
+			{Name: "target-commit", Param: "targetCommit", Desc: "Target commit (default: HEAD)"},
 			{Name: "file-paths", Param: "filePaths", Desc: "Comma-separated file paths (default: all)", Type: "list"},
 		}},
 	{Cat: "reconcile", Name: "head", Desc: "Show reconciled HEAD status.",
@@ -499,6 +517,13 @@ func buildRequest(cmd *cmdDef, pf *parsedFlags) (method, path string, body io.Re
 	method = cmd.EP.Method
 	path = cmd.EP.Path
 
+	// Handle special case: findings resolve defaults status to "closed".
+	if cmd.Cat == "findings" && cmd.Name == "resolve" {
+		if _, ok := pf.values["status"]; !ok {
+			pf.values["status"] = "closed"
+		}
+	}
+
 	// Handle special case: delta with ID → use /{id}/delta endpoint.
 	if cmd.Cat == "baselines" && cmd.Name == "delta" {
 		if id, ok := pf.values["id"]; ok {
@@ -598,7 +623,10 @@ func buildRequest(cmd *cmdDef, pf *parsedFlags) (method, path string, body io.Re
 				obj["id"] = newID()
 			}
 		}
-		// Handle anchor fields specially for findings/comments create.
+		// Handle anchor fields specially for findings/comments/features create.
+		// Only these categories use anchor-wrapped fileId/commitId/lineRange.
+		// Other commands (e.g. baselines set) use commitId as a top-level field.
+		useAnchor := cmd.Cat == "findings" || cmd.Cat == "comments" || cmd.Cat == "features"
 		var anchor map[string]any
 		for _, fd := range cmd.Flags {
 			if pathParams[fd.Name] {
@@ -608,22 +636,28 @@ func buildRequest(cmd *cmdDef, pf *parsedFlags) (method, path string, body io.Re
 			if !ok || val == "" {
 				continue
 			}
-			// Group anchor fields.
-			switch fd.Param {
-			case "fileId", "commitId":
-				if anchor == nil {
-					anchor = make(map[string]any)
+			// Group anchor fields only for annotation commands.
+			if useAnchor {
+				switch fd.Param {
+				case "fileId", "commitId":
+					if anchor == nil {
+						anchor = make(map[string]any)
+					}
+					anchor[fd.Param] = val
+					continue
+				case "lineStart", "lineEnd":
+					if anchor == nil {
+						anchor = make(map[string]any)
+					}
+					// Will be set below after we check both.
 				}
-				anchor[fd.Param] = val
-				continue
-			case "lineStart", "lineEnd":
-				if anchor == nil {
-					anchor = make(map[string]any)
-				}
-				// Will be set below after we check both.
 			}
 
 			switch fd.Type {
+			case "float":
+				var n float64
+				fmt.Sscanf(val, "%f", &n)
+				obj[fd.Param] = n
 			case "int":
 				var n int
 				fmt.Sscanf(val, "%d", &n)
@@ -739,6 +773,8 @@ func printCommandHelp(cmd *cmdDef) {
 			switch f.Type {
 			case "int":
 				typeHint = "int"
+			case "float":
+				typeHint = "float"
 			case "bool":
 				typeHint = ""
 			case "list":

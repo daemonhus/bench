@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strings"
 )
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
@@ -22,6 +23,17 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 func writeInternalError(w http.ResponseWriter, err error) {
 	log.Printf("internal error: %v", err)
 	writeError(w, http.StatusInternalServerError, "internal error")
+}
+
+// writeDBError returns a 400 for SQLite constraint violations so callers see
+// the real reason (e.g. "CHECK constraint failed: status IN (...)") instead of
+// an opaque 500.  All other DB errors fall through to writeInternalError.
+func writeDBError(w http.ResponseWriter, err error) {
+	if strings.Contains(strings.ToLower(err.Error()), "constraint") {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeInternalError(w, err)
 }
 
 // decodeBody reads and decodes a JSON request body with a 1MB limit.

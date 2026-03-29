@@ -55,6 +55,7 @@ A code review note.
   threadId?: string   // groups comments into a thread
   parentId?: string   // reply to a specific comment
   findingId?: string  // link to a related finding
+  featureId?: string  // link to a related feature
   resolvedCommit?: string
 }
 ```
@@ -78,7 +79,11 @@ An immutable snapshot of review state at a point in time. Records every finding 
   byCategory: Record<string, number>
   commentsTotal: number
   commentsOpen: number
+  featuresTotal: number
+  featuresActive: number
+  byKind: Record<string, number>   // e.g. { interface: 3, sink: 2 }
   findingIds: string[]  // every finding ID at snapshot time — core of delta computation
+  featureIds: string[]  // every feature ID at snapshot time
 }
 ```
 
@@ -100,6 +105,7 @@ What changed since a baseline.
 ## Typical Review Workflow
 
 ```
+0. list_baselines           ← check if a meaningful baseline already exists
 1. set_baseline             ← checkpoint before starting (captures empty state as reference)
 2. search code, read files  ← use git tools to explore
 3. create_finding (×N)      ← record vulnerabilities as you find them
@@ -119,133 +125,44 @@ get_delta               ← changedFiles shows what moved
 set_baseline            ← checkpoint the updated state
 ```
 
-## MCP Tools
+## Interfaces
 
-> **When to use MCP vs CLI:** If you are connected via MCP, use MCP tools — they are the primary interface. The CLI is for human operators and shell scripting. Do not mix them: MCP uses `file`/`commit` as parameter names; the CLI uses `--file-id`/`--commit-id`. All `commit` parameters accept a hash, ref, or `HEAD`.
+Bench exposes MCP tools and a CLI. Tool schemas and CLI `--help` are the source of truth for parameters. Key differences between the two:
 
-### git
+- **MCP** uses `file`/`commit` as parameter names; **CLI** uses `--file-id`/`--commit-id`
+- All `commit` parameters accept a hash, ref, or `HEAD`
+- For CLI `batch-create`, pipe a JSON array to stdin
 
-| Tool | Description |
-|------|-------------|
-| `search_code` | Regex search across the repo. Params: `pattern` (req), `commit`, `path`, `case_insensitive`, `max_results` (default 100, max 500) |
-| `read_file` | File content with line numbers. Params: `path` (req), `commit`, `line_start`, `line_end` |
-| `read_files` | Read up to 20 files in one call. Params: `paths[]` (req), `commit`. Prefer over repeated `read_file`. |
-| `list_files` | Params: `commit`, `prefix` |
-| `get_diff` | Params: `from_commit` (req), `to_commit` (req), `path` |
-| `list_changed_files` | Params: `from_commit` (req), `to_commit` (req) |
-| `list_commits` | Params: `limit` (default 20, max 500), `from_commit`, `to_commit`, `path` |
-| `list_branches` | No parameters |
-| `get_blame` | Params: `path` (req), `commit`, `line_start`, `line_end` |
+**Tool groups:** git, findings, comments, features, baselines, analytics, reconcile.
 
-### findings
+**Feature titles:** Do not include the HTTP method in the title (e.g. `"Login endpoint"`, not `"POST /login"`). Use the `operation` field for that.
 
-| Tool | Description |
-|------|-------------|
-| `create_finding` | Params: `title` (req), `severity` (req), `file`, `commit`, `line_start`, `line_end`, `description`, `cwe`, `cve`, `vector`, `score`, `status` (default `open`), `source`, `category` |
-| `list_findings` | Params: `file`, `commit`, `severity`, `status` |
-| `get_finding` | Params: `id` (req) |
-| `update_finding` | Params: `id` (req), then any of: `title`, `severity`, `description`, `status`, `line_start`, `line_end`, `cwe`, `cve`, `category` |
-| `resolve_finding` | Params: `id` (req), `commit` (req) — marks closed, records fix commit |
-| `delete_finding` | Params: `id` (req) |
-| `search_findings` | Full-text search. Params: `query` (req), `status`, `severity` |
-| `batch_create_findings` | Create many findings in one transaction. Params: `findings[]` (same fields as `create_finding`). All-or-nothing. |
+## Known Constraints
 
-### comments
+| Field | Wrong | Correct |
+|-------|-------|---------|
+| `score` | `"5.3"` (string) | `5.3` (number) |
+| `severity` | `"informational"` | `"info"` |
+| `source` (findings) | any string | `pentest`, `tool`, `manual`, or `mcp` (SQLite CHECK) |
+| `tags` (features) | `"http,rest"` | `["http", "rest"]` (JSON array) |
+| `commit` | omitted | always set — empty `commitId` breaks reconciliation |
 
-| Tool | Description |
-|------|-------------|
-| `create_comment` | Params: `author` (req), `text` (req), `file` (req), `commit` (req), `line_start`, `line_end`, `thread_id`, `parent_id`, `finding_id` |
-| `list_comments` | Params: `file`, `finding_id`, `commit`, `full_text` (default false, truncates at 120 chars) |
-| `get_comment` | Params: `id` (req) |
-| `update_comment` | Params: `id` (req), `text` |
-| `resolve_comment` | Params: `id` (req), `commit` (req) |
-| `delete_comment` | Params: `id` (req) |
-| `batch_create_comments` | Params: `comments[]`. Each needs `author`, `text`, `file`, `commit`. |
+**Default differences by interface:**
 
-### features
+| Field | MCP | CLI / API |
+|-------|-----|-----------|
+| findings `status` | `draft` | `open` |
+| findings `source` | `mcp` | `manual` |
+| features `status` | `active` | `active` |
+| features `source` | `mcp` | (empty) |
 
-| Tool | Description |
-|------|-------------|
-| `create_feature` | Params: `file` (req), `commit` (req), `kind` (req: `interface`\|`source`\|`sink`\|`dependency`\|`externality`), `title` (req, e.g. `"Login endpoint"` — do **not** include the HTTP method in the title; use `operation` for that), `line_start`, `line_end`, `description`, `operation` (HTTP method, gRPC method, GraphQL operation type, etc.), `direction` (`in`\|`out`), `protocol`, `status` (default `active`), `tags`, `source` |
-| `list_features` | Params: `file`, `kind`, `status` |
-| `get_feature` | Params: `id` (req) |
-| `update_feature` | Params: `id` (req), then any of: `kind`, `title`, `description`, `operation`, `direction`, `protocol`, `status`, `tags`, `line_start`, `line_end` |
-| `delete_feature` | Params: `id` (req) |
-| `batch_create_features` | Create many features in one transaction. Params: `features[]` (same fields as `create_feature`). All-or-nothing. |
+**Valid `comment_type` values:** `feature`, `improvement`, `question`, `concern`, or empty string.
 
-### baselines
-
-| Tool | Description |
-|------|-------------|
-| `set_baseline` | Params: `reviewer`, `summary`, `commit_id` (default: HEAD). Returns seq number, stats, ID. |
-| `list_baselines` | Params: `limit` (default 20) |
-| `get_delta` | No `baseline_id` → current state vs. latest baseline. With `baseline_id` → that baseline vs. its predecessor. |
-| `delete_baseline` | Params: `baseline_id` (req) |
-
-### analytics
-
-| Tool | Description |
-|------|-------------|
-| `get_summary` | Finding and comment counts by severity, status, category. Optional: `commit`. |
-| `get_coverage` | Files reviewed vs. not. Params: `commit`, `path`, `only_unreviewed` |
-| `mark_reviewed` | Params: `path` (req), `commit` (req), `reviewer`, `note` |
-
-### reconcile
-
-| Tool | Description |
-|------|-------------|
-| `reconcile` | Update annotation positions after code changes. Params: `target_commit` (req), `file_paths[]` |
-| `get_reconciliation_status` | Params: `job_id`, `file_id`, `commit` |
-| `get_annotation_history` | See how a position moved over time. Params: `type` (req: `finding`\|`comment`), `id` (req) |
-
-## CLI Quick Reference
-
-> **Note:** CLI flag names differ from MCP parameter names. MCP uses `file`/`commit`; CLI uses `--file-id`/`--commit-id`. All `--commit-id` flags accept a hash, ref, or `HEAD`. For `batch-create`, pipe a JSON array of objects matching the create fields (same shape as MCP batch schemas) to stdin.
-
-```bash
-# Git exploration
-bench git search-code --pattern "eval(" --case-insensitive
-bench git read-file --path src/auth/login.go --commit abc123
-bench git diff --from HEAD~1 --to HEAD --path src/auth/login.go
-bench git changed-files --from HEAD~5 --to HEAD
-bench git commits --limit 20
-
-# Findings
-bench findings create --file-id src/api/auth.go --commit-id HEAD \
-  --line-start 42 --line-end 48 --severity high --title "SQL injection" --cwe CWE-89
-# --id is optional everywhere; omit it and an ID is auto-generated
-bench findings list --status open
-bench findings list --severity critical
-bench findings update --id <id> --status in-progress
-bench findings resolve --id <id> --commit <fix-commit>
-bench findings search --query "injection"
-cat findings.json | bench findings batch-create
-
-# Features
-bench features create --file-id src/api/auth.go --commit-id HEAD --kind interface --title "Login endpoint" --operation POST
-bench features list --kind sink
-bench features update --id <id> --status deprecated
-
-# Baselines
-bench baselines set --reviewer alice --summary "Auth module review"
-bench baselines delta                    # vs. latest baseline
-bench baselines delta --id <id>         # vs. predecessor
-bench baselines list
-
-# Analytics
-bench analytics summary
-bench analytics coverage --only-unreviewed
-bench analytics mark-reviewed --path src/api/auth.go --commit HEAD --reviewer alice
-
-# Reconcile
-bench reconcile start
-bench reconcile status --job-id <id>
-bench reconcile history --type finding --id <id>
-```
+**SQLite concurrency:** Don't create annotations in parallel — SQLite will return `SQLITE_BUSY`. Use batch endpoints or serialize writes.
 
 ## Important Notes
 
-**Resolved findings are included in baseline snapshots.** `findingIds` captures all findings including closed/resolved ones. `list_findings` excludes resolved by default, so delta counts may appear higher. Use `include_resolved=true` (MCP) or `--status closed` (CLI) when cross-referencing.
+**Resolved findings are included in baseline snapshots.** `findingIds` captures all findings including closed/resolved ones. `list_findings` excludes resolved by default, so delta counts may appear higher. Use `include_resolved=true` (MCP) or `--include-resolved` (CLI) when cross-referencing.
 
 **Baselines snapshot the database, not the commit.** Setting a baseline at commit X records all findings currently in the database — regardless of which commit each finding was anchored to. `commitId` is used for git diffs (changedFiles), not for scoping which findings are included.
 

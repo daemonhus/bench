@@ -218,7 +218,7 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
     const findingById = new Map(allFindings.map(f => [f.id, f]));
     const featureById = new Map(allFeatures.map(f => [f.id, f]));
     for (const c of allComments) {
-      if (baselineActivityCutoff && c.timestamp > baselineActivityCutoff) {
+      if (baselineActivityCutoff && new Date(c.timestamp) > new Date(baselineActivityCutoff)) {
         if (c.findingId) {
           const finding = findingById.get(c.findingId);
           if (finding) {
@@ -241,14 +241,14 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
 
     // Findings created since the baseline commit
     for (const f of allFindings) {
-      if (baselineActivityCutoff && f.createdAt && f.createdAt > baselineActivityCutoff) {
+      if (baselineActivityCutoff && f.createdAt && new Date(f.createdAt) > new Date(baselineActivityCutoff)) {
         items.push({ kind: 'finding-opened', data: f, time: f.createdAt, actor: f.source });
       }
     }
 
     // Features created since the baseline commit
     for (const f of allFeatures) {
-      if (baselineActivityCutoff && f.createdAt && f.createdAt > baselineActivityCutoff) {
+      if (baselineActivityCutoff && f.createdAt && new Date(f.createdAt) > new Date(baselineActivityCutoff)) {
         items.push({ kind: 'feature-created', data: f, time: f.createdAt, actor: f.source ?? '' });
       }
     }
@@ -524,7 +524,6 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
                 <span className="delta-header-commit-label">At</span>
                 <span className="overview-commit-ref">{shortHash(commitId)}</span>
                 {renderCommitBadges(commitId)}
-                <span className="delta-at-head-label">HEAD</span>
               </div>
             ) : (
               <>
@@ -739,7 +738,7 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
                             onClick={() => navigateToFile(c.anchor.fileId, c.anchor.lineRange ?? undefined)}
                           >
                             {c.anchor.fileId}
-                            {c.anchor.lineRange && `:${c.anchor.lineRange.start}`}
+                            {c.anchor.lineRange && `:${c.anchor.lineRange.start}${c.anchor.lineRange.end !== c.anchor.lineRange.start ? `-${c.anchor.lineRange.end}` : ''}`}
                           </span>
                         )}
                         <span className="overview-card-meta-right">
@@ -791,7 +790,7 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
                       {f.anchor.fileId && (
                         <div className="activity-finding-ref-meta">
                           <span className="activity-finding-ref-file">
-                            {f.anchor.fileId}{f.anchor.lineRange ? `:${f.anchor.lineRange.start}` : ''}
+                            {f.anchor.fileId}{f.anchor.lineRange ? `:${f.anchor.lineRange.start}${f.anchor.lineRange.end !== f.anchor.lineRange.start ? `-${f.anchor.lineRange.end}` : ''}` : ''}
                           </span>
                         </div>
                       )}
@@ -832,7 +831,7 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
                         {feat.anchor.fileId && (
                           <div className="activity-finding-ref-meta">
                             <span className="activity-finding-ref-file">
-                              {feat.anchor.fileId}{feat.anchor.lineRange ? `:${feat.anchor.lineRange.start}` : ''}
+                              {feat.anchor.fileId}{feat.anchor.lineRange ? `:${feat.anchor.lineRange.start}${feat.anchor.lineRange.end !== feat.anchor.lineRange.start ? `-${feat.anchor.lineRange.end}` : ''}` : ''}
                             </span>
                           </div>
                         )}

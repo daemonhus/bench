@@ -15,7 +15,7 @@ type DB struct {
 }
 
 func Open(path, projectID string) (*DB, error) {
-	conn, err := sql.Open("sqlite", path+"?_pragma=journal_mode(wal)&_pragma=foreign_keys(on)")
+	conn, err := sql.Open("sqlite", path+"?_pragma=journal_mode(wal)&_pragma=foreign_keys(on)&_pragma=busy_timeout(5000)")
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
@@ -65,7 +65,7 @@ func (d *DB) migrate() error {
 			description TEXT NOT NULL DEFAULT '',
 			cwe TEXT NOT NULL DEFAULT '',
 			status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('draft','open','in-progress','false-positive','accepted','closed')),
-			source TEXT NOT NULL DEFAULT 'pentest' CHECK(source IN ('pentest','tool','manual')),
+			source TEXT NOT NULL DEFAULT 'manual' CHECK(source IN ('pentest','tool','manual')),
 			created_at TEXT NOT NULL DEFAULT (datetime('now')),
 			resolved_commit TEXT
 		)`,
@@ -410,7 +410,7 @@ func (d *DB) migrateSource() error {
 			vector TEXT NOT NULL DEFAULT '',
 			score REAL NOT NULL DEFAULT 0,
 			status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('draft','open','in-progress','false-positive','accepted','closed')),
-			source TEXT NOT NULL DEFAULT 'pentest' CHECK(source IN ('pentest','tool','manual','mcp')),
+			source TEXT NOT NULL DEFAULT 'manual' CHECK(source IN ('pentest','tool','manual','mcp')),
 			created_at TEXT NOT NULL DEFAULT (datetime('now')),
 			resolved_commit TEXT,
 			line_hash TEXT NOT NULL DEFAULT '',
@@ -529,7 +529,7 @@ func (d *DB) migrateFindings() error {
 			description TEXT NOT NULL DEFAULT '',
 			cwe TEXT NOT NULL DEFAULT '',
 			status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('draft','open','in-progress','false-positive','accepted','closed')),
-			source TEXT NOT NULL DEFAULT 'pentest' CHECK(source IN ('pentest','tool','manual')),
+			source TEXT NOT NULL DEFAULT 'manual' CHECK(source IN ('pentest','tool','manual')),
 			created_at TEXT NOT NULL DEFAULT (datetime('now')),
 			resolved_commit TEXT
 		)`,

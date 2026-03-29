@@ -27,6 +27,7 @@ func (h *commentsHandlers) list(w http.ResponseWriter, r *http.Request) {
 	findingID := r.URL.Query().Get("findingId")
 	featureID := r.URL.Query().Get("featureId")
 	commit := r.URL.Query().Get("commit")
+	includeResolved := r.URL.Query().Get("include_resolved") == "true"
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
 	if limit < 0 {
@@ -40,6 +41,18 @@ func (h *commentsHandlers) list(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeInternalError(w, err)
 		return
+	}
+
+	// Post-filter resolved comments
+	if !includeResolved {
+		filtered := comments[:0]
+		for _, c := range comments {
+			if c.ResolvedCommit == nil {
+				filtered = append(filtered, c)
+			}
+		}
+		comments = filtered
+		total = len(comments)
 	}
 
 	// When commit param present, enrich with effective positions
@@ -95,6 +108,18 @@ func (h *commentsHandlers) create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "author and text are required")
 		return
 	}
+	if c.Anchor.CommitID == "" {
+		if h.repo == nil {
+			writeError(w, http.StatusBadRequest, "commitId is required")
+			return
+		}
+		head, err := h.repo.ResolveRef("HEAD")
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "commitId is required: "+err.Error())
+			return
+		}
+		c.Anchor.CommitID = head
+	}
 
 	// Validate or default timestamp to RFC3339
 	if c.Timestamp == "" {
@@ -118,7 +143,7 @@ func (h *commentsHandlers) create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.db.CreateComment(&c); err != nil {
-		writeInternalError(w, err)
+		writeDBError(w, err)
 		return
 	}
 
@@ -171,7 +196,7 @@ func (h *commentsHandlers) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.db.UpdateComment(id, updates); err != nil {
-		writeInternalError(w, err)
+		writeDBError(w, err)
 		return
 	}
 	if h.broker != nil {

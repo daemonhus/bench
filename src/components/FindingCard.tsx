@@ -103,7 +103,7 @@ export const FindingCard: React.FC<FindingCardProps> = ({
   const [cwe, setCwe] = useState(finding.cwe);
   const [cve, setCve] = useState(finding.cve);
   const [vector, setVector] = useState(finding.vector);
-  const [score, setScore] = useState(finding.score);
+  const [score, setScore] = useState(finding.score?.toString() ?? '');
   const [category, setCategory] = useState(finding.category ?? '');
   const [anchorFileId, setAnchorFileId] = useState(finding.anchor.fileId ?? '');
   const [anchorLineStart, setAnchorLineStart] = useState(finding.anchor.lineRange?.start?.toString() ?? '');
@@ -168,7 +168,7 @@ export const FindingCard: React.FC<FindingCardProps> = ({
     setCwe(finding.cwe);
     setCve(finding.cve);
     setVector(finding.vector);
-    setScore(finding.score);
+    setScore(finding.score?.toString() ?? '');
     setCategory(finding.category ?? '');
     setAnchorFileId(finding.anchor.fileId ?? '');
     setAnchorLineStart(finding.anchor.lineRange?.start?.toString() ?? '');
@@ -191,7 +191,7 @@ export const FindingCard: React.FC<FindingCardProps> = ({
       cwe: cwe.trim(),
       cve: cve.trim(),
       vector: vector.trim(),
-      score,
+      score: score !== '' ? parseFloat(score) : undefined,
       category,
     };
     if (anchorFileId.trim()) updates['file_id'] = anchorFileId.trim();
@@ -367,7 +367,7 @@ export const FindingCard: React.FC<FindingCardProps> = ({
               max="10"
               step="0.1"
               value={score}
-              onChange={(e) => setScore(parseFloat(e.target.value) || 0)}
+              onChange={(e) => setScore(e.target.value)}
             />
           </div>
 

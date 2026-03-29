@@ -198,18 +198,21 @@ func toolCreateFinding(deps *toolDeps) Tool {
 		}`),
 		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
 			var p struct {
-				File        string `json:"file"`
-				Commit      string `json:"commit"`
-				LineStart   int    `json:"line_start"`
-				LineEnd     int    `json:"line_end"`
-				Severity    string `json:"severity"`
-				Title       string `json:"title"`
-				Description string `json:"description"`
-				CWE         string `json:"cwe"`
-				CVE         string `json:"cve"`
-				ExternalID  string `json:"external_id"`
-				Status      string `json:"status"`
-				Category    string `json:"category"`
+				File        string  `json:"file"`
+				Commit      string  `json:"commit"`
+				LineStart   int     `json:"line_start"`
+				LineEnd     int     `json:"line_end"`
+				Severity    string  `json:"severity"`
+				Title       string  `json:"title"`
+				Description string  `json:"description"`
+				CWE         string  `json:"cwe"`
+				CVE         string  `json:"cve"`
+				ExternalID  string  `json:"external_id"`
+				Status      string  `json:"status"`
+				Category    string  `json:"category"`
+				Vector      string  `json:"vector"`
+				Score       float64 `json:"score"`
+				Source      string  `json:"source"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {
 				return "", fmt.Errorf("invalid params: %w", err)
@@ -219,6 +222,9 @@ func toolCreateFinding(deps *toolDeps) Tool {
 			}
 			if p.Status == "" {
 				p.Status = "draft"
+			}
+			if p.Source == "" {
+				p.Source = "mcp"
 			}
 
 			f := &model.Finding{
@@ -230,8 +236,10 @@ func toolCreateFinding(deps *toolDeps) Tool {
 				Description: p.Description,
 				CWE:         p.CWE,
 				CVE:         p.CVE,
+				Vector:      p.Vector,
+				Score:       p.Score,
 				Status:      p.Status,
-				Source:      "mcp",
+				Source:      p.Source,
 				Category:    p.Category,
 				CreatedAt:   time.Now().UTC().Format(time.RFC3339),
 			}
@@ -294,8 +302,8 @@ func toolUpdateFinding(deps *toolDeps) Tool {
 				"vector": {"type": "string", "description": "CVSS vector string"},
 				"score": {"type": "number", "description": "CVSS score"},
 				"source": {"type": "string", "description": "Source tool or scanner"},
-				"file_id": {"type": "string", "description": "New anchor file path"},
-				"commit_id": {"type": "string", "description": "New anchor commit"},
+				"file": {"type": "string", "description": "New anchor file path"},
+				"commit": {"type": "string", "description": "New anchor commit"},
 				"line_start": {"type": "integer", "description": "Updated start line number"},
 				"line_end": {"type": "integer", "description": "Updated end line number"}
 			},
@@ -468,7 +476,10 @@ func toolBatchCreateFindings(deps *toolDeps) Tool {
 							"cve": {"type": "string", "description": "CVE identifier if applicable"},
 							"external_id": {"type": "string", "description": "External identifier from source system (e.g. F001, VULN-42)"},
 							"status": {"type": "string", "enum": ["draft", "open"], "description": "Initial status: 'draft'=tentative/unconfirmed; 'open'=confirmed, ready for triage. Default: draft."},
-							"category": {"type": "string", "description": "Finding category (e.g. auth, authz, session, injection, ssrf, crypto, data-exposure, input-validation, path-traversal, deserialization, race-condition, config, error-handling, logging, business-logic, dependencies)"}
+							"category": {"type": "string", "description": "Finding category (e.g. auth, authz, session, injection, ssrf, crypto, data-exposure, input-validation, path-traversal, deserialization, race-condition, config, error-handling, logging, business-logic, dependencies)"},
+							"vector": {"type": "string", "description": "CVSS vector string"},
+							"score": {"type": "number", "description": "CVSS score"},
+							"source": {"type": "string", "description": "Source tool or scanner (default: mcp)"}
 						},
 						"required": ["file", "commit", "severity", "title", "description"]
 					},
