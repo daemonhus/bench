@@ -18,7 +18,7 @@ Ships with a CLI and MCP, for flexible integration into your workflow.
 docker run -p 8080:8080 -v /path/to/repo:/repo:ro -v bench-data:/data ghcr.io/daemonhus/bench:latest
 ```
 
-Open **http://localhost:5173**. To install CLI (Mac, see Releases for all platforms):
+Open **http://localhost:8080**. To install CLI (Mac, see Releases for all platforms):
 
 ```bash
 curl -L https://github.com/daemonhus/bench/releases/latest/download/bench_<version>_darwin_arm64.tar.gz | tar xz
@@ -40,6 +40,22 @@ docker build -f Dockerfile -t bench ..   # context is repo root (needs shared/)
 docker run -p 8080:8080 -v /path/to/repo:/repo:ro -v bench-data:/data bench
 ```
 
+The container's entrypoint is `benchd`. The default flags are `-repo /repo -db /data/bench.db`. You can override them by appending flags directly - do **not** repeat the binary name:
+
+```bash
+# Default: mounts repo at /repo, project name shows as "repo"
+docker run -p 8080:8080 -v /path/to/repo:/repo:ro -v bench-data:/data bench
+
+# Named project: mount at a path whose last component is the project name
+docker run -p 8080:8080 \
+  -v /path/to/partners-api:/partners-api:ro \
+  -v bench-data:/data \
+  ghcr.io/daemonhus/bench:latest \
+  -repo /partners-api -db /data/bench.db
+```
+
+The project name shown in the UI is derived from the last component of the `-repo` path, so `/partners-api` → **partners-api**.
+
 ## Development
 
 Install dependencies, and start the server with:
@@ -51,4 +67,4 @@ npm install
 
 ## License
 
-[Elastic License 2.0](LICENSE) — free to use personally or within your organisation; you may not offer it as a hosted or managed service to third parties.
+[Elastic License 2.0](LICENSE) - free to use personally or within your organisation; you may not offer it as a hosted or managed service to third parties.

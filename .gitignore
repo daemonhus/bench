@@ -24,6 +24,9 @@ Thumbs.db
 *.swp
 *.swo
 
+# Vite cache
+.vite/
+
 # VitePress build artifacts
 docs/.vitepress/cache/
 docs/.vitepress/dist/

@@ -7,7 +7,7 @@ Command-line interface to the bench bench. Every MCP tool is available as a CLI 
 **Download a pre-built binary** from [GitHub Releases](https://github.com/daemonhus/bench/releases/latest). Builds are available for Linux, macOS, and Windows (amd64 and arm64).
 
 ```bash
-# macOS arm64 example — adjust for your platform
+# macOS arm64 example - adjust for your platform
 curl -L https://github.com/daemonhus/bench/releases/latest/download/bench_<version>_darwin_arm64.tar.gz | tar xz
 sudo mv bench /usr/local/bin/
 ```
@@ -41,6 +41,7 @@ bench baselines delta
 
 | Flag | Default | Description |
 |------|---------|-------------|
+| `--url` | `http://localhost:8080` | Base URL of the bench server |
 | `--repo` | `.` | Path to the git repository |
 | `--db` | `bench.db` | Path to the SQLite database file |
 | `--version` | | Print version and exit |
@@ -50,6 +51,19 @@ Global flags go **before** the category and command:
 ```bash
 bench --repo /path/to/repo --db /path/to/review.db findings list
 ```
+
+You can also set the server URL via the `BENCH_URL` environment variable — useful when running bench in Docker or against a remote instance:
+
+```bash
+# Environment variable (persists across commands)
+export BENCH_URL=http://docker-host:8080
+bench findings list
+
+# Per-command flag
+bench --url http://docker-host:8080 findings list
+```
+
+The `--url` flag takes precedence over `BENCH_URL`.
 
 ## Command structure
 
@@ -266,7 +280,7 @@ bench analytics summary
 # Mark files as reviewed
 bench analytics mark-reviewed --path src/api/auth.go --commit HEAD --reviewer user
 
-# Check coverage -files not yet reviewed
+# Check coverage - files not yet reviewed
 bench analytics coverage --only-unreviewed
 
 # Full text search across findings
