@@ -213,6 +213,7 @@ bench git commits --limit 20
 # Findings
 bench findings create --file-id src/api/auth.go --commit-id HEAD \
   --line-start 42 --line-end 48 --severity high --title "SQL injection" --cwe CWE-89
+# --id is optional everywhere; omit it and an ID is auto-generated
 bench findings list --status open
 bench findings list --severity critical
 bench findings update --id <id> --status in-progress

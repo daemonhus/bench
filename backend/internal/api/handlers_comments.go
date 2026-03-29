@@ -11,6 +11,8 @@ import (
 	"bench/internal/git"
 	"bench/internal/model"
 	"bench/internal/reconcile"
+
+	"github.com/google/uuid"
 )
 
 type commentsHandlers struct {
@@ -86,8 +88,11 @@ func (h *commentsHandlers) create(w http.ResponseWriter, r *http.Request) {
 	if !decodeBody(w, r, &c) {
 		return
 	}
-	if c.ID == "" || c.Author == "" || c.Text == "" {
-		writeError(w, http.StatusBadRequest, "id, author, and text are required")
+	if c.ID == "" {
+		c.ID = uuid.New().String()
+	}
+	if c.Author == "" || c.Text == "" {
+		writeError(w, http.StatusBadRequest, "author and text are required")
 		return
 	}
 
