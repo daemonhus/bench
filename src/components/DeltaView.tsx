@@ -678,6 +678,7 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
                 ))}
               </div>
               <div className="activity-filters">
+                <span className="activity-filters-label">Filter</span>
                 <MultiSelectDropdown<Severity>
                   label="Severity"
                   options={[

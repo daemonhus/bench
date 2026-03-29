@@ -380,6 +380,7 @@ export const FeaturesView: React.FC = () => {
             ))}
           </div>
           <div className="features-title-row-right">
+            <span className="features-sort-label">Sort</span>
             <div className="features-sort-toggle">
               {SORT_OPTIONS.map(opt => (
                 <button

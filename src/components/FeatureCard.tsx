@@ -227,8 +227,16 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
 
   const kindColor = KIND_COLORS[feature.kind] ?? '#6b7280';
 
-  const headerActions = (
-    <div className="feature-card-actions" onClick={(e) => e.stopPropagation()}>
+  const headerRight = (
+    <div className="comment-card-header-right feature-header-right" onClick={(e) => e.stopPropagation()}>
+      {!compact && feature.direction && (
+        <span className={`feature-direction-badge feature-direction-badge--${feature.direction}`}>
+          {feature.direction === 'in' ? '← IN' : '→ OUT'}
+        </span>
+      )}
+      <span className={`feature-status-badge feature-status-badge--${feature.status}`}>
+        {STATUS_LABELS[feature.status] ?? feature.status}
+      </span>
       <button className="comment-icon-btn" onClick={handleStartEdit} title="Edit">&#x270E;</button>
       {!confirmDelete ? (
         <button className="comment-icon-btn comment-icon-btn-danger" onClick={handleDelete} title="Delete">&#x2715;</button>
@@ -241,88 +249,57 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
     </div>
   );
 
+  const kindBadge = feature.kind === 'interface' ? (() => {
+    const op = feature.operation?.toUpperCase();
+    const parsed = op ? null : extractMethod(feature.title);
+    const method = op ?? parsed?.method;
+    return method ? (
+      <span className="feature-method-badge" style={{ background: METHOD_COLORS[method] ?? kindColor }}>{method}</span>
+    ) : (
+      <span className="feature-kind-badge" style={{ background: kindColor }}>{KIND_LABELS[feature.kind]}</span>
+    );
+  })() : (
+    <span className="feature-kind-badge" style={{ background: kindColor }}>
+      {KIND_LABELS[feature.kind as FeatureKind] ?? feature.kind}
+    </span>
+  );
+
+  const titleEl = feature.kind === 'interface' ? (() => {
+    const op = feature.operation?.toUpperCase();
+    const parsed = op ? null : extractMethod(feature.title);
+    const method = op ?? parsed?.method;
+    const displayTitle = method ? (op ? feature.title : parsed?.path ?? feature.title) : feature.title;
+    return <code className="feature-endpoint-path">{displayTitle}</code>;
+  })() : (
+    <span className="feature-title">{feature.title}</span>
+  );
+
   return (
     <div className={`feature-card${isExpanded ? ' feature-card-expanded' : ''}${isOrphaned ? ' feature-card-orphaned' : ''}`}>
-      {headerActions}
 
       {/* Collapsed header */}
       {!isExpanded && (
         <div className="feature-card-header" onClick={onToggle}>
           <div className="feature-card-header-top">
-            {feature.kind === 'interface' ? (() => {
-              const op = feature.operation?.toUpperCase();
-              const parsed = op ? null : extractMethod(feature.title);
-              const method = op ?? parsed?.method;
-              return method ? (
-                <span className="feature-method-badge" style={{ background: METHOD_COLORS[method] ?? kindColor }}>{method}</span>
-              ) : (
-                <span className="feature-kind-badge" style={{ background: kindColor }}>{KIND_LABELS[feature.kind]}</span>
-              );
-            })() : (
-              <span className="feature-kind-badge" style={{ background: kindColor }}>
-                {KIND_LABELS[feature.kind as FeatureKind] ?? feature.kind}
-              </span>
-            )}
+            {kindBadge}
+            {titleEl}
             {!compact && feature.protocol && <span className="feature-chip">{feature.protocol}</span>}
-            {!compact && feature.direction && (
-              <span className={`feature-direction-badge feature-direction-badge--${feature.direction}`}>
-                {feature.direction === 'in' ? '← IN' : '→ OUT'}
-              </span>
-            )}
-            <span className={`feature-status-badge feature-status-badge--${feature.status}`}>
-              {STATUS_LABELS[feature.status] ?? feature.status}
-            </span>
+            {headerRight}
           </div>
-          {feature.kind === 'interface' ? (() => {
-            const op = feature.operation?.toUpperCase();
-            const parsed = op ? null : extractMethod(feature.title);
-            const method = op ?? parsed?.method;
-            const displayTitle = method ? (op ? feature.title : parsed?.path ?? feature.title) : feature.title;
-            return <code className="feature-endpoint-path">{displayTitle}</code>;
-          })() : (
-            <span className="feature-title">{feature.title}</span>
+          {feature.description && (
+            <p className="feature-description feature-description-collapsed">{feature.description}</p>
           )}
         </div>
       )}
 
-      {/* Expanded header (always show title + toggle) */}
+      {/* Expanded header */}
       {isExpanded && (
         <div className="feature-card-header" onClick={onToggle}>
           <div className="feature-card-header-top">
-            {feature.kind === 'interface' ? (() => {
-              const op = feature.operation?.toUpperCase();
-              const parsed = op ? null : extractMethod(feature.title);
-              const method = op ?? parsed?.method;
-              return method ? (
-                <span className="feature-method-badge" style={{ background: METHOD_COLORS[method] ?? kindColor }}>{method}</span>
-              ) : (
-                <span className="feature-kind-badge" style={{ background: kindColor }}>{KIND_LABELS[feature.kind]}</span>
-              );
-            })() : (
-              <span className="feature-kind-badge" style={{ background: kindColor }}>
-                {KIND_LABELS[feature.kind] ?? feature.kind}
-              </span>
-            )}
-            {feature.kind === 'interface' ? (() => {
-              const op = feature.operation?.toUpperCase();
-              const parsed = op ? null : extractMethod(feature.title);
-              const method = op ?? parsed?.method;
-              const displayTitle = method ? (op ? feature.title : parsed?.path ?? feature.title) : feature.title;
-              return <code className="feature-endpoint-path">{displayTitle}</code>;
-            })() : (
-              <span className="feature-title">{feature.title}</span>
-            )}
-            {!compact && feature.protocol && (
-              <span className="feature-chip">{feature.protocol}</span>
-            )}
-            {!compact && feature.direction && (
-              <span className={`feature-direction-badge feature-direction-badge--${feature.direction}`}>
-                {feature.direction === 'in' ? '← IN' : '→ OUT'}
-              </span>
-            )}
-            <span className={`feature-status-badge feature-status-badge--${feature.status}`}>
-              {STATUS_LABELS[feature.status] ?? feature.status}
-            </span>
+            {kindBadge}
+            {titleEl}
+            {!compact && feature.protocol && <span className="feature-chip">{feature.protocol}</span>}
+            {headerRight}
           </div>
         </div>
       )}
