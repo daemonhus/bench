@@ -20,7 +20,7 @@ All endpoints return JSON. Error responses use standard HTTP status codes.
 ### GET /api/git/commits
 
 Query params:
-- `limit` -max commits to return (default 50)
+- `limit` - max commits to return (default 50)
 
 Returns `CommitInfo[]`:
 ```json
@@ -44,9 +44,9 @@ Returns:
 ### GET /api/git/diff
 
 Query params:
-- `from` -base commit (required)
-- `to` -target commit (required)
-- `path` -file path (required)
+- `from` - base commit (required)
+- `to` - target commit (required)
+- `path` - file path (required)
 
 Returns:
 ```json
@@ -56,15 +56,15 @@ Returns:
 ### GET /api/git/diff-files
 
 Query params:
-- `from` -base commit (required)
-- `to` -target commit (required)
+- `from` - base commit (required)
+- `to` - target commit (required)
 
 Returns `string[]` of changed file paths.
 
 ### GET /api/git/graph
 
 Query params:
-- `limit` -max commits (default 100)
+- `limit` - max commits (default 100)
 
 Returns `GraphCommit[]` for rendering a commit graph.
 
@@ -80,7 +80,7 @@ Returns `GraphCommit[]` for rendering a commit graph.
 ### GET /api/findings
 
 Query params:
-- `fileId` -filter by file path
+- `fileId` - filter by file path
 
 Returns `Finding[]`.
 
@@ -109,7 +109,7 @@ Returns the created `Finding`.
 
 ### PATCH /api/findings/{id}
 
-Partial update -only supplied fields are changed:
+Partial update - only supplied fields are changed:
 ```json
 {
   "status": "in-progress",
@@ -129,7 +129,7 @@ Partial update -only supplied fields are changed:
 ### GET /api/comments
 
 Query params:
-- `fileId` -filter by file path
+- `fileId` - filter by file path
 
 Returns `Comment[]`.
 

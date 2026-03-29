@@ -1,6 +1,6 @@
 # Baselines
 
-Baselines are immutable snapshots of a project's review state at a specific git commit. They record every finding ID, aggregate stats (by severity, status, category), and comment counts. Once created, a baseline never changes — you create a new one to checkpoint progress.
+Baselines are immutable snapshots of a project's review state at a specific git commit. They record every finding ID, aggregate stats (by severity, status, category), and comment counts. Once created, a baseline never changes - you create a new one to checkpoint progress.
 
 ## Data model
 
@@ -23,7 +23,7 @@ Baseline {
 }
 ```
 
-The `findingIDs` array is the core of delta computation — it's the authoritative record of what existed when the baseline was set.
+The `findingIDs` array is the core of delta computation - it's the authoritative record of what existed when the baseline was set.
 
 ## Deltas
 
@@ -47,9 +47,21 @@ Delta computation:
 4. **Removed** = baseline IDs that no longer exist
 5. **Changed files** = `git diff baselineCommit..defaultBranchTip`
 
+### What the delta is actually measuring
+
+**Finding delta is database-state based, not commit- or time-based.**
+
+`newFindings` and `removedFindingIDs` are computed by comparing the baseline's `findingIDs` snapshot against what currently exists in the database. A finding is "new" if its ID wasn't in the baseline - regardless of when it was created or which commit it's anchored to. There is no query like "findings created after this timestamp" or "findings anchored to commits after X".
+
+**Changed files are commit-based.**
+
+`changedFiles` is the one exception: it uses `git diff` between the baseline's `commitId` and the current default branch tip. This tells you which files the codebase touched between those two points, which is useful context but independent of the findings delta.
+
+**Practical implication:** if you create a finding, then set a baseline, then delete the finding, then call `get_delta` - the finding appears as "removed" even though it was never in the codebase after the baseline. The delta reflects what changed in the *database*, not what changed in the *code*.
+
 There are two delta modes:
-- **Since latest** (`GET /api/baselines/delta`) — compares current state against the most recent baseline
-- **Between two** (`GET /api/baselines/{id}/delta`) — compares the given baseline against its predecessor (the baseline before it by sequence)
+- **Since latest** (`GET /api/baselines/delta`) - compares current state against the most recent baseline
+- **Between two** (`GET /api/baselines/{id}/delta`) - compares the given baseline against its predecessor (the baseline before it by sequence)
 
 ## API
 
@@ -84,7 +96,7 @@ Create a new baseline snapshot.
 | Parameter   | Type   | Default        | Description                    |
 |-------------|--------|----------------|--------------------------------|
 | `reviewer`  | string | `"mcp-client"` | Who is setting the baseline    |
-| `summary`   | string | —              | Optional note                  |
+| `summary`   | string | -              | Optional note                  |
 | `commit_id` | string | default branch | Git commit to snapshot at      |
 
 Returns a human-readable summary with the baseline seq number, commit, stats, and ID.
@@ -101,12 +113,12 @@ Returns a markdown table of baselines with seq, date, reviewer, finding/comment 
 
 | Parameter     | Type   | Default | Description                              |
 |---------------|--------|---------|------------------------------------------|
-| `baseline_id` | string | —       | Specific baseline to inspect              |
+| `baseline_id` | string | -       | Specific baseline to inspect              |
 
 Two modes depending on whether `baseline_id` is provided:
 
-- **Omitted** — compares the latest baseline against the current live state (what changed since you last checkpointed)
-- **Provided** — compares that baseline against its predecessor (what that baseline introduced)
+- **Omitted** - compares the latest baseline against the current live state (what changed since you last checkpointed)
+- **Provided** - compares that baseline against its predecessor (what that baseline introduced)
 
 Returns a markdown summary: baseline info, new findings (with severity/title/file), removed finding count, and changed files.
 
@@ -118,7 +130,7 @@ Returns a markdown summary: baseline info, new findings (with severity/title/fil
 
 ## Reconciliation (related but separate)
 
-Baselines track *what* findings exist. Reconciliation tracks *where* findings are — updating line numbers as code changes between commits. See `reconcile`, `get_reconciliation_status`, and `get_annotation_history` MCP tools.
+Baselines track *what* findings exist. Reconciliation tracks *where* findings are - updating line numbers as code changes between commits. See `reconcile`, `get_reconciliation_status`, and `get_annotation_history` MCP tools.
 
 ## Expected MCP workflow
 
@@ -130,7 +142,7 @@ Baselines track *what* findings exist. Reconciliation tracks *where* findings ar
    summary: "Starting review of auth module"
 ```
 
-This captures the current state as baseline #1. If there are no findings yet, that's fine — the baseline records an empty snapshot, which is useful as a reference point.
+This captures the current state as baseline #1. If there are no findings yet, that's fine - the baseline records an empty snapshot, which is useful as a reference point.
 
 ### During the review
 
@@ -183,7 +195,7 @@ If the codebase has new commits since your last baseline:
 ```
 7. set_baseline
    reviewer: "alice"
-   summary: "Review complete — 12 findings, 3 critical"
+   summary: "Review complete - 12 findings, 3 critical"
 ```
 
 The final baseline is the deliverable snapshot that records the review outcome.
@@ -200,10 +212,10 @@ set_baseline           ← checkpoint at milestones
 set_baseline           ← final snapshot
 ```
 
-Baselines are cheap — create them liberally. They're just a snapshot row with a list of finding IDs. The delta computation does the heavy lifting when you need to compare.
+Baselines are cheap - create them liberally. They're just a snapshot row with a list of finding IDs. The delta computation does the heavy lifting when you need to compare.
 
 ## Notes
 
 **Resolved findings are included in snapshots.** Baseline `findingIDs` captures all findings in the database, including resolved/closed ones. The `list_findings` MCP tool excludes resolved findings by default, so delta counts may appear higher than `list_findings` output. Use `include_resolved=true` when cross-referencing.
 
-**Snapshots capture the database, not the commit.** When you set a baseline at commit X, it records all findings currently in the database — regardless of which commit each finding was created at. The `commitId` is used for git diffs (changed files), not for scoping which findings are included.
+**Snapshots capture the database, not the commit.** When you set a baseline at commit X, it records all findings currently in the database - regardless of which commit each finding was created at. The `commitId` is used for git diffs (changed files), not for scoping which findings are included.

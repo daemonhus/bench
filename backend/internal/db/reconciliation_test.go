@@ -11,7 +11,7 @@ import (
 func openTestDB(t *testing.T) *DB {
 	t.Helper()
 	dir := t.TempDir()
-	d, err := Open(filepath.Join(dir, "test.db"))
+	d, err := Open(filepath.Join(dir, "test.db"), "_standalone")
 	if err != nil {
 		t.Fatalf("open test db: %v", err)
 	}
@@ -24,7 +24,7 @@ func TestOpenScoped_Isolation(t *testing.T) {
 	dbPath := filepath.Join(dir, "shared.db")
 
 	// Open standalone to run migrations
-	standalone, err := Open(dbPath)
+	standalone, err := Open(dbPath, "test")
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -102,7 +102,7 @@ func TestOpenScoped_Close_DoesNotCloseSharedConn(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "shared.db")
 
-	standalone, err := Open(dbPath)
+	standalone, err := Open(dbPath, "test")
 	if err != nil {
 		t.Fatal(err)
 	}
