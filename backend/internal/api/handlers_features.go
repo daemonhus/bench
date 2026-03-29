@@ -99,6 +99,18 @@ func (h *featuresHandlers) create(w http.ResponseWriter, r *http.Request) {
 	if f.Tags == nil {
 		f.Tags = []string{}
 	}
+	if f.Anchor.CommitID == "" {
+		if h.repo == nil {
+			writeError(w, http.StatusBadRequest, "commitId is required")
+			return
+		}
+		head, err := h.repo.ResolveRef("HEAD")
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "commitId is required: "+err.Error())
+			return
+		}
+		f.Anchor.CommitID = head
+	}
 
 	if f.CreatedAt == "" {
 		f.CreatedAt = time.Now().UTC().Format(time.RFC3339)
@@ -121,7 +133,7 @@ func (h *featuresHandlers) create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.db.CreateFeature(&f); err != nil {
-		writeInternalError(w, err)
+		writeDBError(w, err)
 		return
 	}
 
@@ -175,7 +187,7 @@ func (h *featuresHandlers) update(w http.ResponseWriter, r *http.Request) {
 	}
 	feature, err := h.db.UpdateFeature(id, updates)
 	if err != nil {
-		writeInternalError(w, err)
+		writeDBError(w, err)
 		return
 	}
 	if h.broker != nil {

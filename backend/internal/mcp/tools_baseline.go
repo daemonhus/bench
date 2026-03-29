@@ -30,14 +30,14 @@ func toolSetBaseline(deps *toolDeps) Tool {
 			"properties": {
 				"reviewer": {"type": "string", "description": "Reviewer identifier (default: 'mcp-client')"},
 				"summary": {"type": "string", "description": "Optional summary note for this baseline"},
-				"commit_id": {"type": "string", "description": "Commit hash or ref to set baseline at (default: tip of default branch)"}
+				"commit": {"type": "string", "description": "Commit hash or ref to set baseline at (default: tip of default branch)"}
 			}
 		}`),
 		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
 			var p struct {
 				Reviewer string `json:"reviewer"`
 				Summary  string `json:"summary"`
-				CommitID string `json:"commit_id"`
+				CommitID string `json:"commit"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {
 				return "", fmt.Errorf("invalid params: %w", err)

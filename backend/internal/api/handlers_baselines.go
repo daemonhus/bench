@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"bench/internal/db"
@@ -24,7 +25,13 @@ type baselineHandlers struct {
 
 // GET /api/baselines — list all baselines (most recent first)
 func (h *baselineHandlers) list(w http.ResponseWriter, r *http.Request) {
-	baselines, err := h.db.ListBaselines(50)
+	limit := 20
+	if s := r.URL.Query().Get("limit"); s != "" {
+		if n, err := strconv.Atoi(s); err == nil && n > 0 {
+			limit = n
+		}
+	}
+	baselines, err := h.db.ListBaselines(limit)
 	if err != nil {
 		writeInternalError(w, err)
 		return

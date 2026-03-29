@@ -432,7 +432,7 @@ export const OverviewView: React.FC = () => {
                         onClick={() => navigateToFile(c.anchor.fileId, c.anchor.lineRange ?? undefined)}
                       >
                         {c.anchor.fileId}
-                        {c.anchor.lineRange && `:${c.anchor.lineRange.start}`}
+                        {c.anchor.lineRange && `:${c.anchor.lineRange.start}${c.anchor.lineRange.end !== c.anchor.lineRange.start ? `-${c.anchor.lineRange.end}` : ''}`}
                       </span>
                     )}
                     <span className="overview-card-meta-right">

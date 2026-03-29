@@ -143,10 +143,13 @@ func (d *DB) GetComment(id string) (*model.Comment, error) {
 func (d *DB) UpdateComment(id string, updates map[string]any) error {
 	allowed := map[string]string{
 		"text":           "text",
+		"author":         "author",
 		"commentType":    "comment_type",
 		"comment_type":   "comment_type",
 		"resolvedCommit": "resolved_commit",
+		"file":           "anchor_file_id",
 		"file_id":        "anchor_file_id",
+		"commit":         "anchor_commit_id",
 		"commit_id":      "anchor_commit_id",
 		"line_start":     "anchor_line_start",
 		"line_end":       "anchor_line_end",

@@ -262,8 +262,8 @@ func toolUpdateFeature(deps *toolDeps) Tool {
 			"type": "object",
 			"properties": {
 				"id": {"type": "string", "description": "Feature ID"},
-				"file_id": {"type": "string", "description": "New anchor file path"},
-				"commit_id": {"type": "string", "description": "New anchor commit"},
+				"file": {"type": "string", "description": "New anchor file path"},
+				"commit": {"type": "string", "description": "New anchor commit"},
 				"kind": {"type": "string", "enum": ["interface","source","sink","dependency","externality"]},
 				"title": {"type": "string"},
 				"description": {"type": "string"},

@@ -591,7 +591,7 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
         {feature.anchor.fileId && (
           <span className="overview-comment-file" title={feature.anchor.fileId} onClick={(e) => { e.stopPropagation(); onScrollTo?.(); }}>
             {feature.anchor.fileId.split('/').pop()}
-            {lineRange && `:${lineRange.start}`}
+            {lineRange && `:${lineRange.start}${lineRange.end !== lineRange.start ? `-${lineRange.end}` : ''}`}
           </span>
         )}
         <span className="overview-card-meta-right">

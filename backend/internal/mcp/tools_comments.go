@@ -269,9 +269,10 @@ func toolUpdateComment(deps *toolDeps) Tool {
 			"properties": {
 				"id": {"type": "string", "description": "Comment ID"},
 				"text": {"type": "string", "description": "New comment text"},
+				"author": {"type": "string", "description": "New author name"},
 				"comment_type": {"type": "string", "enum": ["feature", "improvement", "question", "concern", ""], "description": "Comment category (code review sense): 'feature'=feature request/suggestion, 'improvement'=non-critical enhancement, 'question'=needs clarification, 'concern'=potential issue. Not related to the Feature annotation entity."},
-				"file_id": {"type": "string", "description": "New anchor file path"},
-				"commit_id": {"type": "string", "description": "New anchor commit"},
+				"file": {"type": "string", "description": "New anchor file path"},
+				"commit": {"type": "string", "description": "New anchor commit"},
 				"line_start": {"type": "integer", "description": "New anchor start line"},
 				"line_end": {"type": "integer", "description": "New anchor end line"}
 			},

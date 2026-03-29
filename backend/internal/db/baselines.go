@@ -31,7 +31,7 @@ func (d *DB) CreateBaseline(b *model.Baseline) error {
 			features_total, features_active, feature_ids, by_kind)
 		VALUES (?, ?,
 			COALESCE((SELECT MAX(seq) FROM baselines WHERE project_id = ?), 0) + 1,
-			?, ?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		b.ID, d.projectID, d.projectID,
 		b.CommitID, b.Reviewer, b.Summary,
 		b.FindingsTotal, b.FindingsOpen, string(bySev), string(byStat), string(byCat),

@@ -25,6 +25,10 @@ type findingsHandlers struct {
 func (h *findingsHandlers) list(w http.ResponseWriter, r *http.Request) {
 	fileID := r.URL.Query().Get("fileId")
 	commit := r.URL.Query().Get("commit")
+	severity := r.URL.Query().Get("severity")
+	status := r.URL.Query().Get("status")
+	category := r.URL.Query().Get("category")
+	includeResolved := r.URL.Query().Get("include_resolved") == "true"
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
 	if limit < 0 {
@@ -38,6 +42,28 @@ func (h *findingsHandlers) list(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeInternalError(w, err)
 		return
+	}
+
+	// Post-filter by severity/status/category/resolved
+	if severity != "" || status != "" || category != "" || !includeResolved {
+		filtered := findings[:0]
+		for _, f := range findings {
+			if severity != "" && f.Severity != severity {
+				continue
+			}
+			if status != "" && f.Status != status {
+				continue
+			}
+			if category != "" && f.Category != category {
+				continue
+			}
+			if !includeResolved && f.ResolvedCommit != nil {
+				continue
+			}
+			filtered = append(filtered, f)
+		}
+		findings = filtered
+		total = len(findings)
 	}
 
 	// Enrich with comment counts
@@ -106,6 +132,24 @@ func (h *findingsHandlers) create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "title and severity are required")
 		return
 	}
+	if f.Status == "" {
+		f.Status = "open"
+	}
+	if f.Source == "" {
+		f.Source = "manual"
+	}
+	if f.Anchor.CommitID == "" {
+		if h.repo == nil {
+			writeError(w, http.StatusBadRequest, "commitId is required")
+			return
+		}
+		head, err := h.repo.ResolveRef("HEAD")
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "commitId is required: "+err.Error())
+			return
+		}
+		f.Anchor.CommitID = head
+	}
 
 	// Validate or default createdAt to RFC3339
 	if f.CreatedAt == "" {
@@ -129,7 +173,7 @@ func (h *findingsHandlers) create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.db.CreateFinding(&f); err != nil {
-		writeInternalError(w, err)
+		writeDBError(w, err)
 		return
 	}
 
@@ -183,7 +227,7 @@ func (h *findingsHandlers) update(w http.ResponseWriter, r *http.Request) {
 	}
 	finding, err := h.db.UpdateFinding(id, updates)
 	if err != nil {
-		writeInternalError(w, err)
+		writeDBError(w, err)
 		return
 	}
 	if h.broker != nil {

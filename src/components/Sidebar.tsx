@@ -233,6 +233,7 @@ export const Sidebar: React.FC = () => {
   const [topOffset, setTopOffset] = useState(0);
   const [positions, setPositions] = useState<Map<string, number>>(new Map());
   const [positionsReady, setPositionsReady] = useState(false);
+  const [layoutTick, setLayoutTick] = useState(0);
   const contentRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const syncingScroll = useRef(false);
@@ -363,7 +364,15 @@ export const Sidebar: React.FC = () => {
       return prev;
     });
     setPositionsReady(true);
-  }, [activityItems, expandedFindingId, editingId, isLoading]);
+  }, [activityItems, expandedFindingId, editingId, isLoading, layoutTick]);
+
+  // Re-layout when any card grows/shrinks (e.g. async comment/file-preview loads after expansion)
+  useEffect(() => {
+    if (activityItems.length === 0) return;
+    const observer = new ResizeObserver(() => setLayoutTick((t) => t + 1));
+    for (const el of cardRefs.current.values()) observer.observe(el);
+    return () => observer.disconnect();
+  }, [activityItems, expandedFindingId]);
 
   // Measure top offset (header height difference between code viewer and sidebar)
   // and sync scroll bidirectionally

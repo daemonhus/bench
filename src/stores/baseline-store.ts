@@ -51,8 +51,7 @@ export const useBaselineStore = create<BaselineState>((set, get) => ({
     try {
       const baseline = await baselinesApi.create(reviewer, summary, commitId);
       set({ latestBaseline: baseline, isLoading: false });
-      get().fetchDelta();
-      get().fetchPastBaselines();
+      await Promise.all([get().fetchDelta(), get().fetchPastBaselines()]);
       return baseline;
     } catch (err) {
       set({ isLoading: false });
