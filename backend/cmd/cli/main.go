@@ -140,7 +140,7 @@ var commands = []cmdDef{
 	{Cat: "findings", Name: "create", Desc: "Create a new finding.",
 		EP: endpoint{"POST", "/api/findings"},
 		Flags: []flagDef{
-			{Name: "id", Param: "id", Desc: "Finding ID", Required: true},
+			{Name: "id", Param: "id", Desc: "Finding ID (auto-generated if omitted)"},
 			{Name: "title", Param: "title", Desc: "Finding title", Required: true},
 			{Name: "severity", Param: "severity", Desc: "Severity [critical|high|medium|low|info]", Required: true},
 			{Name: "file-id", Param: "fileId", Desc: "Anchor file path"},
@@ -214,7 +214,7 @@ var commands = []cmdDef{
 	{Cat: "comments", Name: "create", Desc: "Create a new comment.",
 		EP: endpoint{"POST", "/api/comments"},
 		Flags: []flagDef{
-			{Name: "id", Param: "id", Desc: "Comment ID", Required: true},
+			{Name: "id", Param: "id", Desc: "Comment ID (auto-generated if omitted)"},
 			{Name: "author", Param: "author", Desc: "Author name", Required: true},
 			{Name: "text", Param: "text", Desc: "Comment text", Required: true},
 			{Name: "file-id", Param: "fileId", Desc: "Anchor file path"},
@@ -592,6 +592,12 @@ func buildRequest(cmd *cmdDef, pf *parsedFlags) (method, path string, body io.Re
 
 		// Build JSON body from flags.
 		obj := make(map[string]any)
+		// Auto-generate id for create commands (POST to collection endpoints).
+		if cmd.Name == "create" && !strings.Contains(cmd.EP.Path, "{id}") {
+			if _, ok := pf.values["id"]; !ok {
+				obj["id"] = newID()
+			}
+		}
 		// Handle anchor fields specially for findings/comments create.
 		var anchor map[string]any
 		for _, fd := range cmd.Flags {

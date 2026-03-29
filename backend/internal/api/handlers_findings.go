@@ -11,6 +11,8 @@ import (
 	"bench/internal/git"
 	"bench/internal/model"
 	"bench/internal/reconcile"
+
+	"github.com/google/uuid"
 )
 
 type findingsHandlers struct {
@@ -97,8 +99,11 @@ func (h *findingsHandlers) create(w http.ResponseWriter, r *http.Request) {
 	if !decodeBody(w, r, &f) {
 		return
 	}
-	if f.ID == "" || f.Title == "" || f.Severity == "" {
-		writeError(w, http.StatusBadRequest, "id, title, and severity are required")
+	if f.ID == "" {
+		f.ID = uuid.New().String()
+	}
+	if f.Title == "" || f.Severity == "" {
+		writeError(w, http.StatusBadRequest, "title and severity are required")
 		return
 	}
 
