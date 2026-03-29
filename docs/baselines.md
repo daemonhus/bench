@@ -19,11 +19,15 @@ Baseline {
   byCategory    {category → count}
   commentsTotal int
   commentsOpen  int
-  findingIDs    string[]            Every finding ID that existed at snapshot time
+  featuresTotal int
+  featuresActive int
+  byKind        {kind → count}
+  findingIds    string[]            Every finding ID that existed at snapshot time
+  featureIds    string[]            Every feature ID that existed at snapshot time
 }
 ```
 
-The `findingIDs` array is the core of delta computation - it's the authoritative record of what existed when the baseline was set.
+The `findingIds` array is the core of delta computation - it's the authoritative record of what existed when the baseline was set.
 
 ## Deltas
 

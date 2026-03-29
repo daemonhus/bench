@@ -206,6 +206,16 @@ bench comments list --file-id src/api/auth.go
 # Get full details
 bench comments get --id <comment-id>
 
+# Update text or author
+bench comments update --id <comment-id> --text "Updated note"
+bench comments update --id <comment-id> --author bob
+
+# Resolve a comment
+bench comments resolve --id <comment-id> --commit <commit>
+
+# Delete a comment
+bench comments delete --id <comment-id>
+
 # Batch-create
 bench comments batch-create --input comments.json
 ```

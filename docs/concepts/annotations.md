@@ -69,11 +69,24 @@ A comment is a code review note - free-form text attached to a location.
   threadId?: string      // groups related comments into a thread
   parentId?: string      // reply to a specific comment
   findingId?: string     // link to a related finding
+  featureId?: string     // link to a related feature
   resolvedCommit?: string
 }
 ```
 
 Comments can form threads (`threadId`), have replies (`parentId`), and be linked to findings (`findingId`). Like findings, they can be resolved at a specific commit.
+
+### Comment types
+
+The `comment_type` field signals intent. Use it consistently so reviewers can filter and prioritize.
+
+| Type | Use when… |
+|------|-----------|
+| `concern` | Something warrants attention but isn't a confirmed vulnerability — a weak pattern, a missing control, a smell. Use a **finding** for confirmed issues. |
+| `question` | You need clarification before making a judgment. |
+| `improvement` | A non-critical suggestion — cleaner, safer, or more robust code, not a security issue. |
+| `feature` | The comment is about a [feature](/concepts/features) annotation (link via `featureId`). |
+| *(empty)* | A general note that doesn't fit the above. |
 
 ## Creating annotations
 
@@ -93,8 +106,8 @@ bench comments create \
 Via MCP:
 
 ```
-create_finding(file="src/api/auth.go", commit_id="HEAD", line_start=42, severity="high", title="SQL injection")
-create_comment(author="alice", text="Needs a prepared statement", file_id="src/api/auth.go", commit_id="HEAD", line_start=42)
+create_finding(file="src/api/auth.go", commit="HEAD", line_start=42, severity="high", title="SQL injection")
+create_comment(author="alice", text="Needs a prepared statement", file="src/api/auth.go", commit="HEAD", line_start=42)
 ```
 
 ## Batch import
