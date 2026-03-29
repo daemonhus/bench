@@ -4,7 +4,7 @@
   border: 1px solid var(--border-muted);
   border-left: 3px solid var(--card-severity, var(--severity-high));
   border-radius: 0;
-  padding: 18px 20px;
+  padding: 20px;
   cursor: pointer;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(148, 163, 184, 0.05);
   transition: box-shadow var(--transition-base), border-color var(--transition-base), background var(--transition-base);
@@ -125,9 +125,6 @@
   color: var(--text-secondary);
   line-height: var(--leading-relaxed);
   margin-bottom: 8px;
-  background: var(--bg-primary);
-  padding: 8px 10px;
-  border-radius: 6px;
 }
 
 .finding-card-footer {
@@ -694,7 +691,7 @@
   background: var(--bg-surface);
   border: 1px solid var(--border-muted);
   border-radius: 0;
-  padding: 18px 20px;
+  padding: 20px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(148, 163, 184, 0.05);
   animation: annotation-appear 0.3s ease-out;
 }
@@ -1143,5 +1140,49 @@
 
 .inline-finding-submit {
   width: 100%;
+}
+
+/* ── Light mode overrides ─────────────────────────────────────────── */
+
+/* Cards are white, floating above the cloud canvas */
+[data-theme="light"] .finding-card {
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .finding-card:hover {
+  background: var(--bg-tertiary);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.09), 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .finding-card-expanded:hover {
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .finding-card-focused {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), 0 0 0 2px rgba(79, 70, 229, 0.25);
+  border-color: rgba(79, 70, 229, 0.3);
+}
+
+/* Metrics cards: white on cloud canvas */
+[data-theme="light"] .findings-metrics-card {
+  background: #ffffff;
+}
+
+/* Total count was too muted against white */
+[data-theme="light"] .findings-metrics-card-total {
+  color: var(--text-secondary);
+}
+
+/* Sidebar comment cards: white on cloud canvas */
+[data-theme="light"] .comment-card {
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .comment-card-clickable:hover {
+  background: var(--bg-tertiary);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.09), 0 0 0 1px rgba(0, 0, 0, 0.08);
 }
 

@@ -35,9 +35,33 @@ export const FindingsView: React.FC = () => {
   const [findings, setFindings] = useState<Finding[]>([]);
   const findingsRef = useRef<Finding[]>([]);
   const [loading, setLoading] = useState(true);
-  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => {
+    try {
+      const stored = sessionStorage.getItem('bench-collapsed-findings');
+      return stored ? new Set<string>(JSON.parse(stored)) : new Set<string>();
+    } catch {
+      return new Set<string>();
+    }
+  });
   const [metricsOpen, setMetricsOpen] = useState(true);
-  const [filterKinds, setFilterKinds] = useState<Set<FindingsKind>>(new Set(ALL_FINDING_KINDS));
+  const [filterKinds, setFilterKinds] = useState<Set<FindingsKind>>(() => {
+    try {
+      const saved = sessionStorage.getItem('bench-filter-kinds');
+      if (saved) {
+        const arr = JSON.parse(saved) as FindingsKind[];
+        return new Set(arr.filter((k) => ALL_FINDING_KINDS.includes(k)));
+      }
+    } catch {}
+    return new Set<FindingsKind>(['open']);
+  });
+
+  useEffect(() => {
+    sessionStorage.setItem('bench-filter-kinds', JSON.stringify([...filterKinds]));
+  }, [filterKinds]);
+
+  useEffect(() => {
+    sessionStorage.setItem('bench-collapsed-findings', JSON.stringify([...collapsedIds]));
+  }, [collapsedIds]);
 
   const setScrollTargetLine = useUIStore((s) => s.setScrollTargetLine);
   const setHighlightRange = useUIStore((s) => s.setHighlightRange);
@@ -131,30 +155,30 @@ export const FindingsView: React.FC = () => {
   const severityTotals = useMemo(() => {
     const m: Record<string, number> = {};
     for (const s of ALL_SEVERITY_KEYS) m[s] = 0;
-    for (const f of displayedFindings) m[f.severity] = (m[f.severity] ?? 0) + 1;
+    for (const f of findings) m[f.severity] = (m[f.severity] ?? 0) + 1;
     return m;
-  }, [displayedFindings]);
+  }, [findings]);
 
   const sourceTotals = useMemo(() => {
     const m: Record<string, number> = {};
-    for (const f of displayedFindings) m[f.source] = (m[f.source] ?? 0) + 1;
+    for (const f of findings) m[f.source] = (m[f.source] ?? 0) + 1;
     return Object.entries(m).sort((a, b) => b[1] - a[1]);
-  }, [displayedFindings]);
+  }, [findings]);
 
   const categoryTotals = useMemo(() => {
     const m: Record<string, number> = {};
-    for (const f of displayedFindings) {
+    for (const f of findings) {
       const cat = f.category || 'uncategorized';
       m[cat] = (m[cat] ?? 0) + 1;
     }
     return Object.entries(m).sort((a, b) => b[1] - a[1]);
-  }, [displayedFindings]);
+  }, [findings]);
 
   const statusTotals = useMemo(() => {
     const m: Record<string, number> = {};
-    for (const f of displayedFindings) m[f.status] = (m[f.status] ?? 0) + 1;
+    for (const f of findings) m[f.status] = (m[f.status] ?? 0) + 1;
     return m;
-  }, [displayedFindings]);
+  }, [findings]);
 
   const hasActiveFilter = filterSeverities.size < ALL_SEVERITIES.length || filterActors !== null || filterKinds.size < ALL_FINDING_KINDS.length;
 
@@ -223,7 +247,7 @@ export const FindingsView: React.FC = () => {
               statusTotals={statusTotals}
               categoryTotals={categoryTotals}
               sourceTotals={sourceTotals}
-              total={displayedFindings.length}
+              total={findings.length}
             />
           )}
         </div>

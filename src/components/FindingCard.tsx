@@ -636,7 +636,7 @@ export const FindingCard: React.FC<FindingCardProps> = ({
         {fileId && (
           <span className="overview-comment-file" title={fileId} onClick={(e) => { e.stopPropagation(); onScrollTo(); }}>
             {fileId.split('/').pop()}
-            {lineRange && `:${lineRange.start}`}
+            {lineRange && `:${lineRange.start}${lineRange.end !== lineRange.start ? `-${lineRange.end}` : ''}`}
           </span>
         )}
         <span className="overview-card-meta-right">

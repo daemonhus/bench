@@ -307,3 +307,17 @@
   background: var(--status-closed-subtle);
   color: var(--status-closed);
 }
+
+/* ── Light mode overrides ─────────────────────────────────────────── */
+
+/* Select hover border is more visible on light */
+[data-theme="light"] .select:hover,
+[data-theme="light"] .branch-select:hover {
+  border-color: rgba(0, 0, 0, 0.22);
+}
+
+/* Segmented control active pill: light-mode shadow uses correct indigo tint */
+[data-theme="light"] .seg-btn-active,
+[data-theme="light"] .activity-kind-toggle-active {
+  box-shadow: var(--seg-active-shadow);
+}

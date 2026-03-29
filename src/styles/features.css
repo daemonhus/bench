@@ -470,3 +470,28 @@
   border-color: var(--text-muted);
   background: var(--bg-tertiary);
 }
+
+/* ── Light mode overrides ─────────────────────────────────────────── */
+
+/* Feature cards are white, floating on cloud canvas */
+[data-theme="light"] .feature-card {
+  background: #ffffff;
+  border-left-color: var(--border-default);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .feature-card:hover {
+  background: var(--bg-tertiary);
+  border-left-color: var(--border-default);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.09), 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .feature-card-expanded:hover {
+  background: #ffffff;
+  border-left-color: var(--border-default);
+}
+
+/* Sort toggle active pill: use light-mode indigo ring instead of dark-mode indigo */
+[data-theme="light"] .features-sort-btn-active {
+  box-shadow: var(--seg-active-shadow);
+}

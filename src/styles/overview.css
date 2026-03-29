@@ -560,7 +560,7 @@
   border: 1px solid var(--border-default);
   border-left: 3px solid var(--card-severity, var(--severity-high));
   background: var(--bg-tertiary);
-  padding: 10px 12px;
+  padding: 15px;
   cursor: pointer;
   transition: border-color var(--transition-base), background var(--transition-base);
 }
@@ -1312,5 +1312,24 @@
     border-left: none;
     border-right: none;
   }
+}
+
+/* ── Light mode overrides ─────────────────────────────────────────── */
+
+/* Activity comment cards are white on cloud canvas */
+[data-theme="light"] .overview-comment-card,
+[data-theme="light"] .overview-commit-group {
+  background: #ffffff;
+}
+
+/* Analytics panels are white on cloud canvas */
+[data-theme="light"] .fmetrics-chart-panel {
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+/* Tiles within panels get a subtle inset background */
+[data-theme="light"] .fmetrics-res-tile {
+  background: var(--bg-tertiary);
 }
 
