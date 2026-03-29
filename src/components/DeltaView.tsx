@@ -13,8 +13,8 @@ import type { Finding, Comment, Feature, GraphCommit, Severity, LineRange, Basel
 import { COMMENT_TYPE_ICON, COMMENT_TYPE_LABEL } from '../core/types';
 import { InlineMarkdown } from '../core/markdown';
 
-type ActivityKind = 'comment' | 'comment-on-finding' | 'comment-on-feature' | 'merge' | 'commit-group' | 'finding-opened';
-type FilterKind = 'comment' | 'merge' | 'finding-opened';
+type ActivityKind = 'comment' | 'comment-on-finding' | 'comment-on-feature' | 'merge' | 'commit-group' | 'finding-opened' | 'feature-created';
+type FilterKind = 'comment' | 'merge' | 'finding-opened' | 'feature-created';
 
 type ActivityItem =
   | { kind: 'comment'; data: Comment; time: string; actor: string }
@@ -22,7 +22,8 @@ type ActivityItem =
   | { kind: 'comment-on-feature'; data: Comment; feature: Feature; time: string; actor: string }
   | { kind: 'merge'; data: GraphCommit; time: string; actor: string }
   | { kind: 'commit-group'; data: GraphCommit[]; time: string; actor: string }
-  | { kind: 'finding-opened'; data: Finding; time: string; actor: string };
+  | { kind: 'finding-opened'; data: Finding; time: string; actor: string }
+  | { kind: 'feature-created'; data: Feature; time: string; actor: string };
 
 const SEVERITY_COLORS: Record<string, string> = {
   critical: '#dc2626',
@@ -34,11 +35,12 @@ const SEVERITY_COLORS: Record<string, string> = {
 
 const KIND_LABELS: Record<FilterKind, string> = {
   'finding-opened': 'Findings',
+  'feature-created': 'Features',
   comment: 'Comments',
   merge: 'Git Events',
 };
 
-const ALL_KINDS: FilterKind[] = ['finding-opened', 'comment', 'merge'];
+const ALL_KINDS: FilterKind[] = ['finding-opened', 'feature-created', 'comment', 'merge'];
 const ALL_SEVERITIES: Severity[] = ['critical', 'high', 'medium', 'low', 'info'];
 
 interface Props {
@@ -244,6 +246,13 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
       }
     }
 
+    // Features created since the baseline commit
+    for (const f of allFeatures) {
+      if (baselineActivityCutoff && f.createdAt && f.createdAt > baselineActivityCutoff) {
+        items.push({ kind: 'feature-created', data: f, time: f.createdAt, actor: f.source ?? '' });
+      }
+    }
+
     // Group commits: merge commits as standalone cards, regular commits grouped
     // between consecutive merges into collapsible commit-group cards.
     // Only mainline commits are included — branch commits absorbed by a merge
@@ -275,7 +284,7 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
       return b.time.localeCompare(a.time);
     });
     return items;
-  }, [allComments, allFindings, graphCommits, baseline, baselineActivityCutoff, baselineCommitDate, mainlineSet]);
+  }, [allComments, allFindings, allFeatures, graphCommits, baseline, baselineActivityCutoff, baselineCommitDate, mainlineSet]);
 
   // For each merge commit, map to the hash to diff from: the previous merge on the
   // mainline (sorted older), or the baseline commit if this is the first merge.
@@ -491,6 +500,12 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
                 )}
                 {delta.removedFindingIds.length > 0 && (
                   <span className="delta-stat delta-stat-removed">-{delta.removedFindingIds.length} removed</span>
+                )}
+                {(delta.newFeatures?.length ?? 0) > 0 && (
+                  <span className="delta-stat delta-stat-new">+{delta.newFeatures!.length} features</span>
+                )}
+                {(delta.removedFeatureIds?.length ?? 0) > 0 && (
+                  <span className="delta-stat delta-stat-removed">-{delta.removedFeatureIds!.length} features removed</span>
                 )}
                 {delta.changedFiles.length > 0 && (
                   <span className="delta-stat delta-stat-files">{delta.changedFiles.length} files changed</span>
@@ -963,6 +978,39 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
                             </div>
                           )}
                         </>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+
+              // feature-created
+              if (item.kind === 'feature-created') {
+                const feat = item.data as Feature;
+                return (
+                  <div key={`fc-${feat.id}`} className="activity-item-wrap">
+                    <div className="activity-event-label">
+                      <span className="activity-event-label-text">New feature</span>
+                      {feat.source && <span className="activity-event-label-actor">{feat.source}</span>}
+                      {feat.createdAt && <span className="overview-card-date">{shortDate(feat.createdAt)}</span>}
+                    </div>
+                    <div
+                      className="overview-comment-card activity-feature-ref"
+                      onClick={() => { useUIStore.getState().setScrollToFeature({ id: feat.id, kind: feat.kind }); useUIStore.getState().setViewMode('features'); }}
+                    >
+                      <div className="activity-feature-ref-header">
+                        <span className="activity-feature-ref-kind">{feat.kind}</span>
+                        <span className="activity-feature-ref-title">{feat.title}</span>
+                      </div>
+                      {feat.anchor.fileId && (
+                        <div className="activity-finding-ref-meta">
+                          <span className="activity-finding-ref-file">
+                            {feat.anchor.fileId}{feat.anchor.lineRange ? `:${feat.anchor.lineRange.start}` : ''}
+                          </span>
+                        </div>
+                      )}
+                      {feat.description && (
+                        <div className="activity-finding-ref-desc">{feat.description}</div>
                       )}
                     </div>
                   </div>

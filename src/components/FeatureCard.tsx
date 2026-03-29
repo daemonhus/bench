@@ -108,27 +108,41 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
   const confidence = fp.confidence;
   const isOrphaned = feature.status === 'orphaned' || confidence === 'orphaned';
 
-  const [snippet, setSnippet] = useState<{ lines: string[]; startLine: number; lang: string } | null>(null);
+  const [fileLines, setFileLines] = useState<{ lines: string[]; lang: string } | null>(null);
+  const [extraBefore, setExtraBefore] = useState(0);
+  const [extraAfter, setExtraAfter] = useState(0);
 
   useEffect(() => {
-    if (!isExpanded || !lineRange || !feature.anchor.fileId) { setSnippet(null); return; }
+    if (!isExpanded || !lineRange || !feature.anchor.fileId) { setFileLines(null); return; }
     const commitId = fp.effectiveAnchor?.commitId ?? feature.anchor.commitId;
     if (!commitId) return;
     const lang = detectLanguage(feature.anchor.fileId) ?? '';
-    const CONTEXT = 1;
     let cancelled = false;
+    setExtraBefore(0);
+    setExtraAfter(0);
     gitApi.getFileContent(commitId, feature.anchor.fileId)
       .then(async ({ content }) => {
         if (lang) await ensureLanguageRegistered(lang);
         if (cancelled) return;
-        const all = content.split('\n');
-        const from = Math.max(0, lineRange.start - 1 - CONTEXT);
-        const to = Math.min(all.length, lineRange.start - 1 + 5);
-        setSnippet({ lines: all.slice(from, to), startLine: from + 1, lang });
+        setFileLines({ lines: content.split('\n'), lang });
       })
       .catch(() => {});
     return () => { cancelled = true; };
   }, [isExpanded, lineRange?.start, lineRange?.end, feature.anchor.fileId, feature.anchor.commitId]);
+
+  const snippet = useMemo(() => {
+    if (!fileLines || !lineRange) return null;
+    const CONTEXT = 1;
+    const from = Math.max(0, lineRange.start - 1 - CONTEXT - extraBefore);
+    const to = Math.min(fileLines.lines.length, lineRange.end + CONTEXT + extraAfter);
+    return {
+      lines: fileLines.lines.slice(from, to),
+      startLine: from + 1,
+      lang: fileLines.lang,
+      canExpandUp: from > 0,
+      canExpandDown: to < fileLines.lines.length,
+    };
+  }, [fileLines, lineRange, extraBefore, extraAfter]);
 
   // Fetch comments when expanded
   useEffect(() => {
@@ -341,6 +355,11 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
 
               {snippet && lineRange && (
                 <div className="feature-snippet">
+                  {snippet.canExpandUp && (
+                    <button className="feature-snippet-expand" onClick={() => setExtraBefore((n) => n + 5)}>
+                      ▲ 5 more
+                    </button>
+                  )}
                   {snippet.lines.map((line, i) => {
                     const lineNum = snippet.startLine + i;
                     const isHighlighted = lineNum >= lineRange.start && lineNum <= lineRange.end;
@@ -352,6 +371,11 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
                       </div>
                     );
                   })}
+                  {snippet.canExpandDown && (
+                    <button className="feature-snippet-expand" onClick={() => setExtraAfter((n) => n + 5)}>
+                      ▼ 5 more
+                    </button>
+                  )}
                 </div>
               )}
             </>

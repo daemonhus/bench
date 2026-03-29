@@ -12,26 +12,10 @@ const SEVERITY_ORDER: Record<Severity, number> = {
   critical: 0, high: 1, medium: 2, low: 3, info: 4,
 };
 
-const SEVERITY_COLORS: Record<Severity, string> = {
-  critical: '#dc2626', high: '#ea580c', medium: '#ca8a04', low: '#2563eb', info: '#6b7280',
-};
-
-
 const ALL_SEVERITY_KEYS: Severity[] = ['critical', 'high', 'medium', 'low', 'info'];
-
 
 function sortBySeverity(a: Finding, b: Finding): number {
   return (SEVERITY_ORDER[a.severity] ?? 99) - (SEVERITY_ORDER[b.severity] ?? 99);
-}
-
-function severityCounts(list: Finding[]): { severity: Severity; count: number }[] {
-  const map = new Map<Severity, number>();
-  for (const f of list) {
-    map.set(f.severity, (map.get(f.severity) ?? 0) + 1);
-  }
-  return [...map.entries()]
-    .sort((a, b) => (SEVERITY_ORDER[a[0]] ?? 99) - (SEVERITY_ORDER[b[0]] ?? 99))
-    .map(([severity, count]) => ({ severity, count }));
 }
 
 type FindingsKind = 'open' | 'closed';
@@ -52,8 +36,6 @@ export const FindingsView: React.FC = () => {
   const findingsRef = useRef<Finding[]>([]);
   const [loading, setLoading] = useState(true);
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
-  const [openDrawerOpen, setOpenDrawerOpen] = useState(true);
-  const [closedDrawerOpen, setClosedDrawerOpen] = useState(true);
   const [metricsOpen, setMetricsOpen] = useState(true);
   const [filterKinds, setFilterKinds] = useState<Set<FindingsKind>>(new Set(ALL_FINDING_KINDS));
 
@@ -138,52 +120,43 @@ export const FindingsView: React.FC = () => {
     return list;
   }, [findings, filterSeverities, filterActors]);
 
-  const openFindings = useMemo(() =>
-    filtered
-      .filter((f) => f.status === 'draft' || f.status === 'open' || f.status === 'in-progress')
-      .sort(sortBySeverity),
-    [filtered],
-  );
-  const closedFindings = useMemo(() =>
-    filtered
-      .filter((f) => f.status === 'false-positive' || f.status === 'accepted' || f.status === 'closed')
-      .sort(sortBySeverity),
-    [filtered],
-  );
-
-  const openCounts = useMemo(() => severityCounts(openFindings), [openFindings]);
-  const closedCounts = useMemo(() => severityCounts(closedFindings), [closedFindings]);
+  const displayedFindings = useMemo(() => {
+    const isOpen = (f: Finding) => f.status === 'draft' || f.status === 'open' || f.status === 'in-progress';
+    return filtered
+      .filter((f) => filterKinds.has(isOpen(f) ? 'open' : 'closed'))
+      .sort(sortBySeverity);
+  }, [filtered, filterKinds]);
 
   // Metrics data
   const severityTotals = useMemo(() => {
     const m: Record<string, number> = {};
     for (const s of ALL_SEVERITY_KEYS) m[s] = 0;
-    for (const f of filtered) m[f.severity] = (m[f.severity] ?? 0) + 1;
+    for (const f of displayedFindings) m[f.severity] = (m[f.severity] ?? 0) + 1;
     return m;
-  }, [filtered]);
+  }, [displayedFindings]);
 
   const sourceTotals = useMemo(() => {
     const m: Record<string, number> = {};
-    for (const f of filtered) m[f.source] = (m[f.source] ?? 0) + 1;
+    for (const f of displayedFindings) m[f.source] = (m[f.source] ?? 0) + 1;
     return Object.entries(m).sort((a, b) => b[1] - a[1]);
-  }, [filtered]);
+  }, [displayedFindings]);
 
   const categoryTotals = useMemo(() => {
     const m: Record<string, number> = {};
-    for (const f of filtered) {
+    for (const f of displayedFindings) {
       const cat = f.category || 'uncategorized';
       m[cat] = (m[cat] ?? 0) + 1;
     }
     return Object.entries(m).sort((a, b) => b[1] - a[1]);
-  }, [filtered]);
+  }, [displayedFindings]);
 
   const statusTotals = useMemo(() => {
     const m: Record<string, number> = {};
-    for (const f of filtered) m[f.status] = (m[f.status] ?? 0) + 1;
+    for (const f of displayedFindings) m[f.status] = (m[f.status] ?? 0) + 1;
     return m;
-  }, [filtered]);
+  }, [displayedFindings]);
 
-  const hasActiveFilter = filterSeverities.size < ALL_SEVERITIES.length || filterActors !== null;
+  const hasActiveFilter = filterSeverities.size < ALL_SEVERITIES.length || filterActors !== null || filterKinds.size < ALL_FINDING_KINDS.length;
 
   const renderFindingList = (list: Finding[]) =>
     list.map((f) => (
@@ -200,20 +173,6 @@ export const FindingsView: React.FC = () => {
         />
       </div>
     ));
-
-  const renderSeverityBadges = (counts: { severity: Severity; count: number }[]) => (
-    <span className="severity-counts">
-      {counts.map(({ severity, count }) => (
-        <span
-          key={severity}
-          className="severity-count-badge"
-          style={{ '--sev-color': SEVERITY_COLORS[severity] } as React.CSSProperties}
-        >
-          {count} {severity}
-        </span>
-      ))}
-    </span>
-  );
 
   if (loading) return <div className="empty-state">Loading...</div>;
 
@@ -249,7 +208,7 @@ export const FindingsView: React.FC = () => {
         </div>
 
       {/* Collapsible metrics panel */}
-      {filtered.length > 0 && (
+      {displayedFindings.length > 0 && (
         <div className="findings-metrics">
           <h3
             className="findings-metrics-toggle"
@@ -264,50 +223,22 @@ export const FindingsView: React.FC = () => {
               statusTotals={statusTotals}
               categoryTotals={categoryTotals}
               sourceTotals={sourceTotals}
-              total={filtered.length}
+              total={displayedFindings.length}
             />
           )}
         </div>
       )}
 
-      {filterKinds.has('open') && openFindings.length > 0 && (
-        <div className="overview-subsection">
-          <h3
-            className="overview-subsection-title overview-subsection-toggle"
-            onClick={() => setOpenDrawerOpen(!openDrawerOpen)}
-          >
-            <span className={`overview-subsection-chevron${openDrawerOpen ? ' overview-subsection-chevron-open' : ''}`}>&#x25B8;</span>
-            Open
-            <span className="overview-subsection-count">{openFindings.length}</span>
-            {renderSeverityBadges(openCounts)}
-          </h3>
-          {openDrawerOpen && renderFindingList(openFindings)}
-        </div>
-      )}
-
-      {filterKinds.has('closed') && closedFindings.length > 0 && (
-        <div className="overview-subsection">
-          <h3
-            className="overview-subsection-title overview-subsection-toggle"
-            onClick={() => setClosedDrawerOpen(!closedDrawerOpen)}
-          >
-            <span className={`overview-subsection-chevron${closedDrawerOpen ? ' overview-subsection-chevron-open' : ''}`}>&#x25B8;</span>
-            Closed
-            <span className="overview-subsection-count">{closedFindings.length}</span>
-            {renderSeverityBadges(closedCounts)}
-          </h3>
-          {closedDrawerOpen && renderFindingList(closedFindings)}
-        </div>
-      )}
+      {renderFindingList(displayedFindings)}
 
       {findings.length === 0 && (
         <div className="overview-empty">No findings</div>
       )}
-      {findings.length > 0 && filtered.length === 0 && (
+      {findings.length > 0 && displayedFindings.length === 0 && (
         <div className="overview-empty">No findings match current filters</div>
       )}
 
-      {filtered.length > 0 && (
+      {displayedFindings.length > 0 && (
         <div className="feed-new-pill-wrap">
           <button className="feed-new-pill" onClick={() => useUIStore.getState().setRequestFindingCreate(true)}>
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
