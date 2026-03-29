@@ -203,6 +203,7 @@ var commands = []cmdDef{
 		Flags: []flagDef{
 			{Name: "file-id", Param: "fileId", Desc: "Filter by file path"},
 			{Name: "finding-id", Param: "findingId", Desc: "Filter by finding ID"},
+			{Name: "feature-id", Param: "featureId", Desc: "Filter by feature ID"},
 			{Name: "commit", Param: "commit", Desc: "Enrich with positions at this commit"},
 		}},
 	{Cat: "comments", Name: "get", Desc: "Get a single comment by ID.",
@@ -224,6 +225,7 @@ var commands = []cmdDef{
 			{Name: "thread-id", Param: "threadId", Desc: "Thread ID"},
 			{Name: "parent-id", Param: "parentId", Desc: "Parent comment ID"},
 			{Name: "finding-id", Param: "findingId", Desc: "Associated finding ID"},
+			{Name: "feature-id", Param: "featureId", Desc: "Associated feature ID"},
 		}},
 	{Cat: "comments", Name: "update", Desc: "Update a comment (partial update).",
 		EP: endpoint{"PATCH", "/api/comments/{id}"},
@@ -235,6 +237,7 @@ var commands = []cmdDef{
 			{Name: "commit-id", Param: "commit_id", Desc: "New anchor commit"},
 			{Name: "line-start", Param: "line_start", Desc: "New anchor start line", Type: "int"},
 			{Name: "line-end", Param: "line_end", Desc: "New anchor end line", Type: "int"},
+			{Name: "feature-id", Param: "featureId", Desc: "Associated feature ID"},
 		}},
 	{Cat: "comments", Name: "delete", Desc: "Delete a comment.",
 		EP: endpoint{"DELETE", "/api/comments/{id}"},
