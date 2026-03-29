@@ -135,6 +135,12 @@
   flex-shrink: 0;
 }
 
+.activity-filters-label {
+  font-size: var(--font-size-small);
+  color: var(--text-muted);
+  margin-right: 4px;
+}
+
 
 
 .multi-select {

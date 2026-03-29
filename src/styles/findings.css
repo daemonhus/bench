@@ -75,6 +75,8 @@
 
 .finding-severity-label {
   text-transform: capitalize;
+  font-size: var(--font-size-small);
+  color: var(--text-muted);
 }
 
 .finding-line-label {

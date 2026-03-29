@@ -426,6 +426,7 @@ export const FindingCard: React.FC<FindingCardProps> = ({
             style={{ backgroundColor: SEVERITY_COLORS[finding.severity] }}
             title={finding.severity}
           />
+          <span className="finding-severity-label">{finding.severity}</span>
           <span className={`finding-id-badge${idCopied ? ' finding-id-copied' : ''}`} title="Click to copy ID" onClick={(e) => {
             e.stopPropagation();
             navigator.clipboard.writeText(finding.id);
@@ -465,12 +466,14 @@ export const FindingCard: React.FC<FindingCardProps> = ({
           </div>
         </div>
         <span className="finding-title">{finding.title}</span>
+        {!isExpanded && finding.description && (
+          <p className="finding-description feature-description-collapsed">{finding.description}</p>
+        )}
       </div>
 
       <div className="finding-card-meta">
         {finding.cwe && <span className="finding-cwe">{finding.cwe}</span>}
         {finding.cve && <span className="finding-cve">{finding.cve}</span>}
-        <span className="finding-severity-label">{finding.severity}</span>
         {finding.score > 0 && <span className="finding-score">{finding.score.toFixed(1)}</span>}
         {confidence && confidence !== 'exact' && (
           <span className={`finding-confidence finding-confidence-${confidence}`}>

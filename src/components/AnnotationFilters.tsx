@@ -46,6 +46,7 @@ export const AnnotationFilters: React.FC<AnnotationFiltersProps> = ({
   onReset,
 }) => (
   <div className="activity-filters">
+    <span className="activity-filters-label">Filter</span>
     <MultiSelectDropdown<Severity>
       label="Severity"
       options={SEVERITY_OPTIONS}
