@@ -24,4 +24,4 @@ RUN apk add --no-cache git
 COPY --from=backend /benchd /usr/local/bin/benchd
 EXPOSE 8080
 ENTRYPOINT ["benchd"]
-CMD ["-repo", "/repo", "-db", "/data/bench.db"]
+CMD ["-repo", "/repo", "-db", "/data/bench.db", "-addr", ":8080"]

@@ -148,6 +148,24 @@ func (h *findingsHandlers) create(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, f)
 }
 
+func (h *findingsHandlers) get(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "id is required")
+		return
+	}
+	finding, err := h.db.GetFinding(id)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			writeError(w, http.StatusNotFound, "finding not found")
+		} else {
+			writeInternalError(w, err)
+		}
+		return
+	}
+	writeJSON(w, http.StatusOK, finding)
+}
+
 func (h *findingsHandlers) update(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if id == "" {
