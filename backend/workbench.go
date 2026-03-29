@@ -36,9 +36,11 @@ type Workbench struct {
 }
 
 // Open creates a standalone workbench with its own SQLite file.
+// The project ID is derived from the repo directory name, so two containers
+// pointing at different repos can safely share the same database file.
 func Open(repoPath, dbPath string) (*Workbench, error) {
 	repo := git.NewRepo(repoPath)
-	database, err := db.Open(dbPath)
+	database, err := db.Open(dbPath, repo.Name())
 	if err != nil {
 		return nil, err
 	}

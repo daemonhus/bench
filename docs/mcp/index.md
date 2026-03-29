@@ -1,6 +1,6 @@
 # MCP Overview
 
-Bench exposes all bench tools over [Model Context Protocol](https://modelcontextprotocol.io) (Streamable HTTP, JSON-RPC 2.0). Every tool available in the CLI is also available over MCP -the same handler code runs in both paths.
+Bench exposes all bench tools over [Model Context Protocol](https://modelcontextprotocol.io) (Streamable HTTP, JSON-RPC 2.0). Every tool available in the CLI is also available over MCP - the same handler code runs in both paths.
 
 ## Connect with Claude
 
@@ -174,7 +174,7 @@ No parameters.
 
 ### batch_create_findings
 
-Create multiple findings in a single transaction. Accepts the same fields as `create_finding` in a `findings` array. All-or-nothing — rolls back on any error.
+Create multiple findings in a single transaction. Accepts the same fields as `create_finding` in a `findings` array. All-or-nothing - rolls back on any error.
 
 ---
 

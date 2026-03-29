@@ -14,12 +14,12 @@ type DB struct {
 	ownsConn  bool
 }
 
-func Open(path string) (*DB, error) {
+func Open(path, projectID string) (*DB, error) {
 	conn, err := sql.Open("sqlite", path+"?_pragma=journal_mode(wal)&_pragma=foreign_keys(on)")
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
-	d := &DB{conn: conn, projectID: "_standalone", ownsConn: true}
+	d := &DB{conn: conn, projectID: projectID, ownsConn: true}
 	if err := d.migrate(); err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("migrate: %w", err)
@@ -36,7 +36,7 @@ func OpenScoped(conn *sql.DB, projectID string) *DB {
 
 // RunMigrations runs all schema migrations on the given connection.
 func RunMigrations(conn *sql.DB) error {
-	d := &DB{conn: conn, projectID: "_standalone"}
+	d := &DB{conn: conn, projectID: "_"}
 	return d.migrate()
 }
 

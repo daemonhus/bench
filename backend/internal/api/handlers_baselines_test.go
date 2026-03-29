@@ -43,7 +43,7 @@ func setupBaselineEnv(t *testing.T) (http.Handler, *db.DB) {
 	}
 
 	dbPath := filepath.Join(dir, "test.db")
-	database, err := db.Open(dbPath)
+	database, err := db.Open(dbPath, "test")
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}

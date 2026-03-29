@@ -1,6 +1,6 @@
 # Reconciling
 
-Annotations are anchored to a file path, a commit, and a line range. When code changes -functions move, lines are inserted, files are renamed -the anchors become stale. Reconciliation updates them to reflect the current state of the codebase.
+Annotations are anchored to a file path, a commit, and a line range. When code changes - functions move, lines are inserted, files are renamed - the anchors become stale. Reconciliation updates them to reflect the current state of the codebase.
 
 ## The problem
 
@@ -14,7 +14,7 @@ Reconciliation walks the commit sequence from the annotation's anchor commit to 
 
 ### 1. Diff parsing
 
-Each diff is parsed into hunks. Every line in a hunk is classified as context (unchanged), deleted, or inserted, with its old and new line numbers recorded. Context lines are the anchor points — they appear in both versions and carry a precise old→new mapping.
+Each diff is parsed into hunks. Every line in a hunk is classified as context (unchanged), deleted, or inserted, with its old and new line numbers recorded. Context lines are the anchor points - they appear in both versions and carry a precise old→new mapping.
 
 ### 2. Line mapping
 
@@ -87,8 +87,8 @@ bench reconcile status --job-id <job-id>
 
 ## What gets updated
 
-- **Finding line ranges** -`anchor.lineRange.start` and `end` are updated to their new positions
-- **Comment line ranges** -same
+- **Finding line ranges** - `anchor.lineRange.start` and `end` are updated to their new positions
+- **Comment line ranges** - same
 - The `anchor.commitId` is updated to the target commit
 
 If a line was deleted and cannot be mapped forward, the annotation retains its last known position and is flagged as unresolvable.
@@ -102,7 +102,7 @@ bench reconcile history --type finding --id <finding-id>
 bench reconcile history --type comment --id <comment-id>
 ```
 
-This returns the full position history -useful for understanding whether a finding survived a refactor or was introduced after one.
+This returns the full position history - useful for understanding whether a finding survived a refactor or was introduced after one.
 
 ## Reconcile head
 

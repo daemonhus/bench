@@ -32,6 +32,14 @@ export default defineConfig({
         ],
       },
       {
+        text: "Usage",
+        items: [
+          { text: "Browse", link: "/panel/browse" },
+          { text: "Changes & Baselines", link: "/panel/changes" },
+          { text: "Findings", link: "/panel/findings" },
+        ],
+      },
+      {
         text: "Reference",
         items: [
           { text: "CLI", link: "/cli/" },

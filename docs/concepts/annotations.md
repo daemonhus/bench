@@ -1,6 +1,6 @@
 # Annotations
 
-Annotations are the things you attach to code: findings (vulnerabilities) and comments (review notes). Both share the same anchor model -a file, a commit, and an optional line range.
+Annotations are the things you attach to code: findings (vulnerabilities) and comments (review notes). Both share the same anchor model - a file, a commit, and an optional line range.
 
 ## Anchor
 
@@ -46,18 +46,18 @@ A finding represents a discovered vulnerability or security issue.
 
 Findings move through statuses as a review progresses:
 
-- **draft** -work in progress, not yet confirmed
-- **open** -confirmed, needs attention
-- **in-progress** -being actively remediated
-- **false-positive** -reviewed and dismissed
-- **accepted** -acknowledged risk, won't fix
-- **closed** -resolved
+- **draft** - work in progress, not yet confirmed
+- **open** - confirmed, needs attention
+- **in-progress** - being actively remediated
+- **false-positive** - reviewed and dismissed
+- **accepted** - acknowledged risk, won't fix
+- **closed** - resolved
 
 When a finding is fixed, call `resolve` with the commit where the fix landed. This records `resolvedCommit` and sets the status to `closed`.
 
 ## Comments
 
-A comment is a code review note -free-form text attached to a location.
+A comment is a code review note - free-form text attached to a location.
 
 ```typescript
 {
@@ -99,7 +99,7 @@ create_comment(author="alice", text="Needs a prepared statement", file_id="src/a
 
 ## Batch import
 
-Both findings and comments support batch creation from a JSON array -useful for importing output from scanners or other tools:
+Both findings and comments support batch creation from a JSON array - useful for importing output from scanners or other tools:
 
 ```bash
 jq '[.[] | {file, commit: "HEAD", severity: "medium", title: .msg}]' \
