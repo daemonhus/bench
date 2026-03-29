@@ -150,6 +150,8 @@ func (d *DB) UpdateComment(id string, updates map[string]any) error {
 		"commit_id":      "anchor_commit_id",
 		"line_start":     "anchor_line_start",
 		"line_end":       "anchor_line_end",
+		"featureId":      "feature_id",
+		"feature_id":     "feature_id",
 	}
 	var setClauses []string
 	var args []any
