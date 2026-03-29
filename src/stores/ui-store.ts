@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { ViewMode, CommentDragState, CommentType, FeatureKind } from '../core/types';
 
 type AnnotationAction = 'comment' | 'finding' | 'feature' | null;
+type Theme = 'dark' | 'light';
 
 export interface DraftComment {
   text: string;
@@ -21,6 +22,8 @@ export interface SearchMatchRange {
 }
 
 interface UIState {
+  theme: Theme;
+  toggleTheme: () => void;
   viewMode: ViewMode;
   commentDrag: CommentDragState;
   expandedFindingId: string | null;
@@ -66,6 +69,13 @@ interface UIState {
 }
 
 export const useUIStore = create<UIState>((set) => ({
+  theme: (localStorage.getItem('bench-theme') as Theme) ?? 'dark',
+  toggleTheme: () =>
+    set((state) => {
+      const next: Theme = state.theme === 'dark' ? 'light' : 'dark';
+      localStorage.setItem('bench-theme', next);
+      return { theme: next };
+    }),
   viewMode: 'browse',
   commentDrag: {
     isActive: false,

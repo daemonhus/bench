@@ -61,6 +61,8 @@ export function App() {
   const bp = useBreakpoint();
   const isMobile = bp === 'mobile';
 
+  const theme = useUIStore((s) => s.theme);
+  const toggleTheme = useUIStore((s) => s.toggleTheme);
   const viewMode = useUIStore((s) => s.viewMode);
   const setViewMode = useUIStore((s) => s.setViewMode);
   const sidebarOpen = useUIStore((s) => s.sidebarOpen);
@@ -74,6 +76,11 @@ export function App() {
   const annotationAction = useUIStore((s) => s.annotationAction);
   const setAnnotationAction = useUIStore((s) => s.setAnnotationAction);
   const commentDrag = useUIStore((s) => s.commentDrag);
+
+  // Apply theme to document root so portals are covered
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
 
   // Reconciliation
   const reconciledHead = useReconcileStore((s) => s.head);
@@ -738,6 +745,26 @@ export function App() {
               </button>
             );
           })}
+        </div>
+        <div className="tab-bar-actions">
+          <button
+            className="theme-toggle-btn"
+            onClick={toggleTheme}
+            data-tooltip={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {theme === 'dark' ? (
+              /* Sun icon */
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="8" cy="8" r="3" />
+                <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.1 3.1l1.4 1.4M11.5 11.5l1.4 1.4M3.1 12.9l1.4-1.4M11.5 4.5l1.4-1.4" />
+              </svg>
+            ) : (
+              /* Moon icon */
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M13.5 10A6 6 0 0 1 6 2.5a6 6 0 1 0 7.5 7.5z" />
+              </svg>
+            )}
+          </button>
         </div>
       </div>
 

@@ -91,6 +91,26 @@
   gap: 4px;
 }
 
+.theme-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--transition-base), color var(--transition-base);
+  flex-shrink: 0;
+}
+
+.theme-toggle-btn:hover {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
 /* ----- Mobile Tab Bar ----- */
 @media (max-width: 639px) {
   .tab-bar {
