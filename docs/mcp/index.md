@@ -318,9 +318,12 @@ Create multiple feature annotations in one transaction. All-or-nothing. Accepts 
 
 ### delete_baseline
 
+By default, returns a preview of what would be deleted (dry run). Set `confirm` to actually delete.
+
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `baseline_id` | string | yes | Baseline ID |
+| `confirm` | boolean | no | Set to true to actually delete. Default: false (preview). |
 
 ---
 

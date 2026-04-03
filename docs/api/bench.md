@@ -166,7 +166,7 @@ Baselines are immutable snapshots of the review state at a specific git commit. 
 | `GET` | `/api/baselines/{id}/delta` | Delta between this baseline and its predecessor |
 | `POST` | `/api/baselines` | Create a new baseline |
 | `PATCH` | `/api/baselines/{id}` | Update reviewer or summary |
-| `DELETE` | `/api/baselines/{id}` | Delete a baseline |
+| `DELETE` | `/api/baselines/{id}` | Delete a baseline (dry-run by default; pass `?confirm=true` to delete) |
 
 ### POST /api/baselines
 

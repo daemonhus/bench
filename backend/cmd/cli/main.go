@@ -288,10 +288,11 @@ var commands = []cmdDef{
 		Flags: []flagDef{
 			{Name: "id", Param: "id", Desc: "Baseline ID (default: latest)"},
 		}},
-	{Cat: "baselines", Name: "delete", Desc: "Delete a baseline.",
+	{Cat: "baselines", Name: "delete", Desc: "Delete a baseline. Shows a preview by default; pass --confirm to actually delete.",
 		EP: endpoint{"DELETE", "/api/baselines/{id}"},
 		Flags: []flagDef{
 			{Name: "id", Param: "id", Desc: "Baseline ID", Required: true},
+			{Name: "confirm", Param: "confirm", Desc: "Actually delete (default: preview only)", Type: "bool"},
 		}},
 
 	// ── analytics ───────────────────────────────────────────────────────
@@ -523,6 +524,14 @@ func buildRequest(cmd *cmdDef, pf *parsedFlags) (method, path string, body io.Re
 		if _, ok := pf.values["status"]; !ok {
 			pf.values["status"] = "closed"
 		}
+	}
+
+	// Handle special case: baselines delete without --confirm → GET preview instead of DELETE.
+	if cmd.Cat == "baselines" && cmd.Name == "delete" && !pf.bools["confirm"] {
+		id := pf.values["id"]
+		method = "GET"
+		path = "/api/baselines/" + url.PathEscape(id)
+		return method, path, nil, nil, nil
 	}
 
 	// Handle special case: delta with ID → use /{id}/delta endpoint.
@@ -1137,6 +1146,34 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  cd bench && ./dev.sh /path/to/repo\n")
 		fmt.Fprintf(os.Stderr, "\nOr specify a different URL with --url.\n")
 		os.Exit(1)
+	}
+
+	// Special output for baselines delete dry-run: format the GET response as a preview.
+	if matched.Cat == "baselines" && matched.Name == "delete" && !pf.bools["confirm"] && status < 400 {
+		var bl struct {
+			ID            string `json:"id"`
+			Seq           int    `json:"seq"`
+			CommitID      string `json:"commitId"`
+			Reviewer      string `json:"reviewer"`
+			Summary       string `json:"summary"`
+			CreatedAt     string `json:"createdAt"`
+			FindingsTotal int    `json:"findingsTotal"`
+			FindingsOpen  int    `json:"findingsOpen"`
+			CommentsTotal int    `json:"commentsTotal"`
+		}
+		if json.Unmarshal(data, &bl) == nil && bl.ID != "" {
+			commit := bl.CommitID
+			if len(commit) > 7 {
+				commit = commit[:7]
+			}
+			fmt.Printf("Dry run — baseline BL-%d (at %s by %s, %s) would be deleted.\n", bl.Seq, commit, bl.Reviewer, bl.CreatedAt)
+			fmt.Printf("Snapshot: %d findings (%d open), %d comments.\n", bl.FindingsTotal, bl.FindingsOpen, bl.CommentsTotal)
+			if bl.Summary != "" {
+				fmt.Printf("Summary: %s\n", bl.Summary)
+			}
+			fmt.Println("\nPass --confirm to delete.")
+			return
+		}
 	}
 
 	output := formatOutput(data, status)

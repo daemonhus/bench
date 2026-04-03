@@ -246,18 +246,44 @@ func (h *baselineHandlers) update(w http.ResponseWriter, r *http.Request) {
 }
 
 // DELETE /api/baselines/{id}
+// Pass ?confirm=true to actually delete. Without it, returns a preview (dry run).
 func (h *baselineHandlers) delete(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if id == "" {
 		writeError(w, http.StatusBadRequest, "baseline id is required")
 		return
 	}
-	if err := h.db.DeleteBaseline(id); err != nil {
+
+	// Always validate the baseline exists first.
+	baseline, err := h.db.GetBaselineByID(id)
+	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			writeError(w, http.StatusNotFound, "baseline not found")
 		} else {
 			writeInternalError(w, err)
 		}
+		return
+	}
+	if baseline == nil {
+		writeError(w, http.StatusNotFound, "baseline not found")
+		return
+	}
+
+	// Dry-run unless confirm=true.
+	if r.URL.Query().Get("confirm") != "true" {
+		latest, _ := h.db.GetLatestBaseline()
+		isLatest := latest != nil && latest.ID == baseline.ID
+		writeJSON(w, http.StatusOK, map[string]any{
+			"dryRun":   true,
+			"baseline": baseline,
+			"isLatest": isLatest,
+			"message":  "This baseline would be deleted. Pass ?confirm=true to proceed.",
+		})
+		return
+	}
+
+	if err := h.db.DeleteBaseline(id); err != nil {
+		writeInternalError(w, err)
 		return
 	}
 	if h.broker != nil {

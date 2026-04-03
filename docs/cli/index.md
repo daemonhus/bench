@@ -282,8 +282,11 @@ bench baselines delta --id <baseline-id>
 # List all baselines
 bench baselines list
 
-# Delete a baseline
+# Preview deleting a baseline (dry run, default)
 bench baselines delete --id <baseline-id>
+
+# Actually delete
+bench baselines delete --id <baseline-id> --confirm
 ```
 
 ## analytics

@@ -201,13 +201,37 @@ func TestBaselinesAPI_Delete(t *testing.T) {
 	var created model.Baseline
 	json.NewDecoder(w.Body).Decode(&created)
 
-	// Delete
+	// Dry-run delete (no confirm) — should return 200 with preview
 	req = httptest.NewRequest("DELETE", "/api/baselines/"+created.ID, nil)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
+	if w.Code != 200 {
+		t.Fatalf("dry-run delete status = %d, want 200; body: %s", w.Code, w.Body.String())
+	}
+	var preview map[string]any
+	json.NewDecoder(w.Body).Decode(&preview)
+	if preview["dryRun"] != true {
+		t.Fatal("expected dryRun: true in preview response")
+	}
+
+	// Baseline should still exist after dry-run
+	req = httptest.NewRequest("GET", "/api/baselines", nil)
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	var listAfterDry []model.Baseline
+	json.NewDecoder(w.Body).Decode(&listAfterDry)
+	if len(listAfterDry) != 1 {
+		t.Fatalf("expected baseline to still exist after dry-run, got %d", len(listAfterDry))
+	}
+
+	// Confirmed delete
+	req = httptest.NewRequest("DELETE", "/api/baselines/"+created.ID+"?confirm=true", nil)
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
 	if w.Code != 204 {
-		t.Fatalf("delete status = %d, want 204; body: %s", w.Code, w.Body.String())
+		t.Fatalf("confirmed delete status = %d, want 204; body: %s", w.Code, w.Body.String())
 	}
 
 	// List should be empty
