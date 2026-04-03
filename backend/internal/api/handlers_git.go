@@ -182,6 +182,7 @@ func (h *gitHandlers) search(w http.ResponseWriter, r *http.Request) {
 	commit := r.URL.Query().Get("commit")
 	path := r.URL.Query().Get("path")
 	caseInsensitive := r.URL.Query().Get("case_insensitive") == "true"
+	fixed := r.URL.Query().Get("fixed") == "true"
 	maxResults := 100
 	if s := r.URL.Query().Get("max_results"); s != "" {
 		if n, err := strconv.Atoi(s); err == nil && n > 0 {
@@ -191,7 +192,7 @@ func (h *gitHandlers) search(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	matches, err := h.repo.Grep(pattern, commit, path, caseInsensitive, maxResults)
+	matches, err := h.repo.Grep(pattern, commit, path, caseInsensitive, fixed, maxResults)
 	if err != nil {
 		writeInternalError(w, err)
 		return

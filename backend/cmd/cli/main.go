@@ -83,6 +83,7 @@ var commands = []cmdDef{
 			{Name: "commit", Param: "commit", Desc: "Search at this commit (default: HEAD)"},
 			{Name: "path", Param: "path", Desc: "Limit search to files under this path"},
 			{Name: "case-insensitive", Param: "case_insensitive", Desc: "Case-insensitive search", Type: "bool"},
+			{Name: "fixed", Param: "fixed", Desc: "Treat pattern as a fixed string, not a regex", Type: "bool"},
 			{Name: "max-results", Param: "max_results", Desc: "Maximum results to return", Type: "int"},
 		}},
 	{Cat: "git", Name: "blame", Desc: "Show git blame for a file.",

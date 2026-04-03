@@ -463,7 +463,7 @@ func (r *Repo) DetectRename(from, to, path string) (string, error) {
 }
 
 // Grep searches file contents using git grep.
-func (r *Repo) Grep(pattern, commit, path string, caseInsensitive bool, maxResults int) ([]model.GrepMatch, error) {
+func (r *Repo) Grep(pattern, commit, path string, caseInsensitive, fixed bool, maxResults int) ([]model.GrepMatch, error) {
 	if commit != "" {
 		if err := r.validateRef(commit); err != nil {
 			return nil, err
@@ -476,6 +476,11 @@ func (r *Repo) Grep(pattern, commit, path string, caseInsensitive bool, maxResul
 	}
 
 	args := []string{"grep", "-n", "--no-color"}
+	if fixed {
+		args = append(args, "-F")
+	} else {
+		args = append(args, "-E")
+	}
 	if caseInsensitive {
 		args = append(args, "-i")
 	}
