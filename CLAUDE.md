@@ -83,7 +83,7 @@ An architectural annotation marking a security-relevant surface: API endpoint, d
 
 ### Baseline
 
-An immutable snapshot of review state at a point in time. Records every finding ID and aggregate stats. Never changes once created.
+An immutable snapshot of review state at a point in time. Records every finding ID and aggregate stats. Content never changes once created. Can be deleted with explicit confirmation (`confirm: true` in MCP, `--confirm` in CLI).
 
 ```typescript
 {
@@ -209,6 +209,8 @@ Bench exposes MCP tools and a CLI. Tool schemas and CLI `--help` are the source 
 **Valid `comment_type` values:** `feature`, `improvement`, `question`, `concern`, or empty string.
 
 **SQLite concurrency:** Don't create annotations in parallel — SQLite will return `SQLITE_BUSY`. Use batch endpoints or serialize writes.
+
+**Baseline deletion is dry-run by default.** `delete_baseline` previews what would be removed. Pass `confirm: true` (MCP) or `--confirm` (CLI) to actually delete. The REST API (`DELETE /api/baselines/{id}`) also requires `?confirm=true`.
 
 ## Important Notes
 

@@ -118,17 +118,19 @@ func toolSetBaseline(deps *toolDeps) Tool {
 func toolDeleteBaseline(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "delete_baseline",
-		Description: "Delete a baseline by ID. The baseline and its snapshot data are permanently removed.",
+		Description: "Delete a baseline by ID. By default returns a preview of what would be deleted. Set confirm=true to actually delete.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
-				"baseline_id": {"type": "string", "description": "Baseline ID to delete"}
+				"baseline_id": {"type": "string", "description": "Baseline ID to delete"},
+				"confirm": {"type": "boolean", "description": "Set to true to actually delete. Without this, returns a preview of what would be removed.", "default": false}
 			},
 			"required": ["baseline_id"]
 		}`),
 		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
 			var p struct {
 				BaselineID string `json:"baseline_id"`
+				Confirm    bool   `json:"confirm"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {
 				return "", fmt.Errorf("invalid params: %w", err)
@@ -137,13 +139,45 @@ func toolDeleteBaseline(deps *toolDeps) Tool {
 				return "", fmt.Errorf("baseline_id is required")
 			}
 
+			// Always fetch the baseline first for validation / preview.
+			baseline, err := deps.db.GetBaselineByID(p.BaselineID)
+			if err != nil {
+				return "", err
+			}
+			if baseline == nil {
+				return "", fmt.Errorf("baseline not found")
+			}
+
+			// Dry-run: show what would be deleted.
+			if !p.Confirm {
+				latest, _ := deps.db.GetLatestBaseline()
+				isLatest := latest != nil && latest.ID == baseline.ID
+
+				var sb strings.Builder
+				fmt.Fprintf(&sb, "Dry run — baseline BL-%d (at %s by %s, %s) would be deleted.\n",
+					baseline.Seq,
+					baseline.CommitID[:minInt(7, len(baseline.CommitID))],
+					baseline.Reviewer,
+					baseline.CreatedAt)
+				fmt.Fprintf(&sb, "Snapshot: %d findings (%d open), %d comments.\n",
+					baseline.FindingsTotal, baseline.FindingsOpen, baseline.CommentsTotal)
+				if baseline.Summary != "" {
+					fmt.Fprintf(&sb, "Summary: %s\n", baseline.Summary)
+				}
+				if isLatest {
+					sb.WriteString("⚠ This is the latest baseline. Deleting it changes what get_delta compares against.\n")
+				}
+				sb.WriteString("\nTo proceed, call delete_baseline with confirm: true.")
+				return sb.String(), nil
+			}
+
 			if err := deps.db.DeleteBaseline(p.BaselineID); err != nil {
 				return "", err
 			}
 			if deps.broker != nil {
 				deps.broker.Publish(events.TopicBaselines)
 			}
-			return fmt.Sprintf("Baseline %s deleted.", p.BaselineID[:minInt(8, len(p.BaselineID))]), nil
+			return fmt.Sprintf("Baseline BL-%d (%s) deleted.", baseline.Seq, p.BaselineID[:minInt(8, len(p.BaselineID))]), nil
 		},
 	}
 }

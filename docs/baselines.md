@@ -128,9 +128,12 @@ Returns a markdown summary: baseline info, new findings (with severity/title/fil
 
 ### delete_baseline
 
-| Parameter     | Type   | Required | Description          |
-|---------------|--------|----------|----------------------|
-| `baseline_id` | string | yes      | Baseline to delete   |
+By default, returns a preview of what would be deleted (dry run). Set `confirm` to actually delete.
+
+| Parameter     | Type    | Required | Description                                              |
+|---------------|---------|----------|----------------------------------------------------------|
+| `baseline_id` | string  | yes      | Baseline to delete                                       |
+| `confirm`     | boolean | no       | Set to true to actually delete. Default: false (preview). |
 
 ## Reconciliation (related but separate)
 

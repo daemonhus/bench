@@ -1,10 +1,29 @@
-<div align="center">
-
+<h1 align="center">
 # | ▔▔▔ |
+</h1>
+
+<p align="center">
+  <a href="https://www.elastic.co/licensing/elastic-license">
+    <img alt="Elastic License 2.0" src="https://img.shields.io/badge/license-Elastic%20License%202.0-red.svg">
+  </a>
+  <a href="https://github.com/daemonhus/bench/actions/workflows/ci.yml">
+    <img alt="CI status" src="https://img.shields.io/github/actions/workflow/status/daemonhus/bench/ci.yml?branch=main&label=CI">
+  </a>
+  <a href="https://github.com/daemonhus/bench/actions/workflows/docs.yml">
+    <img alt="Docs status" src="https://img.shields.io/github/actions/workflow/status/daemonhus/bench/docs.yml?branch=main&label=Docs">
+  </a>
+  <a href="https://github.com/daemonhus/bench/releases">
+    <img alt="Latest release" src="https://img.shields.io/github/v/release/daemonhus/bench?include_prereleases&label=Release">
+  </a>
+</p>
+
+<p align="center">
+  <a href="#quick-start">Quick Start</a> .
+  <a href="#mcp">MCP</a> .
+  <a href="#cli">CLI</a>
+</p>
 
 **A devilishy good workbench for code reviews and long-lived annotations**
-
-</div>
 
 Most code review tooling is built around CI pipelines and issue trackers; Bench is built around the code itself.
 
@@ -18,7 +37,10 @@ Ships with a CLI and MCP, for flexible integration into your workflow.
 docker run -p 8080:8080 -v /path/to/repo:/repo:ro -v bench-data:/data ghcr.io/daemonhus/bench:latest
 ```
 
-Open **http://localhost:8080**. To install CLI (Mac, see Releases for all platforms):
+Open **http://localhost:8080**.
+
+## CLI
+To install the CLI (Mac, see Releases for all platforms):
 
 ```bash
 curl -L https://github.com/daemonhus/bench/releases/latest/download/bench_<version>_darwin_arm64.tar.gz | tar xz
@@ -48,13 +70,13 @@ docker run -p 8080:8080 -v /path/to/repo:/repo:ro -v bench-data:/data bench
 
 # Named project: mount at a path whose last component is the project name
 docker run -p 8080:8080 \
-  -v /path/to/partners-api:/partners-api:ro \
+  -v /path/to/project:/project:ro \
   -v bench-data:/data \
   ghcr.io/daemonhus/bench:latest \
-  -repo /partners-api -db /data/bench.db
+  -repo /project -db /data/bench.db
 ```
 
-The project name shown in the UI is derived from the last component of the `-repo` path, so `/partners-api` → **partners-api**.
+The project name shown in the UI is derived from the last component of the `-repo` path, so `/project` → **project**.
 
 ## Development
 
