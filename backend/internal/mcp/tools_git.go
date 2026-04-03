@@ -26,7 +26,7 @@ func registerGitTools(deps *toolDeps) []Tool {
 func toolSearchCode(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "search_code",
-		Description: "Search for a pattern across all files in the repository at a given commit. Returns matching lines with file paths and line numbers. Supports regular expressions. Essential for finding vulnerability patterns (eval, innerHTML, exec, SQL concatenation, hardcoded secrets, etc.).",
+		Description: "Search for a pattern across all files in the repository at a given commit. Returns matching lines with file paths and line numbers. Uses extended regular expressions (ERE) by default, so alternation (foo|bar) works. Set fixed=true to treat the pattern as a literal string. Essential for finding vulnerability patterns (eval, innerHTML, exec, SQL concatenation, hardcoded secrets, etc.).",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
@@ -34,7 +34,8 @@ func toolSearchCode(deps *toolDeps) Tool {
 				"commit": {"type": "string", "description": "Commit hash or ref (default: HEAD)"},
 				"path": {"type": "string", "description": "Limit search to files under this directory prefix"},
 				"max_results": {"type": "integer", "description": "Maximum matches to return (default: 100, max: 500)"},
-				"case_insensitive": {"type": "boolean", "description": "Case-insensitive matching (default: false)"}
+				"case_insensitive": {"type": "boolean", "description": "Case-insensitive matching (default: false)"},
+				"fixed": {"type": "boolean", "description": "Treat pattern as a fixed string, not a regex (default: false)"}
 			},
 			"required": ["pattern"]
 		}`),
@@ -45,6 +46,7 @@ func toolSearchCode(deps *toolDeps) Tool {
 				Path            string `json:"path"`
 				MaxResults      int    `json:"max_results"`
 				CaseInsensitive bool   `json:"case_insensitive"`
+				Fixed           bool   `json:"fixed"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {
 				return "", fmt.Errorf("invalid params: %w", err)
@@ -66,7 +68,7 @@ func toolSearchCode(deps *toolDeps) Tool {
 				p.MaxResults = 500
 			}
 
-			matches, err := deps.repo.Grep(p.Pattern, p.Commit, p.Path, p.CaseInsensitive, p.MaxResults)
+			matches, err := deps.repo.Grep(p.Pattern, p.Commit, p.Path, p.CaseInsensitive, p.Fixed, p.MaxResults)
 			if err != nil {
 				return "", err
 			}
