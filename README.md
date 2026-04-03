@@ -1,5 +1,5 @@
 <h1 align="center">
-# | ▔▔▔ |
+| ▔▔▔ |
 </h1>
 
 <p align="center">
@@ -18,11 +18,6 @@
 </p>
 
 <p align="center">
-  <a href="#quick-start">Quick Start</a> .
-  <a href="#mcp">MCP</a> .
-  <a href="#cli">CLI</a>
-</p>
-
 **A devilishy good workbench for code reviews and long-lived annotations**
 
 Most code review tooling is built around CI pipelines and issue trackers; Bench is built around the code itself.
@@ -30,6 +25,8 @@ Most code review tooling is built around CI pipelines and issue trackers; Bench 
 A structured workspace for findings, comments, and features: all anchored to file and line ranges and tracked across commits, so they stay accurate as the code evolves. A baseline system lets you snapshot the review state and measure progress over time, or since you (or your agent) last looked at the codebase.
 
 Ships with a CLI and MCP, for flexible integration into your workflow.
+</p>
+
 
 ## Quick Start
 
