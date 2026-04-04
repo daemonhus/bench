@@ -27,9 +27,10 @@ type Finding struct {
 	Source         string  `json:"source"`
 	Category       string  `json:"category"`
 	CreatedAt      string  `json:"createdAt"`
-	ResolvedCommit *string `json:"resolvedCommit,omitempty"`
-	LineHash       string  `json:"lineHash,omitempty"`
-	CommentCount   int     `json:"commentCount,omitempty"`
+	ResolvedCommit  *string `json:"resolvedCommit,omitempty"`
+	LineHash        string  `json:"lineHash,omitempty"`
+	AnchorUpdatedAt *string `json:"anchorUpdatedAt,omitempty"`
+	CommentCount    int     `json:"commentCount,omitempty"`
 }
 
 type Comment struct {
@@ -43,8 +44,9 @@ type Comment struct {
 	ParentID       *string `json:"parentId,omitempty"`
 	FindingID      *string `json:"findingId,omitempty"`
 	FeatureID      *string `json:"featureId,omitempty"`
-	ResolvedCommit *string `json:"resolvedCommit,omitempty"`
-	LineHash       string  `json:"lineHash,omitempty"`
+	ResolvedCommit  *string `json:"resolvedCommit,omitempty"`
+	LineHash        string  `json:"lineHash,omitempty"`
+	AnchorUpdatedAt *string `json:"anchorUpdatedAt,omitempty"`
 }
 
 // AnnotationPosition records where an annotation is at a specific commit.
@@ -85,8 +87,9 @@ type Feature struct {
 	Tags           []string `json:"tags"`
 	Source         string   `json:"source,omitempty"`
 	CreatedAt      string   `json:"createdAt"`
-	ResolvedCommit *string  `json:"resolvedCommit,omitempty"`
-	LineHash       string   `json:"lineHash,omitempty"`
+	ResolvedCommit  *string  `json:"resolvedCommit,omitempty"`
+	LineHash        string   `json:"lineHash,omitempty"`
+	AnchorUpdatedAt *string  `json:"anchorUpdatedAt,omitempty"`
 }
 
 type FeatureWithPosition struct {
