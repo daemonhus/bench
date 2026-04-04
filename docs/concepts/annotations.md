@@ -37,6 +37,7 @@ A finding represents a discovered vulnerability or security issue.
   status: 'draft' | 'open' | 'in-progress' | 'false-positive' | 'accepted' | 'closed'
   source?: string        // tool or scanner that created it
   category?: string
+  featureIds?: string[]  // features this finding is linked to
   createdAt: string
   resolvedCommit?: string
 }
@@ -87,6 +88,38 @@ The `comment_type` field signals intent. Use it consistently so reviewers can fi
 | `improvement` | A non-critical suggestion — cleaner, safer, or more robust code, not a security issue. |
 | `feature` | The comment is about a [feature](/concepts/features) annotation (link via `featureId`). |
 | *(empty)* | A general note that doesn't fit the above. |
+
+## Linking findings to features
+
+A finding can be linked to one or more [feature](/concepts/features) annotations via `featureIds`. This connects a vulnerability to the architectural surface it affects — for example, linking a SQL injection finding to the `source` feature for the database query where it occurs.
+
+Links should be created whenever a finding is directly associated with a known feature. They make findings easier to triage and let you see which parts of the attack surface have confirmed issues.
+
+Via CLI:
+
+```bash
+bench findings create \
+  --severity high --title "SQL injection" \
+  --feature-ids feat-abc123,feat-def456
+```
+
+Via MCP:
+
+```
+create_finding(severity="high", title="SQL injection", feature_ids=["feat-abc123"])
+```
+
+To update links on an existing finding (replaces the full list):
+
+```bash
+bench findings update --id f-xyz --feature-ids feat-abc123
+```
+
+```
+update_finding(id="f-xyz", feature_ids=["feat-abc123"])
+```
+
+Deleting a feature or finding automatically removes its links — no manual cleanup needed.
 
 ## Creating annotations
 

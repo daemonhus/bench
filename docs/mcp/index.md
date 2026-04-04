@@ -143,6 +143,7 @@ No parameters.
 | `status` | string | no | Initial status: `draft` (tentative) or `open` (confirmed). Default: `draft`. |
 | `source` | string | no | Tool or scanner that found it |
 | `category` | string | no | Category label |
+| `feature_ids` | string[] | no | Feature IDs to link to this finding |
 
 ### update_finding
 
@@ -153,11 +154,14 @@ No parameters.
 | `severity` | string | no | New severity |
 | `description` | string | no | New description |
 | `status` | string | no | New status |
-| `line_start` | int | no | New start line (recomputes line hash) |
-| `line_end` | int | no | New end line (recomputes line hash) |
+| `file` | string | no | New file path (re-anchors; recomputes line hash) |
+| `commit` | string | no | New commit (re-anchors; recomputes line hash) |
+| `line_start` | int | no | New start line (re-anchors; recomputes line hash) |
+| `line_end` | int | no | New end line (re-anchors; recomputes line hash) |
 | `cwe` | string | no | New CWE |
 | `cve` | string | no | New CVE |
 | `category` | string | no | New category |
+| `feature_ids` | string[] | no | Linked feature IDs (replaces full list) |
 
 ### delete_finding / resolve_finding
 
@@ -176,7 +180,7 @@ No parameters.
 
 ### batch_create_findings
 
-Create multiple findings in a single transaction. Accepts the same fields as `create_finding` in a `findings` array (`title`, `severity`, `file`, `commit`, `line_start`, `line_end`, `description`, `cwe`, `cve`, `vector`, `score`, `status`, `source`, `category`). All-or-nothing - rolls back on any error.
+Create multiple findings in a single transaction. Accepts the same fields as `create_finding` in a `findings` array (`title`, `severity`, `file`, `commit`, `line_start`, `line_end`, `description`, `cwe`, `cve`, `vector`, `score`, `status`, `source`, `category`, `feature_ids`). All-or-nothing - rolls back on any error.
 
 ---
 
@@ -218,6 +222,10 @@ Create multiple findings in a single transaction. Accepts the same fields as `cr
 | `id` | string | yes | Comment ID |
 | `text` | string | no | New text |
 | `author` | string | no | New author name |
+| `file` | string | no | New file path (re-anchors; recomputes line hash) |
+| `commit` | string | no | New commit (re-anchors; recomputes line hash) |
+| `line_start` | int | no | New start line (re-anchors; recomputes line hash) |
+| `line_end` | int | no | New end line (re-anchors; recomputes line hash) |
 
 ### resolve_comment
 
@@ -281,8 +289,10 @@ Annotate an architectural feature: an API interface, data source/sink, dependenc
 | `protocol` | string | no | New protocol |
 | `status` | string | no | New status |
 | `tags` | string[] | no | New tags |
-| `line_start` | int | no | New start line |
-| `line_end` | int | no | New end line |
+| `file` | string | no | New file path (re-anchors; recomputes line hash) |
+| `commit` | string | no | New commit (re-anchors; recomputes line hash) |
+| `line_start` | int | no | New start line (re-anchors; recomputes line hash) |
+| `line_end` | int | no | New end line (re-anchors; recomputes line hash) |
 
 ### delete_feature
 

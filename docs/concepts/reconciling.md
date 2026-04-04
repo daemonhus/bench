@@ -51,7 +51,9 @@ Every position record carries a confidence level that reflects how it was determ
 | `moved` | Placed by content match or file rename |
 | `orphaned` | Code not found; no reliable position |
 
-Confidence can only decrease over time. An `exact` annotation that survives a rename becomes `moved`. An annotation whose code is deleted becomes `orphaned` and stays there.
+Confidence can only decrease through reconciliation. An `exact` annotation that survives a rename becomes `moved`. An annotation whose code is deleted becomes `orphaned`.
+
+An `orphaned` annotation can be restored by manually re-anchoring it (via `update_finding`, `update_comment`, or `update_feature` with new anchor fields). When the reconciler sees that `anchor_updated_at` is newer than the orphaned position, it treats the annotation's anchor as a fresh `exact` position and resumes tracking from there.
 
 ### 5. Edge cases
 
@@ -87,11 +89,10 @@ bench reconcile status --job-id <job-id>
 
 ## What gets updated
 
-- **Finding line ranges** - `anchor.lineRange.start` and `end` are updated to their new positions
-- **Comment line ranges** - same
+- **Finding, comment, and feature line ranges** - `anchor.lineRange.start` and `end` are updated to their new positions
 - The `anchor.commitId` is updated to the target commit
 
-If a line was deleted and cannot be mapped forward, the annotation retains its last known position and is flagged as unresolvable.
+If a line was deleted and cannot be mapped forward, the annotation retains its last known position and is marked `orphaned`.
 
 ## History
 

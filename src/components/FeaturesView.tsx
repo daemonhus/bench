@@ -242,6 +242,7 @@ export const FeaturesView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<FeaturesTab>('interfaces');
   const [sortOrder, setSortOrder] = useState<FeatureSort>('file');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => {
     try {
       const stored = localStorage.getItem('bench-collapsed-features');
@@ -320,19 +321,21 @@ export const FeaturesView: React.FC = () => {
   const currentTab = TABS.find(t => t.id === activeTab)!;
   const tabFeatures = useMemo(() => {
     const filtered = features.filter(f => currentTab.kinds.includes(f.kind as FeatureKind));
+    const dir = sortDir === 'asc' ? 1 : -1;
     if (sortOrder === 'file') {
       return [...filtered].sort((a, b) => {
         const fileA = a.anchor.fileId ?? '';
         const fileB = b.anchor.fileId ?? '';
-        if (fileA !== fileB) return fileA.localeCompare(fileB);
-        return (a.anchor.lineRange?.start ?? 0) - (b.anchor.lineRange?.start ?? 0);
+        if (fileA !== fileB) return fileA.localeCompare(fileB) * dir;
+        return ((a.anchor.lineRange?.start ?? 0) - (b.anchor.lineRange?.start ?? 0)) * dir;
       });
     }
     if (sortOrder === 'title') {
-      return [...filtered].sort((a, b) => a.title.toLowerCase().localeCompare(b.title.toLowerCase()));
+      return [...filtered].sort((a, b) => a.title.toLowerCase().localeCompare(b.title.toLowerCase()) * dir);
     }
-    return filtered; // 'created' — original API order
-  }, [features, currentTab, sortOrder]);
+    // 'created' — original API order; reverse for desc
+    return sortDir === 'desc' ? [...filtered].reverse() : filtered;
+  }, [features, currentTab, sortOrder, sortDir]);
 
   // Tab counts (all features, for badges)
   const tabCounts = useMemo(() => {
@@ -393,15 +396,41 @@ export const FeaturesView: React.FC = () => {
           <div className="features-title-row-right">
             <span className="features-sort-label">Sort</span>
             <div className="features-sort-toggle">
-              {SORT_OPTIONS.map(opt => (
-                <button
-                  key={opt.id}
-                  className={`features-sort-btn${sortOrder === opt.id ? ' features-sort-btn-active' : ''}`}
-                  onClick={() => setSortOrder(opt.id)}
-                >
-                  {opt.label}
-                </button>
-              ))}
+              {SORT_OPTIONS.map(opt => {
+                const isActive = sortOrder === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    className={`features-sort-btn${isActive ? ' features-sort-btn-active' : ''}`}
+                    onClick={() => {
+                      if (isActive) {
+                        setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+                      } else {
+                        setSortOrder(opt.id);
+                        setSortDir('asc');
+                      }
+                    }}
+                  >
+                    {opt.label}
+                    {isActive ? (
+                      sortDir === 'asc' ? (
+                        <svg className="features-sort-chevron" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M2 6.5L5 3.5L8 6.5" />
+                        </svg>
+                      ) : (
+                        <svg className="features-sort-chevron" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M2 3.5L5 6.5L8 3.5" />
+                        </svg>
+                      )
+                    ) : (
+                      <svg className="features-sort-chevron features-sort-chevron-idle" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M2 4L5 2L8 4" />
+                        <path d="M2 6L5 8L8 6" />
+                      </svg>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>

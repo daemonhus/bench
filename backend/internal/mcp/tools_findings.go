@@ -91,16 +91,17 @@ func toolListFindings(deps *toolDeps) Tool {
 
 			// Return compact summary — use get_finding for full details
 			type findingSummary struct {
-				ID           string `json:"id"`
-				Severity     string `json:"severity"`
-				Status       string `json:"status"`
-				Title        string `json:"title"`
-				File         string `json:"file"`
-				Lines        string `json:"lines,omitempty"`
-				Category     string `json:"category,omitempty"`
-				CWE          string `json:"cwe,omitempty"`
-				CommentCount int    `json:"commentCount,omitempty"`
-				Resolved     bool   `json:"resolved,omitempty"`
+				ID           string   `json:"id"`
+				Severity     string   `json:"severity"`
+				Status       string   `json:"status"`
+				Title        string   `json:"title"`
+				File         string   `json:"file"`
+				Lines        string   `json:"lines,omitempty"`
+				Category     string   `json:"category,omitempty"`
+				CWE          string   `json:"cwe,omitempty"`
+				CommentCount int      `json:"commentCount,omitempty"`
+				Resolved     bool     `json:"resolved,omitempty"`
+				FeatureIDs   []string `json:"featureIds,omitempty"`
 			}
 			summaries := make([]findingSummary, len(filtered))
 			for i, f := range filtered {
@@ -114,6 +115,7 @@ func toolListFindings(deps *toolDeps) Tool {
 					CWE:          f.CWE,
 					CommentCount: counts[f.ID],
 					Resolved:     f.ResolvedCommit != nil,
+					FeatureIDs:   f.FeatureIDs,
 				}
 				if f.Anchor.LineRange != nil {
 					s.Lines = fmt.Sprintf("%d-%d", f.Anchor.LineRange.Start, f.Anchor.LineRange.End)
@@ -192,27 +194,29 @@ func toolCreateFinding(deps *toolDeps) Tool {
 				"category": {"type": "string", "description": "Finding category (e.g. auth, authz, session, injection, ssrf, crypto, data-exposure, input-validation, path-traversal, deserialization, race-condition, config, error-handling, logging, business-logic, dependencies)"},
 				"vector": {"type": "string", "description": "CVSS vector string"},
 				"score": {"type": "number", "description": "CVSS score"},
-				"source": {"type": "string", "description": "Source tool or scanner (default: mcp)"}
+				"source": {"type": "string", "description": "Source tool or scanner (default: mcp)"},
+				"feature_ids": {"type": "array", "items": {"type": "string"}, "description": "Feature IDs to associate with this finding"}
 			},
 			"required": ["file", "commit", "severity", "title", "description"]
 		}`),
 		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
 			var p struct {
-				File        string  `json:"file"`
-				Commit      string  `json:"commit"`
-				LineStart   int     `json:"line_start"`
-				LineEnd     int     `json:"line_end"`
-				Severity    string  `json:"severity"`
-				Title       string  `json:"title"`
-				Description string  `json:"description"`
-				CWE         string  `json:"cwe"`
-				CVE         string  `json:"cve"`
-				ExternalID  string  `json:"external_id"`
-				Status      string  `json:"status"`
-				Category    string  `json:"category"`
-				Vector      string  `json:"vector"`
-				Score       float64 `json:"score"`
-				Source      string  `json:"source"`
+				File        string   `json:"file"`
+				Commit      string   `json:"commit"`
+				LineStart   int      `json:"line_start"`
+				LineEnd     int      `json:"line_end"`
+				Severity    string   `json:"severity"`
+				Title       string   `json:"title"`
+				Description string   `json:"description"`
+				CWE         string   `json:"cwe"`
+				CVE         string   `json:"cve"`
+				ExternalID  string   `json:"external_id"`
+				Status      string   `json:"status"`
+				Category    string   `json:"category"`
+				Vector      string   `json:"vector"`
+				Score       float64  `json:"score"`
+				Source      string   `json:"source"`
+				FeatureIDs  []string `json:"feature_ids"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {
 				return "", fmt.Errorf("invalid params: %w", err)
@@ -242,6 +246,7 @@ func toolCreateFinding(deps *toolDeps) Tool {
 				Source:      p.Source,
 				Category:    p.Category,
 				CreatedAt:   time.Now().UTC().Format(time.RFC3339),
+				FeatureIDs:  p.FeatureIDs,
 			}
 			if p.LineStart > 0 && p.LineEnd > 0 {
 				f.Anchor.LineRange = &model.LineRange{Start: p.LineStart, End: p.LineEnd}
@@ -305,7 +310,8 @@ func toolUpdateFinding(deps *toolDeps) Tool {
 				"file": {"type": "string", "description": "New anchor file path"},
 				"commit": {"type": "string", "description": "New anchor commit"},
 				"line_start": {"type": "integer", "description": "Updated start line number"},
-				"line_end": {"type": "integer", "description": "Updated end line number"}
+				"line_end": {"type": "integer", "description": "Updated end line number"},
+				"feature_ids": {"type": "array", "items": {"type": "string"}, "description": "Feature IDs to associate (replaces full list)"}
 			},
 			"required": ["id"]
 		}`),
@@ -319,6 +325,12 @@ func toolUpdateFinding(deps *toolDeps) Tool {
 				return "", fmt.Errorf("id is required")
 			}
 			delete(raw, "id")
+
+			// Remap feature_ids → featureIds for the DB layer
+			if v, ok := raw["feature_ids"]; ok {
+				raw["featureIds"] = v
+				delete(raw, "feature_ids")
+			}
 
 			// Detect if any anchor field is changing
 			_, hasFile := raw["file"]
@@ -532,7 +544,8 @@ func toolBatchCreateFindings(deps *toolDeps) Tool {
 							"category": {"type": "string", "description": "Finding category (e.g. auth, authz, session, injection, ssrf, crypto, data-exposure, input-validation, path-traversal, deserialization, race-condition, config, error-handling, logging, business-logic, dependencies)"},
 							"vector": {"type": "string", "description": "CVSS vector string"},
 							"score": {"type": "number", "description": "CVSS score"},
-							"source": {"type": "string", "description": "Source tool or scanner (default: mcp)"}
+							"source": {"type": "string", "description": "Source tool or scanner (default: mcp)"},
+							"feature_ids": {"type": "array", "items": {"type": "string"}, "description": "Feature IDs to associate with this finding"}
 						},
 						"required": ["file", "commit", "severity", "title", "description"]
 					},
@@ -544,21 +557,22 @@ func toolBatchCreateFindings(deps *toolDeps) Tool {
 		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
 			var p struct {
 				Findings []struct {
-					File        string  `json:"file"`
-					Commit      string  `json:"commit"`
-					LineStart   int     `json:"line_start"`
-					LineEnd     int     `json:"line_end"`
-					Severity    string  `json:"severity"`
-					Title       string  `json:"title"`
-					Description string  `json:"description"`
-					CWE         string  `json:"cwe"`
-					CVE         string  `json:"cve"`
-					ExternalID  string  `json:"external_id"`
-					Status      string  `json:"status"`
-					Category    string  `json:"category"`
-					Vector      string  `json:"vector"`
-					Score       float64 `json:"score"`
-					Source      string  `json:"source"`
+					File        string   `json:"file"`
+					Commit      string   `json:"commit"`
+					LineStart   int      `json:"line_start"`
+					LineEnd     int      `json:"line_end"`
+					Severity    string   `json:"severity"`
+					Title       string   `json:"title"`
+					Description string   `json:"description"`
+					CWE         string   `json:"cwe"`
+					CVE         string   `json:"cve"`
+					ExternalID  string   `json:"external_id"`
+					Status      string   `json:"status"`
+					Category    string   `json:"category"`
+					Vector      string   `json:"vector"`
+					Score       float64  `json:"score"`
+					Source      string   `json:"source"`
+					FeatureIDs  []string `json:"feature_ids"`
 				} `json:"findings"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {
@@ -596,8 +610,9 @@ func toolBatchCreateFindings(deps *toolDeps) Tool {
 						}
 						return "mcp"
 					}(),
-					Category:  pf.Category,
-					CreatedAt: now,
+					Category:   pf.Category,
+					CreatedAt:  now,
+					FeatureIDs: pf.FeatureIDs,
 				}
 				if pf.LineStart > 0 && pf.LineEnd > 0 {
 					f.Anchor.LineRange = &model.LineRange{Start: pf.LineStart, End: pf.LineEnd}

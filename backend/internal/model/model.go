@@ -28,9 +28,10 @@ type Finding struct {
 	Category       string  `json:"category"`
 	CreatedAt      string  `json:"createdAt"`
 	ResolvedCommit  *string `json:"resolvedCommit,omitempty"`
-	LineHash        string  `json:"lineHash,omitempty"`
-	AnchorUpdatedAt *string `json:"anchorUpdatedAt,omitempty"`
-	CommentCount    int     `json:"commentCount,omitempty"`
+	LineHash        string   `json:"lineHash,omitempty"`
+	AnchorUpdatedAt *string  `json:"anchorUpdatedAt,omitempty"`
+	CommentCount    int      `json:"commentCount,omitempty"`
+	FeatureIDs      []string `json:"featureIds,omitempty"`
 }
 
 type Comment struct {

@@ -36,6 +36,7 @@ A discovered vulnerability or security issue.
   score?: number      // CVSS score
   source?: string     // tool or scanner that found it
   category?: string
+  featureIds?: string[]  // associated Feature IDs (join table — referential integrity)
   createdAt: string
   resolvedCommit?: string
 }
@@ -152,6 +153,40 @@ What changed since a baseline.
 | `feature` | The comment is about a feature annotation itself (link via `featureId`). |
 | *(empty)* | A general note that doesn't fit the above. |
 
+## Linking Findings to Features
+
+Every finding that exploits or directly relates to a feature annotation **should** link to it via `featureIds`. This connects the vulnerability to the architectural surface where it lives and makes the relationship queryable.
+
+**When to link:**
+- A finding in an HTTP handler → link to the `interface` feature for that endpoint
+- A SQL injection in a DB query → link to the `source` or `sink` feature for that query
+- A vulnerable dependency → link to the `dependency` feature
+- A finding spanning multiple surfaces → link all relevant features
+
+**How to link at creation (MCP):**
+```
+create_finding(
+  title: "SQL injection in user lookup",
+  feature_ids: ["feat-abc123"]   // must be an array, not a comma-separated string
+)
+```
+
+**How to link at creation (CLI):**
+```
+bench findings create --title "SQL injection" --severity high --feature-ids feat-abc123,feat-def456
+```
+
+**How to update existing links:**
+```
+# MCP — replaces the full list
+update_finding(id: "f-xyz", feature_ids: ["feat-abc123", "feat-def456"])
+
+# CLI — also replaces the full list
+bench findings update --id f-xyz --feature-ids feat-abc123,feat-def456
+```
+
+Deleting a feature or finding automatically removes the join-table rows — no manual cleanup needed.
+
 ## Typical Review Workflow
 
 ```
@@ -195,6 +230,8 @@ Bench exposes MCP tools and a CLI. Tool schemas and CLI `--help` are the source 
 | `severity` | `"informational"` | `"info"` |
 | `source` (findings) | any string | `pentest`, `tool`, `manual`, or `mcp` (SQLite CHECK) |
 | `tags` (features) | `"http,rest"` | `["http", "rest"]` (JSON array) |
+| `feature_ids` (MCP) | `"feat-1,feat-2"` | `["feat-1", "feat-2"]` (JSON array) |
+| `featureIds` (PATCH) | appends | replaces the full list (same semantic as `tags`) |
 | `commit` | omitted | always set — empty `commitId` breaks reconciliation |
 
 **Default differences by interface:**

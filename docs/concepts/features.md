@@ -43,6 +43,10 @@ Do not include the HTTP method or protocol in `title` — use `operation` for th
 
 **`externality` vs `interface`** — If triggered by a scheduler or internal event → `externality`. If triggered by an inbound webhook or external message → `interface` with `direction: in`.
 
+## Linking findings to features
+
+Findings can reference features via `featureIds`. See [Annotations — Linking findings to features](/concepts/annotations#linking-findings-to-features) for the full details.
+
 ## Creating features
 
 Via CLI:

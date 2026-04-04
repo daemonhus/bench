@@ -100,13 +100,16 @@ Returns `Finding[]`.
   "title": "SQL injection in login handler",
   "description": "User input concatenated directly into query",
   "cwe": "CWE-89",
-  "status": "open"
+  "status": "open",
+  "featureIds": ["feat-abc123"]
 }
 ```
 
 **Severity values:** `critical` | `high` | `medium` | `low` | `info`
 
 **Status values:** `draft` | `open` | `in-progress` | `false-positive` | `accepted` | `closed`
+
+`featureIds` links the finding to one or more feature annotations. The relationship is stored in a join table; deleting a feature or finding automatically removes the link.
 
 Returns the created `Finding`.
 
@@ -116,9 +119,12 @@ Partial update - only supplied fields are changed:
 ```json
 {
   "status": "in-progress",
-  "title": "Updated title"
+  "title": "Updated title",
+  "featureIds": ["feat-abc123", "feat-def456"]
 }
 ```
+
+`featureIds` **replaces** the full list of linked features (same semantics as `tags` on features).
 
 ## Comments
 
@@ -256,6 +262,7 @@ Two delta modes:
   status: 'draft' | 'open' | 'in-progress' | 'false-positive' | 'accepted' | 'closed'
   source?: string
   category?: string
+  featureIds?: string[]  // features this finding is linked to
   createdAt: string
   resolvedCommit?: string
 }
