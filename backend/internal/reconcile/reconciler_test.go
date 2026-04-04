@@ -1371,3 +1371,153 @@ func TestReconcile_AutoResolve_NoResolverConfigured(t *testing.T) {
 		t.Fatalf("expected 0 resolved (no resolver), got %d", s.Result.Annotations.Resolved)
 	}
 }
+
+func TestReconcile_OrphanedThenReAnchored(t *testing.T) {
+	// Scenario: finding is orphaned at commit B (lines deleted).
+	// User manually re-anchors it (setting anchor_updated_at).
+	// Next reconcile to commit C should respect the manual fix, not stay orphaned.
+	anchorUpdated := time.Now().UTC().Format(time.RFC3339)
+
+	git := &mockGit{
+		headCommit: "C",
+		revLists: map[string][]string{
+			"A..B": {"B"},
+			"B..C": {"C"},
+		},
+		ancestors: map[string]bool{
+			"A:B": true,
+			"B:C": true,
+			"A:C": true,
+		},
+		diffs: map[string]string{},
+		shows: map[string]string{
+			"C:src/auth.py": "line 1\nline 2\nline 3\nline 4\nline 5\nline 6\nline 7\nline 8\nline 9\nline 10\nline 11\nline 12\nline 13\nline 14\nline 15\nnew_vuln_call()\nno_check()\nline 18",
+		},
+	}
+
+	// Pre-populate an orphaned position at commit B
+	pos := &mockPositionStore{
+		positions: []model.AnnotationPosition{
+			{
+				AnnotationID:   "FIND-1",
+				AnnotationType: "finding",
+				CommitID:       "B",
+				FileID:         nil, // orphaned → nil file
+				LineStart:      nil,
+				LineEnd:        nil,
+				Confidence:     "orphaned",
+				CreatedAt:      time.Now().Add(-10 * time.Minute).UTC().Format(time.RFC3339),
+			},
+		},
+	}
+
+	rec := &mockReconcileStore{
+		states: map[string]string{"src/auth.py": "B"}, // already reconciled to B
+		files:  []string{"src/auth.py"},
+	}
+
+	// The finding's anchor has been updated (lines 16-17 in the current code)
+	ann := &mockAnnotationReader{
+		findings: map[string][]model.Finding{
+			"src/auth.py": {
+				{
+					ID:              "FIND-1",
+					Anchor:          model.Anchor{FileID: "src/auth.py", CommitID: "A", LineRange: &model.LineRange{Start: 16, End: 17}},
+					LineHash:        LineHash([]string{"new_vuln_call()", "no_check()"}),
+					AnchorUpdatedAt: &anchorUpdated,
+				},
+			},
+		},
+	}
+
+	r := NewReconciler(git, pos, rec, ann)
+	jobID := r.StartJob("C", nil)
+	s := waitForJob(r, jobID)
+
+	if s.Status != "done" {
+		t.Fatalf("expected done, got %s: %s", s.Status, s.Error)
+	}
+
+	// The finding should NOT be orphaned — the manual anchor fix should be respected
+	if s.Result.Annotations.Orphaned != 0 {
+		t.Fatalf("expected 0 orphaned (anchor was re-set), got %d", s.Result.Annotations.Orphaned)
+	}
+
+	positions, _ := pos.GetPositions("FIND-1", "finding")
+	// Should have the original orphaned position + the new one at C
+	if len(positions) < 1 {
+		t.Fatalf("expected at least 1 position, got %d", len(positions))
+	}
+	latest := positions[len(positions)-1]
+	if latest.Confidence == "orphaned" {
+		t.Fatalf("expected non-orphaned confidence, got orphaned")
+	}
+	if latest.LineStart == nil || *latest.LineStart != 16 {
+		t.Fatalf("expected lineStart=16, got %v", latest.LineStart)
+	}
+	if latest.LineEnd == nil || *latest.LineEnd != 17 {
+		t.Fatalf("expected lineEnd=17, got %v", latest.LineEnd)
+	}
+}
+
+func TestReconcile_OrphanedWithoutReAnchor_StaysOrphaned(t *testing.T) {
+	// Scenario: finding is orphaned at commit B. No manual re-anchor.
+	// Next reconcile to commit C should keep it orphaned.
+	git := &mockGit{
+		headCommit: "C",
+		revLists: map[string][]string{
+			"B..C": {"C"},
+		},
+		ancestors: map[string]bool{
+			"B:C": true,
+		},
+		diffs: map[string]string{},
+		shows: map[string]string{
+			"C:src/auth.py": "line 1\nline 2\nline 3",
+		},
+	}
+
+	pos := &mockPositionStore{
+		positions: []model.AnnotationPosition{
+			{
+				AnnotationID:   "FIND-1",
+				AnnotationType: "finding",
+				CommitID:       "B",
+				FileID:         nil,
+				LineStart:      nil,
+				LineEnd:        nil,
+				Confidence:     "orphaned",
+				CreatedAt:      time.Now().Add(-10 * time.Minute).UTC().Format(time.RFC3339),
+			},
+		},
+	}
+
+	rec := &mockReconcileStore{
+		states: map[string]string{"src/auth.py": "B"},
+		files:  []string{"src/auth.py"},
+	}
+
+	// Finding still has its original anchor lines but NO anchorUpdatedAt
+	ann := &mockAnnotationReader{
+		findings: map[string][]model.Finding{
+			"src/auth.py": {
+				{
+					ID:     "FIND-1",
+					Anchor: model.Anchor{FileID: "src/auth.py", CommitID: "A", LineRange: &model.LineRange{Start: 5, End: 6}},
+					// No AnchorUpdatedAt → should stay orphaned
+				},
+			},
+		},
+	}
+
+	r := NewReconciler(git, pos, rec, ann)
+	jobID := r.StartJob("C", nil)
+	s := waitForJob(r, jobID)
+
+	if s.Status != "done" {
+		t.Fatalf("expected done, got %s: %s", s.Status, s.Error)
+	}
+	if s.Result.Annotations.Orphaned != 1 {
+		t.Fatalf("expected 1 orphaned (no re-anchor), got %d", s.Result.Annotations.Orphaned)
+	}
+}
