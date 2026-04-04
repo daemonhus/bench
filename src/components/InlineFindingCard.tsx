@@ -106,7 +106,7 @@ export const InlineFindingCard: React.FC<InlineFindingCardProps> = ({ finding })
               {visibleComments.map((c) => (
                 <div key={c.id} className="inline-finding-comment">
                   <span className="inline-finding-comment-author">{c.author}</span>
-                  <span className="inline-finding-comment-text">{c.text}</span>
+                  <span className="inline-finding-comment-text"><InlineMarkdown text={c.text} /></span>
                 </div>
               ))}
             </div>
