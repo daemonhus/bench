@@ -17,13 +17,13 @@
   </a>
 </p>
 
-<p align="center">
+<div align="center">
 <strong>A devilishy good workbench for code reviews and long-lived annotations</strong><br/>
 
-A workspace for findings, comments, and features: all anchored to file and line ranges and tracked across commits, so they stay accurate as the code evolves.<br/>
-Point-in-time baselines lets you snapshot the state of code and measure progress over time, or since you (or your agent) last looked at the codebase.<br/>
-Ships with a CLI and MCP, to fit your workflow.
-</p>
+The workspace for findings, comments, and features: anchored to their positions and tracked across commits, so they stay accurate as the code evolves.<br/>
+Point-in-time baselines snapshot the state of code and measure progress over time, or since you (or your agent) last looked at the codebase.<br/>
+Ships with a full-parity CLI and MCP to supercharge reviews.
+</div>
 
 
 ## Quick Start

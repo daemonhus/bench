@@ -503,6 +503,194 @@
   background: var(--bg-tertiary);
 }
 
+/* ----- Feature Parameters ----- */
+
+/* Collapsed badge */
+.feature-params-badge {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-muted);
+  padding: 1px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+/* Heading shared by view and edit sections */
+.feature-params-heading {
+  font-size: var(--font-size-small);
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+/* Expanded view: parameters list */
+.feature-params-section {
+  margin-top: 10px;
+  margin-bottom: 10px;
+}
+
+.feature-params-list {
+  display: grid;
+  grid-template-columns: repeat(5, max-content);
+  column-gap: 20px;
+  row-gap: 11px;
+  align-items: baseline;
+}
+
+.feature-param-row {
+  display: contents;
+}
+
+.feature-param-name {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-code);
+  color: var(--text-primary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.feature-param-type-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-muted);
+  padding: 1px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.feature-param-field {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.feature-param-field--desc {
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+.feature-param-label {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-muted);
+  opacity: 0.6;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.feature-param-required-val {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-muted);
+  padding: 1px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.feature-param-required-val--yes {
+  color: var(--accent-blue);
+  background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
+  border-color: color-mix(in srgb, var(--accent-blue) 25%, transparent);
+  font-weight: 600;
+}
+
+.feature-param-desc {
+  font-size: var(--font-size-small);
+  color: var(--text-secondary);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.feature-params-pattern {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+.feature-param-empty {
+  color: var(--text-muted);
+  opacity: 0.35;
+}
+
+/* Edit sub-form */
+.feature-params-edit-section {
+  margin-top: 6px;
+  margin-bottom: 6px;
+  padding: 8px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-muted);
+  border-radius: 4px;
+}
+
+.feature-params-edit-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.feature-params-add-row {
+  font-size: var(--font-size-small);
+  color: var(--accent-blue);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.feature-params-add-row:hover {
+  text-decoration: underline;
+}
+
+.feature-params-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+  flex-wrap: nowrap;
+}
+
+.feature-params-input-name {
+  flex: 1.2;
+  min-width: 80px;
+}
+
+.feature-params-input-type {
+  flex: 0.8;
+  min-width: 70px;
+}
+
+.feature-params-req-label {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.feature-params-input-desc {
+  flex: 2;
+  min-width: 100px;
+}
+
+.feature-params-input-pattern {
+  flex: 1.5;
+  min-width: 80px;
+}
+
 /* ── Light mode overrides ─────────────────────────────────────────── */
 
 /* Feature cards are white, floating on cloud canvas */

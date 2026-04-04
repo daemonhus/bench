@@ -1,4 +1,4 @@
-import type { Finding, Comment, FindingWithPosition, CommentWithPosition, CommitInfo, FileEntry, BranchInfo, GraphCommit, ReconciledHead, JobSnapshot, ReconcileFileStatus, AnnotationPosition, PaginatedResponse, GrepMatch, Baseline, BaselineDelta, Feature, FeatureWithPosition, FeatureKind, FeatureStatus } from './types';
+import type { Finding, Comment, FindingWithPosition, CommentWithPosition, CommitInfo, FileEntry, BranchInfo, GraphCommit, ReconciledHead, JobSnapshot, ReconcileFileStatus, AnnotationPosition, PaginatedResponse, GrepMatch, Baseline, BaselineDelta, Feature, FeatureWithPosition, FeatureKind, FeatureStatus, Ref } from './types';
 
 interface DiffResult {
   raw: string;
@@ -171,6 +171,34 @@ export const featuresApi = {
     return fetchJSON(`/api/features/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
+  },
+};
+
+export const refsApi = {
+  list(entityType?: string, entityId?: string, provider?: string): Promise<Ref[]> {
+    const params = new URLSearchParams();
+    if (entityType) params.set('entityType', entityType);
+    if (entityId) params.set('entityId', entityId);
+    if (provider) params.set('provider', provider);
+    const q = params.toString() ? `?${params}` : '';
+    return fetchJSON(`/api/refs${q}`);
+  },
+  create(ref: Omit<Ref, 'id' | 'createdAt'>): Promise<Ref> {
+    return fetchJSON('/api/refs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(ref),
+    });
+  },
+  update(id: string, updates: Partial<Pick<Ref, 'provider' | 'url' | 'title'>>): Promise<Ref> {
+    return fetchJSON(`/api/refs/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
+  },
+  delete(id: string): Promise<void> {
+    return fetchJSON(`/api/refs/${encodeURIComponent(id)}`, { method: 'DELETE' });
   },
 };
 

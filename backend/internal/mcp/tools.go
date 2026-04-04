@@ -172,6 +172,7 @@ func registerAllTools(deps *toolDeps) map[string]Tool {
 		registerAnalyticsTools(deps),
 		registerBaselineTools(deps),
 		registerFeatureTools(deps),
+		registerRefTools(deps),
 	} {
 		for _, t := range list {
 			tools[t.Name] = t

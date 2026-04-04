@@ -70,6 +70,13 @@ func TestCLIAPIRouteParity(t *testing.T) {
 		{"GET", "/api/coverage", ""},
 		{"POST", "/api/coverage/mark", `{}`},
 
+		// refs
+		{"GET", "/api/refs", ""},
+		{"GET", "/api/refs/test-id", ""},
+		{"POST", "/api/refs", `{"entityType":"finding","entityId":"f-1","provider":"url","url":"https://example.com"}`},
+		{"PATCH", "/api/refs/test-id", `{}`},
+		{"DELETE", "/api/refs/test-id", ""},
+
 		// reconcile
 		{"POST", "/api/reconcile", `{}`},
 		{"GET", "/api/reconcile/head", ""},

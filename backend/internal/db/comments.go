@@ -89,6 +89,15 @@ func (d *DB) ListComments(fileID, findingID string, limit, offset int, featureID
 	if limit == 0 {
 		total = len(comments)
 	}
+	ids := make([]string, len(comments))
+	for i, c := range comments {
+		ids[i] = c.ID
+	}
+	if refsMap, err := d.enrichWithRefs("comment", ids); err == nil && refsMap != nil {
+		for i, c := range comments {
+			comments[i].Refs = refsMap[c.ID]
+		}
+	}
 	return comments, total, nil
 }
 
@@ -150,17 +159,17 @@ func (d *DB) GetComment(id string) (*model.Comment, error) {
 
 func (d *DB) UpdateComment(id string, updates map[string]any) error {
 	allowed := map[string]string{
-		"text":           "text",
-		"author":         "author",
-		"commentType":    "comment_type",
-		"comment_type":   "comment_type",
-		"resolvedCommit": "resolved_commit",
-		"file":           "anchor_file_id",
-		"file_id":        "anchor_file_id",
-		"commit":         "anchor_commit_id",
-		"commit_id":      "anchor_commit_id",
-		"line_start":     "anchor_line_start",
-		"line_end":       "anchor_line_end",
+		"text":              "text",
+		"author":            "author",
+		"commentType":       "comment_type",
+		"comment_type":      "comment_type",
+		"resolvedCommit":    "resolved_commit",
+		"file":              "anchor_file_id",
+		"file_id":           "anchor_file_id",
+		"commit":            "anchor_commit_id",
+		"commit_id":         "anchor_commit_id",
+		"line_start":        "anchor_line_start",
+		"line_end":          "anchor_line_end",
 		"featureId":         "feature_id",
 		"feature_id":        "feature_id",
 		"line_hash":         "line_hash",
@@ -239,6 +248,10 @@ func (d *DB) BatchCreateComments(comments []model.Comment) ([]string, error) {
 
 func (d *DB) DeleteComment(id string) error {
 	return wq0(d.wq, func() error {
+		// Remove refs for this comment
+		if _, err := d.conn.Exec(`DELETE FROM refs WHERE entity_type = 'comment' AND entity_id = ? AND project_id = ?`, id, d.projectID); err != nil {
+			return fmt.Errorf("delete refs: %w", err)
+		}
 		res, err := d.conn.Exec(`DELETE FROM comments WHERE id = ? AND project_id = ?`, id, d.projectID)
 		if err != nil {
 			return err

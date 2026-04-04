@@ -130,6 +130,21 @@ func TestMCPToolRequiredFields(t *testing.T) {
 		{"get_annotation_history", map[string]any{"id": "nonexistent", "type": "finding"}},
 		// analytics
 		{"mark_reviewed", map[string]any{"path": "main.go", "commit": head}},
+		// feature parameters
+		{"list_feature_parameters", map[string]any{"feature_id": "nonexistent"}},
+		{"create_feature_parameter", map[string]any{"feature_id": "nonexistent", "name": "user_id"}},
+		{"update_feature_parameter", map[string]any{"id": "nonexistent", "name": "updated"}},
+		{"delete_feature_parameter", map[string]any{"id": "nonexistent"}},
+		// refs
+		{"get_ref", map[string]any{"id": "nonexistent"}},
+		{"create_ref", map[string]any{
+			"entity_type": "finding", "entity_id": "f-1", "provider": "jira", "url": "https://jira.example.com/PROJ-1",
+		}},
+		{"update_ref", map[string]any{"id": "nonexistent", "url": "https://updated.example.com"}},
+		{"delete_ref", map[string]any{"id": "nonexistent"}},
+		{"batch_create_refs", map[string]any{"refs": []any{map[string]any{
+			"entity_type": "finding", "entity_id": "f-1", "provider": "url", "url": "https://example.com",
+		}}}},
 	}
 
 	// Coverage check: every registered tool with declared required fields must have a case.

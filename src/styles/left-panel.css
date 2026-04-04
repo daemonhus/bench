@@ -578,18 +578,25 @@
   flex: 1;
   min-width: 120px;
   max-width: 260px;
-  padding: 4px 8px;
-  background: var(--bg-primary);
+  padding: 6px 10px;
+  background: var(--bg-tertiary);
   border: 1px solid var(--border-default);
-  border-radius: 4px;
+  border-radius: 6px;
   color: var(--text-primary);
   font-family: var(--font-mono);
   font-size: 13px;
   outline: none;
+  transition: border-color var(--transition-base), box-shadow var(--transition-base), background var(--transition-base);
+}
+
+.in-file-search-input:hover {
+  border-color: rgba(148, 163, 184, 0.28);
 }
 
 .in-file-search-input:focus {
+  background: var(--bg-surface);
   border-color: var(--accent-blue);
+  box-shadow: var(--shadow-focus-blue);
 }
 
 .in-file-search-counter {

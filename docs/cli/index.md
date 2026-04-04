@@ -1,6 +1,6 @@
 # Bench CLI
 
-Command-line interface to the bench workbench. Requires a running `benchd` server — the CLI talks to it over REST.
+Command-line interface to bench. Requires a running `benchd` server; the CLI talks to it over REST.
 
 ## Install
 
@@ -50,7 +50,7 @@ Global flags go **before** the category and command:
 bench --url http://my-bench-server:8080 findings list
 ```
 
-You can also set the server URL via the `BENCH_URL` environment variable — useful when running bench in Docker or against a remote instance:
+You can also set the server URL via the `BENCH_URL` environment variable:
 
 ```bash
 # Environment variable (persists across commands)
@@ -244,7 +244,7 @@ bench features list --kind sink --status active
 # Get full details
 bench features get --id <feature-id>
 
-# Annotate an interface (title is the endpoint name, not the method — use --operation for that)
+# Annotate an interface (title is the endpoint name, not the method; use --operation for that)
 bench features create \
   --file-id src/api/auth.go \
   --commit-id HEAD \
@@ -278,6 +278,26 @@ bench features delete --id <feature-id>
 
 # Batch-create from JSON
 cat features.json | bench features batch-create
+
+# List parameters on an interface feature
+bench features params-list --feature-id <feature-id>
+
+# Add a parameter
+bench features params-add \
+  --feature-id <feature-id> \
+  --name user_id \
+  --type string \
+  --description "Authenticated user ID" \
+  --required
+
+# Update a parameter
+bench features params-update \
+  --feature-id <feature-id> \
+  --id <param-id> \
+  --description "Updated note"
+
+# Delete a parameter
+bench features params-delete --feature-id <feature-id> --id <param-id>
 ```
 
 ## baselines
@@ -338,7 +358,7 @@ bench reconcile head
 
 ## Relationship to the server
 
-The CLI talks to a running `benchd` server over its REST API — it has no direct database access. Start the server first, then use the CLI against it:
+The CLI talks to a running `benchd` server over its REST API. It has no direct database access. Start the server first, then use the CLI against it:
 
 ```bash
 # Start the server

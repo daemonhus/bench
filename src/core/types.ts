@@ -32,6 +32,17 @@ export interface DiffChange {
   newLine: number | null;
 }
 
+// External reference linked to an annotation
+export interface Ref {
+  id: string;
+  entityType: 'finding' | 'feature' | 'comment';
+  entityId: string;
+  provider: string; // 'jira' | 'slack' | 'github' | 'linear' | 'url'
+  url: string;
+  title?: string;
+  createdAt?: string;
+}
+
 // Annotations
 export interface LineRange {
   start: number;
@@ -79,6 +90,7 @@ export interface Finding {
   lineHash?: string;
   commentCount?: number;
   featureIds?: string[];
+  refs?: Ref[];
 }
 
 export interface FindingWithPosition extends Finding {
@@ -115,6 +127,7 @@ export interface Comment {
   featureId?: string;
   resolvedCommit?: string;
   lineHash?: string;
+  refs?: Ref[];
 }
 
 export interface CommentWithPosition extends Comment {
@@ -245,6 +258,17 @@ export interface JobSnapshot {
 export type FeatureKind = 'interface' | 'source' | 'sink' | 'dependency' | 'externality';
 export type FeatureStatus = 'draft' | 'active' | 'deprecated' | 'removed' | 'orphaned';
 
+export interface FeatureParameter {
+  id: string;
+  featureId: string;
+  name: string;
+  description?: string;
+  type?: string;
+  pattern?: string;
+  required: boolean;
+  createdAt?: string;
+}
+
 export interface Feature {
   id: string;
   anchor: Anchor;
@@ -260,6 +284,8 @@ export interface Feature {
   createdAt?: string;
   resolvedCommit?: string;
   lineHash?: string;
+  refs?: Ref[];
+  parameters?: FeatureParameter[];
 }
 
 export interface FeatureWithPosition extends Feature {

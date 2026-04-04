@@ -48,6 +48,12 @@ func NewRouter(repo *git.Repo, database *db.DB, broker *events.Broker) http.Hand
 	mux.HandleFunc("PATCH /api/features/{id}", featureh.update)
 	mux.HandleFunc("DELETE /api/features/{id}", featureh.delete)
 
+	fph := &featureParamsHandlers{db: database, broker: broker}
+	mux.HandleFunc("GET /api/features/{id}/parameters", fph.list)
+	mux.HandleFunc("POST /api/features/{id}/parameters", fph.create)
+	mux.HandleFunc("PATCH /api/features/{id}/parameters/{pid}", fph.update)
+	mux.HandleFunc("DELETE /api/features/{id}/parameters/{pid}", fph.delete)
+
 	rc := &reconcileHandlers{reconciler: reconciler, db: database}
 	mux.HandleFunc("POST /api/reconcile", rc.start)
 	mux.HandleFunc("GET /api/reconcile/head", rc.head)
@@ -68,6 +74,13 @@ func NewRouter(repo *git.Repo, database *db.DB, broker *events.Broker) http.Hand
 	mux.HandleFunc("GET /api/findings/search", ah.searchFindings)
 	mux.HandleFunc("GET /api/coverage", ah.coverage)
 	mux.HandleFunc("POST /api/coverage/mark", ah.markReviewed)
+
+	rh := &refsHandlers{db: database, broker: broker}
+	mux.HandleFunc("GET /api/refs", rh.list)
+	mux.HandleFunc("GET /api/refs/{id}", rh.get)
+	mux.HandleFunc("POST /api/refs", rh.create)
+	mux.HandleFunc("PATCH /api/refs/{id}", rh.update)
+	mux.HandleFunc("DELETE /api/refs/{id}", rh.delete)
 
 	sh := &settingsHandlers{db: database}
 	mux.HandleFunc("GET /api/settings", sh.get)

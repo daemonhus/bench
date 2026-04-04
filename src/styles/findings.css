@@ -1,3 +1,33 @@
+/* ----- Ref icons ----- */
+.ref-icons {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-right: 4px;
+}
+
+.ref-icon-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  text-decoration: none;
+  opacity: 0.7;
+  transition: opacity 0.15s, color 0.15s;
+  line-height: 1;
+}
+
+.ref-icon-link:hover {
+  opacity: 1;
+  color: var(--text-primary);
+}
+
+.ref-icons-label {
+  font-size: var(--font-size-small);
+  color: var(--text-muted);
+  margin-right: 2px;
+}
+
 /* ----- Finding Card ----- */
 .finding-card {
   background: var(--bg-surface);
@@ -450,39 +480,53 @@
 
 .finding-edit-input {
   width: 100%;
-  background: var(--bg-primary);
+  background: var(--bg-tertiary);
   border: 1px solid var(--border-default);
-  border-radius: 4px;
+  border-radius: 6px;
   color: var(--text-primary);
   font-size: var(--font-size-ui);
   font-weight: 500;
-  padding: 6px 8px;
+  padding: 9px 12px;
   box-sizing: border-box;
+  transition: border-color var(--transition-base), box-shadow var(--transition-base), background var(--transition-base);
+}
+
+.finding-edit-input:hover {
+  border-color: rgba(148, 163, 184, 0.28);
 }
 
 .finding-edit-input:focus {
   outline: none;
+  background: var(--bg-surface);
   border-color: var(--accent-blue);
+  box-shadow: var(--shadow-focus-blue);
 }
 
 .finding-edit-textarea {
   width: 100%;
-  background: var(--bg-primary);
+  background: var(--bg-tertiary);
   border: 1px solid var(--border-default);
-  border-radius: 4px;
+  border-radius: 6px;
   color: var(--text-secondary);
   font-size: var(--font-size-ui);
-  padding: 6px 8px;
+  padding: 9px 12px;
   resize: vertical;
-  min-height: 48px;
+  min-height: 56px;
   line-height: 1.5;
   font-family: inherit;
   box-sizing: border-box;
+  transition: border-color var(--transition-base), box-shadow var(--transition-base), background var(--transition-base);
+}
+
+.finding-edit-textarea:hover {
+  border-color: rgba(148, 163, 184, 0.28);
 }
 
 .finding-edit-textarea:focus {
   outline: none;
+  background: var(--bg-surface);
   border-color: var(--accent-blue);
+  box-shadow: var(--shadow-focus-blue);
 }
 
 .finding-edit-row {
@@ -502,7 +546,7 @@
   flex: 1;
   appearance: none;
   -webkit-appearance: none;
-  background-color: var(--bg-primary);
+  background-color: var(--bg-tertiary);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2355606f'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 8px center;
@@ -527,19 +571,26 @@
 
 .finding-edit-input-sm {
   flex: 1;
-  background: var(--bg-primary);
+  background: var(--bg-tertiary);
   border: 1px solid var(--border-default);
-  border-radius: 4px;
+  border-radius: 6px;
   color: var(--text-primary);
   font-size: var(--font-size-small);
   font-family: var(--font-mono);
-  padding: 4px 6px;
+  padding: 6px 10px;
   box-sizing: border-box;
+  transition: border-color var(--transition-base), box-shadow var(--transition-base), background var(--transition-base);
+}
+
+.finding-edit-input-sm:hover {
+  border-color: rgba(148, 163, 184, 0.28);
 }
 
 .finding-edit-input-sm:focus {
   outline: none;
+  background: var(--bg-surface);
   border-color: var(--accent-blue);
+  box-shadow: var(--shadow-focus-blue);
 }
 
 .finding-edit-input-sm[type="number"] {
@@ -674,20 +725,22 @@
 
 .finding-comment-compose textarea {
   flex: 1;
-  background: var(--bg-primary);
+  background: var(--bg-tertiary);
   border: 1px solid var(--border-default);
   border-radius: 6px;
   color: var(--text-primary);
   font-family: var(--font-sans);
   font-size: var(--font-size-ui);
-  padding: 6px 8px;
+  padding: 8px 12px;
   resize: none;
-  min-height: 32px;
+  min-height: 36px;
   max-height: 80px;
   outline: none;
+  transition: border-color var(--transition-base), box-shadow var(--transition-base), background var(--transition-base);
 }
 
 .finding-comment-compose textarea:focus {
+  background: var(--bg-surface);
   border-color: var(--accent-blue);
   box-shadow: var(--shadow-focus-blue);
 }
@@ -916,14 +969,15 @@
 
 .finding-input {
   width: 100%;
-  background: var(--bg-primary);
+  background: var(--bg-tertiary);
   border: 1px solid color-mix(in srgb, var(--severity-high) 25%, transparent);
   border-radius: 6px;
   color: var(--text-primary);
   font-family: var(--font-sans);
   font-size: var(--font-size-ui);
-  padding: 6px 10px;
+  padding: 9px 12px;
   outline: none;
+  transition: border-color var(--transition-base), box-shadow var(--transition-base), background var(--transition-base);
 }
 
 .finding-input:focus {
@@ -934,15 +988,16 @@
 .finding-severity-select,
 .finding-status-select {
   flex: 1;
-  background: var(--bg-primary);
+  background: var(--bg-tertiary);
   border: 1px solid color-mix(in srgb, var(--severity-high) 25%, transparent);
   border-radius: 6px;
   color: var(--text-primary);
   font-family: var(--font-sans);
   font-size: var(--font-size-ui);
-  padding: 6px 10px;
+  padding: 9px 12px;
   outline: none;
   cursor: pointer;
+  transition: border-color var(--transition-base), box-shadow var(--transition-base);
 }
 
 .finding-severity-select:focus,
@@ -1212,5 +1267,169 @@
 [data-theme="light"] .comment-card-clickable:hover {
   background: var(--bg-tertiary);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.09), 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+
+/* ----- Ref Manage Modal ----- */
+
+.ref-manage-modal {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  width: 380px;
+  max-width: 92vw;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-lg);
+}
+
+.ref-manage-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--font-size-ui);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.ref-manage-modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ref-manage-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.ref-manage-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-tertiary);
+  font-size: var(--font-size-ui);
+}
+
+.ref-manage-icon {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.ref-manage-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-small);
+  color: var(--text-secondary);
+}
+
+.ref-manage-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.ref-manage-open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  padding: 3px 4px;
+  border-radius: var(--radius-xs, 3px);
+  text-decoration: none;
+  opacity: 0.7;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.ref-manage-open:hover {
+  opacity: 1;
+  color: var(--text-primary);
+}
+
+.ref-manage-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-default);
+  background: var(--bg-surface);
+}
+
+.ref-manage-add-section {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.ref-manage-add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.ref-manage-provider-select {
+  font-size: var(--font-size-small);
+  padding: 4px 6px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.ref-manage-input {
+  font-size: var(--font-size-small);
+  padding: 7px 10px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-base);
+  color: var(--text-primary);
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color var(--transition-base), box-shadow var(--transition-base), background var(--transition-base);
+}
+
+.ref-manage-input:hover {
+  border-color: rgba(148, 163, 184, 0.28);
+}
+
+.ref-manage-input:focus {
+  background: var(--bg-surface);
+  border-color: var(--accent-blue);
+  box-shadow: var(--shadow-focus-blue);
+}
+
+.ref-manage-edit-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+/* Inline comment ref icons */
+.comment-ref-icons {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  padding-left: 2px;
 }
 
