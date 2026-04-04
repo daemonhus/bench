@@ -53,6 +53,32 @@
   gap: 8px;
 }
 
+.finding-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.finding-expand-chevron {
+  font-size: 10px;
+  color: var(--text-primary);
+  opacity: 0.35;
+  transition: transform 0.18s ease, opacity 0.18s;
+  flex-shrink: 0;
+  user-select: none;
+  line-height: 1;
+  display: inline-block;
+}
+
+.finding-card:hover .finding-expand-chevron {
+  opacity: 0.75;
+}
+
+.finding-expand-chevron--open {
+  transform: rotate(90deg);
+  opacity: 0.75;
+}
+
 .finding-title {
   font-size: var(--font-size-ui);
   font-weight: 600;

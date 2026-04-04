@@ -98,6 +98,30 @@
   margin-bottom: 16px;
 }
 
+.collapse-toggle-group {
+  display: flex;
+  gap: 2px;
+}
+
+.collapse-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.collapse-toggle-btn:hover {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
 .overview-section-title {
   font-size: var(--font-size-lg);
   font-weight: 700;

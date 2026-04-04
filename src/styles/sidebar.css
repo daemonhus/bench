@@ -297,6 +297,37 @@
   position: relative;
 }
 
+/* Expand / collapse FAB group — sits to the left of the keyboard shortcuts FAB */
+.view-expand-fabs {
+  position: fixed;
+  bottom: 12px;
+  right: 52px;
+  z-index: var(--z-fab);
+  display: flex;
+  gap: 4px;
+}
+
+.view-expand-fab-btn {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.06), var(--shadow-sm);
+  transition: box-shadow var(--transition-base), background var(--transition-base), color var(--transition-base);
+}
+
+.view-expand-fab-btn:hover {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent-blue) 20%, transparent);
+}
+
 /* FAB must stay fixed — override the tooltip's position: relative */
 .shortcuts-fab[data-tooltip] {
   position: fixed;

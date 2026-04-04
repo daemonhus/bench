@@ -465,7 +465,10 @@ export const FindingCard: React.FC<FindingCardProps> = ({
             )}
           </div>
         </div>
-        <span className="finding-title">{finding.title}</span>
+        <div className="finding-title-row">
+          <span className={`finding-expand-chevron${isExpanded ? ' finding-expand-chevron--open' : ''}`}>&#9658;</span>
+          <span className="finding-title">{finding.title}</span>
+        </div>
         {!isExpanded && finding.description && (
           <p className="finding-description feature-description-collapsed">{finding.description}</p>
         )}
