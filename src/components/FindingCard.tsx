@@ -1,10 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useAnnotationStore } from '../stores/annotation-store';
 import { useRepoStore } from '../stores/repo-store';
 import { useUIStore } from '../stores/ui-store';
 import { useReconcileStore } from '../stores/reconcile-store';
-import type { Finding, Comment, Severity, FindingStatus } from '../core/types';
+import type { Finding, Comment, Feature, Severity, FindingStatus } from '../core/types';
 import { FINDING_CATEGORIES, getEffectiveLineRange, getConfidence } from '../core/types';
+import { featuresApi } from '../core/api';
 import { InlineMarkdown } from '../core/markdown';
 import { useBranchMap } from '../core/use-branch-map';
 import { gitApi } from '../core/api';
@@ -18,6 +20,14 @@ interface FindingCardProps {
   onToggle: () => void;
   onScrollTo: () => void;
 }
+
+const KIND_COLORS: Record<string, string> = {
+  interface:   '#2563eb',
+  source:      '#16a34a',
+  sink:        '#ea580c',
+  dependency:  '#7c3aed',
+  externality: '#6b7280',
+};
 
 const SEVERITY_COLORS: Record<string, string> = {
   critical: '#dc2626',
@@ -39,6 +49,8 @@ const STATUS_LABELS: Record<string, string> = {
 const SEVERITIES: Severity[] = ['critical', 'high', 'medium', 'low', 'info'];
 const STATUSES: FindingStatus[] = ['draft', 'open', 'in-progress', 'false-positive', 'accepted', 'closed'];
 const SOURCES = ['pentest', 'tool', 'manual'] as const;
+const KINDS_ORDER = ['interface', 'source', 'sink', 'dependency', 'externality'] as const;
+const PER_KIND_LIMIT = 5;
 
 export const FindingCard: React.FC<FindingCardProps> = ({
   finding,
@@ -54,6 +66,7 @@ export const FindingCard: React.FC<FindingCardProps> = ({
   const deleteComment = useAnnotationStore((s) => s.deleteComment);
   const fetchCommentsForFinding = useAnnotationStore((s) => s.fetchCommentsForFinding);
   const findingComments = useAnnotationStore((s) => s.getCommentsForFinding(finding.id));
+  const allFeatures = useAnnotationStore((s) => s.features);
   const branches = useRepoStore((s) => s.branches);
   const viewMode = useUIStore((s) => s.viewMode);
   const reconciledHead = useReconcileStore((s) => s.head);
@@ -64,6 +77,10 @@ export const FindingCard: React.FC<FindingCardProps> = ({
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [idCopied, setIdCopied] = useState(false);
+  const [linking, setLinking] = useState(false);
+  const [linkDraftIds, setLinkDraftIds] = useState<string[]>([]);
+  const [modalFeatures, setModalFeatures] = useState<Feature[]>([]);
+  const [linkSearch, setLinkSearch] = useState('');
 
   // Comment state — consume draft carried from another view (e.g. Overview → Browse)
   const draftComment = useUIStore((s) => s.draftComment);
@@ -144,6 +161,20 @@ export const FindingCard: React.FC<FindingCardProps> = ({
     return () => { cancelled = true; };
   }, [isExpanded, lineRange?.start, lineRange?.end, finding.anchor.fileId, finding.anchor.commitId]);
 
+  const [fetchedFeatures, setFetchedFeatures] = useState<Feature[] | null>(null);
+
+  useEffect(() => {
+    if (!isExpanded || !finding.featureIds?.length) return;
+    featuresApi.list().then((f) => setFetchedFeatures(f as Feature[])).catch(() => {});
+  }, [isExpanded, finding.featureIds]);
+
+  const linkedFeatures = useMemo(() => {
+    if (!finding.featureIds?.length) return [] as Feature[];
+    const source = fetchedFeatures ?? allFeatures;
+    const byId = new Map(source.map((f) => [f.id, f]));
+    return finding.featureIds.map((id) => byId.get(id)).filter((f): f is Feature => f !== undefined);
+  }, [finding.featureIds, fetchedFeatures, allFeatures]);
+
   const snippet = useMemo(() => {
     if (!fileLines || !lineRange) return null;
     const CONTEXT = 1;
@@ -217,6 +248,26 @@ export const FindingCard: React.FC<FindingCardProps> = ({
   const handleCancelDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
     setConfirmDelete(false);
+  };
+
+  const handleOpenLink = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setLinkDraftIds(finding.featureIds ?? []);
+    setModalFeatures(allFeatures);
+    setLinkSearch('');
+    setLinking(true);
+    featuresApi.list().then((f) => setModalFeatures(f as Feature[])).catch(() => {});
+  };
+
+  const handleLinkSave = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    updateFinding(finding.id, { featureIds: linkDraftIds } as any);
+    setLinking(false);
+  };
+
+  const handleLinkClose = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setLinking(false);
   };
 
   // Quick status cycle from header (no full edit needed)
@@ -448,6 +499,15 @@ export const FindingCard: React.FC<FindingCardProps> = ({
           <div className="comment-card-header-right">
             <button
               className="comment-icon-btn"
+              onClick={handleOpenLink}
+              title="Manage feature links"
+            >
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M7.775 3.275a.75.75 0 0 0 1.06 1.06l1.25-1.25a2 2 0 1 1 2.83 2.83l-2.5 2.5a2 2 0 0 1-2.83 0 .75.75 0 0 0-1.06 1.06 3.5 3.5 0 0 0 4.95 0l2.5-2.5a3.5 3.5 0 0 0-4.95-4.95l-1.25 1.25Zm-4.69 9.64a2 2 0 0 1 0-2.83l2.5-2.5a2 2 0 0 1 2.83 0 .75.75 0 0 0 1.06-1.06 3.5 3.5 0 0 0-4.95 0l-2.5 2.5a3.5 3.5 0 0 0 4.95 4.95l1.25-1.25a.75.75 0 0 0-1.06-1.06l-1.25 1.25a2 2 0 0 1-2.83 0Z"/>
+              </svg>
+            </button>
+            <button
+              className="comment-icon-btn"
               onClick={handleStartEdit}
               title="Edit"
             >&#x270E;</button>
@@ -523,6 +583,29 @@ export const FindingCard: React.FC<FindingCardProps> = ({
           )}
         </div>
       )}
+
+      {isExpanded && linkedFeatures.length > 0 && linkedFeatures.map((feat) => (
+        <div
+          key={feat.id}
+          className="activity-feature-ref finding-feature-ref"
+          onClick={() => { useUIStore.getState().setScrollToFeature({ id: feat.id, kind: feat.kind }); useUIStore.getState().setViewMode('features'); }}
+        >
+          <div className="activity-feature-ref-header">
+            <span className="activity-feature-ref-kind">Feature:</span>
+            <span className="activity-feature-ref-title">{feat.title}</span>
+          </div>
+          {feat.anchor.fileId && (
+            <div className="activity-finding-ref-meta">
+              <span className="activity-finding-ref-file">
+                {feat.anchor.fileId}{feat.anchor.lineRange ? `:${feat.anchor.lineRange.start}` : ''}
+              </span>
+            </div>
+          )}
+          {feat.description && (
+            <div className="activity-finding-ref-desc">{feat.description}</div>
+          )}
+        </div>
+      ))}
 
       {isExpanded && (sortedComments.length > 0 || true) && (
         <div className="finding-comments" onClick={(e) => e.stopPropagation()}>
@@ -636,6 +719,109 @@ export const FindingCard: React.FC<FindingCardProps> = ({
             </button>
           </div>
         </div>
+      )}
+
+      {linking && createPortal(
+        <div className="overlay-backdrop" onClick={handleLinkClose}>
+          <div className="feature-link-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="feature-link-modal-header">
+              <span>Feature Links</span>
+              <button className="shortcuts-close" onClick={handleLinkClose}>
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" />
+                </svg>
+              </button>
+            </div>
+            <div className="feature-link-modal-body">
+              <div>
+                <div className="feature-link-section-label">Linked</div>
+                {linkDraftIds.length === 0 && (
+                  <div className="feature-link-empty">No features linked</div>
+                )}
+                {linkDraftIds.map((fid) => {
+                  const feat = modalFeatures.find((f) => f.id === fid);
+                  if (!feat) return null;
+                  return (
+                    <div key={fid} className="feature-link-row" style={{ marginBottom: 6 }}>
+                      <span className="feature-link-kind-badge" style={{ background: KIND_COLORS[feat.kind] ?? '#6b7280' }}>
+                        {feat.kind}
+                      </span>
+                      <span className="feature-link-title">{feat.title}</span>
+                      {feat.anchor.fileId && (
+                        <span className="feature-link-file">{feat.anchor.fileId.split('/').pop()}</span>
+                      )}
+                      <button
+                        className="feature-link-remove"
+                        title="Remove"
+                        onClick={() => setLinkDraftIds((ids) => ids.filter((id) => id !== fid))}
+                      >&#x2715;</button>
+                    </div>
+                  );
+                })}
+              </div>
+              <div>
+                <div className="feature-link-section-label">Add</div>
+                <input
+                  className="feature-link-search"
+                  type="text"
+                  placeholder="Search features…"
+                  value={linkSearch}
+                  onChange={(e) => setLinkSearch(e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                />
+                {(() => {
+                  const available = modalFeatures.filter((f) => !linkDraftIds.includes(f.id));
+                  if (available.length === 0) {
+                    return <div className="feature-link-empty">All features already linked</div>;
+                  }
+                  const searchLower = linkSearch.toLowerCase().trim();
+                  let addList: Feature[];
+                  let hiddenCount = 0;
+                  if (searchLower) {
+                    addList = available.filter(
+                      (f) =>
+                        f.title.toLowerCase().includes(searchLower) ||
+                        f.kind.toLowerCase().includes(searchLower) ||
+                        (f.anchor.fileId && f.anchor.fileId.toLowerCase().includes(searchLower)),
+                    );
+                  } else {
+                    addList = KINDS_ORDER.flatMap((kind) =>
+                      available.filter((f) => f.kind === kind).slice(0, PER_KIND_LIMIT),
+                    );
+                    hiddenCount = available.length - addList.length;
+                  }
+                  if (addList.length === 0) {
+                    return <div className="feature-link-empty">No features match</div>;
+                  }
+                  return (
+                    <>
+                      {addList.map((feat) => (
+                        <div key={feat.id} className="feature-link-row feature-link-row-add" style={{ marginBottom: 6 }} onClick={() => setLinkDraftIds((ids) => [...ids, feat.id])}>
+                          <span className="feature-link-kind-badge" style={{ background: KIND_COLORS[feat.kind] ?? '#6b7280' }}>
+                            {feat.kind}
+                          </span>
+                          <span className="feature-link-title">{feat.title}</span>
+                          {feat.anchor.fileId && (
+                            <span className="feature-link-file">{feat.anchor.fileId.split('/').pop()}</span>
+                          )}
+                          <button className="feature-link-add-btn" title="Add" onClick={(e) => { e.stopPropagation(); setLinkDraftIds((ids) => [...ids, feat.id]); }}>+</button>
+                        </div>
+                      ))}
+                      {hiddenCount > 0 && (
+                        <div className="feature-link-hidden-count">{hiddenCount} more — search to filter</div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+            <div className="feature-link-modal-footer">
+              <button className="baseline-action-btn" onClick={handleLinkClose}>Cancel</button>
+              <button className="baseline-action-btn baseline-action-btn-primary" onClick={handleLinkSave}>Save</button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
 
       <div className="overview-card-meta">

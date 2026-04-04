@@ -3,9 +3,61 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"bench/internal/model"
 )
+
+// enrichWithFeatureIDs batch-queries finding_features and populates FeatureIDs on each finding.
+func (d *DB) enrichWithFeatureIDs(findings []model.Finding) error {
+	if len(findings) == 0 {
+		return nil
+	}
+	placeholders := make([]string, len(findings))
+	args := make([]any, 0, len(findings)+1)
+	args = append(args, d.projectID)
+	for i, f := range findings {
+		placeholders[i] = "?"
+		args = append(args, f.ID)
+	}
+	query := fmt.Sprintf(
+		`SELECT finding_id, feature_id FROM finding_features WHERE project_id = ? AND finding_id IN (%s)`,
+		strings.Join(placeholders, ","),
+	)
+	rows, err := d.conn.Query(query, args...)
+	if err != nil {
+		return fmt.Errorf("query finding_features: %w", err)
+	}
+	defer rows.Close()
+
+	idx := make(map[string]int, len(findings))
+	for i, f := range findings {
+		idx[f.ID] = i
+	}
+	for rows.Next() {
+		var findingID, featureID string
+		if err := rows.Scan(&findingID, &featureID); err != nil {
+			return fmt.Errorf("scan finding_features: %w", err)
+		}
+		if i, ok := idx[findingID]; ok {
+			findings[i].FeatureIDs = append(findings[i].FeatureIDs, featureID)
+		}
+	}
+	return rows.Err()
+}
+
+// setFeatureIDs replaces all feature associations for a finding within an existing transaction.
+func setFeatureIDs(tx *sql.Tx, projectID, findingID string, featureIDs []string) error {
+	if _, err := tx.Exec(`DELETE FROM finding_features WHERE finding_id = ? AND project_id = ?`, findingID, projectID); err != nil {
+		return fmt.Errorf("delete finding_features: %w", err)
+	}
+	for _, fid := range featureIDs {
+		if _, err := tx.Exec(`INSERT INTO finding_features (finding_id, feature_id, project_id) VALUES (?, ?, ?)`, findingID, fid, projectID); err != nil {
+			return fmt.Errorf("insert finding_features: %w", err)
+		}
+	}
+	return nil
+}
 
 func (d *DB) ListFindings(fileID string, limit, offset int) ([]model.Finding, int, error) {
 	baseWhere := ` WHERE project_id = ?`
@@ -71,6 +123,9 @@ func (d *DB) ListFindings(fileID string, limit, offset int) ([]model.Finding, in
 	if limit == 0 {
 		total = len(findings)
 	}
+	if err := d.enrichWithFeatureIDs(findings); err != nil {
+		return nil, 0, err
+	}
 	return findings, total, nil
 }
 
@@ -81,15 +136,30 @@ func (d *DB) CreateFinding(f *model.Finding) error {
 		lineEnd = &f.Anchor.LineRange.End
 	}
 	return wq0(d.wq, func() error {
-		_, err := d.conn.Exec(
+		tx, err := d.conn.Begin()
+		if err != nil {
+			return fmt.Errorf("begin tx: %w", err)
+		}
+		defer tx.Rollback()
+
+		if _, err := tx.Exec(
 			`INSERT INTO findings (project_id, id, anchor_file_id, anchor_commit_id, anchor_line_start, anchor_line_end,
 			severity, title, description, cwe, cve, vector, score, status, source, category, created_at, resolved_commit, line_hash, external_id)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			d.projectID, f.ID, f.Anchor.FileID, f.Anchor.CommitID, lineStart, lineEnd,
 			f.Severity, f.Title, f.Description, f.CWE, f.CVE, f.Vector, f.Score,
 			f.Status, f.Source, f.Category, f.CreatedAt, f.ResolvedCommit, f.LineHash, f.ExternalID,
-		)
-		return err
+		); err != nil {
+			return err
+		}
+
+		if len(f.FeatureIDs) > 0 {
+			if err := setFeatureIDs(tx, d.projectID, f.ID, f.FeatureIDs); err != nil {
+				return err
+			}
+		}
+
+		return tx.Commit()
 	})
 }
 
@@ -118,6 +188,25 @@ func (d *DB) UpdateFinding(id string, updates map[string]any) (*model.Finding, e
 		"anchor_updated_at": "anchor_updated_at",
 	}
 
+	// Extract featureIds before building SET clause — handled separately via join table.
+	var newFeatureIDs []string
+	hasFeatureIDs := false
+	if raw, ok := updates["featureIds"]; ok {
+		hasFeatureIDs = true
+		if raw != nil {
+			if arr, ok := raw.([]any); ok {
+				for _, v := range arr {
+					if s, ok := v.(string); ok {
+						newFeatureIDs = append(newFeatureIDs, s)
+					}
+				}
+			} else if arr, ok := raw.([]string); ok {
+				newFeatureIDs = arr
+			}
+		}
+		delete(updates, "featureIds")
+	}
+
 	var setClauses []string
 	var args []any
 	for jsonKey, col := range allowed {
@@ -126,30 +215,43 @@ func (d *DB) UpdateFinding(id string, updates map[string]any) (*model.Finding, e
 			args = append(args, v)
 		}
 	}
-	if len(setClauses) == 0 {
+	if len(setClauses) == 0 && !hasFeatureIDs {
 		return nil, fmt.Errorf("no valid fields to update")
 	}
 
-	args = append(args, id, d.projectID)
-	query := "UPDATE findings SET "
-	for i, c := range setClauses {
-		if i > 0 {
-			query += ", "
-		}
-		query += c
-	}
-	query += " WHERE id = ? AND project_id = ?"
-
 	err := wq0(d.wq, func() error {
-		res, err := d.conn.Exec(query, args...)
+		tx, err := d.conn.Begin()
 		if err != nil {
-			return fmt.Errorf("update finding: %w", err)
+			return fmt.Errorf("begin tx: %w", err)
 		}
-		n, _ := res.RowsAffected()
-		if n == 0 {
-			return fmt.Errorf("finding not found: %s", id)
+		defer tx.Rollback()
+
+		if len(setClauses) > 0 {
+			queryArgs := append(args, id, d.projectID)
+			query := "UPDATE findings SET " + strings.Join(setClauses, ", ") + " WHERE id = ? AND project_id = ?"
+			res, err := tx.Exec(query, queryArgs...)
+			if err != nil {
+				return fmt.Errorf("update finding: %w", err)
+			}
+			n, _ := res.RowsAffected()
+			if n == 0 {
+				return fmt.Errorf("finding not found: %s", id)
+			}
+		} else {
+			// Verify finding exists
+			var exists int
+			if err := tx.QueryRow(`SELECT 1 FROM findings WHERE id = ? AND project_id = ?`, id, d.projectID).Scan(&exists); err != nil {
+				return fmt.Errorf("finding not found: %s", id)
+			}
 		}
-		return nil
+
+		if hasFeatureIDs {
+			if err := setFeatureIDs(tx, d.projectID, id, newFeatureIDs); err != nil {
+				return err
+			}
+		}
+
+		return tx.Commit()
 	})
 	if err != nil {
 		return nil, err
@@ -183,6 +285,10 @@ func (d *DB) GetFinding(id string) (*model.Finding, error) {
 	}
 	if anchorUpdatedAt.Valid {
 		f.AnchorUpdatedAt = &anchorUpdatedAt.String
+	}
+	slice := []model.Finding{f}
+	if err := d.enrichWithFeatureIDs(slice); err == nil {
+		f.FeatureIDs = slice[0].FeatureIDs
 	}
 	return &f, nil
 }
@@ -222,6 +328,11 @@ func (d *DB) BatchCreateFindings(findings []model.Finding) ([]string, error) {
 			)
 			if err != nil {
 				return nil, fmt.Errorf("insert finding %d (%s): %w", i, f.ID, err)
+			}
+			if len(f.FeatureIDs) > 0 {
+				if err := setFeatureIDs(tx, d.projectID, f.ID, f.FeatureIDs); err != nil {
+					return nil, fmt.Errorf("set feature IDs for finding %s: %w", f.ID, err)
+				}
 			}
 			ids = append(ids, f.ID)
 		}
@@ -277,6 +388,11 @@ func (d *DB) DeleteFinding(id string) error {
 		// Nullify finding_id on linked comments so they survive as standalone
 		if _, err := tx.Exec(`UPDATE comments SET finding_id = NULL WHERE finding_id = ? AND project_id = ?`, id, d.projectID); err != nil {
 			return fmt.Errorf("nullify comments: %w", err)
+		}
+
+		// Remove feature associations
+		if _, err := tx.Exec(`DELETE FROM finding_features WHERE finding_id = ? AND project_id = ?`, id, d.projectID); err != nil {
+			return fmt.Errorf("delete finding_features: %w", err)
 		}
 
 		res, err := tx.Exec(`DELETE FROM findings WHERE id = ? AND project_id = ?`, id, d.projectID)

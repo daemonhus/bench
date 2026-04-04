@@ -198,7 +198,13 @@ func (d *DB) UpdateFeature(id string, updates map[string]any) (*model.Feature, e
 
 func (d *DB) DeleteFeature(id string) error {
 	return wq0(d.wq, func() error {
-		res, err := d.conn.Exec(`DELETE FROM features WHERE id = ? AND project_id = ?`, id, d.projectID)
+		tx, err := d.conn.Begin()
+		if err != nil {
+			return fmt.Errorf("begin tx: %w", err)
+		}
+		defer tx.Rollback()
+
+		res, err := tx.Exec(`DELETE FROM features WHERE id = ? AND project_id = ?`, id, d.projectID)
 		if err != nil {
 			return err
 		}
@@ -206,7 +212,12 @@ func (d *DB) DeleteFeature(id string) error {
 		if n == 0 {
 			return fmt.Errorf("feature not found: %s", id)
 		}
-		return nil
+
+		if _, err := tx.Exec(`DELETE FROM finding_features WHERE feature_id = ? AND project_id = ?`, id, d.projectID); err != nil {
+			return fmt.Errorf("delete finding_features: %w", err)
+		}
+
+		return tx.Commit()
 	})
 }
 

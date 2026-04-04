@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { findingsApi } from '../core/api';
+import { findingsApi, featuresApi } from '../core/api';
 import { useEvents } from '../core/use-events';
+import { useAnnotationStore } from '../stores/annotation-store';
 import { useRepoStore } from '../stores/repo-store';
 import { useUIStore } from '../stores/ui-store';
 import { FindingCard } from './FindingCard';
 import { FindingsMetrics } from './FindingsMetrics';
 import { AnnotationFilters, ALL_SEVERITIES } from './AnnotationFilters';
-import type { Finding, Severity, LineRange } from '../core/types';
+import type { Feature, Finding, Severity, LineRange } from '../core/types';
 
 const SEVERITY_ORDER: Record<Severity, number> = {
   critical: 0, high: 1, medium: 2, low: 3, info: 4,
@@ -26,7 +27,13 @@ const KIND_LABELS: Record<FindingsKind, string> = { open: 'Open', closed: 'Close
 function findingsEqual(a: Finding[], b: Finding[]): boolean {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {
-    if (a[i].id !== b[i].id || a[i].status !== b[i].status || a[i].severity !== b[i].severity || a[i].title !== b[i].title) return false;
+    if (
+      a[i].id !== b[i].id ||
+      a[i].status !== b[i].status ||
+      a[i].severity !== b[i].severity ||
+      a[i].title !== b[i].title ||
+      JSON.stringify(a[i].featureIds) !== JSON.stringify(b[i].featureIds)
+    ) return false;
   }
   return true;
 }
@@ -99,9 +106,12 @@ export const FindingsView: React.FC = () => {
     }
   }, []);
 
+  const loadFeatures = useAnnotationStore((s) => s.loadFeatures);
+
   const refreshFindings = useCallback(() => {
+    featuresApi.list().then((f) => loadFeatures(f as Feature[])).catch(() => {});
     return findingsApi.list().then(stableSetFindings).catch(() => {});
-  }, [stableSetFindings]);
+  }, [stableSetFindings, loadFeatures]);
 
   useEffect(() => {
     setLoading(true);

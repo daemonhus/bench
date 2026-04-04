@@ -208,6 +208,7 @@ func TestFlagsContract_POST_FindingsCreate_AllOptionalFlags(t *testing.T) {
 		"--status", "draft",
 		"--source", "pentest",
 		"--category", "injection",
+		"--feature-ids", "feat-1,feat-2",
 	})
 
 	requireField(t, body, "title", "SQLi")
@@ -222,6 +223,11 @@ func TestFlagsContract_POST_FindingsCreate_AllOptionalFlags(t *testing.T) {
 	requireField(t, body, "source", "pentest")
 	requireField(t, body, "category", "injection")
 
+	// featureIds must be an array
+	if fids, ok := body["featureIds"].([]any); !ok || len(fids) != 2 {
+		t.Errorf("featureIds = %v, want [feat-1 feat-2]", body["featureIds"])
+	}
+
 	// anchor must be nested
 	requireAnchorField(t, body, "fileId", "src/api.go")
 	requireAnchorField(t, body, "commitId", "abc123")
@@ -233,6 +239,29 @@ func TestFlagsContract_POST_FindingsCreate_AllOptionalFlags(t *testing.T) {
 	// top-level fileId/commitId must not leak
 	requireNoField(t, body, "fileId")
 	requireNoField(t, body, "commitId")
+}
+
+func TestFlagsContract_POST_FindingsCreate_FeatureIDs(t *testing.T) {
+	_, _, body := parseAndBuild(t, "findings", "create", []string{
+		"--title", "SQLi",
+		"--severity", "high",
+		"--feature-ids", "feat-1,feat-2",
+	})
+	ids, ok := body["featureIds"].([]any)
+	if !ok || len(ids) != 2 {
+		t.Errorf("featureIds = %v (%T), want [feat-1 feat-2]", body["featureIds"], body["featureIds"])
+	}
+}
+
+func TestFlagsContract_PATCH_FindingsUpdate_FeatureIDs(t *testing.T) {
+	_, _, body := parseAndBuild(t, "findings", "update", []string{
+		"--id", "f-123",
+		"--feature-ids", "feat-a,feat-b",
+	})
+	ids, ok := body["featureIds"].([]any)
+	if !ok || len(ids) != 2 {
+		t.Errorf("featureIds = %v (%T), want [feat-a feat-b]", body["featureIds"], body["featureIds"])
+	}
 }
 
 func TestFlagsContract_POST_FindingsCreate_ScoreIsFloat(t *testing.T) {
@@ -376,6 +405,7 @@ func TestFlagsContract_PATCH_FindingsUpdate_AllFields(t *testing.T) {
 		"--commit-id", "def456",
 		"--line-start", "20",
 		"--line-end", "25",
+		"--feature-ids", "feat-1,feat-2",
 	})
 
 	if !strings.Contains(path, "/f-123") {
@@ -397,6 +427,11 @@ func TestFlagsContract_PATCH_FindingsUpdate_AllFields(t *testing.T) {
 	requireField(t, body, "commit_id", "def456")
 	requireField(t, body, "line_start", float64(20))
 	requireField(t, body, "line_end", float64(25))
+
+	featureIDs, ok := body["featureIds"].([]any)
+	if !ok || len(featureIDs) != 2 {
+		t.Errorf("featureIds = %v, want [feat-1 feat-2]", body["featureIds"])
+	}
 }
 
 func TestFlagsContract_PATCH_CommentsUpdate_AllFields(t *testing.T) {
@@ -655,6 +690,66 @@ func TestCLIIntegration_Comments_CreateAllOptionalFields(t *testing.T) {
 	}
 	if result["findingId"] != findingID {
 		t.Errorf("findingId = %v, want %s", result["findingId"], findingID)
+	}
+}
+
+func TestCLIIntegration_Findings_CreateWithFeatureIDs(t *testing.T) {
+	srv, head := setupIntegrationServer(t)
+
+	// Create a feature to link
+	feat, code := cliDo(t, srv, "features", "create", []string{
+		"--file-id", "main.go",
+		"--commit-id", head,
+		"--kind", "interface",
+		"--title", "Login endpoint",
+	})
+	if code != http.StatusCreated {
+		t.Fatalf("create feature: code=%d body=%v", code, feat)
+	}
+	featID := feat["id"].(string)
+
+	// Create finding with feature IDs
+	result, code := cliDo(t, srv, "findings", "create", []string{
+		"--title", "Auth bypass",
+		"--severity", "high",
+		"--feature-ids", featID,
+	})
+	if code != http.StatusCreated {
+		t.Fatalf("create finding: code=%d body=%v", code, result)
+	}
+	ids, ok := result["featureIds"].([]any)
+	if !ok || len(ids) != 1 || ids[0] != featID {
+		t.Errorf("featureIds = %v, want [%s]", result["featureIds"], featID)
+	}
+}
+
+func TestCLIIntegration_Findings_UpdateFeatureIDs(t *testing.T) {
+	srv, head := setupIntegrationServer(t)
+
+	feat, _ := cliDo(t, srv, "features", "create", []string{
+		"--file-id", "main.go", "--commit-id", head, "--kind", "sink", "--title", "DB write",
+	})
+	featID := feat["id"].(string)
+
+	finding, code := cliDo(t, srv, "findings", "create", []string{
+		"--title", "SQLi", "--severity", "critical",
+	})
+	if code != http.StatusCreated {
+		t.Fatalf("create finding: code=%d", code)
+	}
+	id := finding["id"].(string)
+
+	// Associate feature via update
+	updated, code := cliDo(t, srv, "findings", "update", []string{
+		"--id", id,
+		"--feature-ids", featID,
+	})
+	if code != http.StatusOK {
+		t.Fatalf("update: code=%d body=%v", code, updated)
+	}
+	ids, ok := updated["featureIds"].([]any)
+	if !ok || len(ids) != 1 || ids[0] != featID {
+		t.Errorf("featureIds = %v, want [%s]", updated["featureIds"], featID)
 	}
 }
 

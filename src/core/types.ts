@@ -78,6 +78,7 @@ export interface Finding {
   resolvedCommit?: string;
   lineHash?: string;
   commentCount?: number;
+  featureIds?: string[];
 }
 
 export interface FindingWithPosition extends Finding {

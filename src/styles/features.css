@@ -388,6 +388,9 @@
 }
 
 .features-sort-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 10px 16px;
   background: transparent;
   border: none;
@@ -401,6 +404,15 @@
   user-select: none;
 }
 
+.features-sort-chevron {
+  flex-shrink: 0;
+  opacity: 0.9;
+}
+
+.features-sort-chevron-idle {
+  opacity: 0.35;
+}
+
 .features-sort-btn:hover {
   color: var(--text-primary);
   background: var(--hover-muted);
@@ -411,7 +423,7 @@
   color: var(--accent-blue);
   font-weight: 500;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.28), 0 0 0 1px rgba(129, 140, 248, 0.18);
-  cursor: default;
+  cursor: pointer;
 }
 
 .features-sort-btn-active:hover {

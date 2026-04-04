@@ -374,6 +374,16 @@ func (d *DB) migrate() error {
 		}
 	}
 
+	// Add finding_features join table if missing
+	if _, err := d.conn.Exec(`CREATE TABLE IF NOT EXISTS finding_features (
+		finding_id TEXT NOT NULL,
+		feature_id TEXT NOT NULL,
+		project_id TEXT NOT NULL DEFAULT '_standalone',
+		PRIMARY KEY (finding_id, feature_id)
+	)`); err != nil {
+		return fmt.Errorf("create finding_features: %w", err)
+	}
+
 	// Add anchor_updated_at column to findings, comments, features if missing
 	for _, tbl := range []string{"findings", "comments", "features"} {
 		if _, err := d.conn.Exec("SELECT anchor_updated_at FROM " + tbl + " LIMIT 0"); err != nil {

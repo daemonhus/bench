@@ -152,6 +152,12 @@ bench findings get --id <finding-id>
 # Update status
 bench findings update --id <finding-id> --status in-progress
 
+# Link to features (replaces full list)
+bench findings update --id <finding-id> --feature-ids feat-abc123,feat-def456
+
+# Re-anchor to a new location
+bench findings update --id <finding-id> --file-id src/api/newpath.go --commit-id HEAD --line-start 10 --line-end 20
+
 # Resolve a finding (marks it closed at a specific commit)
 bench findings resolve --id <finding-id> --commit <fix-commit>
 
@@ -210,6 +216,9 @@ bench comments get --id <comment-id>
 bench comments update --id <comment-id> --text "Updated note"
 bench comments update --id <comment-id> --author bob
 
+# Re-anchor to a new location
+bench comments update --id <comment-id> --file-id src/api/newpath.go --commit-id HEAD --line-start 55
+
 # Resolve a comment
 bench comments resolve --id <comment-id> --commit <commit>
 
@@ -257,8 +266,12 @@ bench features create \
   --title "User record write" \
   --direction out
 
-# Update status
+# Update status or metadata
 bench features update --id <feature-id> --status deprecated
+bench features update --id <feature-id> --tags auth,session
+
+# Re-anchor to a new location
+bench features update --id <feature-id> --file-id src/api/newpath.go --commit-id HEAD --line-start 12 --line-end 28
 
 # Delete a feature
 bench features delete --id <feature-id>
