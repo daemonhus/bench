@@ -4,8 +4,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
+	"time"
 
 	"bench/internal/model"
+
+	"github.com/google/uuid"
 )
 
 func (d *DB) ListFeatures(fileID string, limit, offset int) ([]model.Feature, int, error) {
@@ -53,6 +57,22 @@ func (d *DB) ListFeatures(fileID string, limit, offset int) ([]model.Feature, in
 	if limit == 0 {
 		total = len(features)
 	}
+	ids := make([]string, len(features))
+	for i, f := range features {
+		ids[i] = f.ID
+	}
+	if refsMap, err := d.enrichWithRefs("feature", ids); err == nil && refsMap != nil {
+		for i, f := range features {
+			features[i].Refs = refsMap[f.ID]
+		}
+	}
+	if paramsMap, err := d.enrichWithParameters(ids); err == nil {
+		for i, f := range features {
+			if ps, ok := paramsMap[f.ID]; ok {
+				features[i].Parameters = ps
+			}
+		}
+	}
 	return features, total, nil
 }
 
@@ -69,7 +89,17 @@ func (d *DB) GetFeature(id string) (*model.Feature, error) {
 	if !rows.Next() {
 		return nil, fmt.Errorf("feature not found: %s", id)
 	}
-	return scanFeatureRow(rows)
+	f, err := scanFeatureRow(rows)
+	if err != nil {
+		return nil, err
+	}
+	if refsMap, err := d.enrichWithRefs("feature", []string{f.ID}); err == nil && refsMap != nil {
+		f.Refs = refsMap[f.ID]
+	}
+	if params, err := d.ListParameters(f.ID); err == nil {
+		f.Parameters = params
+	}
+	return f, nil
 }
 
 func scanFeatureRow(rows *sql.Rows) (*model.Feature, error) {
@@ -99,6 +129,7 @@ func scanFeatureRow(rows *sql.Rows) (*model.Feature, error) {
 	if err := json.Unmarshal([]byte(tagsJSON), &f.Tags); err != nil {
 		f.Tags = []string{}
 	}
+	f.Parameters = []model.FeatureParameter{}
 	return &f, nil
 }
 
@@ -124,22 +155,22 @@ func (d *DB) CreateFeature(f *model.Feature) error {
 
 func (d *DB) UpdateFeature(id string, updates map[string]any) (*model.Feature, error) {
 	allowed := map[string]string{
-		"kind":            "kind",
-		"title":           "title",
-		"description":     "description",
-		"operation":       "operation",
-		"direction":       "direction",
-		"protocol":        "protocol",
-		"status":          "status",
-		"source":          "source",
-		"file":            "anchor_file_id",
-		"file_id":         "anchor_file_id",
-		"commit":          "anchor_commit_id",
-		"commit_id":       "anchor_commit_id",
-		"line_start":      "anchor_line_start",
-		"line_end":        "anchor_line_end",
-		"line_hash":       "line_hash",
-		"resolved_commit": "resolved_commit",
+		"kind":              "kind",
+		"title":             "title",
+		"description":       "description",
+		"operation":         "operation",
+		"direction":         "direction",
+		"protocol":          "protocol",
+		"status":            "status",
+		"source":            "source",
+		"file":              "anchor_file_id",
+		"file_id":           "anchor_file_id",
+		"commit":            "anchor_commit_id",
+		"commit_id":         "anchor_commit_id",
+		"line_start":        "anchor_line_start",
+		"line_end":          "anchor_line_end",
+		"line_hash":         "line_hash",
+		"resolved_commit":   "resolved_commit",
 		"resolvedCommit":    "resolved_commit",
 		"anchor_updated_at": "anchor_updated_at",
 	}
@@ -204,6 +235,19 @@ func (d *DB) DeleteFeature(id string) error {
 		}
 		defer tx.Rollback()
 
+		// Delete child rows before the feature (FK constraints).
+		if _, err := tx.Exec(`DELETE FROM feature_parameters WHERE feature_id = ? AND project_id = ?`, id, d.projectID); err != nil {
+			return fmt.Errorf("delete feature_parameters: %w", err)
+		}
+
+		if _, err := tx.Exec(`DELETE FROM finding_features WHERE feature_id = ? AND project_id = ?`, id, d.projectID); err != nil {
+			return fmt.Errorf("delete finding_features: %w", err)
+		}
+
+		if _, err := tx.Exec(`DELETE FROM refs WHERE entity_type = 'feature' AND entity_id = ? AND project_id = ?`, id, d.projectID); err != nil {
+			return fmt.Errorf("delete refs: %w", err)
+		}
+
 		res, err := tx.Exec(`DELETE FROM features WHERE id = ? AND project_id = ?`, id, d.projectID)
 		if err != nil {
 			return err
@@ -211,10 +255,6 @@ func (d *DB) DeleteFeature(id string) error {
 		n, _ := res.RowsAffected()
 		if n == 0 {
 			return fmt.Errorf("feature not found: %s", id)
-		}
-
-		if _, err := tx.Exec(`DELETE FROM finding_features WHERE feature_id = ? AND project_id = ?`, id, d.projectID); err != nil {
-			return fmt.Errorf("delete finding_features: %w", err)
 		}
 
 		return tx.Commit()
@@ -314,6 +354,224 @@ func (d *DB) AllFeatureIDs() ([]string, error) {
 		ids = append(ids, id)
 	}
 	return ids, rows.Err()
+}
+
+// ---------------------------------------------------------------------------
+// Feature parameters
+// ---------------------------------------------------------------------------
+
+// enrichWithParameters batch-queries parameters and populates Parameters on each feature.
+func (d *DB) enrichWithParameters(ids []string) (map[string][]model.FeatureParameter, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	placeholders := make([]string, len(ids))
+	args := make([]any, 0, len(ids)+1)
+	args = append(args, d.projectID)
+	for i, id := range ids {
+		placeholders[i] = "?"
+		args = append(args, id)
+	}
+	query := fmt.Sprintf(
+		`SELECT id, feature_id, name, description, type, pattern, required, created_at
+		FROM feature_parameters
+		WHERE project_id = ? AND feature_id IN (%s)
+		ORDER BY name ASC`,
+		strings.Join(placeholders, ","),
+	)
+	rows, err := d.conn.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query feature_parameters: %w", err)
+	}
+	defer rows.Close()
+
+	result := make(map[string][]model.FeatureParameter)
+	for rows.Next() {
+		var p model.FeatureParameter
+		var req int
+		if err := rows.Scan(&p.ID, &p.FeatureID, &p.Name, &p.Description, &p.Type, &p.Pattern, &req, &p.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan feature_parameter: %w", err)
+		}
+		p.Required = req == 1
+		result[p.FeatureID] = append(result[p.FeatureID], p)
+	}
+	return result, rows.Err()
+}
+
+// ListParameters returns all parameters for a feature, ordered by name.
+func (d *DB) ListParameters(featureID string) ([]model.FeatureParameter, error) {
+	rows, err := d.conn.Query(
+		`SELECT id, feature_id, name, description, type, pattern, required, created_at
+		FROM feature_parameters
+		WHERE project_id = ? AND feature_id = ?
+		ORDER BY name ASC`,
+		d.projectID, featureID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query feature_parameters: %w", err)
+	}
+	defer rows.Close()
+
+	params := []model.FeatureParameter{}
+	for rows.Next() {
+		var p model.FeatureParameter
+		var req int
+		if err := rows.Scan(&p.ID, &p.FeatureID, &p.Name, &p.Description, &p.Type, &p.Pattern, &req, &p.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan feature_parameter: %w", err)
+		}
+		p.Required = req == 1
+		params = append(params, p)
+	}
+	return params, rows.Err()
+}
+
+// GetParameter returns a single feature parameter by ID.
+func (d *DB) GetParameter(id string) (*model.FeatureParameter, error) {
+	var p model.FeatureParameter
+	var req int
+	err := d.conn.QueryRow(
+		`SELECT id, feature_id, name, description, type, pattern, required, created_at
+		FROM feature_parameters WHERE id = ? AND project_id = ?`,
+		id, d.projectID,
+	).Scan(&p.ID, &p.FeatureID, &p.Name, &p.Description, &p.Type, &p.Pattern, &req, &p.CreatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("parameter not found: %s", id)
+	}
+	p.Required = req == 1
+	return &p, nil
+}
+
+// CreateParameter inserts a new feature parameter.
+func (d *DB) CreateParameter(p *model.FeatureParameter) error {
+	if p.ID == "" {
+		p.ID = uuid.New().String()
+	}
+	if p.CreatedAt == "" {
+		p.CreatedAt = time.Now().UTC().Format(time.RFC3339)
+	}
+	req := 0
+	if p.Required {
+		req = 1
+	}
+	return wq0(d.wq, func() error {
+		_, err := d.conn.Exec(
+			`INSERT INTO feature_parameters (id, project_id, feature_id, name, description, type, pattern, required, created_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			p.ID, d.projectID, p.FeatureID, p.Name, p.Description, p.Type, p.Pattern, req, p.CreatedAt,
+		)
+		return err
+	})
+}
+
+// UpdateParameter applies a partial update to a feature parameter and returns the updated record.
+func (d *DB) UpdateParameter(id string, updates map[string]any) (*model.FeatureParameter, error) {
+	allowed := map[string]string{
+		"name":        "name",
+		"description": "description",
+		"type":        "type",
+		"pattern":     "pattern",
+	}
+
+	var setClauses []string
+	var args []any
+	for jsonKey, col := range allowed {
+		if v, ok := updates[jsonKey]; ok {
+			setClauses = append(setClauses, col+" = ?")
+			args = append(args, v)
+		}
+	}
+	// Handle required separately (bool → int)
+	if v, ok := updates["required"]; ok {
+		req := 0
+		if b, ok := v.(bool); ok && b {
+			req = 1
+		}
+		setClauses = append(setClauses, "required = ?")
+		args = append(args, req)
+	}
+
+	if len(setClauses) == 0 {
+		return nil, fmt.Errorf("no valid fields to update")
+	}
+
+	args = append(args, id, d.projectID)
+	query := "UPDATE feature_parameters SET " + strings.Join(setClauses, ", ") + " WHERE id = ? AND project_id = ?"
+
+	err := wq0(d.wq, func() error {
+		res, err := d.conn.Exec(query, args...)
+		if err != nil {
+			return fmt.Errorf("update parameter: %w", err)
+		}
+		n, _ := res.RowsAffected()
+		if n == 0 {
+			return fmt.Errorf("parameter not found: %s", id)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return d.GetParameter(id)
+}
+
+// DeleteParameter removes a feature parameter by ID.
+func (d *DB) DeleteParameter(id string) error {
+	return wq0(d.wq, func() error {
+		res, err := d.conn.Exec(
+			`DELETE FROM feature_parameters WHERE id = ? AND project_id = ?`,
+			id, d.projectID,
+		)
+		if err != nil {
+			return err
+		}
+		n, _ := res.RowsAffected()
+		if n == 0 {
+			return fmt.Errorf("parameter not found: %s", id)
+		}
+		return nil
+	})
+}
+
+// ReplaceParameters atomically replaces all parameters for a feature.
+func (d *DB) ReplaceParameters(featureID string, params []model.FeatureParameter) error {
+	return wq0(d.wq, func() error {
+		tx, err := d.conn.Begin()
+		if err != nil {
+			return fmt.Errorf("begin tx: %w", err)
+		}
+		defer tx.Rollback()
+
+		if _, err := tx.Exec(
+			`DELETE FROM feature_parameters WHERE feature_id = ? AND project_id = ?`,
+			featureID, d.projectID,
+		); err != nil {
+			return fmt.Errorf("delete parameters: %w", err)
+		}
+
+		now := time.Now().UTC().Format(time.RFC3339)
+		for i := range params {
+			p := &params[i]
+			if p.ID == "" {
+				p.ID = uuid.New().String()
+			}
+			if p.CreatedAt == "" {
+				p.CreatedAt = now
+			}
+			req := 0
+			if p.Required {
+				req = 1
+			}
+			if _, err := tx.Exec(
+				`INSERT INTO feature_parameters (id, project_id, feature_id, name, description, type, pattern, required, created_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				p.ID, d.projectID, featureID, p.Name, p.Description, p.Type, p.Pattern, req, p.CreatedAt,
+			); err != nil {
+				return fmt.Errorf("insert parameter %d: %w", i, err)
+			}
+		}
+
+		return tx.Commit()
+	})
 }
 
 // FeatureKindSummary returns counts by kind for all features.

@@ -126,6 +126,15 @@ func (d *DB) ListFindings(fileID string, limit, offset int) ([]model.Finding, in
 	if err := d.enrichWithFeatureIDs(findings); err != nil {
 		return nil, 0, err
 	}
+	ids := make([]string, len(findings))
+	for i, f := range findings {
+		ids[i] = f.ID
+	}
+	if refsMap, err := d.enrichWithRefs("finding", ids); err == nil && refsMap != nil {
+		for i, f := range findings {
+			findings[i].Refs = refsMap[f.ID]
+		}
+	}
 	return findings, total, nil
 }
 
@@ -165,25 +174,25 @@ func (d *DB) CreateFinding(f *model.Finding) error {
 
 func (d *DB) UpdateFinding(id string, updates map[string]any) (*model.Finding, error) {
 	allowed := map[string]string{
-		"severity":       "severity",
-		"title":          "title",
-		"description":    "description",
-		"cwe":            "cwe",
-		"cve":            "cve",
-		"vector":         "vector",
-		"score":          "score",
-		"status":         "status",
-		"source":         "source",
-		"resolvedCommit": "resolved_commit",
-		"externalId":     "external_id",
-		"external_id":    "external_id",
-		"category":       "category",
-		"file":           "anchor_file_id",
-		"file_id":        "anchor_file_id",
-		"commit":         "anchor_commit_id",
-		"commit_id":      "anchor_commit_id",
-		"line_start":     "anchor_line_start",
-		"line_end":       "anchor_line_end",
+		"severity":          "severity",
+		"title":             "title",
+		"description":       "description",
+		"cwe":               "cwe",
+		"cve":               "cve",
+		"vector":            "vector",
+		"score":             "score",
+		"status":            "status",
+		"source":            "source",
+		"resolvedCommit":    "resolved_commit",
+		"externalId":        "external_id",
+		"external_id":       "external_id",
+		"category":          "category",
+		"file":              "anchor_file_id",
+		"file_id":           "anchor_file_id",
+		"commit":            "anchor_commit_id",
+		"commit_id":         "anchor_commit_id",
+		"line_start":        "anchor_line_start",
+		"line_end":          "anchor_line_end",
 		"line_hash":         "line_hash",
 		"anchor_updated_at": "anchor_updated_at",
 	}
@@ -290,6 +299,9 @@ func (d *DB) GetFinding(id string) (*model.Finding, error) {
 	if err := d.enrichWithFeatureIDs(slice); err == nil {
 		f.FeatureIDs = slice[0].FeatureIDs
 	}
+	if refsMap, err := d.enrichWithRefs("finding", []string{f.ID}); err == nil && refsMap != nil {
+		f.Refs = refsMap[f.ID]
+	}
 	return &f, nil
 }
 
@@ -393,6 +405,11 @@ func (d *DB) DeleteFinding(id string) error {
 		// Remove feature associations
 		if _, err := tx.Exec(`DELETE FROM finding_features WHERE finding_id = ? AND project_id = ?`, id, d.projectID); err != nil {
 			return fmt.Errorf("delete finding_features: %w", err)
+		}
+
+		// Remove refs
+		if _, err := tx.Exec(`DELETE FROM refs WHERE entity_type = 'finding' AND entity_id = ? AND project_id = ?`, id, d.projectID); err != nil {
+			return fmt.Errorf("delete refs: %w", err)
 		}
 
 		res, err := tx.Exec(`DELETE FROM findings WHERE id = ? AND project_id = ?`, id, d.projectID)

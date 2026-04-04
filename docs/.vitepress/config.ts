@@ -28,6 +28,7 @@ export default defineConfig({
         items: [
           { text: "Annotations", link: "/concepts/annotations" },
           { text: "Features", link: "/concepts/features" },
+          { text: "References", link: "/concepts/references" },
           { text: "Deltas", link: "/concepts/deltas" },
           { text: "Reconciling", link: "/concepts/reconciling" },
         ],

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
-import type { Finding, Comment, FindingStatus, CommentType, Feature } from '../core/types';
+import type { Finding, Comment, FindingStatus, CommentType, Feature, Ref } from '../core/types';
 import { getEffectiveLineRange, getConfidence } from '../core/types';
-import { findingsApi, commentsApi, featuresApi } from '../core/api';
+import { findingsApi, commentsApi, featuresApi, refsApi } from '../core/api';
 
 interface AnnotationState {
   findings: Finding[];
@@ -29,6 +29,9 @@ interface AnnotationState {
   getCommentsForFinding: (findingId: string) => Comment[];
   fetchCommentsForFeature: (featureId: string) => Promise<void>;
   getCommentsForFeature: (featureId: string) => Comment[];
+  addRef: (ref: Ref, onCreated?: (created: Ref) => void) => void;
+  removeRef: (refId: string, entityType: string, entityId: string) => void;
+  updateRef: (refId: string, updates: Partial<Pick<Ref, 'provider' | 'url' | 'title'>>, entityType: string, entityId: string) => void;
 }
 
 export const useAnnotationStore = create<AnnotationState>((set, get) => ({
@@ -130,10 +133,16 @@ export const useAnnotationStore = create<AnnotationState>((set, get) => ({
         f.id === id ? { ...f, ...updates } : f,
       ),
     }));
-    featuresApi.update(id, updates).catch((err) => {
-      console.error('Failed to update feature:', err);
-      set({ features: prev });
-    });
+    featuresApi.update(id, updates)
+      .then((updated) => {
+        set((state) => ({
+          features: state.features.map((f) => (f.id === id ? updated : f)),
+        }));
+      })
+      .catch((err) => {
+        console.error('Failed to update feature:', err);
+        set({ features: prev });
+      });
   },
 
   deleteFeature: (id) => {
@@ -199,6 +208,65 @@ export const useAnnotationStore = create<AnnotationState>((set, get) => ({
     commentsApi.delete(id).catch((err) => {
       console.error('Failed to delete comment:', err);
       set({ comments: prev });
+    });
+  },
+
+  addRef: (ref, onCreated?) => {
+    const spliceIn = (entity: { refs?: Ref[] }) => ({ ...entity, refs: [...(entity.refs ?? []), ref] });
+    set((state) => {
+      if (ref.entityType === 'finding') return { findings: state.findings.map((f) => f.id === ref.entityId ? spliceIn(f) as Finding : f) };
+      if (ref.entityType === 'feature') return { features: state.features.map((f) => f.id === ref.entityId ? spliceIn(f) as Feature : f) };
+      return { comments: state.comments.map((c) => c.id === ref.entityId ? spliceIn(c) as Comment : c) };
+    });
+    const { id: tempId, createdAt: _ca, ...createPayload } = ref;
+    refsApi.create(createPayload).then((created) => {
+      onCreated?.(created);
+      const replace = (entity: { refs?: Ref[] }) => ({ ...entity, refs: (entity.refs ?? []).map((x) => x.id === tempId ? created : x) });
+      set((state) => {
+        if (ref.entityType === 'finding') return { findings: state.findings.map((f) => f.id === ref.entityId ? replace(f) as Finding : f) };
+        if (ref.entityType === 'feature') return { features: state.features.map((f) => f.id === ref.entityId ? replace(f) as Feature : f) };
+        return { comments: state.comments.map((c) => c.id === ref.entityId ? replace(c) as Comment : c) };
+      });
+    }).catch((err) => {
+      console.error('Failed to create ref:', err);
+      const rollback = (entity: { refs?: Ref[] }) => ({ ...entity, refs: (entity.refs ?? []).filter((x) => x.id !== tempId) });
+      set((state) => {
+        if (ref.entityType === 'finding') return { findings: state.findings.map((f) => f.id === ref.entityId ? rollback(f) as Finding : f) };
+        if (ref.entityType === 'feature') return { features: state.features.map((f) => f.id === ref.entityId ? rollback(f) as Feature : f) };
+        return { comments: state.comments.map((c) => c.id === ref.entityId ? rollback(c) as Comment : c) };
+      });
+    });
+  },
+
+  removeRef: (refId, entityType, entityId) => {
+    const remove = (entity: { refs?: Ref[] }) => ({ ...entity, refs: (entity.refs ?? []).filter((x) => x.id !== refId) });
+    const prevFindings = get().findings;
+    const prevFeatures = get().features;
+    const prevComments = get().comments;
+    set((state) => {
+      if (entityType === 'finding') return { findings: state.findings.map((f) => f.id === entityId ? remove(f) as Finding : f) };
+      if (entityType === 'feature') return { features: state.features.map((f) => f.id === entityId ? remove(f) as Feature : f) };
+      return { comments: state.comments.map((c) => c.id === entityId ? remove(c) as Comment : c) };
+    });
+    refsApi.delete(refId).catch((err) => {
+      console.error('Failed to delete ref:', err);
+      set({ findings: prevFindings, features: prevFeatures, comments: prevComments });
+    });
+  },
+
+  updateRef: (refId, updates, entityType, entityId) => {
+    const applyUpdate = (entity: { refs?: Ref[] }) => ({ ...entity, refs: (entity.refs ?? []).map((x) => x.id === refId ? { ...x, ...updates } : x) });
+    const prevFindings = get().findings;
+    const prevFeatures = get().features;
+    const prevComments = get().comments;
+    set((state) => {
+      if (entityType === 'finding') return { findings: state.findings.map((f) => f.id === entityId ? applyUpdate(f) as Finding : f) };
+      if (entityType === 'feature') return { features: state.features.map((f) => f.id === entityId ? applyUpdate(f) as Feature : f) };
+      return { comments: state.comments.map((c) => c.id === entityId ? applyUpdate(c) as Comment : c) };
+    });
+    refsApi.update(refId, updates).catch((err) => {
+      console.error('Failed to update ref:', err);
+      set({ findings: prevFindings, features: prevFeatures, comments: prevComments });
     });
   },
 

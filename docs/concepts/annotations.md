@@ -17,7 +17,7 @@ Every annotation is pinned to a specific location in the repository:
 }
 ```
 
-The commit is what makes annotations stable. Because the anchor records the exact commit the annotation was made against, it stays accurate even as the file changes. When code moves, [reconciliation](/concepts/reconciling) updates the line numbers to follow it.
+Anchoring to a commit makes annotations stable. When code moves, [reconciliation](/concepts/reconciling) updates line numbers to follow it.
 
 ## Findings
 
@@ -83,17 +83,17 @@ The `comment_type` field signals intent. Use it consistently so reviewers can fi
 
 | Type | Use when… |
 |------|-----------|
-| `concern` | Something warrants attention but isn't a confirmed vulnerability — a weak pattern, a missing control, a smell. Use a **finding** for confirmed issues. |
+| `concern` | Something warrants attention but isn't a confirmed vulnerability: a weak pattern, missing control, or smell. Use a **finding** for confirmed issues. |
 | `question` | You need clarification before making a judgment. |
-| `improvement` | A non-critical suggestion — cleaner, safer, or more robust code, not a security issue. |
+| `improvement` | A suggestion for cleaner, safer, or more robust code. Not a security issue. |
 | `feature` | The comment is about a [feature](/concepts/features) annotation (link via `featureId`). |
 | *(empty)* | A general note that doesn't fit the above. |
 
 ## Linking findings to features
 
-A finding can be linked to one or more [feature](/concepts/features) annotations via `featureIds`. This connects a vulnerability to the architectural surface it affects — for example, linking a SQL injection finding to the `source` feature for the database query where it occurs.
+A finding can be linked to one or more [feature](/concepts/features) annotations via `featureIds`. This connects a vulnerability to the surface it affects. For example, link a SQL injection finding to the `source` feature for the query where it occurs.
 
-Links should be created whenever a finding is directly associated with a known feature. They make findings easier to triage and let you see which parts of the attack surface have confirmed issues.
+Link whenever a finding is directly associated with a known feature. Links make findings easier to triage and show which surfaces have confirmed issues.
 
 Via CLI:
 
@@ -119,7 +119,7 @@ bench findings update --id f-xyz --feature-ids feat-abc123
 update_finding(id="f-xyz", feature_ids=["feat-abc123"])
 ```
 
-Deleting a feature or finding automatically removes its links — no manual cleanup needed.
+Deleting a feature or finding automatically removes its links.
 
 ## Creating annotations
 

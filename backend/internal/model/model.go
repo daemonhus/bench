@@ -1,5 +1,38 @@
 package model
 
+import (
+	"net/url"
+	"strings"
+)
+
+// InferProvider returns a provider string inferred from the URL hostname.
+// Falls back to "url" for unknown domains.
+func InferProvider(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return "url"
+	}
+	host := strings.ToLower(u.Hostname())
+	switch {
+	case strings.Contains(host, "github.com"):
+		return "github"
+	case strings.Contains(host, "gitlab.com"):
+		return "gitlab"
+	case strings.Contains(host, "atlassian.net") || strings.HasPrefix(host, "jira."):
+		return "jira"
+	case strings.HasPrefix(host, "confluence."):
+		return "confluence"
+	case strings.Contains(host, "linear.app"):
+		return "linear"
+	case strings.Contains(host, "notion.so") || strings.Contains(host, "notion.site"):
+		return "notion"
+	case strings.Contains(host, "slack.com"):
+		return "slack"
+	default:
+		return "url"
+	}
+}
+
 // Anchor locates a finding or comment within a file at a specific commit.
 type Anchor struct {
 	FileID    string     `json:"fileId"`
@@ -12,42 +45,55 @@ type LineRange struct {
 	End   int `json:"end"`
 }
 
+// Ref is an external reference linked to an annotation (finding, feature, or comment).
+type Ref struct {
+	ID         string `json:"id"`
+	EntityType string `json:"entityType"`
+	EntityID   string `json:"entityId"`
+	Provider   string `json:"provider"`
+	URL        string `json:"url"`
+	Title      string `json:"title,omitempty"`
+	CreatedAt  string `json:"createdAt"`
+}
+
 type Finding struct {
-	ID             string  `json:"id"`
-	ExternalID     string  `json:"externalId,omitempty"`
-	Anchor         Anchor  `json:"anchor"`
-	Severity       string  `json:"severity"`
-	Title          string  `json:"title"`
-	Description    string  `json:"description"`
-	CWE            string  `json:"cwe"`
-	CVE            string  `json:"cve"`
-	Vector         string  `json:"vector"`
-	Score          float64 `json:"score"`
-	Status         string  `json:"status"`
-	Source         string  `json:"source"`
-	Category       string  `json:"category"`
-	CreatedAt      string  `json:"createdAt"`
-	ResolvedCommit  *string `json:"resolvedCommit,omitempty"`
+	ID              string   `json:"id"`
+	ExternalID      string   `json:"externalId,omitempty"`
+	Anchor          Anchor   `json:"anchor"`
+	Severity        string   `json:"severity"`
+	Title           string   `json:"title"`
+	Description     string   `json:"description"`
+	CWE             string   `json:"cwe"`
+	CVE             string   `json:"cve"`
+	Vector          string   `json:"vector"`
+	Score           float64  `json:"score"`
+	Status          string   `json:"status"`
+	Source          string   `json:"source"`
+	Category        string   `json:"category"`
+	CreatedAt       string   `json:"createdAt"`
+	ResolvedCommit  *string  `json:"resolvedCommit,omitempty"`
 	LineHash        string   `json:"lineHash,omitempty"`
 	AnchorUpdatedAt *string  `json:"anchorUpdatedAt,omitempty"`
 	CommentCount    int      `json:"commentCount,omitempty"`
 	FeatureIDs      []string `json:"featureIds,omitempty"`
+	Refs            []Ref    `json:"refs,omitempty"`
 }
 
 type Comment struct {
-	ID             string  `json:"id"`
-	Anchor         Anchor  `json:"anchor"`
-	Author         string  `json:"author"`
-	Text           string  `json:"text"`
-	CommentType    string  `json:"commentType,omitempty"`
-	Timestamp      string  `json:"timestamp"`
-	ThreadID       string  `json:"threadId"`
-	ParentID       *string `json:"parentId,omitempty"`
-	FindingID      *string `json:"findingId,omitempty"`
-	FeatureID      *string `json:"featureId,omitempty"`
+	ID              string  `json:"id"`
+	Anchor          Anchor  `json:"anchor"`
+	Author          string  `json:"author"`
+	Text            string  `json:"text"`
+	CommentType     string  `json:"commentType,omitempty"`
+	Timestamp       string  `json:"timestamp"`
+	ThreadID        string  `json:"threadId"`
+	ParentID        *string `json:"parentId,omitempty"`
+	FindingID       *string `json:"findingId,omitempty"`
+	FeatureID       *string `json:"featureId,omitempty"`
 	ResolvedCommit  *string `json:"resolvedCommit,omitempty"`
 	LineHash        string  `json:"lineHash,omitempty"`
 	AnchorUpdatedAt *string `json:"anchorUpdatedAt,omitempty"`
+	Refs            []Ref   `json:"refs,omitempty"`
 }
 
 // AnnotationPosition records where an annotation is at a specific commit.
@@ -75,22 +121,36 @@ type CommentWithPosition struct {
 	Confidence      string  `json:"confidence,omitempty"`
 }
 
+// FeatureParameter is a structured input/output descriptor attached to a Feature.
+type FeatureParameter struct {
+	ID          string `json:"id"`
+	FeatureID   string `json:"featureId"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	Type        string `json:"type,omitempty"`
+	Pattern     string `json:"pattern,omitempty"`
+	Required    bool   `json:"required"`
+	CreatedAt   string `json:"createdAt"`
+}
+
 type Feature struct {
-	ID             string   `json:"id"`
-	Anchor         Anchor   `json:"anchor"`
-	Kind           string   `json:"kind"` // interface|source|sink|dependency|externality
-	Title          string   `json:"title"`
-	Description    string   `json:"description,omitempty"`
-	Operation      string   `json:"operation,omitempty"` // HTTP method, gRPC method, GraphQL operation type, etc.
-	Direction      string   `json:"direction,omitempty"` // in|out
-	Protocol       string   `json:"protocol,omitempty"`
-	Status         string   `json:"status"` // draft|active|deprecated|removed|orphaned
-	Tags           []string `json:"tags"`
-	Source         string   `json:"source,omitempty"`
-	CreatedAt      string   `json:"createdAt"`
-	ResolvedCommit  *string  `json:"resolvedCommit,omitempty"`
-	LineHash        string   `json:"lineHash,omitempty"`
-	AnchorUpdatedAt *string  `json:"anchorUpdatedAt,omitempty"`
+	ID              string             `json:"id"`
+	Anchor          Anchor             `json:"anchor"`
+	Kind            string             `json:"kind"` // interface|source|sink|dependency|externality
+	Title           string             `json:"title"`
+	Description     string             `json:"description,omitempty"`
+	Operation       string             `json:"operation,omitempty"` // HTTP method, gRPC method, GraphQL operation type, etc.
+	Direction       string             `json:"direction,omitempty"` // in|out
+	Protocol        string             `json:"protocol,omitempty"`
+	Status          string             `json:"status"` // draft|active|deprecated|removed|orphaned
+	Tags            []string           `json:"tags"`
+	Source          string             `json:"source,omitempty"`
+	CreatedAt       string             `json:"createdAt"`
+	ResolvedCommit  *string            `json:"resolvedCommit,omitempty"`
+	LineHash        string             `json:"lineHash,omitempty"`
+	AnchorUpdatedAt *string            `json:"anchorUpdatedAt,omitempty"`
+	Refs            []Ref              `json:"refs,omitempty"`
+	Parameters      []FeatureParameter `json:"parameters"`
 }
 
 type FeatureWithPosition struct {

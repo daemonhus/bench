@@ -12,6 +12,8 @@ import { useBranchMap } from '../core/use-branch-map';
 import { gitApi } from '../core/api';
 import { detectLanguage, ensureLanguageRegistered } from '../core/language-map';
 import { highlight, renderToken } from '../core/tokenizer';
+import { RefProviderIcon } from './RefProviderIcon';
+import { RefManageModal } from './RefManageModal';
 
 interface FindingCardProps {
   finding: Finding;
@@ -74,10 +76,15 @@ export const FindingCard: React.FC<FindingCardProps> = ({
 
   const branchMap = useBranchMap();
 
+  // Local refs so the meta row updates immediately after modal operations
+  const [cardRefs, setCardRefs] = useState(finding.refs ?? []);
+
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [idCopied, setIdCopied] = useState(false);
   const [linking, setLinking] = useState(false);
+  const [managingRefs, setManagingRefs] = useState(false);
+  const [managingRefsCommentId, setManagingRefsCommentId] = useState<string | null>(null);
   const [linkDraftIds, setLinkDraftIds] = useState<string[]>([]);
   const [modalFeatures, setModalFeatures] = useState<Feature[]>([]);
   const [linkSearch, setLinkSearch] = useState('');
@@ -499,6 +506,15 @@ export const FindingCard: React.FC<FindingCardProps> = ({
           <div className="comment-card-header-right">
             <button
               className="comment-icon-btn"
+              onClick={(e) => { e.stopPropagation(); setManagingRefs(true); }}
+              title="Manage web links"
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M2 10L10 2M10 2H5M10 2v5"/>
+              </svg>
+            </button>
+            <button
+              className="comment-icon-btn"
               onClick={handleOpenLink}
               title="Manage feature links"
             >
@@ -535,7 +551,23 @@ export const FindingCard: React.FC<FindingCardProps> = ({
       </div>
 
       <div className="finding-card-meta">
-        {finding.cwe && <span className="finding-cwe">{finding.cwe}</span>}
+        {cardRefs.length > 0 && (
+          <span className="ref-icons" onClick={(e) => e.stopPropagation()}>
+            <span className="ref-icons-label">Links</span>
+            {cardRefs.map((ref) => (
+              <a
+                key={ref.id}
+                href={ref.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ref-icon-link"
+                title={ref.title || ref.url}
+              >
+                <RefProviderIcon provider={ref.provider} size={14} />
+              </a>
+            ))}
+          </span>
+        )}
         {finding.cve && <span className="finding-cve">{finding.cve}</span>}
         {finding.score > 0 && <span className="finding-score">{finding.score.toFixed(1)}</span>}
         {confidence && confidence !== 'exact' && (
@@ -624,6 +656,15 @@ export const FindingCard: React.FC<FindingCardProps> = ({
                     <div className="comment-card-header-right" style={{ marginLeft: 'auto' }}>
                       <button
                         className="comment-icon-btn"
+                        onClick={() => setManagingRefsCommentId(c.id)}
+                        title="Manage web links"
+                      >
+                        <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M2 10L10 2M10 2H5M10 2v5"/>
+                        </svg>
+                      </button>
+                      <button
+                        className="comment-icon-btn"
                         onClick={() => { setEditingCommentId(c.id); setEditCommentText(c.text); }}
                         title="Edit"
                       >&#x270E;</button>
@@ -635,6 +676,22 @@ export const FindingCard: React.FC<FindingCardProps> = ({
                     </div>
                   )}
                 </div>
+                {c.refs && c.refs.length > 0 && editingCommentId !== c.id && (
+                  <div className="comment-ref-icons">
+                    {c.refs.map((ref) => (
+                      <a
+                        key={ref.id}
+                        href={ref.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="ref-icon-link"
+                        title={ref.title || ref.url}
+                      >
+                        <RefProviderIcon provider={ref.provider} size={11} />
+                      </a>
+                    ))}
+                  </div>
+                )}
                 {editingCommentId === c.id ? (
                   <div>
                     <textarea
@@ -821,6 +878,27 @@ export const FindingCard: React.FC<FindingCardProps> = ({
             </div>
           </div>
         </div>,
+        document.body
+      )}
+
+      {managingRefs && createPortal(
+        <RefManageModal
+          entityType="finding"
+          entityId={finding.id}
+          refs={cardRefs}
+          onClose={() => setManagingRefs(false)}
+          onRefsChange={setCardRefs}
+        />,
+        document.body
+      )}
+
+      {managingRefsCommentId && createPortal(
+        <RefManageModal
+          entityType="comment"
+          entityId={managingRefsCommentId}
+          refs={findingComments.find((c) => c.id === managingRefsCommentId)?.refs ?? []}
+          onClose={() => setManagingRefsCommentId(null)}
+        />,
         document.body
       )}
 

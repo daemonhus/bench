@@ -1,6 +1,6 @@
 # MCP Overview
 
-Bench exposes all bench tools over [Model Context Protocol](https://modelcontextprotocol.io) (Streamable HTTP, JSON-RPC 2.0). Every tool available in the CLI is also available over MCP - the same handler code runs in both paths.
+Bench exposes its tools over [Model Context Protocol](https://modelcontextprotocol.io) (Streamable HTTP, JSON-RPC 2.0). Every CLI tool is available over MCP; the same handler code runs in both paths.
 
 ## Connect with Claude
 
@@ -19,7 +19,7 @@ Tools are organized into seven groups matching the CLI categories:
 | `git` | `search_code`, `get_blame`, `read_file`, `read_files`, `list_files`, `get_diff`, `list_changed_files`, `list_commits`, `list_branches` |
 | `findings` | `list_findings`, `get_finding`, `create_finding`, `update_finding`, `delete_finding`, `resolve_finding`, `search_findings`, `batch_create_findings` |
 | `comments` | `list_comments`, `get_comment`, `create_comment`, `update_comment`, `delete_comment`, `resolve_comment`, `batch_create_comments` |
-| `features` | `list_features`, `get_feature`, `create_feature`, `update_feature`, `delete_feature`, `batch_create_features` |
+| `features` | `list_features`, `get_feature`, `create_feature`, `update_feature`, `delete_feature`, `batch_create_features`, `list_feature_parameters`, `create_feature_parameter`, `update_feature_parameter`, `delete_feature_parameter` |
 | `baselines` | `set_baseline`, `list_baselines`, `get_delta`, `delete_baseline` |
 | `analytics` | `get_summary`, `get_coverage`, `mark_reviewed` |
 | `reconcile` | `reconcile`, `get_reconciliation_status`, `get_annotation_history` |
@@ -113,7 +113,6 @@ No parameters.
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `file` | string | no | Filter by file path |
-| `commit` | string | no | Filter by commit |
 | `severity` | string | no | Filter by severity |
 | `status` | string | no | Filter by status |
 | `category` | string | no | Filter by category |
@@ -131,11 +130,11 @@ No parameters.
 |-----------|------|----------|-------------|
 | `title` | string | yes | Short title |
 | `severity` | string | yes | `critical` \| `high` \| `medium` \| `low` \| `info` |
-| `file` | string | no | File path |
-| `commit` | string | no | Commit hash or ref (e.g. `HEAD`, branch name, or full SHA) |
+| `file` | string | yes | File path |
+| `commit` | string | yes | Commit hash or ref (e.g. `HEAD`, branch name, or full SHA) |
+| `description` | string | yes | Detailed description |
 | `line_start` | int | no | Start line |
 | `line_end` | int | no | End line |
-| `description` | string | no | Detailed description |
 | `cwe` | string | no | CWE identifier (e.g. `CWE-89`) |
 | `cve` | string | no | CVE identifier |
 | `vector` | string | no | CVSS vector |
@@ -143,6 +142,7 @@ No parameters.
 | `status` | string | no | Initial status: `draft` (tentative) or `open` (confirmed). Default: `draft`. |
 | `source` | string | no | Tool or scanner that found it |
 | `category` | string | no | Category label |
+| `external_id` | string | no | External identifier from source system (e.g. `F001`, `VULN-42`) |
 | `feature_ids` | string[] | no | Feature IDs to link to this finding |
 
 ### update_finding
@@ -161,6 +161,7 @@ No parameters.
 | `cwe` | string | no | New CWE |
 | `cve` | string | no | New CVE |
 | `category` | string | no | New category |
+| `external_id` | string | no | External identifier from source system |
 | `feature_ids` | string[] | no | Linked feature IDs (replaces full list) |
 
 ### delete_finding / resolve_finding
@@ -180,7 +181,7 @@ No parameters.
 
 ### batch_create_findings
 
-Create multiple findings in a single transaction. Accepts the same fields as `create_finding` in a `findings` array (`title`, `severity`, `file`, `commit`, `line_start`, `line_end`, `description`, `cwe`, `cve`, `vector`, `score`, `status`, `source`, `category`, `feature_ids`). All-or-nothing - rolls back on any error.
+Create multiple findings in a single transaction. Accepts the same fields as `create_finding` in a `findings` array. `title`, `severity`, `file`, `commit`, and `description` are required per item. Optional fields: `line_start`, `line_end`, `cwe`, `cve`, `vector`, `score`, `status`, `source`, `category`, `external_id`, `feature_ids`. All-or-nothing — rolls back on any error.
 
 ---
 
@@ -265,7 +266,7 @@ Annotate an architectural feature: an API interface, data source/sink, dependenc
 | `file` | string | yes | File path |
 | `commit` | string | yes | Commit hash or ref (e.g. `HEAD`, branch name, or full SHA) |
 | `kind` | string | yes | `interface` (API endpoint/handler) \| `source` (data input: DB read, file read) \| `sink` (data output: DB write, outbound call) \| `dependency` (third-party lib/service) \| `externality` (background job, scheduler, side-effect) |
-| `title` | string | yes | Short label — do **not** include the HTTP method here (e.g. `"Login endpoint"`, not `"POST /login"`). Use `operation` for the method. |
+| `title` | string | yes | Short label. Do **not** include the HTTP method (e.g. `"Login endpoint"`, not `"POST /login"`). Use `operation` for it. |
 | `line_start` | int | no | Start line |
 | `line_end` | int | no | End line |
 | `description` | string | no | Detailed description |
@@ -304,6 +305,40 @@ Annotate an architectural feature: an API interface, data source/sink, dependenc
 
 Create multiple feature annotations in one transaction. All-or-nothing. Accepts a `features` array where each item takes the same fields as `create_feature`. `file`, `commit`, `kind`, and `title` are required per item. Max 100 per call.
 
+### list_feature_parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `feature_id` | string | yes | Feature ID |
+
+### create_feature_parameter
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `feature_id` | string | yes | Feature ID |
+| `name` | string | yes | Parameter name |
+| `description` | string | no | What it carries or security notes |
+| `type` | string | no | `string` \| `integer` \| `boolean` \| `object` \| `array` \| `file` |
+| `pattern` | string | no | Constraint: regex, enum, min/max, format hint, etc. |
+| `required` | boolean | no | Whether the parameter is required |
+
+### update_feature_parameter
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | string | yes | Parameter ID |
+| `name` | string | no | New name |
+| `description` | string | no | New description |
+| `type` | string | no | New type |
+| `pattern` | string | no | New constraint |
+| `required` | boolean | no | New required flag |
+
+### delete_feature_parameter
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | string | yes | Parameter ID |
+
 ---
 
 ### set_baseline
@@ -312,7 +347,7 @@ Create multiple feature annotations in one transaction. All-or-nothing. Accepts 
 |-----------|------|----------|-------------|
 | `reviewer` | string | no | Who is setting the baseline |
 | `summary` | string | no | Optional note |
-| `commit_id` | string | no | Git commit (default: HEAD) |
+| `commit` | string | no | Git commit (default: HEAD) |
 
 ### list_baselines
 
@@ -364,16 +399,16 @@ Returns finding and comment counts by severity, status, and category. No paramet
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `target_commit` | string | yes | Commit to reconcile to |
-| `file_paths` | string[] | no | Scope to specific files |
+| `target_commit` | string | no | Commit to reconcile to (default: HEAD) |
+| `files` | string[] | no | Scope to specific files |
 
 ### get_reconciliation_status
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `job_id` | string | no | Specific job ID |
-| `file_id` | string | no | Filter by file |
-| `commit` | string | no | Filter by commit |
+| `file` | string | no | Filter by file |
+| `commit` | string | no | Filter by commit (use with `file`) |
 
 ### get_annotation_history
 

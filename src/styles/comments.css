@@ -77,13 +77,19 @@
   color: var(--text-primary);
   font-family: var(--font-sans);
   font-size: var(--font-size-ui);
-  padding: 8px 12px;
+  padding: 10px 14px;
   resize: vertical;
-  min-height: 60px;
+  min-height: 68px;
   outline: none;
+  transition: border-color var(--transition-base), box-shadow var(--transition-base), background var(--transition-base);
+}
+
+.comment-textarea:hover {
+  border-color: rgba(148, 163, 184, 0.28);
 }
 
 .comment-textarea:focus {
+  background: var(--bg-surface);
   border-color: var(--accent-blue);
   box-shadow: var(--shadow-focus-blue);
 }

@@ -43,6 +43,7 @@ var categories = []category{
 	{"findings", "Security findings: create, query, resolve vulnerability reports"},
 	{"comments", "Review comments: create, query, resolve code review notes"},
 	{"features", "Architectural features: interfaces, sources, sinks, dependencies, externalities"},
+	{"refs", "External references: link findings, features, and comments to Jira, Slack, GitHub, etc."},
 	{"baselines", "State snapshots: set baselines and view deltas between sessions"},
 	{"analytics", "Analytics: summaries, coverage tracking, finding search"},
 	{"reconcile", "Line tracking: reconcile annotation positions across commits"},
@@ -272,6 +273,45 @@ var commands = []cmdDef{
 		EP:    endpoint{"POST", "/api/comments"},
 		Flags: []flagDef{{Name: "input", Param: "_input", Desc: "JSON file (default: stdin)", Type: "batch"}}},
 
+	// ── refs ────────────────────────────────────────────────────────────
+	{Cat: "refs", Name: "list", Desc: "List external references, optionally filtered by entity type, entity ID, or provider.",
+		EP: endpoint{"GET", "/api/refs"},
+		Flags: []flagDef{
+			{Name: "entity-type", Param: "entityType", Desc: "Filter by entity type [finding|feature|comment]"},
+			{Name: "entity-id", Param: "entityId", Desc: "Filter by entity ID"},
+			{Name: "provider", Param: "provider", Desc: "Filter by provider [jira|slack|github|linear|url]"},
+		}},
+	{Cat: "refs", Name: "get", Desc: "Get a single external reference by ID.",
+		EP: endpoint{"GET", "/api/refs/{id}"},
+		Flags: []flagDef{
+			{Name: "id", Param: "id", Desc: "Ref ID", Required: true},
+		}},
+	{Cat: "refs", Name: "create", Desc: "Create an external reference linking an annotation to a URL. Provider is inferred from the URL if omitted.",
+		EP: endpoint{"POST", "/api/refs"},
+		Flags: []flagDef{
+			{Name: "entity-type", Param: "entityType", Desc: "Entity type [finding|feature|comment]", Required: true},
+			{Name: "entity-id", Param: "entityId", Desc: "Entity ID", Required: true},
+			{Name: "provider", Param: "provider", Desc: "Provider [github|gitlab|jira|confluence|linear|notion|slack|url] — inferred from URL if omitted"},
+			{Name: "url", Param: "url", Desc: "Full URL of the external resource", Required: true},
+			{Name: "title", Param: "title", Desc: "Optional display label"},
+		}},
+	{Cat: "refs", Name: "update", Desc: "Update a ref's provider, URL, or title.",
+		EP: endpoint{"PATCH", "/api/refs/{id}"},
+		Flags: []flagDef{
+			{Name: "id", Param: "id", Desc: "Ref ID", Required: true},
+			{Name: "provider", Param: "provider", Desc: "New provider"},
+			{Name: "url", Param: "url", Desc: "New URL"},
+			{Name: "title", Param: "title", Desc: "New display label"},
+		}},
+	{Cat: "refs", Name: "delete", Desc: "Delete an external reference.",
+		EP: endpoint{"DELETE", "/api/refs/{id}"},
+		Flags: []flagDef{
+			{Name: "id", Param: "id", Desc: "Ref ID", Required: true},
+		}},
+	{Cat: "refs", Name: "batch-create", Desc: "Create multiple refs from JSON input. Required per item: entityType, entityId, provider, url. Optional: title.",
+		EP:    endpoint{"POST", "/api/refs"},
+		Flags: []flagDef{{Name: "input", Param: "_input", Desc: "JSON file (default: stdin)", Type: "batch"}}},
+
 	// ── baselines ───────────────────────────────────────────────────────
 	{Cat: "baselines", Name: "set", Desc: "Create a new baseline snapshot.",
 		EP: endpoint{"POST", "/api/baselines"},
@@ -376,6 +416,41 @@ var commands = []cmdDef{
 		EP:    endpoint{"POST", "/api/features"},
 		Flags: []flagDef{{Name: "input", Param: "_input", Desc: "JSON file (default: stdin)", Type: "batch"}}},
 
+	// ── feature parameters ──────────────────────────────────────────────
+	{Cat: "features", Name: "params-list", Desc: "List parameters for a feature.",
+		EP: endpoint{"GET", "/api/features/{feature_id}/parameters"},
+		Flags: []flagDef{
+			{Name: "feature-id", Param: "feature_id", Desc: "Feature ID", Required: true},
+		}},
+	{Cat: "features", Name: "params-add", Desc: "Add a parameter to a feature.",
+		EP: endpoint{"POST", "/api/features/{feature_id}/parameters"},
+		Flags: []flagDef{
+			{Name: "feature-id", Param: "feature_id", Desc: "Feature ID", Required: true},
+			{Name: "name", Param: "name", Desc: "Parameter name", Required: true},
+			{Name: "type", Param: "type", Desc: "Parameter type (string, integer, boolean, object, array, file)"},
+			{Name: "description", Param: "description", Desc: "Description"},
+			{Name: "pattern", Param: "pattern", Desc: "Constraint (regex, enum, min/max, format hint)"},
+			{Name: "required", Param: "required", Desc: "Mark parameter as required", Type: "bool"},
+		}},
+	{Cat: "features", Name: "params-update", Desc: "Update a feature parameter (partial update).",
+		EP: endpoint{"PATCH", "/api/features/{feature_id}/parameters/{pid}"},
+		Flags: []flagDef{
+			{Name: "feature-id", Param: "feature_id", Desc: "Feature ID", Required: true},
+			{Name: "id", Param: "pid", Desc: "Parameter ID", Required: true},
+			{Name: "name", Param: "name", Desc: "New parameter name"},
+			{Name: "type", Param: "type", Desc: "New type"},
+			{Name: "description", Param: "description", Desc: "New description"},
+			{Name: "pattern", Param: "pattern", Desc: "New constraint"},
+			{Name: "required", Param: "required", Desc: "Mark as required", Type: "bool"},
+			{Name: "optional", Param: "required", Desc: "Mark as optional (sets required=false)", Type: "bool-false"},
+		}},
+	{Cat: "features", Name: "params-delete", Desc: "Delete a feature parameter.",
+		EP: endpoint{"DELETE", "/api/features/{feature_id}/parameters/{pid}"},
+		Flags: []flagDef{
+			{Name: "feature-id", Param: "feature_id", Desc: "Feature ID", Required: true},
+			{Name: "id", Param: "pid", Desc: "Parameter ID", Required: true},
+		}},
+
 	// ── reconcile ───────────────────────────────────────────────────────
 	{Cat: "reconcile", Name: "start", Desc: "Start reconciling annotations to a target commit.",
 		EP: endpoint{"POST", "/api/reconcile"},
@@ -479,7 +554,7 @@ func parseFlags(defs []flagDef, args []string) (*parsedFlags, error) {
 			return nil, fmt.Errorf("unknown flag: --%s", name)
 		}
 
-		if def.Type == "bool" {
+		if def.Type == "bool" || def.Type == "bool-false" {
 			pf.bools[name] = true
 			continue
 		}
@@ -644,6 +719,21 @@ func buildRequest(cmd *cmdDef, pf *parsedFlags) (method, path string, body io.Re
 			if pathParams[fd.Name] {
 				continue
 			}
+
+			// Bool flags in POST/PATCH bodies: only include when flag was explicitly set.
+			if fd.Type == "bool" {
+				if pf.bools[fd.Name] {
+					obj[fd.Param] = true
+				}
+				continue
+			}
+			if fd.Type == "bool-false" {
+				if pf.bools[fd.Name] {
+					obj[fd.Param] = false
+				}
+				continue
+			}
+
 			val, ok := pf.values[fd.Name]
 			if !ok || val == "" {
 				continue
@@ -695,8 +785,6 @@ func buildRequest(cmd *cmdDef, pf *parsedFlags) (method, path string, body io.Re
 					}
 				}
 				obj[fd.Param] = trimmed
-			case "bool":
-				obj[fd.Param] = pf.bools[fd.Name]
 			default:
 				obj[fd.Param] = val
 			}
@@ -787,7 +875,7 @@ func printCommandHelp(cmd *cmdDef) {
 				typeHint = "int"
 			case "float":
 				typeHint = "float"
-			case "bool":
+			case "bool", "bool-false":
 				typeHint = ""
 			case "list":
 				typeHint = "list"

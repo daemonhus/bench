@@ -538,6 +538,67 @@ func TestFlagsContract_Path_ReconcileHistory(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// refs commands
+// ---------------------------------------------------------------------------
+
+func TestFlagsContract_GET_RefsList(t *testing.T) {
+	_, path, _ := parseAndBuild(t, "refs", "list", []string{
+		"--entity-type", "finding",
+		"--entity-id", "f-123",
+		"--provider", "jira",
+	})
+	requireQuery(t, path, "entityType", "finding")
+	requireQuery(t, path, "entityId", "f-123")
+	requireQuery(t, path, "provider", "jira")
+}
+
+func TestFlagsContract_POST_RefsCreate_AllFields(t *testing.T) {
+	_, _, body := parseAndBuild(t, "refs", "create", []string{
+		"--entity-type", "finding",
+		"--entity-id", "f-123",
+		"--provider", "jira",
+		"--url", "https://jira.example.com/PROJ-1",
+		"--title", "PROJ-1: SQL injection",
+	})
+	requireField(t, body, "entityType", "finding")
+	requireField(t, body, "entityId", "f-123")
+	requireField(t, body, "provider", "jira")
+	requireField(t, body, "url", "https://jira.example.com/PROJ-1")
+	requireField(t, body, "title", "PROJ-1: SQL injection")
+}
+
+func TestFlagsContract_PATCH_RefsUpdate_AllFields(t *testing.T) {
+	_, path, body := parseAndBuild(t, "refs", "update", []string{
+		"--id", "ref-abc",
+		"--provider", "linear",
+		"--url", "https://linear.app/team/issue/ENG-42",
+		"--title", "ENG-42",
+	})
+	if !strings.Contains(path, "/ref-abc") {
+		t.Errorf("path %q missing id", path)
+	}
+	requireField(t, body, "provider", "linear")
+	requireField(t, body, "url", "https://linear.app/team/issue/ENG-42")
+	requireField(t, body, "title", "ENG-42")
+}
+
+func TestFlagsContract_RequiredFlag_RefsCreate_MissingURL(t *testing.T) {
+	cmd := findCmd("refs", "create")
+	if cmd == nil {
+		t.Fatal("refs create not found")
+	}
+	_, err := parseFlags(cmd.Flags, []string{
+		"--entity-type", "finding",
+		"--entity-id", "f-1",
+		"--provider", "jira",
+		// --url omitted
+	})
+	if err == nil {
+		t.Error("want error for missing --url, got nil")
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Required flags: missing flag → parseFlags error
 // ---------------------------------------------------------------------------
 

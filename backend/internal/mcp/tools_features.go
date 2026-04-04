@@ -22,8 +22,25 @@ func registerFeatureTools(deps *toolDeps) []Tool {
 		toolUpdateFeature(deps),
 		toolDeleteFeature(deps),
 		toolBatchCreateFeatures(deps),
+		toolListFeatureParameters(deps),
+		toolCreateFeatureParameter(deps),
+		toolUpdateFeatureParameter(deps),
+		toolDeleteFeatureParameter(deps),
 	}
 }
+
+// paramSchema is the JSON schema object for a single parameter item (reused in several tools).
+const paramItemSchema = `{
+	"type": "object",
+	"properties": {
+		"name":        {"type": "string", "description": "Parameter name, e.g. user_id, Authorization"},
+		"description": {"type": "string", "description": "What this parameter carries or its security notes"},
+		"type":        {"type": "string", "description": "string | integer | boolean | object | array | file (or any freeform string)"},
+		"pattern":     {"type": "string", "description": "Freeform constraint: regex, enum list, min/max, format hint, etc."},
+		"required":    {"type": "boolean", "description": "True if the parameter is required"}
+	},
+	"required": ["name"]
+}`
 
 func toolListFeatures(deps *toolDeps) Tool {
 	return Tool{
@@ -161,7 +178,8 @@ func toolCreateFeature(deps *toolDeps) Tool {
 				"protocol": {"type": "string", "description": "Protocol (e.g. rest, grpc, graphql, websocket)"},
 				"status": {"type": "string", "enum": ["draft","active"], "description": "Initial status (default: active)"},
 				"tags": {"type": "array", "items": {"type": "string"}, "description": "Optional tags"},
-				"source": {"type": "string", "description": "Tool or scanner that identified the feature"}
+				"source": {"type": "string", "description": "Tool or scanner that identified the feature"},
+				"parameters": {"type": "array", "items": ` + paramItemSchema + `, "description": "Optional parameters documenting the interface contract (auth headers, path vars, query params, body fields)"}
 			},
 			"required": ["file", "commit", "kind", "title"]
 		}`),
@@ -180,6 +198,13 @@ func toolCreateFeature(deps *toolDeps) Tool {
 				Status      string   `json:"status"`
 				Tags        []string `json:"tags"`
 				Source      string   `json:"source"`
+				Parameters  []struct {
+					Name        string `json:"name"`
+					Description string `json:"description"`
+					Type        string `json:"type"`
+					Pattern     string `json:"pattern"`
+					Required    bool   `json:"required"`
+				} `json:"parameters"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {
 				return "", fmt.Errorf("invalid params: %w", err)
@@ -242,6 +267,24 @@ func toolCreateFeature(deps *toolDeps) Tool {
 				})
 			}
 
+			// Persist parameters if provided.
+			if len(p.Parameters) > 0 {
+				mparams := make([]model.FeatureParameter, len(p.Parameters))
+				for i, pp := range p.Parameters {
+					mparams[i] = model.FeatureParameter{
+						FeatureID:   f.ID,
+						Name:        pp.Name,
+						Description: pp.Description,
+						Type:        pp.Type,
+						Pattern:     pp.Pattern,
+						Required:    pp.Required,
+					}
+				}
+				if err := deps.db.ReplaceParameters(f.ID, mparams); err == nil {
+					f.Parameters, _ = deps.db.ListParameters(f.ID)
+				}
+			}
+
 			if deps.broker != nil {
 				deps.broker.Publish(events.TopicAnnotations)
 			}
@@ -274,7 +317,8 @@ func toolUpdateFeature(deps *toolDeps) Tool {
 				"tags": {"type": "array", "items": {"type": "string"}},
 				"source": {"type": "string", "description": "Source tool or scanner"},
 				"line_start": {"type": "integer"},
-				"line_end": {"type": "integer"}
+				"line_end": {"type": "integer"},
+				"parameters": {"type": "array", "items": ` + paramItemSchema + `, "description": "Replace all parameters. Omitting this field leaves parameters unchanged."}
 			},
 			"required": ["id"]
 		}`),
@@ -373,9 +417,57 @@ func toolUpdateFeature(deps *toolDeps) Tool {
 				}
 			}
 
-			f, err := deps.db.UpdateFeature(id, raw)
-			if err != nil {
-				return "", err
+			// Extract parameters before UpdateFeature (it doesn't handle them).
+			var replaceParams bool
+			var newParams []model.FeatureParameter
+			if rawParams, ok := raw["parameters"]; ok {
+				replaceParams = true
+				delete(raw, "parameters")
+				if arr, ok := rawParams.([]any); ok {
+					for _, item := range arr {
+						if m, ok := item.(map[string]any); ok {
+							p := model.FeatureParameter{FeatureID: id}
+							if v, ok := m["name"].(string); ok {
+								p.Name = v
+							}
+							if v, ok := m["description"].(string); ok {
+								p.Description = v
+							}
+							if v, ok := m["type"].(string); ok {
+								p.Type = v
+							}
+							if v, ok := m["pattern"].(string); ok {
+								p.Pattern = v
+							}
+							if v, ok := m["required"].(bool); ok {
+								p.Required = v
+							}
+							if p.Name != "" {
+								newParams = append(newParams, p)
+							}
+						}
+					}
+				}
+			}
+
+			var f *model.Feature
+			var err error
+			if len(raw) > 0 {
+				f, err = deps.db.UpdateFeature(id, raw)
+				if err != nil {
+					return "", err
+				}
+			} else {
+				f, err = deps.db.GetFeature(id)
+				if err != nil {
+					return "", fmt.Errorf("feature not found: %w", err)
+				}
+			}
+
+			if replaceParams {
+				if err := deps.db.ReplaceParameters(id, newParams); err == nil {
+					f.Parameters, _ = deps.db.ListParameters(id)
+				}
 			}
 
 			b, err := json.MarshalIndent(f, "", "  ")
@@ -448,7 +540,8 @@ func toolBatchCreateFeatures(deps *toolDeps) Tool {
 							"protocol": {"type": "string", "description": "Protocol (e.g. rest, grpc, graphql, websocket)"},
 							"status": {"type": "string", "enum": ["draft","active"], "description": "Initial status (default: active)"},
 							"tags": {"type": "array", "items": {"type": "string"}, "description": "Optional tags"},
-							"source": {"type": "string", "description": "Tool or scanner that identified the feature"}
+							"source": {"type": "string", "description": "Tool or scanner that identified the feature"},
+							"parameters": {"type": "array", "items": ` + paramItemSchema + `, "description": "Optional parameters documenting the interface contract"}
 						},
 						"required": ["file", "commit", "kind", "title"]
 					},
@@ -473,6 +566,13 @@ func toolBatchCreateFeatures(deps *toolDeps) Tool {
 					Status      string   `json:"status"`
 					Tags        []string `json:"tags"`
 					Source      string   `json:"source"`
+					Parameters  []struct {
+						Name        string `json:"name"`
+						Description string `json:"description"`
+						Type        string `json:"type"`
+						Pattern     string `json:"pattern"`
+						Required    bool   `json:"required"`
+					} `json:"parameters"`
 				} `json:"features"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {
@@ -534,7 +634,7 @@ func toolBatchCreateFeatures(deps *toolDeps) Tool {
 				return "", err
 			}
 
-			// Create initial position entries
+			// Create initial position entries and persist parameters.
 			for i := range models {
 				f := &models[i]
 				if f.Anchor.LineRange != nil {
@@ -549,12 +649,196 @@ func toolBatchCreateFeatures(deps *toolDeps) Tool {
 						Confidence:     "exact",
 					})
 				}
+				if len(p.Features[i].Parameters) > 0 {
+					mparams := make([]model.FeatureParameter, len(p.Features[i].Parameters))
+					for j, pp := range p.Features[i].Parameters {
+						mparams[j] = model.FeatureParameter{
+							FeatureID:   f.ID,
+							Name:        pp.Name,
+							Description: pp.Description,
+							Type:        pp.Type,
+							Pattern:     pp.Pattern,
+							Required:    pp.Required,
+						}
+					}
+					_ = deps.db.ReplaceParameters(f.ID, mparams)
+				}
 			}
 
 			if deps.broker != nil {
 				deps.broker.Publish(events.TopicAnnotations)
 			}
 			return fmt.Sprintf("Created %d features: %s", len(ids), strings.Join(ids, ", ")), nil
+		},
+	}
+}
+
+func toolListFeatureParameters(deps *toolDeps) Tool {
+	return Tool{
+		Name:        "list_feature_parameters",
+		Description: "List all parameters for a feature annotation.",
+		InputSchema: json.RawMessage(`{
+			"type": "object",
+			"properties": {
+				"feature_id": {"type": "string", "description": "Feature ID"}
+			},
+			"required": ["feature_id"]
+		}`),
+		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
+			var p struct {
+				FeatureID string `json:"feature_id"`
+			}
+			if err := json.Unmarshal(params, &p); err != nil {
+				return "", fmt.Errorf("invalid params: %w", err)
+			}
+			if p.FeatureID == "" {
+				return "", fmt.Errorf("feature_id is required")
+			}
+			ps, err := deps.db.ListParameters(p.FeatureID)
+			if err != nil {
+				return "", err
+			}
+			if len(ps) == 0 {
+				return "No parameters found.", nil
+			}
+			b, err := json.MarshalIndent(ps, "", "  ")
+			if err != nil {
+				return "", err
+			}
+			return fmt.Sprintf("%d parameter(s):\n%s", len(ps), string(b)), nil
+		},
+	}
+}
+
+func toolCreateFeatureParameter(deps *toolDeps) Tool {
+	return Tool{
+		Name:        "create_feature_parameter",
+		Description: "Add a parameter to a feature annotation.",
+		InputSchema: json.RawMessage(`{
+			"type": "object",
+			"properties": {
+				"feature_id":  {"type": "string", "description": "Feature ID"},
+				"name":        {"type": "string", "description": "Parameter name"},
+				"description": {"type": "string", "description": "What this parameter carries or its security notes"},
+				"type":        {"type": "string", "description": "string | integer | boolean | object | array | file"},
+				"pattern":     {"type": "string", "description": "Constraint: regex, enum, min/max, format hint, etc."},
+				"required":    {"type": "boolean", "description": "True if the parameter is required"}
+			},
+			"required": ["feature_id", "name"]
+		}`),
+		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
+			var p struct {
+				FeatureID   string `json:"feature_id"`
+				Name        string `json:"name"`
+				Description string `json:"description"`
+				Type        string `json:"type"`
+				Pattern     string `json:"pattern"`
+				Required    bool   `json:"required"`
+			}
+			if err := json.Unmarshal(params, &p); err != nil {
+				return "", fmt.Errorf("invalid params: %w", err)
+			}
+			if p.FeatureID == "" {
+				return "", fmt.Errorf("feature_id is required")
+			}
+			if p.Name == "" {
+				return "", fmt.Errorf("name is required")
+			}
+
+			fp := &model.FeatureParameter{
+				FeatureID:   p.FeatureID,
+				Name:        p.Name,
+				Description: p.Description,
+				Type:        p.Type,
+				Pattern:     p.Pattern,
+				Required:    p.Required,
+			}
+			if err := deps.db.CreateParameter(fp); err != nil {
+				return "", err
+			}
+			if deps.broker != nil {
+				deps.broker.Publish(events.TopicAnnotations)
+			}
+			b, err := json.MarshalIndent(fp, "", "  ")
+			if err != nil {
+				return "", err
+			}
+			return fmt.Sprintf("Created parameter %s:\n%s", fp.ID, string(b)), nil
+		},
+	}
+}
+
+func toolUpdateFeatureParameter(deps *toolDeps) Tool {
+	return Tool{
+		Name:        "update_feature_parameter",
+		Description: "Update a feature parameter. Only specified fields are changed.",
+		InputSchema: json.RawMessage(`{
+			"type": "object",
+			"properties": {
+				"id":          {"type": "string", "description": "Parameter ID"},
+				"name":        {"type": "string"},
+				"description": {"type": "string"},
+				"type":        {"type": "string"},
+				"pattern":     {"type": "string"},
+				"required":    {"type": "boolean"}
+			},
+			"required": ["id"]
+		}`),
+		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
+			var raw map[string]any
+			if err := json.Unmarshal(params, &raw); err != nil {
+				return "", fmt.Errorf("invalid params: %w", err)
+			}
+			id, _ := raw["id"].(string)
+			if id == "" {
+				return "", fmt.Errorf("id is required")
+			}
+			delete(raw, "id")
+
+			fp, err := deps.db.UpdateParameter(id, raw)
+			if err != nil {
+				return "", err
+			}
+			if deps.broker != nil {
+				deps.broker.Publish(events.TopicAnnotations)
+			}
+			b, err := json.MarshalIndent(fp, "", "  ")
+			if err != nil {
+				return "", err
+			}
+			return fmt.Sprintf("Updated parameter %s:\n%s", id, string(b)), nil
+		},
+	}
+}
+
+func toolDeleteFeatureParameter(deps *toolDeps) Tool {
+	return Tool{
+		Name:        "delete_feature_parameter",
+		Description: "Delete a feature parameter by ID.",
+		InputSchema: json.RawMessage(`{
+			"type": "object",
+			"properties": {
+				"id": {"type": "string", "description": "Parameter ID"}
+			},
+			"required": ["id"]
+		}`),
+		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
+			var p struct {
+				ID string `json:"id"`
+			}
+			if err := json.Unmarshal(params, &p); err != nil {
+				return "", fmt.Errorf("invalid params: %w", err)
+			}
+			if p.ID == "" {
+				return "", fmt.Errorf("id is required")
+			}
+			if err := deps.db.DeleteParameter(p.ID); err != nil {
+				return "", err
+			}
+			if deps.broker != nil {
+				deps.broker.Publish(events.TopicAnnotations)
+			}
+			return fmt.Sprintf("Deleted parameter %s.", p.ID), nil
 		},
 	}
 }

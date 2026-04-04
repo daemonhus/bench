@@ -311,12 +311,23 @@
 
 .set-baseline-branch-row select {
   flex: 1;
-  background: var(--bg-primary);
+  background: var(--bg-tertiary);
   border: 1px solid var(--border-default);
-  border-radius: 4px;
+  border-radius: 6px;
   color: var(--text-primary);
   font-size: 12px;
-  padding: 4px 8px;
+  padding: 6px 10px;
+  outline: none;
+  transition: border-color var(--transition-base), box-shadow var(--transition-base);
+}
+
+.set-baseline-branch-row select:hover {
+  border-color: rgba(148, 163, 184, 0.28);
+}
+
+.set-baseline-branch-row select:focus {
+  border-color: var(--accent-blue);
+  box-shadow: var(--shadow-focus-blue);
 }
 
 .set-baseline-commit-list {
@@ -747,38 +758,48 @@
 }
 
 .delta-edit-input {
-  background: var(--bg-primary);
+  background: var(--bg-tertiary);
   border: 1px solid var(--border-default);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-base);
   color: var(--text-primary);
   font-size: 13px;
   font-family: var(--font-sans);
-  padding: 8px 12px;
+  padding: 10px 14px;
   outline: none;
   max-width: 300px;
-  transition: border-color var(--transition-fast);
+  transition: border-color var(--transition-base), box-shadow var(--transition-base), background var(--transition-base);
+}
+
+.delta-edit-input:hover {
+  border-color: rgba(148, 163, 184, 0.28);
 }
 
 .delta-edit-input:focus {
+  background: var(--bg-surface);
   border-color: var(--accent-blue);
   box-shadow: var(--shadow-focus-blue);
 }
 
 .delta-edit-textarea {
-  background: var(--bg-primary);
+  background: var(--bg-tertiary);
   border: 1px solid var(--border-default);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-base);
   color: var(--text-primary);
   font-size: 13px;
   font-family: var(--font-sans);
-  padding: 8px 12px;
+  padding: 10px 14px;
   resize: vertical;
   outline: none;
   max-width: 500px;
-  transition: border-color var(--transition-fast);
+  transition: border-color var(--transition-base), box-shadow var(--transition-base), background var(--transition-base);
+}
+
+.delta-edit-textarea:hover {
+  border-color: rgba(148, 163, 184, 0.28);
 }
 
 .delta-edit-textarea:focus {
+  background: var(--bg-surface);
   border-color: var(--accent-blue);
   box-shadow: var(--shadow-focus-blue);
 }

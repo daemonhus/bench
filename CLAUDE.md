@@ -37,6 +37,7 @@ A discovered vulnerability or security issue.
   source?: string     // tool or scanner that found it
   category?: string
   featureIds?: string[]  // associated Feature IDs (join table — referential integrity)
+  refs?: Ref[]           // external references (enriched inline)
   createdAt: string
   resolvedCommit?: string
 }
@@ -57,6 +58,7 @@ A code review note.
   parentId?: string   // reply to a specific comment
   findingId?: string  // link to a related finding
   featureId?: string  // link to a related feature
+  refs?: Ref[]        // external references (enriched inline)
   resolvedCommit?: string
 }
 ```
@@ -78,9 +80,48 @@ An architectural annotation marking a security-relevant surface: API endpoint, d
   protocol?: string           // e.g. rest, grpc, graphql, websocket
   source?: string
   tags?: string[]
+  refs?: Ref[]                // external references (enriched inline)
+  parameters?: FeatureParameter[]  // only meaningful for kind: 'interface'
   createdAt: string
 }
 ```
+
+### FeatureParameter
+
+A structured input/output descriptor attached to an `interface` feature.
+
+```typescript
+{
+  id: string
+  featureId: string
+  name: string              // e.g. "user_id", "Authorization"
+  description?: string      // what it carries / security notes
+  type?: string             // string | integer | boolean | object | array | file
+  pattern?: string          // freeform constraint: regex, enum list, min/max, format hint
+  required: boolean
+  createdAt: string
+}
+```
+
+Parameters are ordered by `name` ascending in list responses. By convention, parameters are used on `interface` features to document the expected inputs (auth headers, path vars, query params, body fields). The API allows parameters on any feature kind.
+
+### Ref
+
+An external reference linking an annotation to a ticket, thread, or URL in an external system.
+
+```typescript
+{
+  id: string
+  entityType: 'finding' | 'feature' | 'comment'
+  entityId: string        // ID of the parent annotation
+  provider: string        // 'github' | 'gitlab' | 'jira' | 'confluence' | 'linear' | 'notion' | 'slack' | 'url' — inferred from URL if omitted
+  url: string
+  title?: string          // optional display label
+  createdAt: string
+}
+```
+
+Many refs → one entity. Refs have no anchor and are not reconciled — they are pure metadata. Refs are returned inline on entity responses (`refs` field). Deleting an entity cascade-deletes its refs.
 
 ### Baseline
 
@@ -195,6 +236,7 @@ Deleting a feature or finding automatically removes the join-table rows — no m
 2. search code, read files  ← use git tools to explore
 3. create_finding (×N)      ← record vulnerabilities as you find them
 4. create_feature (×N)      ← record new endpoints, data sources/sinks, or long-lived annotations
+   └─ for interface features: add parameters to capture the contract (auth headers, path vars, query params, body fields)
 5. get_delta                ← check progress: how many new findings since baseline?
 6. set_baseline             ← checkpoint at milestones (e.g. "auth module complete")
 7. get_delta(baseline_id)   ← what did this round produce?
@@ -218,7 +260,7 @@ Bench exposes MCP tools and a CLI. Tool schemas and CLI `--help` are the source 
 - All `commit` parameters accept a hash, ref, or `HEAD`
 - For CLI `batch-create`, pipe a JSON array to stdin
 
-**Tool groups:** git, findings, comments, features, baselines, analytics, reconcile.
+**Tool groups:** git, findings, comments, features, refs, baselines, analytics, reconcile.
 
 **Feature titles:** Do not include the HTTP method in the title (e.g. `"Login endpoint"`, not `"POST /login"`). Use the `operation` field for that.
 
@@ -232,7 +274,9 @@ Bench exposes MCP tools and a CLI. Tool schemas and CLI `--help` are the source 
 | `tags` (features) | `"http,rest"` | `["http", "rest"]` (JSON array) |
 | `feature_ids` (MCP) | `"feat-1,feat-2"` | `["feat-1", "feat-2"]` (JSON array) |
 | `featureIds` (PATCH) | appends | replaces the full list (same semantic as `tags`) |
+| `parameters` on non-interface features | technically allowed | by convention interface-only |
 | `commit` | omitted | always set — empty `commitId` breaks reconciliation |
+| `provider` (refs) | any string | `github`, `gitlab`, `jira`, `confluence`, `linear`, `notion`, `slack`, or `url` — inferred from the URL hostname if omitted (no CHECK constraint) |
 
 **Default differences by interface:**
 

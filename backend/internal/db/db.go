@@ -393,6 +393,26 @@ func (d *DB) migrate() error {
 		}
 	}
 
+	// Add refs table
+	if _, err := d.conn.Exec(`CREATE TABLE IF NOT EXISTS refs (
+		id          TEXT PRIMARY KEY,
+		project_id  TEXT NOT NULL DEFAULT '_standalone',
+		entity_type TEXT NOT NULL CHECK(entity_type IN ('finding','feature','comment')),
+		entity_id   TEXT NOT NULL,
+		provider    TEXT NOT NULL,
+		url         TEXT NOT NULL,
+		title       TEXT NOT NULL DEFAULT '',
+		created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+	)`); err != nil {
+		return fmt.Errorf("create refs: %w", err)
+	}
+	if _, err := d.conn.Exec(`CREATE INDEX IF NOT EXISTS idx_refs_entity ON refs(entity_type, entity_id)`); err != nil {
+		return fmt.Errorf("create idx_refs_entity: %w", err)
+	}
+	if _, err := d.conn.Exec(`CREATE INDEX IF NOT EXISTS idx_refs_project ON refs(project_id)`); err != nil {
+		return fmt.Errorf("create idx_refs_project: %w", err)
+	}
+
 	// Add project_id indexes
 	for _, idx := range []string{
 		`CREATE INDEX IF NOT EXISTS idx_findings_project ON findings(project_id)`,
@@ -403,6 +423,28 @@ func (d *DB) migrate() error {
 		if _, err := d.conn.Exec(idx); err != nil {
 			return fmt.Errorf("create index: %w", err)
 		}
+	}
+
+	// Add feature_parameters table
+	if _, err := d.conn.Exec(`CREATE TABLE IF NOT EXISTS feature_parameters (
+		id          TEXT PRIMARY KEY,
+		project_id  TEXT NOT NULL DEFAULT '_standalone',
+		feature_id  TEXT NOT NULL,
+		name        TEXT NOT NULL,
+		description TEXT NOT NULL DEFAULT '',
+		type        TEXT NOT NULL DEFAULT '',
+		pattern     TEXT NOT NULL DEFAULT '',
+		required    INTEGER NOT NULL DEFAULT 0,
+		created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+		FOREIGN KEY (feature_id) REFERENCES features(id)
+	)`); err != nil {
+		return fmt.Errorf("create feature_parameters: %w", err)
+	}
+	if _, err := d.conn.Exec(`CREATE INDEX IF NOT EXISTS idx_feature_parameters_feature_id ON feature_parameters(feature_id)`); err != nil {
+		return fmt.Errorf("create idx_feature_parameters_feature_id: %w", err)
+	}
+	if _, err := d.conn.Exec(`CREATE INDEX IF NOT EXISTS idx_feature_parameters_project ON feature_parameters(project_id)`); err != nil {
+		return fmt.Errorf("create idx_feature_parameters_project: %w", err)
 	}
 
 	return nil

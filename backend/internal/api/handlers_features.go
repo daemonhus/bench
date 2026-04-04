@@ -132,9 +132,23 @@ func (h *featuresHandlers) create(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Capture parameters before creating (they're decoded into f.Parameters via JSON).
+	params := f.Parameters
+	f.Parameters = []model.FeatureParameter{}
+
 	if err := h.db.CreateFeature(&f); err != nil {
 		writeDBError(w, err)
 		return
+	}
+
+	// Persist parameters if provided.
+	if len(params) > 0 {
+		for i := range params {
+			params[i].FeatureID = f.ID
+		}
+		if err := h.db.ReplaceParameters(f.ID, params); err == nil {
+			f.Parameters, _ = h.db.ListParameters(f.ID)
+		}
 	}
 
 	// Create initial position entry
@@ -185,15 +199,85 @@ func (h *featuresHandlers) update(w http.ResponseWriter, r *http.Request) {
 	if !decodeBody(w, r, &updates) {
 		return
 	}
-	feature, err := h.db.UpdateFeature(id, updates)
-	if err != nil {
-		writeDBError(w, err)
-		return
+
+	// Extract parameters from the update map — handled separately.
+	replaceParams, newParams := extractParameters(id, updates)
+	delete(updates, "parameters")
+
+	var (
+		feature *model.Feature
+		err     error
+	)
+	if len(updates) > 0 {
+		feature, err = h.db.UpdateFeature(id, updates)
+		if err != nil {
+			writeDBError(w, err)
+			return
+		}
+	} else {
+		feature, err = h.db.GetFeature(id)
+		if err != nil {
+			if strings.Contains(err.Error(), "not found") {
+				writeError(w, http.StatusNotFound, "feature not found")
+			} else {
+				writeInternalError(w, err)
+			}
+			return
+		}
 	}
+
+	if replaceParams {
+		if err := h.db.ReplaceParameters(id, newParams); err == nil {
+			feature.Parameters, _ = h.db.ListParameters(id)
+		}
+	}
+
 	if h.broker != nil {
 		h.broker.Publish(events.TopicAnnotations)
 	}
 	writeJSON(w, http.StatusOK, feature)
+}
+
+// extractParameters pulls the "parameters" key from an update map and converts it to model objects.
+func extractParameters(featureID string, updates map[string]any) (bool, []model.FeatureParameter) {
+	raw, ok := updates["parameters"]
+	if !ok {
+		return false, nil
+	}
+	arr, ok := raw.([]any)
+	if !ok {
+		return true, nil
+	}
+	params := make([]model.FeatureParameter, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		p := model.FeatureParameter{FeatureID: featureID}
+		if v, ok := m["id"].(string); ok {
+			p.ID = v
+		}
+		if v, ok := m["name"].(string); ok {
+			p.Name = v
+		}
+		if v, ok := m["description"].(string); ok {
+			p.Description = v
+		}
+		if v, ok := m["type"].(string); ok {
+			p.Type = v
+		}
+		if v, ok := m["pattern"].(string); ok {
+			p.Pattern = v
+		}
+		if v, ok := m["required"].(bool); ok {
+			p.Required = v
+		}
+		if p.Name != "" {
+			params = append(params, p)
+		}
+	}
+	return true, params
 }
 
 func (h *featuresHandlers) delete(w http.ResponseWriter, r *http.Request) {
