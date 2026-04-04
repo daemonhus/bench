@@ -320,25 +320,68 @@ func toolUpdateFinding(deps *toolDeps) Tool {
 			}
 			delete(raw, "id")
 
-			// If line range is being updated, coerce JSON numbers to int and recompute line hash
+			// Detect if any anchor field is changing
+			_, hasFile := raw["file"]
+			_, hasFileID := raw["file_id"]
+			_, hasCommit := raw["commit"]
+			_, hasCommitID := raw["commit_id"]
 			lineStartVal, hasStart := raw["line_start"]
 			lineEndVal, hasEnd := raw["line_end"]
-			if hasStart && hasEnd {
-				lineStart := int(lineStartVal.(float64))
-				lineEnd := int(lineEndVal.(float64))
-				raw["line_start"] = lineStart
-				raw["line_end"] = lineEnd
+			anchorChanging := hasFile || hasFileID || hasCommit || hasCommitID || hasStart || hasEnd
+
+			// Coerce JSON numbers to int
+			if hasStart {
+				raw["line_start"] = int(lineStartVal.(float64))
+			}
+			if hasEnd {
+				raw["line_end"] = int(lineEndVal.(float64))
+			}
+
+			// If any anchor field is changing, recompute lineHash using the NEW values at HEAD
+			if anchorChanging {
 				existing, err := deps.db.GetFinding(id)
-				if err == nil && existing.Anchor.CommitID != "" {
-					content, err := deps.repo.Show(existing.Anchor.CommitID, existing.Anchor.FileID)
-					if err == nil {
-						lines := strings.Split(content, "\n")
-						start := lineStart - 1
-						end := lineEnd
-						if start >= 0 && end <= len(lines) {
-							raw["line_hash"] = reconcile.LineHash(lines[start:end])
+				if err == nil {
+					// Determine effective new values (fall back to existing)
+					newFileID := existing.Anchor.FileID
+					if v, ok := raw["file"]; ok {
+						newFileID = v.(string)
+					} else if v, ok := raw["file_id"]; ok {
+						newFileID = v.(string)
+					}
+					newCommit := existing.Anchor.CommitID
+					if v, ok := raw["commit"]; ok {
+						newCommit = v.(string)
+					} else if v, ok := raw["commit_id"]; ok {
+						newCommit = v.(string)
+					}
+					newStart := 0
+					newEnd := 0
+					if existing.Anchor.LineRange != nil {
+						newStart = existing.Anchor.LineRange.Start
+						newEnd = existing.Anchor.LineRange.End
+					}
+					if v, ok := raw["line_start"]; ok {
+						newStart = v.(int)
+					}
+					if v, ok := raw["line_end"]; ok {
+						newEnd = v.(int)
+					}
+
+					// Recompute lineHash using the new file at the new commit
+					if newStart > 0 && newEnd > 0 {
+						content, err := deps.repo.Show(newCommit, newFileID)
+						if err == nil {
+							lines := strings.Split(content, "\n")
+							s := newStart - 1
+							e := newEnd
+							if s >= 0 && e <= len(lines) {
+								raw["line_hash"] = reconcile.LineHash(lines[s:e])
+							}
 						}
 					}
+
+					// Set anchor_updated_at timestamp
+					raw["anchor_updated_at"] = time.Now().UTC().Format(time.RFC3339)
 				}
 			}
 
@@ -347,13 +390,23 @@ func toolUpdateFinding(deps *toolDeps) Tool {
 				return "", err
 			}
 
-			// Record updated position entry when line range changed
-			if hasStart && hasEnd && f != nil && f.Anchor.LineRange != nil {
+			// Record updated position entry when any anchor field changed
+			if anchorChanging && f != nil && f.Anchor.LineRange != nil {
+				// Insert position at the reconciliation resume point for this file
+				posCommit := f.Anchor.CommitID
+				if lastCommit, err := deps.db.GetReconciliationState(f.Anchor.FileID); err == nil && lastCommit != "" {
+					posCommit = lastCommit
+				} else {
+					// Fall back to HEAD
+					if head, err := deps.repo.Head(); err == nil {
+						posCommit = head
+					}
+				}
 				fileID := f.Anchor.FileID
 				_ = deps.db.InsertPosition(&model.AnnotationPosition{
 					AnnotationID:   f.ID,
 					AnnotationType: "finding",
-					CommitID:       f.Anchor.CommitID,
+					CommitID:       posCommit,
 					FileID:         &fileID,
 					LineStart:      &f.Anchor.LineRange.Start,
 					LineEnd:        &f.Anchor.LineRange.End,

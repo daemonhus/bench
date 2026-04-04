@@ -386,6 +386,7 @@ type annotationInfo struct {
 	lineHash        string
 	confidence      string // current confidence
 	alreadyResolved bool   // true if the finding already has a resolvedCommit
+	anchorUpdatedAt string // set when anchor was manually updated via update_finding/comment/feature
 }
 
 // reconcileFile walks commits for a single file, mapping all its annotations.
@@ -424,6 +425,9 @@ func (r *Reconciler) reconcileFile(job *Job, fileID, targetCommit string) (int, 
 			a.rangeSize = f.Anchor.LineRange.End - f.Anchor.LineRange.Start + 1
 		}
 		a.alreadyResolved = f.ResolvedCommit != nil
+		if f.AnchorUpdatedAt != nil {
+			a.anchorUpdatedAt = *f.AnchorUpdatedAt
+		}
 		anns = append(anns, a)
 	}
 	for _, c := range comments {
@@ -432,6 +436,9 @@ func (r *Reconciler) reconcileFile(job *Job, fileID, targetCommit string) (int, 
 			a.lineStart = c.Anchor.LineRange.Start
 			a.lineEnd = c.Anchor.LineRange.End
 			a.rangeSize = c.Anchor.LineRange.End - c.Anchor.LineRange.Start + 1
+		}
+		if c.AnchorUpdatedAt != nil {
+			a.anchorUpdatedAt = *c.AnchorUpdatedAt
 		}
 		anns = append(anns, a)
 	}
@@ -443,7 +450,27 @@ func (r *Reconciler) reconcileFile(job *Job, fileID, targetCommit string) (int, 
 			a.rangeSize = feat.Anchor.LineRange.End - feat.Anchor.LineRange.Start + 1
 		}
 		a.alreadyResolved = feat.ResolvedCommit != nil
+		if feat.AnchorUpdatedAt != nil {
+			a.anchorUpdatedAt = *feat.AnchorUpdatedAt
+		}
 		anns = append(anns, a)
+	}
+
+	// Save anchor state before position loading overwrites it
+	type anchorState struct {
+		lineStart int
+		lineEnd   int
+		rangeSize int
+		lineHash  string
+	}
+	anchorStates := make([]anchorState, len(anns))
+	for i := range anns {
+		anchorStates[i] = anchorState{
+			lineStart: anns[i].lineStart,
+			lineEnd:   anns[i].lineEnd,
+			rangeSize: anns[i].rangeSize,
+			lineHash:  anns[i].lineHash,
+		}
 	}
 
 	// If we have stored positions, use those as starting points
@@ -460,6 +487,32 @@ func (r *Reconciler) reconcileFile(job *Job, fileID, targetCommit string) (int, 
 			anns[i].lineEnd = *latest.LineEnd
 		}
 		anns[i].confidence = latest.Confidence
+
+		// If orphaned but anchor was manually re-anchored after the position
+		// was recorded, trust the anchor values instead.
+		if latest.Confidence == "orphaned" && anns[i].anchorUpdatedAt != "" {
+			posTime, errP := time.Parse(time.RFC3339, latest.CreatedAt)
+			anchorTime, errA := time.Parse(time.RFC3339, anns[i].anchorUpdatedAt)
+			// Also try datetime format used by SQLite's datetime('now')
+			if errP != nil {
+				posTime, errP = time.Parse("2006-01-02 15:04:05", latest.CreatedAt)
+			}
+			if errA != nil {
+				anchorTime, errA = time.Parse("2006-01-02 15:04:05", anns[i].anchorUpdatedAt)
+			}
+			if errP == nil && errA == nil && anchorTime.After(posTime) {
+				as := anchorStates[i]
+				if as.lineStart > 0 && as.lineEnd > 0 {
+					anns[i].lineStart = as.lineStart
+					anns[i].lineEnd = as.lineEnd
+					anns[i].rangeSize = as.rangeSize
+					anns[i].lineHash = as.lineHash
+					anns[i].confidence = "exact"
+					log.Printf("[reconcile] restored anchor for %s %s (manually re-anchored at %s)",
+						anns[i].typ, anns[i].id, anns[i].anchorUpdatedAt)
+				}
+			}
+		}
 	}
 
 	// Determine the starting commit

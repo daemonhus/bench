@@ -289,6 +289,90 @@ func toolUpdateComment(deps *toolDeps) Tool {
 			}
 			delete(raw, "id")
 
+			// Detect if any anchor field is changing
+			_, hasFile := raw["file"]
+			_, hasFileID := raw["file_id"]
+			_, hasCommit := raw["commit"]
+			_, hasCommitID := raw["commit_id"]
+			lineStartVal, hasStart := raw["line_start"]
+			lineEndVal, hasEnd := raw["line_end"]
+			anchorChanging := hasFile || hasFileID || hasCommit || hasCommitID || hasStart || hasEnd
+
+			// Coerce JSON numbers to int
+			if hasStart {
+				raw["line_start"] = int(lineStartVal.(float64))
+			}
+			if hasEnd {
+				raw["line_end"] = int(lineEndVal.(float64))
+			}
+
+			if anchorChanging {
+				existing, err := deps.db.GetComment(id)
+				if err == nil {
+					// Determine effective new values
+					newFileID := existing.Anchor.FileID
+					if v, ok := raw["file"]; ok {
+						newFileID = v.(string)
+					} else if v, ok := raw["file_id"]; ok {
+						newFileID = v.(string)
+					}
+					newCommit := existing.Anchor.CommitID
+					if v, ok := raw["commit"]; ok {
+						newCommit = v.(string)
+					} else if v, ok := raw["commit_id"]; ok {
+						newCommit = v.(string)
+					}
+					newStart := 0
+					newEnd := 0
+					if existing.Anchor.LineRange != nil {
+						newStart = existing.Anchor.LineRange.Start
+						newEnd = existing.Anchor.LineRange.End
+					}
+					if v, ok := raw["line_start"]; ok {
+						newStart = v.(int)
+					}
+					if v, ok := raw["line_end"]; ok {
+						newEnd = v.(int)
+					}
+
+					// Recompute lineHash
+					if newStart > 0 && newEnd > 0 {
+						content, err := deps.repo.Show(newCommit, newFileID)
+						if err == nil {
+							lines := strings.Split(content, "\n")
+							s := newStart - 1
+							e := newEnd
+							if s >= 0 && e <= len(lines) {
+								raw["line_hash"] = reconcile.LineHash(lines[s:e])
+							}
+						}
+					}
+
+					raw["anchor_updated_at"] = time.Now().UTC().Format(time.RFC3339)
+
+					// Insert position at reconciliation resume point after the DB update
+					defer func() {
+						if newStart > 0 && newEnd > 0 {
+							posCommit := newCommit
+							if lastCommit, err := deps.db.GetReconciliationState(newFileID); err == nil && lastCommit != "" {
+								posCommit = lastCommit
+							} else if head, err := deps.repo.Head(); err == nil {
+								posCommit = head
+							}
+							_ = deps.db.InsertPosition(&model.AnnotationPosition{
+								AnnotationID:   id,
+								AnnotationType: "comment",
+								CommitID:       posCommit,
+								FileID:         &newFileID,
+								LineStart:      &newStart,
+								LineEnd:        &newEnd,
+								Confidence:     "exact",
+							})
+						}
+					}()
+				}
+			}
+
 			if err := deps.db.UpdateComment(id, raw); err != nil {
 				return "", err
 			}
