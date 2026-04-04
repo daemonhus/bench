@@ -12,6 +12,7 @@ type DB struct {
 	conn      *sql.DB
 	projectID string
 	ownsConn  bool
+	wq        *writeQueue
 }
 
 func Open(path, projectID string) (*DB, error) {
@@ -19,8 +20,9 @@ func Open(path, projectID string) (*DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
-	d := &DB{conn: conn, projectID: projectID, ownsConn: true}
+	d := &DB{conn: conn, projectID: projectID, ownsConn: true, wq: newWriteQueue()}
 	if err := d.migrate(); err != nil {
+		d.wq.close()
 		conn.Close()
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
@@ -31,7 +33,7 @@ func Open(path, projectID string) (*DB, error) {
 // The caller owns the connection and is responsible for closing it.
 // Migrations are the caller's responsibility (call RunMigrations once at startup).
 func OpenScoped(conn *sql.DB, projectID string) *DB {
-	return &DB{conn: conn, projectID: projectID}
+	return &DB{conn: conn, projectID: projectID, wq: newWriteQueue()}
 }
 
 // RunMigrations runs all schema migrations on the given connection.
@@ -46,6 +48,9 @@ func (d *DB) ProjectID() string {
 }
 
 func (d *DB) Close() error {
+	if d.wq != nil {
+		d.wq.close()
+	}
 	if d.ownsConn {
 		return d.conn.Close()
 	}
@@ -365,6 +370,15 @@ func (d *DB) migrate() error {
 		if err != nil {
 			if _, err2 := d.conn.Exec(col.ddl); err2 != nil {
 				return fmt.Errorf("add column %s to baselines: %w", col.name, err2)
+			}
+		}
+	}
+
+	// Add anchor_updated_at column to findings, comments, features if missing
+	for _, tbl := range []string{"findings", "comments", "features"} {
+		if _, err := d.conn.Exec("SELECT anchor_updated_at FROM " + tbl + " LIMIT 0"); err != nil {
+			if _, err2 := d.conn.Exec("ALTER TABLE " + tbl + " ADD COLUMN anchor_updated_at TEXT"); err2 != nil {
+				return fmt.Errorf("add anchor_updated_at to %s: %w", tbl, err2)
 			}
 		}
 	}

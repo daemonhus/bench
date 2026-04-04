@@ -35,7 +35,7 @@ func (d *DB) ListComments(fileID, findingID string, limit, offset int, featureID
 	}
 
 	query := `SELECT id, anchor_file_id, anchor_commit_id, anchor_line_start, anchor_line_end,
-		author, text, comment_type, timestamp, thread_id, parent_id, finding_id, feature_id, resolved_commit, line_hash FROM comments` + baseWhere
+		author, text, comment_type, timestamp, thread_id, parent_id, finding_id, feature_id, resolved_commit, line_hash, anchor_updated_at FROM comments` + baseWhere
 	query += ` ORDER BY timestamp ASC`
 	args := append([]any{}, whereArgs...)
 	if limit > 0 {
@@ -53,10 +53,10 @@ func (d *DB) ListComments(fileID, findingID string, limit, offset int, featureID
 	for rows.Next() {
 		var c model.Comment
 		var lineStart, lineEnd sql.NullInt64
-		var parentID, findingIDVal, featureIDVal, resolvedCommit sql.NullString
+		var parentID, findingIDVal, featureIDVal, resolvedCommit, anchorUpdatedAt sql.NullString
 		err := rows.Scan(&c.ID, &c.Anchor.FileID, &c.Anchor.CommitID,
 			&lineStart, &lineEnd,
-			&c.Author, &c.Text, &c.CommentType, &c.Timestamp, &c.ThreadID, &parentID, &findingIDVal, &featureIDVal, &resolvedCommit, &c.LineHash)
+			&c.Author, &c.Text, &c.CommentType, &c.Timestamp, &c.ThreadID, &parentID, &findingIDVal, &featureIDVal, &resolvedCommit, &c.LineHash, &anchorUpdatedAt)
 		if err != nil {
 			return nil, 0, fmt.Errorf("scan comment: %w", err)
 		}
@@ -78,6 +78,9 @@ func (d *DB) ListComments(fileID, findingID string, limit, offset int, featureID
 		if resolvedCommit.Valid {
 			c.ResolvedCommit = &resolvedCommit.String
 		}
+		if anchorUpdatedAt.Valid {
+			c.AnchorUpdatedAt = &anchorUpdatedAt.String
+		}
 		comments = append(comments, c)
 	}
 	if err := rows.Err(); err != nil {
@@ -95,27 +98,29 @@ func (d *DB) CreateComment(c *model.Comment) error {
 		lineStart = &c.Anchor.LineRange.Start
 		lineEnd = &c.Anchor.LineRange.End
 	}
-	_, err := d.conn.Exec(
-		`INSERT INTO comments (project_id, id, anchor_file_id, anchor_commit_id, anchor_line_start, anchor_line_end,
+	return wq0(d.wq, func() error {
+		_, err := d.conn.Exec(
+			`INSERT INTO comments (project_id, id, anchor_file_id, anchor_commit_id, anchor_line_start, anchor_line_end,
 			author, text, comment_type, timestamp, thread_id, parent_id, finding_id, feature_id, resolved_commit, line_hash)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		d.projectID, c.ID, c.Anchor.FileID, c.Anchor.CommitID, lineStart, lineEnd,
-		c.Author, c.Text, c.CommentType, c.Timestamp, c.ThreadID, c.ParentID, c.FindingID, c.FeatureID, c.ResolvedCommit, c.LineHash,
-	)
-	return err
+			d.projectID, c.ID, c.Anchor.FileID, c.Anchor.CommitID, lineStart, lineEnd,
+			c.Author, c.Text, c.CommentType, c.Timestamp, c.ThreadID, c.ParentID, c.FindingID, c.FeatureID, c.ResolvedCommit, c.LineHash,
+		)
+		return err
+	})
 }
 
 func (d *DB) GetComment(id string) (*model.Comment, error) {
 	var c model.Comment
 	var lineStart, lineEnd sql.NullInt64
-	var parentID, findingID, featureID, resolvedCommit sql.NullString
+	var parentID, findingID, featureID, resolvedCommit, anchorUpdatedAt sql.NullString
 	err := d.conn.QueryRow(
 		`SELECT id, anchor_file_id, anchor_commit_id, anchor_line_start, anchor_line_end,
-			author, text, comment_type, timestamp, thread_id, parent_id, finding_id, feature_id, resolved_commit, line_hash
+			author, text, comment_type, timestamp, thread_id, parent_id, finding_id, feature_id, resolved_commit, line_hash, anchor_updated_at
 		FROM comments WHERE id = ? AND project_id = ?`, id, d.projectID,
 	).Scan(&c.ID, &c.Anchor.FileID, &c.Anchor.CommitID,
 		&lineStart, &lineEnd,
-		&c.Author, &c.Text, &c.CommentType, &c.Timestamp, &c.ThreadID, &parentID, &findingID, &featureID, &resolvedCommit, &c.LineHash)
+		&c.Author, &c.Text, &c.CommentType, &c.Timestamp, &c.ThreadID, &parentID, &findingID, &featureID, &resolvedCommit, &c.LineHash, &anchorUpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -137,6 +142,9 @@ func (d *DB) GetComment(id string) (*model.Comment, error) {
 	if resolvedCommit.Valid {
 		c.ResolvedCommit = &resolvedCommit.String
 	}
+	if anchorUpdatedAt.Valid {
+		c.AnchorUpdatedAt = &anchorUpdatedAt.String
+	}
 	return &c, nil
 }
 
@@ -153,8 +161,10 @@ func (d *DB) UpdateComment(id string, updates map[string]any) error {
 		"commit_id":      "anchor_commit_id",
 		"line_start":     "anchor_line_start",
 		"line_end":       "anchor_line_end",
-		"featureId":      "feature_id",
-		"feature_id":     "feature_id",
+		"featureId":         "feature_id",
+		"feature_id":        "feature_id",
+		"line_hash":         "line_hash",
+		"anchor_updated_at": "anchor_updated_at",
 	}
 	var setClauses []string
 	var args []any
@@ -169,70 +179,76 @@ func (d *DB) UpdateComment(id string, updates map[string]any) error {
 	}
 	args = append(args, id, d.projectID)
 	query := "UPDATE comments SET " + strings.Join(setClauses, ", ") + " WHERE id = ? AND project_id = ?"
-	res, err := d.conn.Exec(query, args...)
-	if err != nil {
-		return err
-	}
-	n, _ := res.RowsAffected()
-	if n == 0 {
-		return fmt.Errorf("comment not found: %s", id)
-	}
-	return nil
+	return wq0(d.wq, func() error {
+		res, err := d.conn.Exec(query, args...)
+		if err != nil {
+			return err
+		}
+		n, _ := res.RowsAffected()
+		if n == 0 {
+			return fmt.Errorf("comment not found: %s", id)
+		}
+		return nil
+	})
 }
 
 // BatchCreateComments inserts multiple comments in a single transaction.
 // Returns the IDs of created comments. All-or-nothing — rolls back on any error.
 func (d *DB) BatchCreateComments(comments []model.Comment) ([]string, error) {
-	tx, err := d.conn.Begin()
-	if err != nil {
-		return nil, fmt.Errorf("begin tx: %w", err)
-	}
-	defer tx.Rollback()
+	return wq(d.wq, func() ([]string, error) {
+		tx, err := d.conn.Begin()
+		if err != nil {
+			return nil, fmt.Errorf("begin tx: %w", err)
+		}
+		defer tx.Rollback()
 
-	stmt, err := tx.Prepare(
-		`INSERT INTO comments (project_id, id, anchor_file_id, anchor_commit_id, anchor_line_start, anchor_line_end,
+		stmt, err := tx.Prepare(
+			`INSERT INTO comments (project_id, id, anchor_file_id, anchor_commit_id, anchor_line_start, anchor_line_end,
 			author, text, comment_type, timestamp, thread_id, parent_id, finding_id, feature_id, resolved_commit, line_hash)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("prepare: %w", err)
-	}
-	defer stmt.Close()
-
-	ids := make([]string, 0, len(comments))
-	for i := range comments {
-		c := &comments[i]
-		var lineStart, lineEnd *int
-		if c.Anchor.LineRange != nil {
-			lineStart = &c.Anchor.LineRange.Start
-			lineEnd = &c.Anchor.LineRange.End
-		}
-		_, err := stmt.Exec(
-			d.projectID, c.ID, c.Anchor.FileID, c.Anchor.CommitID, lineStart, lineEnd,
-			c.Author, c.Text, c.CommentType, c.Timestamp, c.ThreadID, c.ParentID, c.FindingID, c.FeatureID, c.ResolvedCommit, c.LineHash,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("insert comment %d (%s): %w", i, c.ID, err)
+			return nil, fmt.Errorf("prepare: %w", err)
 		}
-		ids = append(ids, c.ID)
-	}
+		defer stmt.Close()
 
-	if err := tx.Commit(); err != nil {
-		return nil, fmt.Errorf("commit: %w", err)
-	}
-	return ids, nil
+		ids := make([]string, 0, len(comments))
+		for i := range comments {
+			c := &comments[i]
+			var lineStart, lineEnd *int
+			if c.Anchor.LineRange != nil {
+				lineStart = &c.Anchor.LineRange.Start
+				lineEnd = &c.Anchor.LineRange.End
+			}
+			_, err := stmt.Exec(
+				d.projectID, c.ID, c.Anchor.FileID, c.Anchor.CommitID, lineStart, lineEnd,
+				c.Author, c.Text, c.CommentType, c.Timestamp, c.ThreadID, c.ParentID, c.FindingID, c.FeatureID, c.ResolvedCommit, c.LineHash,
+			)
+			if err != nil {
+				return nil, fmt.Errorf("insert comment %d (%s): %w", i, c.ID, err)
+			}
+			ids = append(ids, c.ID)
+		}
+
+		if err := tx.Commit(); err != nil {
+			return nil, fmt.Errorf("commit: %w", err)
+		}
+		return ids, nil
+	})
 }
 
 func (d *DB) DeleteComment(id string) error {
-	res, err := d.conn.Exec(`DELETE FROM comments WHERE id = ? AND project_id = ?`, id, d.projectID)
-	if err != nil {
-		return err
-	}
-	n, _ := res.RowsAffected()
-	if n == 0 {
-		return fmt.Errorf("comment not found: %s", id)
-	}
-	return nil
+	return wq0(d.wq, func() error {
+		res, err := d.conn.Exec(`DELETE FROM comments WHERE id = ? AND project_id = ?`, id, d.projectID)
+		if err != nil {
+			return err
+		}
+		n, _ := res.RowsAffected()
+		if n == 0 {
+			return fmt.Errorf("comment not found: %s", id)
+		}
+		return nil
+	})
 }
 
 // CommentCountsByFinding returns a map of findingID → comment count.

@@ -11,14 +11,16 @@ import (
 // InsertPosition stores an annotation position entry (delta storage —
 // only call when position or confidence has changed).
 func (d *DB) InsertPosition(p *model.AnnotationPosition) error {
-	_, err := d.conn.Exec(
-		`INSERT OR REPLACE INTO annotation_positions
+	return wq0(d.wq, func() error {
+		_, err := d.conn.Exec(
+			`INSERT OR REPLACE INTO annotation_positions
 			(project_id, annotation_id, annotation_type, commit_id, file_id, line_start, line_end, confidence)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		d.projectID, p.AnnotationID, p.AnnotationType, p.CommitID,
-		p.FileID, p.LineStart, p.LineEnd, p.Confidence,
-	)
-	return err
+			d.projectID, p.AnnotationID, p.AnnotationType, p.CommitID,
+			p.FileID, p.LineStart, p.LineEnd, p.Confidence,
+		)
+		return err
+	})
 }
 
 // GetPositions returns all stored position entries for an annotation,
@@ -80,6 +82,8 @@ func (d *DB) DeletePositions(annotationID, annotationType string, commitIDs []st
 		WHERE annotation_id = ? AND annotation_type = ? AND project_id = ? AND commit_id IN (%s)`,
 		strings.Join(placeholders, ","),
 	)
-	_, err := d.conn.Exec(query, args...)
-	return err
+	return wq0(d.wq, func() error {
+		_, err := d.conn.Exec(query, args...)
+		return err
+	})
 }

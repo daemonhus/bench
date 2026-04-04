@@ -24,21 +24,23 @@ func (d *DB) CreateBaseline(b *model.Baseline) error {
 	findIDs, _ := json.Marshal(b.FindingIDs)
 	byKind, _ := json.Marshal(b.ByKind)
 	featIDs, _ := json.Marshal(b.FeatureIDs)
-	_, err := d.conn.Exec(
-		`INSERT INTO baselines (id, project_id, seq, commit_id, reviewer, summary, created_at,
+	return wq0(d.wq, func() error {
+		_, err := d.conn.Exec(
+			`INSERT INTO baselines (id, project_id, seq, commit_id, reviewer, summary, created_at,
 			findings_total, findings_open, by_severity, by_status, by_category,
 			comments_total, comments_open, finding_ids,
 			features_total, features_active, feature_ids, by_kind)
 		VALUES (?, ?,
 			COALESCE((SELECT MAX(seq) FROM baselines WHERE project_id = ?), 0) + 1,
 			?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		b.ID, d.projectID, d.projectID,
-		b.CommitID, b.Reviewer, b.Summary,
-		b.FindingsTotal, b.FindingsOpen, string(bySev), string(byStat), string(byCat),
-		b.CommentsTotal, b.CommentsOpen, string(findIDs),
-		b.FeaturesTotal, b.FeaturesActive, string(featIDs), string(byKind),
-	)
-	return err
+			b.ID, d.projectID, d.projectID,
+			b.CommitID, b.Reviewer, b.Summary,
+			b.FindingsTotal, b.FindingsOpen, string(bySev), string(byStat), string(byCat),
+			b.CommentsTotal, b.CommentsOpen, string(findIDs),
+			b.FeaturesTotal, b.FeaturesActive, string(featIDs), string(byKind),
+		)
+		return err
+	})
 }
 
 // GetLatestBaseline returns the most recent baseline, or nil if none.
@@ -118,31 +120,35 @@ func (d *DB) UpdateBaseline(id string, reviewer, summary *string) error {
 	args = append(args, id, d.projectID)
 	query := fmt.Sprintf("UPDATE baselines SET %s WHERE id = ? AND project_id = ?",
 		strings.Join(sets, ", "))
-	res, err := d.conn.Exec(query, args...)
-	if err != nil {
-		return fmt.Errorf("update baseline: %w", err)
-	}
-	n, _ := res.RowsAffected()
-	if n == 0 {
-		return fmt.Errorf("baseline not found")
-	}
-	return nil
+	return wq0(d.wq, func() error {
+		res, err := d.conn.Exec(query, args...)
+		if err != nil {
+			return fmt.Errorf("update baseline: %w", err)
+		}
+		n, _ := res.RowsAffected()
+		if n == 0 {
+			return fmt.Errorf("baseline not found")
+		}
+		return nil
+	})
 }
 
 // DeleteBaseline deletes a baseline by its ID.
 func (d *DB) DeleteBaseline(id string) error {
-	res, err := d.conn.Exec(
-		`DELETE FROM baselines WHERE id = ? AND project_id = ?`,
-		id, d.projectID,
-	)
-	if err != nil {
-		return fmt.Errorf("delete baseline: %w", err)
-	}
-	n, _ := res.RowsAffected()
-	if n == 0 {
-		return fmt.Errorf("baseline not found")
-	}
-	return nil
+	return wq0(d.wq, func() error {
+		res, err := d.conn.Exec(
+			`DELETE FROM baselines WHERE id = ? AND project_id = ?`,
+			id, d.projectID,
+		)
+		if err != nil {
+			return fmt.Errorf("delete baseline: %w", err)
+		}
+		n, _ := res.RowsAffected()
+		if n == 0 {
+			return fmt.Errorf("baseline not found")
+		}
+		return nil
+	})
 }
 
 // AllFindingIDs returns all finding IDs for the project.
