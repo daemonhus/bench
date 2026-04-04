@@ -18,13 +18,11 @@
 </p>
 
 <p align="center">
-**A devilishy good workbench for code reviews and long-lived annotations**
+<strong>A devilishy good workbench for code reviews and long-lived annotations</strong><br/>
 
-Most code review tooling is built around CI pipelines and issue trackers; Bench is built around the code itself.
-
-A structured workspace for findings, comments, and features: all anchored to file and line ranges and tracked across commits, so they stay accurate as the code evolves. A baseline system lets you snapshot the review state and measure progress over time, or since you (or your agent) last looked at the codebase.
-
-Ships with a CLI and MCP, for flexible integration into your workflow.
+A workspace for findings, comments, and features: all anchored to file and line ranges and tracked across commits, so they stay accurate as the code evolves.<br/>
+Point-in-time baselines lets you snapshot the state of code and measure progress over time, or since you (or your agent) last looked at the codebase.<br/>
+Ships with a CLI and MCP, to fit your workflow.
 </p>
 
 

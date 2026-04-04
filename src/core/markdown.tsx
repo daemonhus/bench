@@ -7,7 +7,7 @@ import React from 'react';
  */
 
 interface Segment {
-  type: 'text' | 'bold' | 'italic' | 'code' | 'link' | 'strike';
+  type: 'text' | 'bold' | 'italic' | 'code' | 'link' | 'autolink' | 'strike';
   text: string;
   href?: string;
   children?: Segment[];
@@ -17,6 +17,7 @@ interface Segment {
 const INLINE_RULES: { pattern: RegExp; type: Segment['type'] }[] = [
   { pattern: /`([^`]+?)`/, type: 'code' },
   { pattern: /\[([^\]]+?)\]\((https?:\/\/[^\s)]+)\)/, type: 'link' },
+  { pattern: /(https?:\/\/[^\s<>)"]+)/, type: 'autolink' },
   { pattern: /\*\*(.+?)\*\*/, type: 'bold' },
   { pattern: /~~(.+?)~~/, type: 'strike' },
   { pattern: /\*(.+?)\*/, type: 'italic' },
@@ -50,6 +51,9 @@ function parseInline(input: string): Segment[] {
     if (earliest.type === 'link') {
       seg.href = earliest.match[2];
     }
+    if (earliest.type === 'autolink') {
+      seg.href = earliest.match[1];
+    }
     if (earliest.type === 'bold' || earliest.type === 'italic' || earliest.type === 'strike') {
       seg.children = parseInline(earliest.match[1]);
     }
@@ -74,6 +78,12 @@ function renderSegment(seg: Segment, key: number): React.ReactNode {
     case 'strike':
       return <s key={key}>{seg.children?.map(renderSegment) ?? seg.text}</s>;
     case 'link':
+      return (
+        <a key={key} className="md-link" href={seg.href} target="_blank" rel="noopener noreferrer">
+          {seg.text}
+        </a>
+      );
+    case 'autolink':
       return (
         <a key={key} className="md-link" href={seg.href} target="_blank" rel="noopener noreferrer">
           {seg.text}
