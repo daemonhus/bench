@@ -281,6 +281,7 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
       {!isExpanded && (
         <div className="feature-card-header" onClick={onToggle}>
           <div className="feature-card-header-top">
+            <span className="feature-expand-chevron">&#9658;</span>
             {kindBadge}
             {titleEl}
             {!compact && feature.protocol && <span className="feature-chip">{feature.protocol}</span>}
@@ -296,6 +297,7 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
       {isExpanded && (
         <div className="feature-card-header" onClick={onToggle}>
           <div className="feature-card-header-top">
+            <span className="feature-expand-chevron feature-expand-chevron--open">&#9658;</span>
             {kindBadge}
             {titleEl}
             {!compact && feature.protocol && <span className="feature-chip">{feature.protocol}</span>}

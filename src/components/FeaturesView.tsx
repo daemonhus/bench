@@ -242,7 +242,14 @@ export const FeaturesView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<FeaturesTab>('interfaces');
   const [sortOrder, setSortOrder] = useState<FeatureSort>('file');
-  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem('bench-collapsed-features');
+      return stored ? new Set<string>(JSON.parse(stored)) : new Set<string>();
+    } catch {
+      return new Set<string>();
+    }
+  });
   const showCreate = useUIStore((s) => s.showFeatureCreate);
   const setShowCreate = useUIStore((s) => s.setShowFeatureCreate);
   const scrollToFeature = useUIStore((s) => s.scrollToFeature);
@@ -268,6 +275,10 @@ export const FeaturesView: React.FC = () => {
   }, [refreshFeatures]);
 
   useEvents('annotations', refreshFeatures);
+
+  useEffect(() => {
+    localStorage.setItem('bench-collapsed-features', JSON.stringify([...collapsedIds]));
+  }, [collapsedIds]);
 
   useEffect(() => {
     if (!scrollToFeature) return;
@@ -443,6 +454,35 @@ export const FeaturesView: React.FC = () => {
           onClose={() => setShowCreate(false)}
           onCreated={refreshFeatures}
         />
+      )}
+
+      {tabFeatures.length > 0 && (
+        <div className="view-expand-fabs">
+          <button
+            className="view-expand-fab-btn"
+            title="Expand all"
+            onClick={() => setCollapsedIds(new Set())}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 1L1 1L1 5" />
+              <path d="M11 1L15 1L15 5" />
+              <path d="M5 15L1 15L1 11" />
+              <path d="M11 15L15 15L15 11" />
+            </svg>
+          </button>
+          <button
+            className="view-expand-fab-btn"
+            title="Collapse all"
+            onClick={() => setCollapsedIds(new Set(tabFeatures.map(f => f.id)))}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M2 6L6 6L6 2" />
+              <path d="M14 6L10 6L10 2" />
+              <path d="M2 10L6 10L6 14" />
+              <path d="M14 10L10 10L10 14" />
+            </svg>
+          </button>
+        </div>
       )}
     </div>
   );

@@ -83,7 +83,7 @@ export const useUIStore = create<UIState>((set) => ({
     endLine: null,
     side: null,
   },
-  expandedFindingId: null,
+  expandedFindingId: localStorage.getItem('bench-expanded-finding'),
   scrollTargetLine: null,
   highlightRange: null,
   sidebarOpen: !window.matchMedia('(max-width: 639px)').matches,
@@ -107,7 +107,11 @@ export const useUIStore = create<UIState>((set) => ({
       commentDrag: { ...state.commentDrag, ...drag },
     })),
 
-  setExpandedFinding: (id) => set({ expandedFindingId: id }),
+  setExpandedFinding: (id) => {
+    if (id) localStorage.setItem('bench-expanded-finding', id);
+    else localStorage.removeItem('bench-expanded-finding');
+    set({ expandedFindingId: id });
+  },
 
   setScrollTargetLine: (line) => set({ scrollTargetLine: line }),
 

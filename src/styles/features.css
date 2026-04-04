@@ -84,6 +84,27 @@
   min-width: 0;
 }
 
+/* Expand/collapse chevron */
+.feature-expand-chevron {
+  font-size: 10px;
+  color: var(--text-primary);
+  opacity: 0.35;
+  transition: transform 0.18s ease, opacity 0.18s;
+  flex-shrink: 0;
+  user-select: none;
+  line-height: 1;
+  display: inline-block;
+}
+
+.feature-card:hover .feature-expand-chevron {
+  opacity: 0.75;
+}
+
+.feature-expand-chevron--open {
+  transform: rotate(90deg);
+  opacity: 0.75;
+}
+
 /* Method badge (GET, POST, etc.) */
 .feature-method-badge {
   font-size: 10px;
