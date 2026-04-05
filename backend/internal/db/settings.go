@@ -31,19 +31,31 @@ func (d *DB) GetAllSettings() (map[string]string, error) {
 
 // PutSetting upserts a single setting.
 func (d *DB) PutSetting(key, value string) error {
-	_, err := d.conn.Exec(
-		"INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?",
-		key, value, value,
-	)
-	return err
+	return wq0(d.wq, func() error {
+		_, err := d.conn.Exec(
+			"INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?",
+			key, value, value,
+		)
+		return err
+	})
 }
 
-// PutSettings upserts multiple settings.
+// PutSettings upserts multiple settings atomically.
 func (d *DB) PutSettings(settings map[string]string) error {
-	for k, v := range settings {
-		if err := d.PutSetting(k, v); err != nil {
+	return wq0(d.wq, func() error {
+		tx, err := d.conn.Begin()
+		if err != nil {
 			return err
 		}
-	}
-	return nil
+		defer tx.Rollback()
+		for k, v := range settings {
+			if _, err := tx.Exec(
+				"INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?",
+				k, v, v,
+			); err != nil {
+				return err
+			}
+		}
+		return tx.Commit()
+	})
 }

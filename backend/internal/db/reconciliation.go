@@ -21,12 +21,14 @@ func (d *DB) GetReconciliationState(fileID string) (string, error) {
 // SetReconciliationState records that a file has been reconciled through
 // the given commit. Uses INSERT OR REPLACE to upsert.
 func (d *DB) SetReconciliationState(fileID, commitID string) error {
-	_, err := d.conn.Exec(
-		`INSERT OR REPLACE INTO reconciliation_log (project_id, file_id, last_commit_id, updated_at)
+	return wq0(d.wq, func() error {
+		_, err := d.conn.Exec(
+			`INSERT OR REPLACE INTO reconciliation_log (project_id, file_id, last_commit_id, updated_at)
 		VALUES (?, ?, ?, datetime('now'))`,
-		d.projectID, fileID, commitID,
-	)
-	return err
+			d.projectID, fileID, commitID,
+		)
+		return err
+	})
 }
 
 // ListAnnotatedFiles returns all unique file IDs that have at least one

@@ -8,16 +8,18 @@ import (
 
 // MarkReviewed upserts a review progress entry.
 func (d *DB) MarkReviewed(fileID, commitID, reviewer, note string) error {
-	_, err := d.conn.Exec(
-		`INSERT INTO review_progress (project_id, file_id, commit_id, reviewer, note, reviewed_at)
+	return wq0(d.wq, func() error {
+		_, err := d.conn.Exec(
+			`INSERT INTO review_progress (project_id, file_id, commit_id, reviewer, note, reviewed_at)
 		VALUES (?, ?, ?, ?, ?, datetime('now'))
 		ON CONFLICT(project_id, file_id, reviewer) DO UPDATE SET
 			commit_id = excluded.commit_id,
 			note = excluded.note,
 			reviewed_at = excluded.reviewed_at`,
-		d.projectID, fileID, commitID, reviewer, note,
-	)
-	return err
+			d.projectID, fileID, commitID, reviewer, note,
+		)
+		return err
+	})
 }
 
 // GetReviewProgress returns all review progress entries, optionally filtered by file prefix.
