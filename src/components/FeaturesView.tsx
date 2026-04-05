@@ -4,6 +4,8 @@ import { useEvents } from '../core/use-events';
 import { useRepoStore } from '../stores/repo-store';
 import { useUIStore } from '../stores/ui-store';
 import { FeatureCard } from './FeatureCard';
+import { SearchBox } from './SearchBox';
+import { useRegexSearch } from '../hooks/useRegexSearch';
 import type { Feature, FeatureKind, FeatureStatus, LineRange } from '../core/types';
 
 const ALL_STATUSES: FeatureStatus[] = ['draft', 'active', 'deprecated', 'removed', 'orphaned'];
@@ -242,6 +244,8 @@ export const FeaturesView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<FeaturesTab>('interfaces');
   const [sortOrder, setSortOrder] = useState<FeatureSort>('file');
+  const { query: searchQuery, setQuery: setSearchQuery, matcher: searchMatcher, isRegexValid } =
+    useRegexSearch('bench-features-search');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => {
     try {
@@ -320,7 +324,10 @@ export const FeaturesView: React.FC = () => {
 
   const currentTab = TABS.find(t => t.id === activeTab)!;
   const tabFeatures = useMemo(() => {
-    const filtered = features.filter(f => currentTab.kinds.includes(f.kind as FeatureKind));
+    let filtered = features.filter(f => currentTab.kinds.includes(f.kind as FeatureKind));
+    if (searchMatcher) {
+      filtered = filtered.filter(f => searchMatcher(f.title) || searchMatcher(f.description ?? ''));
+    }
     const dir = sortDir === 'asc' ? 1 : -1;
     if (sortOrder === 'file') {
       return [...filtered].sort((a, b) => {
@@ -335,7 +342,7 @@ export const FeaturesView: React.FC = () => {
     }
     // 'created' — original API order; reverse for desc
     return sortDir === 'desc' ? [...filtered].reverse() : filtered;
-  }, [features, currentTab, sortOrder, sortDir]);
+  }, [features, currentTab, sortOrder, sortDir, searchMatcher]);
 
   // Tab counts (all features, for badges)
   const tabCounts = useMemo(() => {
@@ -394,6 +401,7 @@ export const FeaturesView: React.FC = () => {
             ))}
           </div>
           <div className="features-title-row-right">
+            <SearchBox value={searchQuery} onChange={setSearchQuery} invalid={!isRegexValid} />
             <span className="features-sort-label">Sort</span>
             <div className="features-sort-toggle">
               {SORT_OPTIONS.map(opt => {

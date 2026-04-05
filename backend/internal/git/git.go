@@ -1,6 +1,7 @@
 package git
 
 import (
+	"errors"
 	"fmt"
 	"os/exec"
 	"path/filepath"
@@ -10,6 +11,22 @@ import (
 
 	"bench/internal/model"
 )
+
+// gitExitError carries the exit code alongside the command output so callers
+// can distinguish "no matches" (exit 1) from real failures without re-parsing
+// the error string.
+type gitExitError struct {
+	cmd    string
+	stderr string
+	code   int
+}
+
+func (e *gitExitError) Error() string {
+	if e.stderr != "" {
+		return fmt.Sprintf("git %s: %s", e.cmd, e.stderr)
+	}
+	return fmt.Sprintf("git %s: exit %d", e.cmd, e.code)
+}
 
 var validRef = regexp.MustCompile(`^[a-zA-Z0-9_.^~/-]+$`)
 
@@ -50,7 +67,7 @@ func (r *Repo) run(args ...string) (string, error) {
 	out, err := cmd.Output()
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
-			return "", fmt.Errorf("git %s: %s", args[0], string(exitErr.Stderr))
+			return "", &gitExitError{cmd: args[0], stderr: strings.TrimSpace(string(exitErr.Stderr)), code: exitErr.ExitCode()}
 		}
 		return "", fmt.Errorf("git %s: %w", args[0], err)
 	}
@@ -495,7 +512,8 @@ func (r *Repo) Grep(pattern, commit, path string, caseInsensitive, fixed bool, m
 	out, err := r.run(args...)
 	if err != nil {
 		// git grep exits 1 when no matches — not an error
-		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
+		var exitErr *gitExitError
+		if errors.As(err, &exitErr) && exitErr.code == 1 {
 			return nil, nil
 		}
 		return nil, err

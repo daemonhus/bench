@@ -132,6 +132,7 @@ func TestMCPToolRequiredFields(t *testing.T) {
 		{"mark_reviewed", map[string]any{"path": "main.go", "commit": head}},
 		// feature parameters
 		{"list_feature_parameters", map[string]any{"feature_id": "nonexistent"}},
+		{"get_feature_parameter", map[string]any{"id": "nonexistent"}},
 		{"create_feature_parameter", map[string]any{"feature_id": "nonexistent", "name": "user_id"}},
 		{"update_feature_parameter", map[string]any{"id": "nonexistent", "name": "updated"}},
 		{"delete_feature_parameter", map[string]any{"id": "nonexistent"}},

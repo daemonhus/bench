@@ -19,7 +19,7 @@ Tools are organized into seven groups matching the CLI categories:
 | `git` | `search_code`, `get_blame`, `read_file`, `read_files`, `list_files`, `get_diff`, `list_changed_files`, `list_commits`, `list_branches` |
 | `findings` | `list_findings`, `get_finding`, `create_finding`, `update_finding`, `delete_finding`, `resolve_finding`, `search_findings`, `batch_create_findings` |
 | `comments` | `list_comments`, `get_comment`, `create_comment`, `update_comment`, `delete_comment`, `resolve_comment`, `batch_create_comments` |
-| `features` | `list_features`, `get_feature`, `create_feature`, `update_feature`, `delete_feature`, `batch_create_features`, `list_feature_parameters`, `create_feature_parameter`, `update_feature_parameter`, `delete_feature_parameter` |
+| `features` | `list_features`, `get_feature`, `create_feature`, `update_feature`, `delete_feature`, `batch_create_features`, `list_feature_parameters`, `get_feature_parameter`, `create_feature_parameter`, `update_feature_parameter`, `delete_feature_parameter` |
 | `baselines` | `set_baseline`, `list_baselines`, `get_delta`, `delete_baseline` |
 | `analytics` | `get_summary`, `get_coverage`, `mark_reviewed` |
 | `reconcile` | `reconcile`, `get_reconciliation_status`, `get_annotation_history` |
@@ -30,14 +30,15 @@ All tools are scoped to the single repo instance.
 
 ### search_code
 
-Search file contents with a regex pattern.
+Search file contents with a regex pattern. Uses `git grep -E` (extended regex — ERE), so alternation (`foo|bar`), grouping (`(foo)+`), and `+`/`?` quantifiers work without escaping.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `pattern` | string | yes | Regex pattern |
+| `pattern` | string | yes | Extended regex (ERE) pattern |
 | `commit` | string | no | Commit to search (default: HEAD) |
 | `path` | string | no | Scope to a directory or file |
 | `case_insensitive` | bool | no | Case-insensitive match |
+| `fixed` | bool | no | Treat pattern as a literal string (disables regex) |
 | `max_results` | int | no | Max matches to return (default: 100, max: 500) |
 
 ### get_blame
@@ -140,7 +141,7 @@ No parameters.
 | `vector` | string | no | CVSS vector |
 | `score` | float | no | CVSS score |
 | `status` | string | no | Initial status: `draft` (tentative) or `open` (confirmed). Default: `draft`. |
-| `source` | string | no | Tool or scanner that found it |
+| `source` | string | no | Tool or scanner that found it. One of `pentest`, `tool`, `manual`, `mcp`. Default: `mcp`. |
 | `category` | string | no | Category label |
 | `external_id` | string | no | External identifier from source system (e.g. `F001`, `VULN-42`) |
 | `feature_ids` | string[] | no | Feature IDs to link to this finding |
@@ -310,6 +311,12 @@ Create multiple feature annotations in one transaction. All-or-nothing. Accepts 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `feature_id` | string | yes | Feature ID |
+
+### get_feature_parameter
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | string | yes | Parameter ID |
 
 ### create_feature_parameter
 

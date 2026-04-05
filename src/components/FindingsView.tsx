@@ -7,6 +7,8 @@ import { useUIStore } from '../stores/ui-store';
 import { FindingCard } from './FindingCard';
 import { FindingsMetrics } from './FindingsMetrics';
 import { AnnotationFilters, ALL_SEVERITIES } from './AnnotationFilters';
+import { SearchBox } from './SearchBox';
+import { useRegexSearch } from '../hooks/useRegexSearch';
 import type { Feature, Finding, Severity, LineRange } from '../core/types';
 
 const SEVERITY_ORDER: Record<Severity, number> = {
@@ -98,6 +100,8 @@ export const FindingsView: React.FC = () => {
   // Filters
   const [filterSeverities, setFilterSeverities] = useState<Set<Severity>>(new Set(ALL_SEVERITIES));
   const [filterActors, setFilterActors] = useState<Set<string> | null>(null); // null = all
+  const { query: searchQuery, setQuery: setSearchQuery, matcher: searchMatcher, isRegexValid } =
+    useRegexSearch('bench-findings-search');
 
   const stableSetFindings = useCallback((incoming: Finding[]) => {
     if (!findingsEqual(findingsRef.current, incoming as Finding[])) {
@@ -151,8 +155,11 @@ export const FindingsView: React.FC = () => {
     if (filterActors !== null) {
       list = list.filter((f) => filterActors.has(f.source));
     }
+    if (searchMatcher) {
+      list = list.filter(f => searchMatcher(f.title) || searchMatcher(f.description ?? ''));
+    }
     return list;
-  }, [findings, filterSeverities, filterActors]);
+  }, [findings, filterSeverities, filterActors, searchMatcher]);
 
   const displayedFindings = useMemo(() => {
     const isOpen = (f: Finding) => f.status === 'draft' || f.status === 'open' || f.status === 'in-progress';
@@ -190,7 +197,7 @@ export const FindingsView: React.FC = () => {
     return m;
   }, [findings]);
 
-  const hasActiveFilter = filterSeverities.size < ALL_SEVERITIES.length || filterActors !== null || filterKinds.size < ALL_FINDING_KINDS.length;
+  const hasActiveFilter = filterSeverities.size < ALL_SEVERITIES.length || filterActors !== null || filterKinds.size < ALL_FINDING_KINDS.length || searchQuery !== '';
 
   const renderFindingList = (list: Finding[]) =>
     list.map((f) => (
@@ -230,15 +237,18 @@ export const FindingsView: React.FC = () => {
               </button>
             ))}
           </div>
-          <AnnotationFilters
-            severities={filterSeverities}
-            onSeveritiesChange={setFilterSeverities}
-            actors={allActors}
-            selectedActors={filterActors}
-            onActorsChange={setFilterActors}
-            hasActiveFilter={hasActiveFilter}
-            onReset={() => { setFilterSeverities(new Set(ALL_SEVERITIES)); setFilterActors(null); }}
-          />
+          <div className="findings-filter-group">
+            <SearchBox value={searchQuery} onChange={setSearchQuery} invalid={!isRegexValid} />
+            <AnnotationFilters
+              severities={filterSeverities}
+              onSeveritiesChange={setFilterSeverities}
+              actors={allActors}
+              selectedActors={filterActors}
+              onActorsChange={setFilterActors}
+              hasActiveFilter={hasActiveFilter}
+              onReset={() => { setFilterSeverities(new Set(ALL_SEVERITIES)); setFilterActors(null); setSearchQuery(''); }}
+            />
+          </div>
         </div>
 
       {/* Collapsible metrics panel */}

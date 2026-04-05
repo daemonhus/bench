@@ -227,7 +227,11 @@ func (h *findingsHandlers) update(w http.ResponseWriter, r *http.Request) {
 	}
 	finding, err := h.db.UpdateFinding(id, updates)
 	if err != nil {
-		writeDBError(w, err)
+		if strings.Contains(err.Error(), "not found") {
+			writeError(w, http.StatusNotFound, "finding not found")
+		} else {
+			writeDBError(w, err)
+		}
 		return
 	}
 	if h.broker != nil {

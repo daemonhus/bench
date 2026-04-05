@@ -97,8 +97,11 @@ bench findings create --help
 ## git
 
 ```bash
-# Regex search across the repo
+# Regex search across the repo (uses ERE — alternation, +, ? and grouping work without escaping)
 bench git search-code --pattern "password.*=.*['\"]" --case-insensitive
+
+# Alternation and grouping
+bench git search-code --pattern "exec\(|eval\(" --path "src/"
 
 # Scope to a directory
 bench git search-code --pattern "exec\(" --path "src/api/"
@@ -282,8 +285,11 @@ cat features.json | bench features batch-create
 # List parameters on an interface feature
 bench features params-list --feature-id <feature-id>
 
+# Get a single parameter
+bench features params-get --feature-id <feature-id> --id <param-id>
+
 # Add a parameter
-bench features params-add \
+bench features params-create \
   --feature-id <feature-id> \
   --name user_id \
   --type string \

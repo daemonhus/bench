@@ -54,6 +54,24 @@ func (h *featureParamsHandlers) create(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, p)
 }
 
+func (h *featureParamsHandlers) get(w http.ResponseWriter, r *http.Request) {
+	pid := r.PathValue("pid")
+	if pid == "" {
+		writeError(w, http.StatusBadRequest, "parameter id is required")
+		return
+	}
+	p, err := h.db.GetParameter(pid)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			writeError(w, http.StatusNotFound, "parameter not found")
+		} else {
+			writeInternalError(w, err)
+		}
+		return
+	}
+	writeJSON(w, http.StatusOK, p)
+}
+
 func (h *featureParamsHandlers) update(w http.ResponseWriter, r *http.Request) {
 	pid := r.PathValue("pid")
 	if pid == "" {

@@ -1526,3 +1526,90 @@
   padding: 12px 16px;
   border-top: 1px solid var(--border-subtle);
 }
+
+/* ----- Findings filter group (right-aligned: search + filters together) ----- */
+.findings-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.findings-filter-group .activity-filters {
+  margin-left: 0;
+}
+
+/* ----- Annotation Search Box ----- */
+/*
+ * Styled as a pill to match the segmented controls and multi-select triggers
+ * in the same filter row. No explicit border — bg-surface pill, shadow focus
+ * ring (same as --shadow-focus-blue), subtle red tint for invalid regex.
+ */
+.annotation-search {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  background: var(--bg-surface);
+  border-radius: 8px;
+  padding: 3px;
+  flex-shrink: 0;
+  margin-right: 12px;
+  transition: box-shadow var(--transition-fast);
+}
+
+.annotation-search:focus-within {
+  box-shadow: var(--shadow-focus-blue);
+}
+
+.annotation-search-invalid {
+  background: color-mix(in srgb, var(--severity-critical) 10%, var(--bg-surface));
+}
+
+.annotation-search-invalid:focus-within {
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.25);
+}
+
+.annotation-search-input {
+  width: 180px;
+  padding: 10px 24px 10px 10px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-base);
+  color: var(--text-primary);
+  font-size: var(--font-size-small);
+  font-family: var(--font-mono);
+  outline: none;
+}
+
+.annotation-search-input::placeholder {
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+}
+
+/* Hide browser's built-in clear button */
+.annotation-search-input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.annotation-search-clear {
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 10px;
+  cursor: pointer;
+  padding: 3px;
+  line-height: 1;
+  border-radius: var(--radius-xs);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.annotation-search-clear:hover {
+  color: var(--text-primary);
+  background: var(--hover-muted);
+}

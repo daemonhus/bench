@@ -422,7 +422,13 @@ var commands = []cmdDef{
 		Flags: []flagDef{
 			{Name: "feature-id", Param: "feature_id", Desc: "Feature ID", Required: true},
 		}},
-	{Cat: "features", Name: "params-add", Desc: "Add a parameter to a feature.",
+	{Cat: "features", Name: "params-get", Desc: "Get a single feature parameter by ID.",
+		EP: endpoint{"GET", "/api/features/{feature_id}/parameters/{pid}"},
+		Flags: []flagDef{
+			{Name: "feature-id", Param: "feature_id", Desc: "Feature ID", Required: true},
+			{Name: "id", Param: "pid", Desc: "Parameter ID", Required: true},
+		}},
+	{Cat: "features", Name: "params-create", Desc: "Add a parameter to a feature.",
 		EP: endpoint{"POST", "/api/features/{feature_id}/parameters"},
 		Flags: []flagDef{
 			{Name: "feature-id", Param: "feature_id", Desc: "Feature ID", Required: true},
@@ -981,6 +987,20 @@ func normalizeBatchItem(raw json.RawMessage) (json.RawMessage, error) {
 			delete(obj, k)
 		}
 	}
+	// entity_type / entity_id → entityType / entityId (refs batch-create)
+	for _, k := range []string{"entity_type"} {
+		if v, ok := obj[k]; ok {
+			obj["entityType"] = v
+			delete(obj, k)
+		}
+	}
+	for _, k := range []string{"entity_id"} {
+		if v, ok := obj[k]; ok {
+			obj["entityId"] = v
+			delete(obj, k)
+		}
+	}
+
 	// line_start / lineStart and line_end / lineEnd → anchor.lineRange
 	var lineStart, lineEnd *int
 	for _, k := range []string{"line_start", "lineStart"} {

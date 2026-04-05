@@ -23,6 +23,7 @@ func registerFeatureTools(deps *toolDeps) []Tool {
 		toolDeleteFeature(deps),
 		toolBatchCreateFeatures(deps),
 		toolListFeatureParameters(deps),
+		toolGetFeatureParameter(deps),
 		toolCreateFeatureParameter(deps),
 		toolUpdateFeatureParameter(deps),
 		toolDeleteFeatureParameter(deps),
@@ -706,6 +707,40 @@ func toolListFeatureParameters(deps *toolDeps) Tool {
 				return "", err
 			}
 			return fmt.Sprintf("%d parameter(s):\n%s", len(ps), string(b)), nil
+		},
+	}
+}
+
+func toolGetFeatureParameter(deps *toolDeps) Tool {
+	return Tool{
+		Name:        "get_feature_parameter",
+		Description: "Get a single feature parameter by ID.",
+		InputSchema: json.RawMessage(`{
+			"type": "object",
+			"properties": {
+				"id": {"type": "string", "description": "Parameter ID"}
+			},
+			"required": ["id"]
+		}`),
+		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
+			var p struct {
+				ID string `json:"id"`
+			}
+			if err := json.Unmarshal(params, &p); err != nil {
+				return "", fmt.Errorf("invalid params: %w", err)
+			}
+			if p.ID == "" {
+				return "", fmt.Errorf("id is required")
+			}
+			param, err := deps.db.GetParameter(p.ID)
+			if err != nil {
+				return "", err
+			}
+			b, err := json.MarshalIndent(param, "", "  ")
+			if err != nil {
+				return "", err
+			}
+			return string(b), nil
 		},
 	}
 }

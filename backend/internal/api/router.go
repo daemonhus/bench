@@ -51,6 +51,7 @@ func NewRouter(repo *git.Repo, database *db.DB, broker *events.Broker) http.Hand
 	fph := &featureParamsHandlers{db: database, broker: broker}
 	mux.HandleFunc("GET /api/features/{id}/parameters", fph.list)
 	mux.HandleFunc("POST /api/features/{id}/parameters", fph.create)
+	mux.HandleFunc("GET /api/features/{id}/parameters/{pid}", fph.get)
 	mux.HandleFunc("PATCH /api/features/{id}/parameters/{pid}", fph.update)
 	mux.HandleFunc("DELETE /api/features/{id}/parameters/{pid}", fph.delete)
 
