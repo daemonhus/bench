@@ -11,7 +11,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "dev:backend": "cd backend && go run ./cmd/server -repo .",
-    "build:backend": "npm run build && cp -r dist backend/dist && cd backend && go build -o bench-server ./cmd/server"
+    "build:backend": "npm run build && cp -r dist backend/dist && touch backend/dist/.gitkeep && cd backend && go build -o bench-server ./cmd/server"
   },
   "dependencies": {
     "@visx/hierarchy": "^3.12.0",
