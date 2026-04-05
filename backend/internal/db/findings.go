@@ -197,10 +197,10 @@ func (d *DB) UpdateFinding(id string, updates map[string]any) (*model.Finding, e
 		"anchor_updated_at": "anchor_updated_at",
 	}
 
-	// Extract featureIds before building SET clause — handled separately via join table.
+	// Extract features before building SET clause — handled separately via join table.
 	var newFeatureIDs []string
 	hasFeatureIDs := false
-	if raw, ok := updates["featureIds"]; ok {
+	if raw, ok := updates["features"]; ok {
 		hasFeatureIDs = true
 		if raw != nil {
 			if arr, ok := raw.([]any); ok {
@@ -213,7 +213,7 @@ func (d *DB) UpdateFinding(id string, updates map[string]any) (*model.Finding, e
 				newFeatureIDs = arr
 			}
 		}
-		delete(updates, "featureIds")
+		delete(updates, "features")
 	}
 
 	var setClauses []string

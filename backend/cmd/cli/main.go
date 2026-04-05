@@ -83,25 +83,25 @@ var commands = []cmdDef{
 			{Name: "pattern", Param: "pattern", Desc: "Regex search pattern", Required: true},
 			{Name: "commit", Param: "commit", Desc: "Search at this commit (default: HEAD)"},
 			{Name: "path", Param: "path", Desc: "Limit search to files under this path"},
-			{Name: "case-insensitive", Param: "case_insensitive", Desc: "Case-insensitive search", Type: "bool"},
+			{Name: "ignore-case", Param: "case_insensitive", Desc: "Case-insensitive search", Type: "bool"},
 			{Name: "fixed", Param: "fixed", Desc: "Treat pattern as a fixed string, not a regex", Type: "bool"},
-			{Name: "max-results", Param: "max_results", Desc: "Maximum results to return", Type: "int"},
+			{Name: "limit", Param: "max_results", Desc: "Maximum results to return", Type: "int"},
 		}},
 	{Cat: "git", Name: "blame", Desc: "Show git blame for a file.",
 		EP: endpoint{"GET", "/api/git/blame"},
 		Flags: []flagDef{
 			{Name: "path", Param: "path", Desc: "File path", Required: true},
 			{Name: "commit", Param: "commit", Desc: "Commit (default: HEAD)"},
-			{Name: "line-start", Param: "line_start", Desc: "Start of line range", Type: "int"},
-			{Name: "line-end", Param: "line_end", Desc: "End of line range", Type: "int"},
+			{Name: "start", Param: "line_start", Desc: "Start of line range", Type: "int"},
+			{Name: "end", Param: "line_end", Desc: "End of line range", Type: "int"},
 		}},
 	{Cat: "git", Name: "read-file", Desc: "Read file contents at a specific commit.",
 		EP: endpoint{"GET", "/api/git/show/{commitish}/{path}"},
 		Flags: []flagDef{
 			{Name: "commit", Param: "commitish", Desc: "Commit (default: HEAD)"},
 			{Name: "path", Param: "path", Desc: "File path", Required: true},
-			{Name: "line-start", Param: "line_start", Desc: "First line to return (1-indexed)", Type: "int"},
-			{Name: "line-end", Param: "line_end", Desc: "Last line to return (inclusive)", Type: "int"},
+			{Name: "start", Param: "line_start", Desc: "First line to return (1-indexed)", Type: "int"},
+			{Name: "end", Param: "line_end", Desc: "Last line to return (inclusive)", Type: "int"},
 		}},
 	{Cat: "git", Name: "list-files", Desc: "List files in the repository tree.",
 		EP: endpoint{"GET", "/api/git/tree/{commitish}"},
@@ -126,8 +126,8 @@ var commands = []cmdDef{
 		EP: endpoint{"GET", "/api/git/commits"},
 		Flags: []flagDef{
 			{Name: "limit", Param: "limit", Desc: "Max commits to return (default: 20, max: 500)", Type: "int"},
-			{Name: "from-commit", Param: "from_commit", Desc: "Start of range (exclusive)"},
-			{Name: "to-commit", Param: "to_commit", Desc: "End of range (inclusive, default: HEAD)"},
+			{Name: "from", Param: "from_commit", Desc: "Start of range (exclusive)"},
+			{Name: "to", Param: "to_commit", Desc: "End of range (inclusive, default: HEAD)"},
 			{Name: "path", Param: "path", Desc: "Only commits touching this file path"},
 		}},
 	{Cat: "git", Name: "branches", Desc: "List branches.",
@@ -137,12 +137,12 @@ var commands = []cmdDef{
 	{Cat: "findings", Name: "list", Desc: "List findings, optionally filtered by file.",
 		EP: endpoint{"GET", "/api/findings"},
 		Flags: []flagDef{
-			{Name: "file-id", Param: "fileId", Desc: "Filter by file path"},
+			{Name: "file", Param: "fileId", Desc: "Filter by file path"},
 			{Name: "commit", Param: "commit", Desc: "Enrich with positions at this commit"},
 			{Name: "severity", Param: "severity", Desc: "Filter by severity [critical|high|medium|low|info]"},
 			{Name: "status", Param: "status", Desc: "Filter by status [draft|open|in-progress|false-positive|accepted|closed]"},
 			{Name: "category", Param: "category", Desc: "Filter by category"},
-			{Name: "include-resolved", Param: "include_resolved", Desc: "Include resolved findings", Type: "bool"},
+			{Name: "resolved", Param: "include_resolved", Desc: "Include resolved findings", Type: "bool"},
 		}},
 	{Cat: "findings", Name: "get", Desc: "Get a single finding by ID.",
 		EP: endpoint{"GET", "/api/findings/{id}"},
@@ -155,10 +155,10 @@ var commands = []cmdDef{
 			{Name: "id", Param: "id", Desc: "Finding ID (auto-generated if omitted)"},
 			{Name: "title", Param: "title", Desc: "Finding title", Required: true},
 			{Name: "severity", Param: "severity", Desc: "Severity [critical|high|medium|low|info]", Required: true},
-			{Name: "file-id", Param: "fileId", Desc: "Anchor file path"},
-			{Name: "commit-id", Param: "commitId", Desc: "Anchor commit"},
-			{Name: "line-start", Param: "lineStart", Desc: "Anchor line range start", Type: "int"},
-			{Name: "line-end", Param: "lineEnd", Desc: "Anchor line range end", Type: "int"},
+			{Name: "file", Param: "fileId", Desc: "Anchor file path"},
+			{Name: "commit", Param: "commitId", Desc: "Anchor commit"},
+			{Name: "start", Param: "lineStart", Desc: "Anchor line range start", Type: "int"},
+			{Name: "end", Param: "lineEnd", Desc: "Anchor line range end", Type: "int"},
 			{Name: "description", Param: "description", Desc: "Detailed description"},
 			{Name: "cwe", Param: "cwe", Desc: "CWE identifier"},
 			{Name: "cve", Param: "cve", Desc: "CVE identifier"},
@@ -168,7 +168,7 @@ var commands = []cmdDef{
 			{Name: "status", Param: "status", Desc: "Status [draft|open|in-progress|false-positive|accepted|closed] (default: open)"},
 			{Name: "source", Param: "source", Desc: "Source [pentest|tool|manual|mcp] (default: manual)"},
 			{Name: "category", Param: "category", Desc: "Finding category"},
-			{Name: "feature-ids", Param: "featureIds", Desc: "Comma-separated feature IDs to associate", Type: "list"},
+			{Name: "features", Param: "features", Desc: "Comma-separated feature IDs to associate", Type: "list"},
 		}},
 	{Cat: "findings", Name: "update", Desc: "Update a finding (partial update).",
 		EP: endpoint{"PATCH", "/api/findings/{id}"},
@@ -185,11 +185,11 @@ var commands = []cmdDef{
 			{Name: "score", Param: "score", Desc: "CVSS score", Type: "float"},
 			{Name: "source", Param: "source", Desc: "Source tool or scanner [pentest|tool|manual|mcp]"},
 			{Name: "category", Param: "category", Desc: "Finding category"},
-			{Name: "file-id", Param: "file_id", Desc: "New anchor file path"},
-			{Name: "commit-id", Param: "commit_id", Desc: "New anchor commit"},
-			{Name: "line-start", Param: "line_start", Desc: "New anchor start line", Type: "int"},
-			{Name: "line-end", Param: "line_end", Desc: "New anchor end line", Type: "int"},
-			{Name: "feature-ids", Param: "featureIds", Desc: "Comma-separated feature IDs to associate (replaces full list)", Type: "list"},
+			{Name: "file", Param: "file_id", Desc: "New anchor file path"},
+			{Name: "commit", Param: "commit_id", Desc: "New anchor commit"},
+			{Name: "start", Param: "line_start", Desc: "New anchor start line", Type: "int"},
+			{Name: "end", Param: "line_end", Desc: "New anchor end line", Type: "int"},
+			{Name: "features", Param: "features", Desc: "Comma-separated feature IDs to associate (replaces full list)", Type: "list"},
 		}},
 	{Cat: "findings", Name: "delete", Desc: "Delete a finding.",
 		EP: endpoint{"DELETE", "/api/findings/{id}"},
@@ -218,11 +218,11 @@ var commands = []cmdDef{
 	{Cat: "comments", Name: "list", Desc: "List comments, optionally filtered by file or finding.",
 		EP: endpoint{"GET", "/api/comments"},
 		Flags: []flagDef{
-			{Name: "file-id", Param: "fileId", Desc: "Filter by file path"},
-			{Name: "finding-id", Param: "findingId", Desc: "Filter by finding ID"},
-			{Name: "feature-id", Param: "featureId", Desc: "Filter by feature ID"},
+			{Name: "file", Param: "fileId", Desc: "Filter by file path"},
+			{Name: "finding", Param: "findingId", Desc: "Filter by finding ID"},
+			{Name: "feature", Param: "featureId", Desc: "Filter by feature ID"},
 			{Name: "commit", Param: "commit", Desc: "Enrich with positions at this commit"},
-			{Name: "include-resolved", Param: "include_resolved", Desc: "Include resolved comments", Type: "bool"},
+			{Name: "resolved", Param: "include_resolved", Desc: "Include resolved comments", Type: "bool"},
 		}},
 	{Cat: "comments", Name: "get", Desc: "Get a single comment by ID.",
 		EP: endpoint{"GET", "/api/comments/{id}"},
@@ -235,15 +235,15 @@ var commands = []cmdDef{
 			{Name: "id", Param: "id", Desc: "Comment ID (auto-generated if omitted)"},
 			{Name: "author", Param: "author", Desc: "Author name", Required: true},
 			{Name: "text", Param: "text", Desc: "Comment text", Required: true},
-			{Name: "file-id", Param: "fileId", Desc: "Anchor file path"},
-			{Name: "commit-id", Param: "commitId", Desc: "Anchor commit"},
-			{Name: "line-start", Param: "lineStart", Desc: "Anchor line range start", Type: "int"},
-			{Name: "line-end", Param: "lineEnd", Desc: "Anchor line range end", Type: "int"},
-			{Name: "comment-type", Param: "commentType", Desc: "Comment type [feature|improvement|question|concern]"},
-			{Name: "thread-id", Param: "threadId", Desc: "Thread ID"},
-			{Name: "parent-id", Param: "parentId", Desc: "Parent comment ID"},
-			{Name: "finding-id", Param: "findingId", Desc: "Associated finding ID"},
-			{Name: "feature-id", Param: "featureId", Desc: "Associated feature ID"},
+			{Name: "file", Param: "fileId", Desc: "Anchor file path"},
+			{Name: "commit", Param: "commitId", Desc: "Anchor commit"},
+			{Name: "start", Param: "lineStart", Desc: "Anchor line range start", Type: "int"},
+			{Name: "end", Param: "lineEnd", Desc: "Anchor line range end", Type: "int"},
+			{Name: "type", Param: "commentType", Desc: "Comment type [feature|improvement|question|concern]"},
+			{Name: "thread", Param: "threadId", Desc: "Thread ID"},
+			{Name: "parent", Param: "parentId", Desc: "Parent comment ID"},
+			{Name: "finding", Param: "findingId", Desc: "Associated finding ID"},
+			{Name: "feature", Param: "featureId", Desc: "Associated feature ID"},
 		}},
 	{Cat: "comments", Name: "update", Desc: "Update a comment (partial update).",
 		EP: endpoint{"PATCH", "/api/comments/{id}"},
@@ -251,12 +251,12 @@ var commands = []cmdDef{
 			{Name: "id", Param: "id", Desc: "Comment ID", Required: true},
 			{Name: "text", Param: "text", Desc: "New text"},
 			{Name: "author", Param: "author", Desc: "New author"},
-			{Name: "comment-type", Param: "commentType", Desc: "Comment type [feature|improvement|question|concern]"},
-			{Name: "file-id", Param: "file_id", Desc: "New anchor file path"},
-			{Name: "commit-id", Param: "commit_id", Desc: "New anchor commit"},
-			{Name: "line-start", Param: "line_start", Desc: "New anchor start line", Type: "int"},
-			{Name: "line-end", Param: "line_end", Desc: "New anchor end line", Type: "int"},
-			{Name: "feature-id", Param: "featureId", Desc: "Associated feature ID"},
+			{Name: "type", Param: "commentType", Desc: "Comment type [feature|improvement|question|concern]"},
+			{Name: "file", Param: "file_id", Desc: "New anchor file path"},
+			{Name: "commit", Param: "commit_id", Desc: "New anchor commit"},
+			{Name: "start", Param: "line_start", Desc: "New anchor start line", Type: "int"},
+			{Name: "end", Param: "line_end", Desc: "New anchor end line", Type: "int"},
+			{Name: "feature", Param: "featureId", Desc: "Associated feature ID"},
 		}},
 	{Cat: "comments", Name: "delete", Desc: "Delete a comment.",
 		EP: endpoint{"DELETE", "/api/comments/{id}"},
@@ -278,7 +278,7 @@ var commands = []cmdDef{
 		EP: endpoint{"GET", "/api/refs"},
 		Flags: []flagDef{
 			{Name: "entity-type", Param: "entityType", Desc: "Filter by entity type [finding|feature|comment]"},
-			{Name: "entity-id", Param: "entityId", Desc: "Filter by entity ID"},
+			{Name: "entity", Param: "entityId", Desc: "Filter by entity ID"},
 			{Name: "provider", Param: "provider", Desc: "Filter by provider [jira|slack|github|linear|url]"},
 		}},
 	{Cat: "refs", Name: "get", Desc: "Get a single external reference by ID.",
@@ -290,7 +290,7 @@ var commands = []cmdDef{
 		EP: endpoint{"POST", "/api/refs"},
 		Flags: []flagDef{
 			{Name: "entity-type", Param: "entityType", Desc: "Entity type [finding|feature|comment]", Required: true},
-			{Name: "entity-id", Param: "entityId", Desc: "Entity ID", Required: true},
+			{Name: "entity", Param: "entityId", Desc: "Entity ID", Required: true},
 			{Name: "provider", Param: "provider", Desc: "Provider [github|gitlab|jira|confluence|linear|notion|slack|url] — inferred from URL if omitted"},
 			{Name: "url", Param: "url", Desc: "Full URL of the external resource", Required: true},
 			{Name: "title", Param: "title", Desc: "Optional display label"},
@@ -363,7 +363,7 @@ var commands = []cmdDef{
 	{Cat: "features", Name: "list", Desc: "List feature annotations, optionally filtered.",
 		EP: endpoint{"GET", "/api/features"},
 		Flags: []flagDef{
-			{Name: "file-id", Param: "fileId", Desc: "Filter by file path"},
+			{Name: "file", Param: "fileId", Desc: "Filter by file path"},
 			{Name: "kind", Param: "kind", Desc: "Filter by kind [interface|source|sink|dependency|externality]"},
 			{Name: "status", Param: "status", Desc: "Filter by status [draft|active|deprecated|removed|orphaned]"},
 		}},
@@ -375,12 +375,12 @@ var commands = []cmdDef{
 	{Cat: "features", Name: "create", Desc: "Create a new feature annotation.",
 		EP: endpoint{"POST", "/api/features"},
 		Flags: []flagDef{
-			{Name: "file-id", Param: "fileId", Desc: "Anchor file path", Required: true},
-			{Name: "commit-id", Param: "commitId", Desc: "Anchor commit", Required: true},
+			{Name: "file", Param: "fileId", Desc: "Anchor file path", Required: true},
+			{Name: "commit", Param: "commitId", Desc: "Anchor commit", Required: true},
 			{Name: "kind", Param: "kind", Desc: "Feature kind [interface|source|sink|dependency|externality]", Required: true},
 			{Name: "title", Param: "title", Desc: "Feature title — do not prefix with HTTP method (e.g. 'Login endpoint', not 'POST /login'); use --operation for that", Required: true},
-			{Name: "line-start", Param: "lineStart", Desc: "Anchor line range start", Type: "int"},
-			{Name: "line-end", Param: "lineEnd", Desc: "Anchor line range end", Type: "int"},
+			{Name: "start", Param: "lineStart", Desc: "Anchor line range start", Type: "int"},
+			{Name: "end", Param: "lineEnd", Desc: "Anchor line range end", Type: "int"},
 			{Name: "description", Param: "description", Desc: "Detailed description"},
 			{Name: "operation", Param: "operation", Desc: "HTTP method, gRPC method, GraphQL operation, etc."},
 			{Name: "direction", Param: "direction", Desc: "Data flow direction [in|out]"},
@@ -402,10 +402,10 @@ var commands = []cmdDef{
 			{Name: "status", Param: "status", Desc: "New status"},
 			{Name: "tags", Param: "tags", Desc: "Comma-separated tags", Type: "list"},
 			{Name: "source", Param: "source", Desc: "Source tool or scanner"},
-			{Name: "file-id", Param: "file_id", Desc: "New anchor file path"},
-			{Name: "commit-id", Param: "commit_id", Desc: "New anchor commit"},
-			{Name: "line-start", Param: "line_start", Desc: "Anchor line range start", Type: "int"},
-			{Name: "line-end", Param: "line_end", Desc: "Anchor line range end", Type: "int"},
+			{Name: "file", Param: "file_id", Desc: "New anchor file path"},
+			{Name: "commit", Param: "commit_id", Desc: "New anchor commit"},
+			{Name: "start", Param: "line_start", Desc: "Anchor line range start", Type: "int"},
+			{Name: "end", Param: "line_end", Desc: "Anchor line range end", Type: "int"},
 		}},
 	{Cat: "features", Name: "delete", Desc: "Delete a feature annotation.",
 		EP: endpoint{"DELETE", "/api/features/{id}"},
@@ -420,18 +420,18 @@ var commands = []cmdDef{
 	{Cat: "features", Name: "params-list", Desc: "List parameters for a feature.",
 		EP: endpoint{"GET", "/api/features/{feature_id}/parameters"},
 		Flags: []flagDef{
-			{Name: "feature-id", Param: "feature_id", Desc: "Feature ID", Required: true},
+			{Name: "feature", Param: "feature_id", Desc: "Feature ID", Required: true},
 		}},
 	{Cat: "features", Name: "params-get", Desc: "Get a single feature parameter by ID.",
 		EP: endpoint{"GET", "/api/features/{feature_id}/parameters/{pid}"},
 		Flags: []flagDef{
-			{Name: "feature-id", Param: "feature_id", Desc: "Feature ID", Required: true},
+			{Name: "feature", Param: "feature_id", Desc: "Feature ID", Required: true},
 			{Name: "id", Param: "pid", Desc: "Parameter ID", Required: true},
 		}},
 	{Cat: "features", Name: "params-create", Desc: "Add a parameter to a feature.",
 		EP: endpoint{"POST", "/api/features/{feature_id}/parameters"},
 		Flags: []flagDef{
-			{Name: "feature-id", Param: "feature_id", Desc: "Feature ID", Required: true},
+			{Name: "feature", Param: "feature_id", Desc: "Feature ID", Required: true},
 			{Name: "name", Param: "name", Desc: "Parameter name", Required: true},
 			{Name: "type", Param: "type", Desc: "Parameter type (string, integer, boolean, object, array, file)"},
 			{Name: "description", Param: "description", Desc: "Description"},
@@ -441,7 +441,7 @@ var commands = []cmdDef{
 	{Cat: "features", Name: "params-update", Desc: "Update a feature parameter (partial update).",
 		EP: endpoint{"PATCH", "/api/features/{feature_id}/parameters/{pid}"},
 		Flags: []flagDef{
-			{Name: "feature-id", Param: "feature_id", Desc: "Feature ID", Required: true},
+			{Name: "feature", Param: "feature_id", Desc: "Feature ID", Required: true},
 			{Name: "id", Param: "pid", Desc: "Parameter ID", Required: true},
 			{Name: "name", Param: "name", Desc: "New parameter name"},
 			{Name: "type", Param: "type", Desc: "New type"},
@@ -453,7 +453,7 @@ var commands = []cmdDef{
 	{Cat: "features", Name: "params-delete", Desc: "Delete a feature parameter.",
 		EP: endpoint{"DELETE", "/api/features/{feature_id}/parameters/{pid}"},
 		Flags: []flagDef{
-			{Name: "feature-id", Param: "feature_id", Desc: "Feature ID", Required: true},
+			{Name: "feature", Param: "feature_id", Desc: "Feature ID", Required: true},
 			{Name: "id", Param: "pid", Desc: "Parameter ID", Required: true},
 		}},
 
@@ -461,7 +461,7 @@ var commands = []cmdDef{
 	{Cat: "reconcile", Name: "start", Desc: "Start reconciling annotations to a target commit.",
 		EP: endpoint{"POST", "/api/reconcile"},
 		Flags: []flagDef{
-			{Name: "target-commit", Param: "targetCommit", Desc: "Target commit (default: HEAD)"},
+			{Name: "target", Param: "targetCommit", Desc: "Target commit (default: HEAD)"},
 			{Name: "file-paths", Param: "filePaths", Desc: "Comma-separated file paths (default: all)", Type: "list"},
 		}},
 	{Cat: "reconcile", Name: "head", Desc: "Show reconciled HEAD status.",
@@ -469,9 +469,9 @@ var commands = []cmdDef{
 	{Cat: "reconcile", Name: "status", Desc: "Get reconciliation job or file status.",
 		EP: endpoint{"GET", "/api/reconcile/status"},
 		Flags: []flagDef{
-			{Name: "job-id", Param: "jobId", Desc: "Job ID"},
-			{Name: "file-id", Param: "fileId", Desc: "File ID (use with --commit)"},
-			{Name: "commit", Param: "commit", Desc: "Commit (use with --file-id)"},
+			{Name: "job", Param: "jobId", Desc: "Job ID"},
+			{Name: "file", Param: "fileId", Desc: "File ID (use with --commit)"},
+			{Name: "commit", Param: "commit", Desc: "Commit (use with --file)"},
 		}},
 	{Cat: "reconcile", Name: "history", Desc: "Get position history for an annotation.",
 		EP: endpoint{"GET", "/api/annotations/{type}/{id}/history"},
@@ -921,7 +921,7 @@ func printCommandHelp(cmd *cmdDef) {
 		}
 		fmt.Fprintln(os.Stderr)
 		fmt.Fprintf(os.Stderr, "Input format (%s):\n", cmd.Cat)
-		fmt.Fprintln(os.Stderr, "  JSON array of objects. Flat anchor fields (file, commit, line_start, line_end)")
+		fmt.Fprintln(os.Stderr, "  JSON array of objects. Flat anchor fields (file, commit, start, end)")
 		fmt.Fprintln(os.Stderr, "  are promoted to the nested anchor automatically. IDs are generated if omitted.")
 		var req, opt []string
 		for _, fl := range createCmd.Flags {
@@ -929,12 +929,6 @@ func printCommandHelp(cmd *cmdDef) {
 				continue // auto-generated for batch
 			}
 			name := strings.ReplaceAll(fl.Name, "-", "_")
-			switch fl.Name {
-			case "file-id":
-				name = "file"
-			case "commit-id":
-				name = "commit"
-			}
 			if fl.Required {
 				req = append(req, name)
 			} else {
@@ -1001,9 +995,9 @@ func normalizeBatchItem(raw json.RawMessage) (json.RawMessage, error) {
 		}
 	}
 
-	// line_start / lineStart and line_end / lineEnd → anchor.lineRange
+	// start / line_start / lineStart and end / line_end / lineEnd → anchor.lineRange
 	var lineStart, lineEnd *int
-	for _, k := range []string{"line_start", "lineStart"} {
+	for _, k := range []string{"start", "line_start", "lineStart"} {
 		if v, ok := obj[k]; ok {
 			if n, ok := anyToInt(v); ok {
 				lineStart = &n
@@ -1011,7 +1005,7 @@ func normalizeBatchItem(raw json.RawMessage) (json.RawMessage, error) {
 			delete(obj, k)
 		}
 	}
-	for _, k := range []string{"line_end", "lineEnd"} {
+	for _, k := range []string{"end", "line_end", "lineEnd"} {
 		if v, ok := obj[k]; ok {
 			if n, ok := anyToInt(v); ok {
 				lineEnd = &n

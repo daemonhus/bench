@@ -75,7 +75,7 @@ type Finding struct {
 	LineHash        string   `json:"lineHash,omitempty"`
 	AnchorUpdatedAt *string  `json:"anchorUpdatedAt,omitempty"`
 	CommentCount    int      `json:"commentCount,omitempty"`
-	FeatureIDs      []string `json:"featureIds,omitempty"`
+	FeatureIDs      []string `json:"features,omitempty"`
 	Refs            []Ref    `json:"refs,omitempty"`
 }
 
@@ -297,11 +297,11 @@ type Baseline struct {
 	ByCategory     map[string]int `json:"byCategory"`
 	CommentsTotal  int            `json:"commentsTotal"`
 	CommentsOpen   int            `json:"commentsOpen"`
-	FindingIDs     []string       `json:"findingIds"`
+	FindingIDs     []string       `json:"findings"`
 	FeaturesTotal  int            `json:"featuresTotal"`
 	FeaturesActive int            `json:"featuresActive"`
 	ByKind         map[string]int `json:"byKind"`
-	FeatureIDs     []string       `json:"featureIds"`
+	FeatureIDs     []string       `json:"features"`
 }
 
 // FileStat describes line-level change stats for a single file.

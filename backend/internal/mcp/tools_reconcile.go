@@ -17,17 +17,17 @@ func registerReconcileTools(deps *toolDeps) []Tool {
 func toolReconcile(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "reconcile",
-		Description: "Start a reconciliation job to update annotation positions to a target commit. This traces diffs from the last reconciled point to the target, updating line positions for all findings and comments. Returns a job ID for status polling.",
+		Description: "Start a reconciliation job to update annotation positions to a target commit. This traces diffs from the last reconciled point to the target, updating line positions for all findings and comments. Returns a job ID for status polling via get_reconciliation_status.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
-				"target_commit": {"type": "string", "description": "Commit to reconcile to (default: HEAD)"},
+				"target": {"type": "string", "description": "Commit to reconcile to (default: HEAD)"},
 				"files": {"type": "array", "items": {"type": "string"}, "description": "Limit to specific file paths (default: all annotated files)"}
 			}
 		}`),
 		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
 			var p struct {
-				TargetCommit string   `json:"target_commit"`
+				TargetCommit string   `json:"target"`
 				Files        []string `json:"files"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {
@@ -50,18 +50,18 @@ func toolReconcile(deps *toolDeps) Tool {
 func toolGetReconciliationStatus(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "get_reconciliation_status",
-		Description: "Get the reconciliation status. Without arguments, returns whether all annotated files are reconciled to the current HEAD. With a job_id, returns progress of a specific reconciliation job.",
+		Description: "Get the reconciliation status. Without arguments, returns whether all annotated files are reconciled to the current HEAD. With a job, returns progress of a specific reconciliation job.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
-				"job_id": {"type": "string", "description": "Specific job ID to check"},
+				"job": {"type": "string", "description": "Specific job ID to check"},
 				"file": {"type": "string", "description": "Check reconciliation status for a specific file"},
 				"commit": {"type": "string", "description": "Check against this commit (used with file)"}
 			}
 		}`),
 		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
 			var p struct {
-				JobID  string `json:"job_id"`
+				JobID  string `json:"job"`
 				File   string `json:"file"`
 				Commit string `json:"commit"`
 			}

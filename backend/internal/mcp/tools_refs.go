@@ -31,14 +31,14 @@ func toolListRefs(deps *toolDeps) Tool {
 			"type": "object",
 			"properties": {
 				"entity_type": {"type": "string", "enum": ["finding", "feature", "comment"], "description": "Filter by entity type"},
-				"entity_id":   {"type": "string", "description": "Filter by entity ID"},
+				"entity":   {"type": "string", "description": "Filter by entity ID"},
 				"provider":    {"type": "string", "description": "Filter by provider (e.g. jira, slack, github, linear, url)"}
 			}
 		}`),
 		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
 			var p struct {
 				EntityType string `json:"entity_type"`
-				EntityID   string `json:"entity_id"`
+				EntityID   string `json:"entity"`
 				Provider   string `json:"provider"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {
@@ -102,17 +102,17 @@ func toolCreateRef(deps *toolDeps) Tool {
 			"type": "object",
 			"properties": {
 				"entity_type": {"type": "string", "enum": ["finding", "feature", "comment"], "description": "Type of the entity to link"},
-				"entity_id":   {"type": "string", "description": "ID of the finding, feature, or comment"},
+				"entity":   {"type": "string", "description": "ID of the finding, feature, or comment"},
 				"provider":    {"type": "string", "description": "Provider: github, gitlab, jira, confluence, linear, notion, slack, or url. Inferred from the URL if omitted."},
 				"url":         {"type": "string", "description": "Full URL of the external resource"},
 				"title":       {"type": "string", "description": "Optional display label (shown as tooltip)"}
 			},
-			"required": ["entity_type", "entity_id", "url"]
+			"required": ["entity_type", "entity", "url"]
 		}`),
 		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
 			var p struct {
 				EntityType string `json:"entity_type"`
-				EntityID   string `json:"entity_id"`
+				EntityID   string `json:"entity"`
 				Provider   string `json:"provider"`
 				URL        string `json:"url"`
 				Title      string `json:"title"`
@@ -121,7 +121,7 @@ func toolCreateRef(deps *toolDeps) Tool {
 				return "", fmt.Errorf("invalid params: %w", err)
 			}
 			if p.EntityType == "" || p.EntityID == "" || p.URL == "" {
-				return "", fmt.Errorf("entity_type, entity_id, and url are required")
+				return "", fmt.Errorf("entity_type, entity, and url are required")
 			}
 			if p.Provider == "" {
 				p.Provider = model.InferProvider(p.URL)
@@ -231,12 +231,12 @@ func toolBatchCreateRefs(deps *toolDeps) Tool {
 						"type": "object",
 						"properties": {
 							"entity_type": {"type": "string", "enum": ["finding", "feature", "comment"]},
-							"entity_id":   {"type": "string"},
+							"entity":   {"type": "string"},
 							"provider":    {"type": "string"},
 							"url":         {"type": "string"},
 							"title":       {"type": "string"}
 						},
-						"required": ["entity_type", "entity_id", "url"]
+						"required": ["entity_type", "entity", "url"]
 					}
 				}
 			},
@@ -246,7 +246,7 @@ func toolBatchCreateRefs(deps *toolDeps) Tool {
 			var p struct {
 				Refs []struct {
 					EntityType string `json:"entity_type"`
-					EntityID   string `json:"entity_id"`
+					EntityID   string `json:"entity"`
 					Provider   string `json:"provider"`
 					URL        string `json:"url"`
 					Title      string `json:"title"`

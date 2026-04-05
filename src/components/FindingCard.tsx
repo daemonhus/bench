@@ -171,16 +171,16 @@ export const FindingCard: React.FC<FindingCardProps> = ({
   const [fetchedFeatures, setFetchedFeatures] = useState<Feature[] | null>(null);
 
   useEffect(() => {
-    if (!isExpanded || !finding.featureIds?.length) return;
+    if (!isExpanded || !finding.features?.length) return;
     featuresApi.list().then((f) => setFetchedFeatures(f as Feature[])).catch(() => {});
-  }, [isExpanded, finding.featureIds]);
+  }, [isExpanded, finding.features]);
 
   const linkedFeatures = useMemo(() => {
-    if (!finding.featureIds?.length) return [] as Feature[];
+    if (!finding.features?.length) return [] as Feature[];
     const source = fetchedFeatures ?? allFeatures;
     const byId = new Map(source.map((f) => [f.id, f]));
-    return finding.featureIds.map((id) => byId.get(id)).filter((f): f is Feature => f !== undefined);
-  }, [finding.featureIds, fetchedFeatures, allFeatures]);
+    return finding.features.map((id) => byId.get(id)).filter((f): f is Feature => f !== undefined);
+  }, [finding.features, fetchedFeatures, allFeatures]);
 
   const snippet = useMemo(() => {
     if (!fileLines || !lineRange) return null;
@@ -259,7 +259,7 @@ export const FindingCard: React.FC<FindingCardProps> = ({
 
   const handleOpenLink = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setLinkDraftIds(finding.featureIds ?? []);
+    setLinkDraftIds(finding.features ?? []);
     setModalFeatures(allFeatures);
     setLinkSearch('');
     setLinking(true);
@@ -268,7 +268,7 @@ export const FindingCard: React.FC<FindingCardProps> = ({
 
   const handleLinkSave = (e: React.MouseEvent) => {
     e.stopPropagation();
-    updateFinding(finding.id, { featureIds: linkDraftIds } as any);
+    updateFinding(finding.id, { features: linkDraftIds } as any);
     setLinking(false);
   };
 

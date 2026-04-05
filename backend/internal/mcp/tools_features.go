@@ -169,8 +169,8 @@ func toolCreateFeature(deps *toolDeps) Tool {
 			"properties": {
 				"file": {"type": "string", "description": "File path"},
 				"commit": {"type": "string", "description": "Commit hash or ref where the feature was identified (e.g. HEAD, branch name, or full SHA)"},
-				"line_start": {"type": "integer", "description": "Start line number"},
-				"line_end": {"type": "integer", "description": "End line number"},
+				"start": {"type": "integer", "description": "Start line number"},
+				"end": {"type": "integer", "description": "End line number"},
 				"kind": {"type": "string", "enum": ["interface","source","sink","dependency","externality"], "description": "Feature kind: 'interface'=API endpoint or protocol handler (HTTP, gRPC, WebSocket), 'source'=data input (DB read, file read, inbound queue), 'sink'=data output (DB write, outbound API call, file write), 'dependency'=third-party library or external service, 'externality'=background job, scheduler, event handler, or side-effect"},
 				"title": {"type": "string", "description": "Short label for the feature — do NOT include the HTTP method or protocol prefix here (e.g. 'Login endpoint', not 'POST /login'). Use operation for the HTTP method."},
 				"description": {"type": "string", "description": "Detailed description"},
@@ -188,8 +188,8 @@ func toolCreateFeature(deps *toolDeps) Tool {
 			var p struct {
 				File        string   `json:"file"`
 				Commit      string   `json:"commit"`
-				LineStart   int      `json:"line_start"`
-				LineEnd     int      `json:"line_end"`
+				LineStart   int      `json:"start"`
+				LineEnd     int      `json:"end"`
 				Kind        string   `json:"kind"`
 				Title       string   `json:"title"`
 				Description string   `json:"description"`
@@ -317,8 +317,8 @@ func toolUpdateFeature(deps *toolDeps) Tool {
 				"status": {"type": "string", "enum": ["draft","active","deprecated","removed","orphaned"]},
 				"tags": {"type": "array", "items": {"type": "string"}},
 				"source": {"type": "string", "description": "Source tool or scanner"},
-				"line_start": {"type": "integer"},
-				"line_end": {"type": "integer"},
+				"start": {"type": "integer"},
+				"end": {"type": "integer"},
 				"parameters": {"type": "array", "items": ` + paramItemSchema + `, "description": "Replace all parameters. Omitting this field leaves parameters unchanged."}
 			},
 			"required": ["id"]
@@ -333,6 +333,16 @@ func toolUpdateFeature(deps *toolDeps) Tool {
 				return "", fmt.Errorf("id is required")
 			}
 			delete(raw, "id")
+
+			// Remap start/end → line_start/line_end for the DB layer
+			if v, ok := raw["start"]; ok {
+				raw["line_start"] = v
+				delete(raw, "start")
+			}
+			if v, ok := raw["end"]; ok {
+				raw["line_end"] = v
+				delete(raw, "end")
+			}
 
 			// Detect if any anchor field is changing
 			_, hasFile := raw["file"]
@@ -531,8 +541,8 @@ func toolBatchCreateFeatures(deps *toolDeps) Tool {
 						"properties": {
 							"file": {"type": "string", "description": "File path"},
 							"commit": {"type": "string", "description": "Commit hash or ref where the feature was identified (e.g. HEAD, branch name, or full SHA)"},
-							"line_start": {"type": "integer", "description": "Start line number"},
-							"line_end": {"type": "integer", "description": "End line number"},
+							"start": {"type": "integer", "description": "Start line number"},
+							"end": {"type": "integer", "description": "End line number"},
 							"kind": {"type": "string", "enum": ["interface","source","sink","dependency","externality"], "description": "Feature kind: 'interface'=API endpoint or protocol handler (HTTP, gRPC, WebSocket), 'source'=data input (DB read, file read, inbound queue), 'sink'=data output (DB write, outbound API call, file write), 'dependency'=third-party library or external service, 'externality'=background job, scheduler, event handler, or side-effect"},
 							"title": {"type": "string", "description": "Short label for the feature — do NOT include the HTTP method or protocol prefix here (e.g. 'Login endpoint', not 'POST /login'). Use operation for the HTTP method."},
 							"description": {"type": "string", "description": "Detailed description"},
@@ -556,8 +566,8 @@ func toolBatchCreateFeatures(deps *toolDeps) Tool {
 				Features []struct {
 					File        string   `json:"file"`
 					Commit      string   `json:"commit"`
-					LineStart   int      `json:"line_start"`
-					LineEnd     int      `json:"line_end"`
+					LineStart   int      `json:"start"`
+					LineEnd     int      `json:"end"`
 					Kind        string   `json:"kind"`
 					Title       string   `json:"title"`
 					Description string   `json:"description"`
@@ -681,19 +691,19 @@ func toolListFeatureParameters(deps *toolDeps) Tool {
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
-				"feature_id": {"type": "string", "description": "Feature ID"}
+				"feature": {"type": "string", "description": "Feature ID"}
 			},
-			"required": ["feature_id"]
+			"required": ["feature"]
 		}`),
 		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
 			var p struct {
-				FeatureID string `json:"feature_id"`
+				FeatureID string `json:"feature"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {
 				return "", fmt.Errorf("invalid params: %w", err)
 			}
 			if p.FeatureID == "" {
-				return "", fmt.Errorf("feature_id is required")
+				return "", fmt.Errorf("feature is required")
 			}
 			ps, err := deps.db.ListParameters(p.FeatureID)
 			if err != nil {
@@ -752,18 +762,18 @@ func toolCreateFeatureParameter(deps *toolDeps) Tool {
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
-				"feature_id":  {"type": "string", "description": "Feature ID"},
+				"feature":  {"type": "string", "description": "Feature ID"},
 				"name":        {"type": "string", "description": "Parameter name"},
 				"description": {"type": "string", "description": "What this parameter carries or its security notes"},
 				"type":        {"type": "string", "description": "string | integer | boolean | object | array | file"},
 				"pattern":     {"type": "string", "description": "Constraint: regex, enum, min/max, format hint, etc."},
 				"required":    {"type": "boolean", "description": "True if the parameter is required"}
 			},
-			"required": ["feature_id", "name"]
+			"required": ["feature", "name"]
 		}`),
 		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
 			var p struct {
-				FeatureID   string `json:"feature_id"`
+				FeatureID   string `json:"feature"`
 				Name        string `json:"name"`
 				Description string `json:"description"`
 				Type        string `json:"type"`
@@ -774,7 +784,7 @@ func toolCreateFeatureParameter(deps *toolDeps) Tool {
 				return "", fmt.Errorf("invalid params: %w", err)
 			}
 			if p.FeatureID == "" {
-				return "", fmt.Errorf("feature_id is required")
+				return "", fmt.Errorf("feature is required")
 			}
 			if p.Name == "" {
 				return "", fmt.Errorf("name is required")

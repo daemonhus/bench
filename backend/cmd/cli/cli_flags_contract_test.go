@@ -90,8 +90,8 @@ func TestFlagsContract_GET_GitSearchCode(t *testing.T) {
 		"--pattern", "eval(",
 		"--commit", "abc123",
 		"--path", "src/",
-		"--case-insensitive",
-		"--max-results", "50",
+		"--ignore-case",
+		"--limit", "50",
 	})
 	requireQuery(t, path, "pattern", "eval%28")
 	requireQuery(t, path, "commit", "abc123")
@@ -113,7 +113,7 @@ func TestFlagsContract_GET_GitDiff(t *testing.T) {
 
 func TestFlagsContract_GET_FindingsList(t *testing.T) {
 	_, path, _ := parseAndBuild(t, "findings", "list", []string{
-		"--file-id", "src/api.go",
+		"--file", "src/api.go",
 		"--commit", "abc123",
 		"--severity", "high",
 		"--status", "open",
@@ -137,9 +137,9 @@ func TestFlagsContract_GET_FindingsSearch(t *testing.T) {
 
 func TestFlagsContract_GET_CommentsList(t *testing.T) {
 	_, path, _ := parseAndBuild(t, "comments", "list", []string{
-		"--file-id", "src/api.go",
-		"--finding-id", "f-123",
-		"--feature-id", "ft-456",
+		"--file", "src/api.go",
+		"--finding", "f-123",
+		"--feature", "ft-456",
 		"--commit", "abc123",
 	})
 	requireQuery(t, path, "fileId", "src%2Fapi.go")
@@ -150,7 +150,7 @@ func TestFlagsContract_GET_CommentsList(t *testing.T) {
 
 func TestFlagsContract_GET_FeaturesList(t *testing.T) {
 	_, path, _ := parseAndBuild(t, "features", "list", []string{
-		"--file-id", "src/api.go",
+		"--file", "src/api.go",
 		"--kind", "interface",
 		"--status", "active",
 	})
@@ -179,8 +179,8 @@ func TestFlagsContract_GET_AnalyticsCoverage(t *testing.T) {
 
 func TestFlagsContract_GET_ReconcileStatus(t *testing.T) {
 	_, path, _ := parseAndBuild(t, "reconcile", "status", []string{
-		"--job-id", "job-123",
-		"--file-id", "src/api.go",
+		"--job", "job-123",
+		"--file", "src/api.go",
 		"--commit", "abc123",
 	})
 	requireQuery(t, path, "jobId", "job-123")
@@ -196,10 +196,10 @@ func TestFlagsContract_POST_FindingsCreate_AllOptionalFlags(t *testing.T) {
 	_, _, body := parseAndBuild(t, "findings", "create", []string{
 		"--title", "SQLi",
 		"--severity", "high",
-		"--file-id", "src/api.go",
-		"--commit-id", "abc123",
-		"--line-start", "10",
-		"--line-end", "20",
+		"--file", "src/api.go",
+		"--commit", "abc123",
+		"--start", "10",
+		"--end", "20",
 		"--description", "Unsanitised input",
 		"--cwe", "CWE-89",
 		"--cve", "CVE-2024-1234",
@@ -208,7 +208,7 @@ func TestFlagsContract_POST_FindingsCreate_AllOptionalFlags(t *testing.T) {
 		"--status", "draft",
 		"--source", "pentest",
 		"--category", "injection",
-		"--feature-ids", "feat-1,feat-2",
+		"--features", "feat-1,feat-2",
 	})
 
 	requireField(t, body, "title", "SQLi")
@@ -223,9 +223,9 @@ func TestFlagsContract_POST_FindingsCreate_AllOptionalFlags(t *testing.T) {
 	requireField(t, body, "source", "pentest")
 	requireField(t, body, "category", "injection")
 
-	// featureIds must be an array
-	if fids, ok := body["featureIds"].([]any); !ok || len(fids) != 2 {
-		t.Errorf("featureIds = %v, want [feat-1 feat-2]", body["featureIds"])
+	// features must be an array
+	if fids, ok := body["features"].([]any); !ok || len(fids) != 2 {
+		t.Errorf("features = %v, want [feat-1 feat-2]", body["features"])
 	}
 
 	// anchor must be nested
@@ -245,22 +245,22 @@ func TestFlagsContract_POST_FindingsCreate_FeatureIDs(t *testing.T) {
 	_, _, body := parseAndBuild(t, "findings", "create", []string{
 		"--title", "SQLi",
 		"--severity", "high",
-		"--feature-ids", "feat-1,feat-2",
+		"--features", "feat-1,feat-2",
 	})
-	ids, ok := body["featureIds"].([]any)
+	ids, ok := body["features"].([]any)
 	if !ok || len(ids) != 2 {
-		t.Errorf("featureIds = %v (%T), want [feat-1 feat-2]", body["featureIds"], body["featureIds"])
+		t.Errorf("features = %v (%T), want [feat-1 feat-2]", body["features"], body["features"])
 	}
 }
 
 func TestFlagsContract_PATCH_FindingsUpdate_FeatureIDs(t *testing.T) {
 	_, _, body := parseAndBuild(t, "findings", "update", []string{
 		"--id", "f-123",
-		"--feature-ids", "feat-a,feat-b",
+		"--features", "feat-a,feat-b",
 	})
-	ids, ok := body["featureIds"].([]any)
+	ids, ok := body["features"].([]any)
 	if !ok || len(ids) != 2 {
-		t.Errorf("featureIds = %v (%T), want [feat-a feat-b]", body["featureIds"], body["featureIds"])
+		t.Errorf("features = %v (%T), want [feat-a feat-b]", body["features"], body["features"])
 	}
 }
 
@@ -284,15 +284,15 @@ func TestFlagsContract_POST_CommentsCreate_AllOptionalFlags(t *testing.T) {
 	_, _, body := parseAndBuild(t, "comments", "create", []string{
 		"--author", "alice",
 		"--text", "Needs review",
-		"--file-id", "src/api.go",
-		"--commit-id", "abc123",
-		"--line-start", "5",
-		"--line-end", "10",
-		"--comment-type", "concern",
-		"--thread-id", "thread-1",
-		"--parent-id", "c-parent",
-		"--finding-id", "f-123",
-		"--feature-id", "ft-456",
+		"--file", "src/api.go",
+		"--commit", "abc123",
+		"--start", "5",
+		"--end", "10",
+		"--type", "concern",
+		"--thread", "thread-1",
+		"--parent", "c-parent",
+		"--finding", "f-123",
+		"--feature", "ft-456",
 	})
 
 	requireField(t, body, "author", "alice")
@@ -313,12 +313,12 @@ func TestFlagsContract_POST_CommentsCreate_AllOptionalFlags(t *testing.T) {
 
 func TestFlagsContract_POST_FeaturesCreate_AllOptionalFlags(t *testing.T) {
 	_, _, body := parseAndBuild(t, "features", "create", []string{
-		"--file-id", "src/api.go",
-		"--commit-id", "abc123",
+		"--file", "src/api.go",
+		"--commit", "abc123",
 		"--kind", "interface",
 		"--title", "Login endpoint",
-		"--line-start", "1",
-		"--line-end", "30",
+		"--start", "1",
+		"--end", "30",
 		"--description", "Handles auth",
 		"--operation", "POST",
 		"--direction", "in",
@@ -374,7 +374,7 @@ func TestFlagsContract_POST_AnalyticsMarkReviewed(t *testing.T) {
 
 func TestFlagsContract_POST_ReconcileStart(t *testing.T) {
 	_, _, body := parseAndBuild(t, "reconcile", "start", []string{
-		"--target-commit", "abc123",
+		"--target", "abc123",
 		"--file-paths", "src/api.go,src/db.go",
 	})
 	requireField(t, body, "targetCommit", "abc123")
@@ -401,11 +401,11 @@ func TestFlagsContract_PATCH_FindingsUpdate_AllFields(t *testing.T) {
 		"--score", "9.8",
 		"--source", "tool",
 		"--category", "injection",
-		"--file-id", "src/new.go",
-		"--commit-id", "def456",
-		"--line-start", "20",
-		"--line-end", "25",
-		"--feature-ids", "feat-1,feat-2",
+		"--file", "src/new.go",
+		"--commit", "def456",
+		"--start", "20",
+		"--end", "25",
+		"--features", "feat-1,feat-2",
 	})
 
 	if !strings.Contains(path, "/f-123") {
@@ -428,9 +428,9 @@ func TestFlagsContract_PATCH_FindingsUpdate_AllFields(t *testing.T) {
 	requireField(t, body, "line_start", float64(20))
 	requireField(t, body, "line_end", float64(25))
 
-	featureIDs, ok := body["featureIds"].([]any)
+	featureIDs, ok := body["features"].([]any)
 	if !ok || len(featureIDs) != 2 {
-		t.Errorf("featureIds = %v, want [feat-1 feat-2]", body["featureIds"])
+		t.Errorf("features = %v, want [feat-1 feat-2]", body["features"])
 	}
 }
 
@@ -439,12 +439,12 @@ func TestFlagsContract_PATCH_CommentsUpdate_AllFields(t *testing.T) {
 		"--id", "c-123",
 		"--text", "Updated text",
 		"--author", "bob",
-		"--comment-type", "improvement",
-		"--file-id", "src/new.go",
-		"--commit-id", "def456",
-		"--line-start", "10",
-		"--line-end", "15",
-		"--feature-id", "ft-789",
+		"--type", "improvement",
+		"--file", "src/new.go",
+		"--commit", "def456",
+		"--start", "10",
+		"--end", "15",
+		"--feature", "ft-789",
 	})
 
 	if !strings.Contains(path, "/c-123") {
@@ -473,10 +473,10 @@ func TestFlagsContract_PATCH_FeaturesUpdate_AllFields(t *testing.T) {
 		"--status", "deprecated",
 		"--tags", "legacy,auth",
 		"--source", "manual",
-		"--file-id", "src/new.go",
-		"--commit-id", "def456",
-		"--line-start", "5",
-		"--line-end", "10",
+		"--file", "src/new.go",
+		"--commit", "def456",
+		"--start", "5",
+		"--end", "10",
 	})
 
 	if !strings.Contains(path, "/ft-123") {
@@ -544,7 +544,7 @@ func TestFlagsContract_Path_ReconcileHistory(t *testing.T) {
 func TestFlagsContract_GET_RefsList(t *testing.T) {
 	_, path, _ := parseAndBuild(t, "refs", "list", []string{
 		"--entity-type", "finding",
-		"--entity-id", "f-123",
+		"--entity", "f-123",
 		"--provider", "jira",
 	})
 	requireQuery(t, path, "entityType", "finding")
@@ -555,7 +555,7 @@ func TestFlagsContract_GET_RefsList(t *testing.T) {
 func TestFlagsContract_POST_RefsCreate_AllFields(t *testing.T) {
 	_, _, body := parseAndBuild(t, "refs", "create", []string{
 		"--entity-type", "finding",
-		"--entity-id", "f-123",
+		"--entity", "f-123",
 		"--provider", "jira",
 		"--url", "https://jira.example.com/PROJ-1",
 		"--title", "PROJ-1: SQL injection",
@@ -589,7 +589,7 @@ func TestFlagsContract_RequiredFlag_RefsCreate_MissingURL(t *testing.T) {
 	}
 	_, err := parseFlags(cmd.Flags, []string{
 		"--entity-type", "finding",
-		"--entity-id", "f-1",
+		"--entity", "f-1",
 		"--provider", "jira",
 		// --url omitted
 	})
@@ -738,10 +738,10 @@ func TestCLIIntegration_Comments_CreateAllOptionalFields(t *testing.T) {
 	result, code := cliDo(t, srv, "comments", "create", []string{
 		"--author", "bob",
 		"--text", "concern here",
-		"--file-id", "main.go",
-		"--commit-id", head,
-		"--comment-type", "concern",
-		"--finding-id", findingID,
+		"--file", "main.go",
+		"--commit", head,
+		"--type", "concern",
+		"--finding", findingID,
 	})
 	if code != http.StatusCreated {
 		t.Fatalf("create comment: code=%d body=%v", code, result)
@@ -759,8 +759,8 @@ func TestCLIIntegration_Findings_CreateWithFeatureIDs(t *testing.T) {
 
 	// Create a feature to link
 	feat, code := cliDo(t, srv, "features", "create", []string{
-		"--file-id", "main.go",
-		"--commit-id", head,
+		"--file", "main.go",
+		"--commit", head,
 		"--kind", "interface",
 		"--title", "Login endpoint",
 	})
@@ -773,14 +773,14 @@ func TestCLIIntegration_Findings_CreateWithFeatureIDs(t *testing.T) {
 	result, code := cliDo(t, srv, "findings", "create", []string{
 		"--title", "Auth bypass",
 		"--severity", "high",
-		"--feature-ids", featID,
+		"--features", featID,
 	})
 	if code != http.StatusCreated {
 		t.Fatalf("create finding: code=%d body=%v", code, result)
 	}
-	ids, ok := result["featureIds"].([]any)
+	ids, ok := result["features"].([]any)
 	if !ok || len(ids) != 1 || ids[0] != featID {
-		t.Errorf("featureIds = %v, want [%s]", result["featureIds"], featID)
+		t.Errorf("features = %v, want [%s]", result["features"], featID)
 	}
 }
 
@@ -788,7 +788,7 @@ func TestCLIIntegration_Findings_UpdateFeatureIDs(t *testing.T) {
 	srv, head := setupIntegrationServer(t)
 
 	feat, _ := cliDo(t, srv, "features", "create", []string{
-		"--file-id", "main.go", "--commit-id", head, "--kind", "sink", "--title", "DB write",
+		"--file", "main.go", "--commit", head, "--kind", "sink", "--title", "DB write",
 	})
 	featID := feat["id"].(string)
 
@@ -803,14 +803,14 @@ func TestCLIIntegration_Findings_UpdateFeatureIDs(t *testing.T) {
 	// Associate feature via update
 	updated, code := cliDo(t, srv, "findings", "update", []string{
 		"--id", id,
-		"--feature-ids", featID,
+		"--features", featID,
 	})
 	if code != http.StatusOK {
 		t.Fatalf("update: code=%d body=%v", code, updated)
 	}
-	ids, ok := updated["featureIds"].([]any)
+	ids, ok := updated["features"].([]any)
 	if !ok || len(ids) != 1 || ids[0] != featID {
-		t.Errorf("featureIds = %v, want [%s]", updated["featureIds"], featID)
+		t.Errorf("features = %v, want [%s]", updated["features"], featID)
 	}
 }
 
@@ -818,8 +818,8 @@ func TestCLIIntegration_Features_CreateAllOptionalFields(t *testing.T) {
 	srv, head := setupIntegrationServer(t)
 
 	result, code := cliDo(t, srv, "features", "create", []string{
-		"--file-id", "main.go",
-		"--commit-id", head,
+		"--file", "main.go",
+		"--commit", head,
 		"--kind", "sink",
 		"--title", "DB write",
 		"--description", "Writes to users table",
@@ -852,8 +852,8 @@ func TestCLIIntegration_Features_UpdateAllFields(t *testing.T) {
 	srv, head := setupIntegrationServer(t)
 
 	created, code := cliDo(t, srv, "features", "create", []string{
-		"--file-id", "main.go",
-		"--commit-id", head,
+		"--file", "main.go",
+		"--commit", head,
 		"--kind", "interface",
 		"--title", "Original",
 	})
@@ -896,8 +896,8 @@ func TestCLIIntegration_Comments_UpdateAllFields(t *testing.T) {
 	created, code := cliDo(t, srv, "comments", "create", []string{
 		"--author", "alice",
 		"--text", "original",
-		"--file-id", "main.go",
-		"--commit-id", head,
+		"--file", "main.go",
+		"--commit", head,
 	})
 	if code != http.StatusCreated {
 		t.Fatalf("create: code=%d body=%v", code, created)
@@ -908,7 +908,7 @@ func TestCLIIntegration_Comments_UpdateAllFields(t *testing.T) {
 		"--id", id,
 		"--text", "updated text",
 		"--author", "bob",
-		"--comment-type", "improvement",
+		"--type", "improvement",
 	})
 	if code != http.StatusOK {
 		t.Fatalf("update: code=%d body=%v", code, updated)

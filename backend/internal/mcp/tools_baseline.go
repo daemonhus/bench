@@ -122,21 +122,21 @@ func toolDeleteBaseline(deps *toolDeps) Tool {
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
-				"baseline_id": {"type": "string", "description": "Baseline ID to delete"},
+				"baseline": {"type": "string", "description": "Baseline ID to delete"},
 				"confirm": {"type": "boolean", "description": "Set to true to actually delete. Without this, returns a preview of what would be removed.", "default": false}
 			},
-			"required": ["baseline_id"]
+			"required": ["baseline"]
 		}`),
 		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
 			var p struct {
-				BaselineID string `json:"baseline_id"`
+				BaselineID string `json:"baseline"`
 				Confirm    bool   `json:"confirm"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {
 				return "", fmt.Errorf("invalid params: %w", err)
 			}
 			if p.BaselineID == "" {
-				return "", fmt.Errorf("baseline_id is required")
+				return "", fmt.Errorf("baseline is required")
 			}
 
 			// Always fetch the baseline first for validation / preview.
@@ -185,16 +185,16 @@ func toolDeleteBaseline(deps *toolDeps) Tool {
 func toolGetDelta(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "get_delta",
-		Description: "Get changes since the last baseline: new findings, removed findings, and changed files. Without baseline_id, compares the latest baseline against the current state. With baseline_id, compares that baseline against its predecessor (what that baseline introduced).",
+		Description: "Get changes since the last baseline: new findings, removed findings, and changed files. Without baseline, compares the latest baseline against the current state. With baseline, compares that baseline against its predecessor (what that baseline introduced).",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
-				"baseline_id": {"type": "string", "description": "Specific baseline ID. Shows what this baseline introduced compared to the previous baseline. If omitted, shows what changed since the latest baseline."}
+				"baseline": {"type": "string", "description": "Specific baseline ID. Shows what this baseline introduced compared to the previous baseline. If omitted, shows what changed since the latest baseline."}
 			}
 		}`),
 		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
 			var p struct {
-				BaselineID string `json:"baseline_id"`
+				BaselineID string `json:"baseline"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {
 				return "", fmt.Errorf("invalid params: %w", err)

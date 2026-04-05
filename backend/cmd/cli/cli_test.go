@@ -68,13 +68,13 @@ func TestParseFlags_UnknownFlag(t *testing.T) {
 
 func TestParseFlags_BoolFlag(t *testing.T) {
 	defs := []flagDef{
-		{Name: "case-insensitive", Param: "case_insensitive", Type: "bool"},
+		{Name: "ignore-case", Param: "case_insensitive", Type: "bool"},
 	}
-	pf, err := parseFlags(defs, []string{"--case-insensitive"})
+	pf, err := parseFlags(defs, []string{"--ignore-case"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !pf.bools["case-insensitive"] {
+	if !pf.bools["ignore-case"] {
 		t.Error("expected bool flag to be set")
 	}
 }
@@ -143,7 +143,7 @@ func TestBuildRequest_GET_QueryString(t *testing.T) {
 
 func TestBuildRequest_GET_BoolParam(t *testing.T) {
 	cmd := findCmd("git", "search-code")
-	pf, _ := parseFlags(cmd.Flags, []string{"--pattern", "eval", "--case-insensitive"})
+	pf, _ := parseFlags(cmd.Flags, []string{"--pattern", "eval", "--ignore-case"})
 	_, path, _, _, err := buildRequest(cmd, pf)
 	if err != nil {
 		t.Fatalf("buildRequest: %v", err)
@@ -154,17 +154,17 @@ func TestBuildRequest_GET_BoolParam(t *testing.T) {
 }
 
 // TestBuildRequest_POST_AnchorStructure verifies that findings create wraps
-// file-id and commit-id into anchor.fileId / anchor.commitId, and that
+// file and commit into anchor.fileId / anchor.commitId, and that
 // line-start / line-end go into anchor.lineRange.start / .end.
 func TestBuildRequest_POST_AnchorStructure(t *testing.T) {
 	cmd := findCmd("findings", "create")
 	pf, _ := parseFlags(cmd.Flags, []string{
 		"--title", "SQLi",
 		"--severity", "high",
-		"--file-id", "src/api.go",
-		"--commit-id", "abc123",
-		"--line-start", "10",
-		"--line-end", "15",
+		"--file", "src/api.go",
+		"--commit", "abc123",
+		"--start", "10",
+		"--end", "15",
 	})
 	_, _, body, _, err := buildRequest(cmd, pf)
 	if err != nil {
@@ -205,10 +205,10 @@ func TestBuildRequest_PATCH_FlatBody(t *testing.T) {
 	cmd := findCmd("findings", "update")
 	pf, _ := parseFlags(cmd.Flags, []string{
 		"--id", "f1",
-		"--file-id", "src/new.go",
-		"--commit-id", "def456",
-		"--line-start", "20",
-		"--line-end", "25",
+		"--file", "src/new.go",
+		"--commit", "def456",
+		"--start", "20",
+		"--end", "25",
 		"--status", "open",
 	})
 	_, path, body, _, err := buildRequest(cmd, pf)
@@ -264,8 +264,8 @@ func TestBuildRequest_PathSubstitution_Commitish_Default(t *testing.T) {
 func TestBuildRequest_ListType_Tags(t *testing.T) {
 	cmd := findCmd("features", "create")
 	pf, _ := parseFlags(cmd.Flags, []string{
-		"--file-id", "a.go",
-		"--commit-id", "abc",
+		"--file", "a.go",
+		"--commit", "abc",
 		"--kind", "interface",
 		"--title", "Login",
 		"--tags", "auth,session,critical",
@@ -472,10 +472,10 @@ func TestCLIIntegration_Findings_CreateAndList(t *testing.T) {
 	result, code := cliDo(t, srv, "findings", "create", []string{
 		"--title", "SQL injection",
 		"--severity", "high",
-		"--file-id", "main.go",
-		"--commit-id", head,
-		"--line-start", "1",
-		"--line-end", "2",
+		"--file", "main.go",
+		"--commit", head,
+		"--start", "1",
+		"--end", "2",
 		"--description", "Unsanitised input",
 		"--category", "injection",
 	})
@@ -507,7 +507,7 @@ func TestCLIIntegration_Findings_UpdateFlat(t *testing.T) {
 	// Create
 	created, code := cliDo(t, srv, "findings", "create", []string{
 		"--title", "XSS", "--severity", "medium",
-		"--file-id", "main.go", "--commit-id", head,
+		"--file", "main.go", "--commit", head,
 	})
 	if code != http.StatusCreated {
 		t.Fatalf("create: code=%d body=%v", code, created)
@@ -537,8 +537,8 @@ func TestCLIIntegration_Comments_Create(t *testing.T) {
 	result, code := cliDo(t, srv, "comments", "create", []string{
 		"--author", "alice",
 		"--text", "Needs review",
-		"--file-id", "main.go",
-		"--commit-id", head,
+		"--file", "main.go",
+		"--commit", head,
 	})
 	if code != http.StatusCreated {
 		t.Fatalf("create: code=%d body=%v", code, result)
@@ -552,8 +552,8 @@ func TestCLIIntegration_Features_Create(t *testing.T) {
 	srv, head := setupIntegrationServer(t)
 
 	result, code := cliDo(t, srv, "features", "create", []string{
-		"--file-id", "main.go",
-		"--commit-id", head,
+		"--file", "main.go",
+		"--commit", head,
 		"--kind", "interface",
 		"--title", "Login endpoint",
 		"--operation", "POST",

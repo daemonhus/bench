@@ -33,8 +33,8 @@ func toolSearchCode(deps *toolDeps) Tool {
 				"pattern": {"type": "string", "description": "Search pattern (regular expression)"},
 				"commit": {"type": "string", "description": "Commit hash or ref (default: HEAD)"},
 				"path": {"type": "string", "description": "Limit search to files under this directory prefix"},
-				"max_results": {"type": "integer", "description": "Maximum matches to return (default: 100, max: 500)"},
-				"case_insensitive": {"type": "boolean", "description": "Case-insensitive matching (default: false)"},
+				"limit": {"type": "integer", "description": "Maximum matches to return (default: 100, max: 500)"},
+				"ignore_case": {"type": "boolean", "description": "Case-insensitive matching (default: false)"},
 				"fixed": {"type": "boolean", "description": "Treat pattern as a fixed string, not a regex (default: false)"}
 			},
 			"required": ["pattern"]
@@ -44,8 +44,8 @@ func toolSearchCode(deps *toolDeps) Tool {
 				Pattern         string `json:"pattern"`
 				Commit          string `json:"commit"`
 				Path            string `json:"path"`
-				MaxResults      int    `json:"max_results"`
-				CaseInsensitive bool   `json:"case_insensitive"`
+				MaxResults      int    `json:"limit"`
+				CaseInsensitive bool   `json:"ignore_case"`
 				Fixed           bool   `json:"fixed"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {
@@ -95,8 +95,8 @@ func toolGetBlame(deps *toolDeps) Tool {
 			"properties": {
 				"path": {"type": "string", "description": "File path relative to repo root"},
 				"commit": {"type": "string", "description": "Commit hash or ref (default: HEAD)"},
-				"line_start": {"type": "integer", "description": "Start of line range (optional)"},
-				"line_end": {"type": "integer", "description": "End of line range (optional)"}
+				"start": {"type": "integer", "description": "Start of line range (optional)"},
+				"end": {"type": "integer", "description": "End of line range (optional)"}
 			},
 			"required": ["path"]
 		}`),
@@ -104,8 +104,8 @@ func toolGetBlame(deps *toolDeps) Tool {
 			var p struct {
 				Path      string `json:"path"`
 				Commit    string `json:"commit"`
-				LineStart int    `json:"line_start"`
-				LineEnd   int    `json:"line_end"`
+				LineStart int    `json:"start"`
+				LineEnd   int    `json:"end"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {
 				return "", fmt.Errorf("invalid params: %w", err)
@@ -135,14 +135,14 @@ func toolGetBlame(deps *toolDeps) Tool {
 func toolReadFile(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "read_file",
-		Description: "Read file content at a specific git commit. Returns the file text with line numbers prefixed (format: `LINE\tCONTENT`). Optionally scope to a line range with line_start and line_end. Always set line_start and line_end when creating findings to ensure accurate line anchoring.",
+		Description: "Read file content at a specific git commit. Returns the file text with line numbers prefixed (format: `LINE\tCONTENT`). Optionally scope to a line range with start and end. Always set start and end when creating findings to ensure accurate line anchoring.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
 				"path": {"type": "string", "description": "File path relative to repo root"},
 				"commit": {"type": "string", "description": "Commit hash or ref (default: HEAD)"},
-				"line_start": {"type": "integer", "description": "First line to return, 1-indexed (optional)"},
-				"line_end": {"type": "integer", "description": "Last line to return, inclusive (optional)"}
+				"start": {"type": "integer", "description": "First line to return, 1-indexed (optional)"},
+				"end": {"type": "integer", "description": "Last line to return, inclusive (optional)"}
 			},
 			"required": ["path"]
 		}`),
@@ -150,8 +150,8 @@ func toolReadFile(deps *toolDeps) Tool {
 			var p struct {
 				Path      string `json:"path"`
 				Commit    string `json:"commit"`
-				LineStart int    `json:"line_start"`
-				LineEnd   int    `json:"line_end"`
+				LineStart int    `json:"start"`
+				LineEnd   int    `json:"end"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {
 				return "", fmt.Errorf("invalid params: %w", err)
@@ -180,7 +180,7 @@ func toolReadFile(deps *toolDeps) Tool {
 				end = p.LineEnd
 			}
 			if start > len(lines) {
-				return "", fmt.Errorf("line_start %d exceeds file length %d", start, len(lines))
+				return "", fmt.Errorf("start %d exceeds file length %d", start, len(lines))
 			}
 			var sb strings.Builder
 			for i := start; i <= end; i++ {
@@ -301,23 +301,23 @@ func toolGetDiff(deps *toolDeps) Tool {
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
-				"from_commit": {"type": "string", "description": "Base commit hash or ref"},
-				"to_commit": {"type": "string", "description": "Target commit hash or ref"},
+				"from": {"type": "string", "description": "Base commit hash or ref"},
+				"to": {"type": "string", "description": "Target commit hash or ref"},
 				"path": {"type": "string", "description": "Scope diff to this file path (optional)"}
 			},
-			"required": ["from_commit", "to_commit"]
+			"required": ["from", "to"]
 		}`),
 		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
 			var p struct {
-				FromCommit string `json:"from_commit"`
-				ToCommit   string `json:"to_commit"`
+				FromCommit string `json:"from"`
+				ToCommit   string `json:"to"`
 				Path       string `json:"path"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {
 				return "", fmt.Errorf("invalid params: %w", err)
 			}
 			if p.FromCommit == "" || p.ToCommit == "" {
-				return "", fmt.Errorf("from_commit and to_commit are required")
+				return "", fmt.Errorf("from and to are required")
 			}
 			raw, err := deps.repo.DiffRaw(p.FromCommit, p.ToCommit, p.Path)
 			if err != nil {
@@ -338,21 +338,21 @@ func toolListChangedFiles(deps *toolDeps) Tool {
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
-				"from_commit": {"type": "string", "description": "Base commit hash or ref"},
-				"to_commit": {"type": "string", "description": "Target commit hash or ref"}
+				"from": {"type": "string", "description": "Base commit hash or ref"},
+				"to": {"type": "string", "description": "Target commit hash or ref"}
 			},
-			"required": ["from_commit", "to_commit"]
+			"required": ["from", "to"]
 		}`),
 		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
 			var p struct {
-				FromCommit string `json:"from_commit"`
-				ToCommit   string `json:"to_commit"`
+				FromCommit string `json:"from"`
+				ToCommit   string `json:"to"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {
 				return "", fmt.Errorf("invalid params: %w", err)
 			}
 			if p.FromCommit == "" || p.ToCommit == "" {
-				return "", fmt.Errorf("from_commit and to_commit are required")
+				return "", fmt.Errorf("from and to are required")
 			}
 			files, err := deps.repo.DiffFiles(p.FromCommit, p.ToCommit)
 			if err != nil {
@@ -369,21 +369,21 @@ func toolListChangedFiles(deps *toolDeps) Tool {
 func toolListCommits(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "list_commits",
-		Description: "List commits with hash, author, date, and subject line. Without from_commit/to_commit returns recent repo-wide commits. With a commit range and/or path, returns commits that match — ideal for answering 'which commits changed this file between A and B?'.",
+		Description: "List commits with hash, author, date, and subject line. Without from/to returns recent repo-wide commits. With a commit range and/or path, returns commits that match — ideal for answering 'which commits changed this file between A and B?'.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
 				"limit": {"type": "integer", "description": "Max commits to return (default: 20, max: 500)"},
-				"from_commit": {"type": "string", "description": "Start of range (exclusive). Commits after this one."},
-				"to_commit": {"type": "string", "description": "End of range (inclusive, default: HEAD)"},
+				"from": {"type": "string", "description": "Start of range (exclusive). Commits after this one."},
+				"to": {"type": "string", "description": "End of range (inclusive, default: HEAD)"},
 				"path": {"type": "string", "description": "Only commits touching this file path"}
 			}
 		}`),
 		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
 			var p struct {
 				Limit      int    `json:"limit"`
-				FromCommit string `json:"from_commit"`
-				ToCommit   string `json:"to_commit"`
+				FromCommit string `json:"from"`
+				ToCommit   string `json:"to"`
 				Path       string `json:"path"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {

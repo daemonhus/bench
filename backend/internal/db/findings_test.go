@@ -143,7 +143,7 @@ func TestCreateFinding_WithFeatureIDs(t *testing.T) {
 		t.Fatalf("GetFinding: %v", err)
 	}
 	if len(got.FeatureIDs) != 2 {
-		t.Fatalf("featureIds len = %d, want 2", len(got.FeatureIDs))
+		t.Fatalf("features len = %d, want 2", len(got.FeatureIDs))
 	}
 
 	list, _, err := d.ListFindings("", 0, 0)
@@ -151,7 +151,7 @@ func TestCreateFinding_WithFeatureIDs(t *testing.T) {
 		t.Fatalf("ListFindings: %v", err)
 	}
 	if len(list[0].FeatureIDs) != 2 {
-		t.Errorf("list[0].featureIds len = %d, want 2", len(list[0].FeatureIDs))
+		t.Errorf("list[0].features len = %d, want 2", len(list[0].FeatureIDs))
 	}
 }
 
@@ -173,21 +173,21 @@ func TestUpdateFinding_FeatureIDs_Replace(t *testing.T) {
 	d.CreateFinding(f)
 
 	// Replace with feat2 only
-	updated, err := d.UpdateFinding("f1", map[string]any{"featureIds": []string{"feat2"}})
+	updated, err := d.UpdateFinding("f1", map[string]any{"features": []string{"feat2"}})
 	if err != nil {
 		t.Fatalf("UpdateFinding: %v", err)
 	}
 	if len(updated.FeatureIDs) != 1 || updated.FeatureIDs[0] != "feat2" {
-		t.Errorf("featureIds = %v, want [feat2]", updated.FeatureIDs)
+		t.Errorf("features = %v, want [feat2]", updated.FeatureIDs)
 	}
 
 	// Clear all
-	cleared, err := d.UpdateFinding("f1", map[string]any{"featureIds": []string{}})
+	cleared, err := d.UpdateFinding("f1", map[string]any{"features": []string{}})
 	if err != nil {
 		t.Fatalf("UpdateFinding clear: %v", err)
 	}
 	if len(cleared.FeatureIDs) != 0 {
-		t.Errorf("featureIds after clear = %v, want []", cleared.FeatureIDs)
+		t.Errorf("features after clear = %v, want []", cleared.FeatureIDs)
 	}
 }
 
@@ -212,7 +212,7 @@ func TestDeleteFinding_CleansUpFeatureAssociations(t *testing.T) {
 	d.CreateFinding(f2)
 	got, _ := d.GetFinding("f1")
 	if len(got.FeatureIDs) != 0 {
-		t.Errorf("featureIds after delete+recreate = %v, want []", got.FeatureIDs)
+		t.Errorf("features after delete+recreate = %v, want []", got.FeatureIDs)
 	}
 }
 
@@ -230,7 +230,7 @@ func TestDeleteFeature_CleansUpFindingAssociations(t *testing.T) {
 	// Verify association exists
 	got, _ := d.GetFinding("f1")
 	if len(got.FeatureIDs) != 1 {
-		t.Fatalf("precondition: featureIds = %v, want [feat1]", got.FeatureIDs)
+		t.Fatalf("precondition: features = %v, want [feat1]", got.FeatureIDs)
 	}
 
 	if err := d.DeleteFeature("feat1"); err != nil {
@@ -243,7 +243,7 @@ func TestDeleteFeature_CleansUpFindingAssociations(t *testing.T) {
 		t.Fatalf("GetFinding after feature delete: %v", err)
 	}
 	if len(got.FeatureIDs) != 0 {
-		t.Errorf("featureIds after feature delete = %v, want []", got.FeatureIDs)
+		t.Errorf("features after feature delete = %v, want []", got.FeatureIDs)
 	}
 }
 
@@ -273,11 +273,11 @@ func TestBatchCreateFindings_WithFeatureIDs(t *testing.T) {
 
 	got, _ := d.GetFinding("f1")
 	if len(got.FeatureIDs) != 1 || got.FeatureIDs[0] != "feat1" {
-		t.Errorf("f1 featureIds = %v, want [feat1]", got.FeatureIDs)
+		t.Errorf("f1 features = %v, want [feat1]", got.FeatureIDs)
 	}
 	got2, _ := d.GetFinding("f2")
 	if len(got2.FeatureIDs) != 0 {
-		t.Errorf("f2 featureIds = %v, want []", got2.FeatureIDs)
+		t.Errorf("f2 features = %v, want []", got2.FeatureIDs)
 	}
 }
 

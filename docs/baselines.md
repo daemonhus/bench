@@ -22,12 +22,12 @@ Baseline {
   featuresTotal int
   featuresActive int
   byKind        {kind → count}
-  findingIds    string[]            Every finding ID that existed at snapshot time
-  featureIds    string[]            Every feature ID that existed at snapshot time
+  findings      string[]            Every finding ID that existed at snapshot time
+  features      string[]            Every feature ID that existed at snapshot time
 }
 ```
 
-The `findingIds` array is the core of delta computation - it's the authoritative record of what existed when the baseline was set.
+The `findings` array is the core of delta computation - it's the authoritative record of what existed when the baseline was set.
 
 ## Deltas
 
@@ -45,7 +45,7 @@ BaselineDelta {
 ```
 
 Delta computation:
-1. Load the baseline's `findingIDs` set
+1. Load the baseline's `findings` set
 2. Load current findings from the database
 3. **New** = current findings whose IDs are not in the baseline set
 4. **Removed** = baseline IDs that no longer exist
@@ -55,7 +55,7 @@ Delta computation:
 
 **Finding delta is database-state based, not commit- or time-based.**
 
-`newFindings` and `removedFindingIDs` are computed by comparing the baseline's `findingIDs` snapshot against what currently exists in the database. A finding is "new" if its ID wasn't in the baseline - regardless of when it was created or which commit it's anchored to. There is no query like "findings created after this timestamp" or "findings anchored to commits after X".
+`newFindings` and `removedFindingIds` are computed by comparing the baseline's `findings` snapshot against what currently exists in the database. A finding is "new" if its ID wasn't in the baseline - regardless of when it was created or which commit it's anchored to. There is no query like "findings created after this timestamp" or "findings anchored to commits after X".
 
 **Changed files are commit-based.**
 
@@ -117,9 +117,9 @@ Returns a markdown table of baselines with seq, date, reviewer, finding/comment 
 
 | Parameter     | Type   | Default | Description                              |
 |---------------|--------|---------|------------------------------------------|
-| `baseline_id` | string | -       | Specific baseline to inspect              |
+| `baseline` | string | -       | Specific baseline to inspect              |
 
-Two modes depending on whether `baseline_id` is provided:
+Two modes depending on whether `baseline` is provided:
 
 - **Omitted** - compares the latest baseline against the current live state (what changed since you last checkpointed)
 - **Provided** - compares that baseline against its predecessor (what that baseline introduced)
@@ -132,7 +132,7 @@ By default, returns a preview of what would be deleted (dry run). Set `confirm` 
 
 | Parameter     | Type    | Required | Description                                              |
 |---------------|---------|----------|----------------------------------------------------------|
-| `baseline_id` | string  | yes      | Baseline to delete                                       |
+| `baseline` | string  | yes      | Baseline to delete                                       |
 | `confirm`     | boolean | no       | Set to true to actually delete. Default: false (preview). |
 
 ## Reconciliation (related but separate)
@@ -178,7 +178,7 @@ Now baseline #2 exists. Future `get_delta` calls compare against this new baseli
 
 ```
 4. get_delta
-   baseline_id: "<baseline-2-id>"
+   baseline: "<baseline-2-id>"
    → Shows what changed between baseline #1 and #2
 ```
 
@@ -223,6 +223,6 @@ Baselines are cheap - create them liberally. They're just a snapshot row with a 
 
 ## Notes
 
-**Resolved findings are included in snapshots.** Baseline `findingIDs` captures all findings in the database, including resolved/closed ones. The `list_findings` MCP tool excludes resolved findings by default, so delta counts may appear higher than `list_findings` output. Use `include_resolved=true` when cross-referencing.
+**Resolved findings are included in snapshots.** Baseline `findings` captures all findings in the database, including resolved/closed ones. The `list_findings` MCP tool excludes resolved findings by default, so delta counts may appear higher than `list_findings` output. Use `resolved=true` when cross-referencing.
 
 **Snapshots capture the database, not the commit.** When you set a baseline at commit X, it records all findings currently in the database - regardless of which commit each finding was created at. The `commitId` is used for git diffs (changed files), not for scoping which findings are included.

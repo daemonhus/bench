@@ -30,7 +30,7 @@ bench baselines delta
 
 ```bash
 bench baselines delta --id <baseline-id>
-# MCP: get_delta(baseline_id="...")
+# MCP: get_delta(baseline="...")
 ```
 
 ## Typical workflow
@@ -48,7 +48,7 @@ Baselines are cheap - create them liberally. The delta computation is where the 
 
 ## Computed fields
 
-**newFindings** is determined by comparing IDs: findings whose IDs are not present in the baseline's `findingIds` list are new.
+**newFindings** is determined by comparing IDs: findings whose IDs are not present in the baseline's `findings` list are new.
 
 **removedFindingIds** is the inverse: IDs that were in the baseline but no longer exist in the database.
 
@@ -56,4 +56,4 @@ Baselines are cheap - create them liberally. The delta computation is where the 
 
 ## Notes
 
-Resolved and closed findings are included in baseline snapshots. Delta counts may therefore be higher than `findings list` output (which excludes resolved findings by default). Pass `--status closed` or use `include_resolved=true` in MCP when cross-referencing.
+Resolved and closed findings are included in baseline snapshots. Delta counts may therefore be higher than `findings list` output (which excludes resolved findings by default). Pass `--status closed` or use `resolved=true` in MCP when cross-referencing.

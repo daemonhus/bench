@@ -29,14 +29,14 @@ func registerFindingTools(deps *toolDeps) []Tool {
 func toolListFindings(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "list_findings",
-		Description: "List security findings (summary view). Returns id, severity, status, title, file, lines, category, and comment count for each finding. Use get_finding for full details including description. Note: include_resolved defaults to false — set it to true when checking for duplicates before creating new findings. Baseline snapshots include all findings (including resolved), so delta counts may differ from this tool's output unless include_resolved is true.",
+		Description: "List security findings (summary view). Returns id, severity, status, title, file, lines, category, and comment count for each finding. Use get_finding for full details including description. Note: resolved defaults to false — set it to true when checking for duplicates before creating new findings. Baseline snapshots include all findings (including resolved), so delta counts may differ from this tool's output unless resolved is true.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
 				"file": {"type": "string", "description": "Filter by file path"},
 				"status": {"type": "string", "enum": ["draft", "open", "in-progress", "false-positive", "accepted", "closed"], "description": "Filter by status"},
 				"severity": {"type": "string", "enum": ["critical", "high", "medium", "low", "info"], "description": "Filter by severity"},
-				"include_resolved": {"type": "boolean", "description": "Include resolved findings (default: false)"},
+				"resolved": {"type": "boolean", "description": "Include resolved findings (default: false)"},
 				"category": {"type": "string", "description": "Filter by category"}
 			}
 		}`),
@@ -45,7 +45,7 @@ func toolListFindings(deps *toolDeps) Tool {
 				File            string `json:"file"`
 				Status          string `json:"status"`
 				Severity        string `json:"severity"`
-				IncludeResolved bool   `json:"include_resolved"`
+				IncludeResolved bool   `json:"resolved"`
 				Category        string `json:"category"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {
@@ -101,7 +101,7 @@ func toolListFindings(deps *toolDeps) Tool {
 				CWE          string   `json:"cwe,omitempty"`
 				CommentCount int      `json:"commentCount,omitempty"`
 				Resolved     bool     `json:"resolved,omitempty"`
-				FeatureIDs   []string `json:"featureIds,omitempty"`
+				FeatureIDs   []string `json:"features,omitempty"`
 			}
 			summaries := make([]findingSummary, len(filtered))
 			for i, f := range filtered {
@@ -176,14 +176,14 @@ func toolGetFinding(deps *toolDeps) Tool {
 func toolCreateFinding(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "create_finding",
-		Description: "Create a new security finding anchored to a file location. The finding is tagged with source 'mcp' automatically. Always set line_start and line_end to anchor the finding to specific code. Descriptions should reference concrete code: function names, line numbers, variable names. Before creating a finding, call list_findings (with include_resolved=true) and check for existing findings on the same file. If a finding already exists that covers the same conceptual vulnerability (even with different line ranges, CWEs, or wording), update it instead of creating a duplicate.",
+		Description: "Create a new security finding anchored to a file location. The finding is tagged with source 'mcp' automatically. Always set start and end to anchor the finding to specific code. Descriptions should reference concrete code: function names, line numbers, variable names. Before creating a finding, call list_findings (with resolved=true) and check for existing findings on the same file. If a finding already exists that covers the same conceptual vulnerability (even with different line ranges, CWEs, or wording), update it instead of creating a duplicate.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
 				"file": {"type": "string", "description": "File path"},
 				"commit": {"type": "string", "description": "Commit hash or ref where the finding was identified (e.g. HEAD, branch name, or full SHA)"},
-				"line_start": {"type": "integer", "description": "Start line number"},
-				"line_end": {"type": "integer", "description": "End line number"},
+				"start": {"type": "integer", "description": "Start line number"},
+				"end": {"type": "integer", "description": "End line number"},
 				"severity": {"type": "string", "enum": ["critical", "high", "medium", "low", "info"]},
 				"title": {"type": "string", "description": "Short title for the finding"},
 				"description": {"type": "string", "description": "Detailed description of the vulnerability"},
@@ -195,7 +195,7 @@ func toolCreateFinding(deps *toolDeps) Tool {
 				"vector": {"type": "string", "description": "CVSS vector string"},
 				"score": {"type": "number", "description": "CVSS score"},
 				"source": {"type": "string", "description": "Source tool or scanner (default: mcp)"},
-				"feature_ids": {"type": "array", "items": {"type": "string"}, "description": "Feature IDs to associate with this finding"}
+				"features": {"type": "array", "items": {"type": "string"}, "description": "Feature IDs to associate with this finding"}
 			},
 			"required": ["file", "commit", "severity", "title", "description"]
 		}`),
@@ -203,8 +203,8 @@ func toolCreateFinding(deps *toolDeps) Tool {
 			var p struct {
 				File        string   `json:"file"`
 				Commit      string   `json:"commit"`
-				LineStart   int      `json:"line_start"`
-				LineEnd     int      `json:"line_end"`
+				LineStart   int      `json:"start"`
+				LineEnd     int      `json:"end"`
 				Severity    string   `json:"severity"`
 				Title       string   `json:"title"`
 				Description string   `json:"description"`
@@ -216,7 +216,7 @@ func toolCreateFinding(deps *toolDeps) Tool {
 				Vector      string   `json:"vector"`
 				Score       float64  `json:"score"`
 				Source      string   `json:"source"`
-				FeatureIDs  []string `json:"feature_ids"`
+				FeatureIDs  []string `json:"features"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {
 				return "", fmt.Errorf("invalid params: %w", err)
@@ -291,7 +291,7 @@ func toolCreateFinding(deps *toolDeps) Tool {
 func toolUpdateFinding(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "update_finding",
-		Description: "Update a finding's metadata. Only specified fields are changed. Supports updating line_start and line_end to correct anchor positions — line_hash is recomputed automatically when the line range changes.",
+		Description: "Update a finding's metadata. Only specified fields are changed. Supports updating start and end to correct anchor positions — line_hash is recomputed automatically when the line range changes.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
@@ -309,9 +309,9 @@ func toolUpdateFinding(deps *toolDeps) Tool {
 				"source": {"type": "string", "description": "Source tool or scanner"},
 				"file": {"type": "string", "description": "New anchor file path"},
 				"commit": {"type": "string", "description": "New anchor commit"},
-				"line_start": {"type": "integer", "description": "Updated start line number"},
-				"line_end": {"type": "integer", "description": "Updated end line number"},
-				"feature_ids": {"type": "array", "items": {"type": "string"}, "description": "Feature IDs to associate (replaces full list)"}
+				"start": {"type": "integer", "description": "Updated start line number"},
+				"end": {"type": "integer", "description": "Updated end line number"},
+				"features": {"type": "array", "items": {"type": "string"}, "description": "Feature IDs to associate (replaces full list)"}
 			},
 			"required": ["id"]
 		}`),
@@ -326,10 +326,14 @@ func toolUpdateFinding(deps *toolDeps) Tool {
 			}
 			delete(raw, "id")
 
-			// Remap feature_ids → featureIds for the DB layer
-			if v, ok := raw["feature_ids"]; ok {
-				raw["featureIds"] = v
-				delete(raw, "feature_ids")
+			// Remap start/end → line_start/line_end for the DB layer
+			if v, ok := raw["start"]; ok {
+				raw["line_start"] = v
+				delete(raw, "start")
+			}
+			if v, ok := raw["end"]; ok {
+				raw["line_end"] = v
+				delete(raw, "end")
 			}
 
 			// Detect if any anchor field is changing
@@ -482,7 +486,7 @@ func toolDeleteFinding(deps *toolDeps) Tool {
 func toolResolveFinding(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "resolve_finding",
-		Description: "Mark a finding as resolved at a specific commit. Sets resolvedCommit and transitions status to 'closed'. Before resolving, add a comment (with finding_id set) explaining why the finding is resolved.",
+		Description: "Mark a finding as resolved at a specific commit. Sets resolvedCommit and transitions status to 'closed'. Before resolving, add a comment (with finding set) explaining why the finding is resolved.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
@@ -521,7 +525,7 @@ func toolResolveFinding(deps *toolDeps) Tool {
 func toolBatchCreateFindings(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "batch_create_findings",
-		Description: "Create multiple security findings in one operation. All findings are inserted in a single transaction. Returns the list of created finding IDs. Use this instead of repeated create_finding calls. Always set line_start and line_end to anchor findings to specific code. Descriptions should reference concrete code: function names, line numbers, variable names. Before creating findings, call list_findings (with include_resolved=true) and check for existing findings on the same files. If a finding already exists that covers the same conceptual vulnerability (even with different line ranges, CWEs, or wording), update it instead of creating a duplicate.",
+		Description: "Create multiple security findings in one operation. All findings are inserted in a single transaction. Returns the list of created finding IDs. Use this instead of repeated create_finding calls. Always set start and end to anchor findings to specific code. Descriptions should reference concrete code: function names, line numbers, variable names. Before creating findings, call list_findings (with resolved=true) and check for existing findings on the same files. If a finding already exists that covers the same conceptual vulnerability (even with different line ranges, CWEs, or wording), update it instead of creating a duplicate.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
@@ -532,8 +536,8 @@ func toolBatchCreateFindings(deps *toolDeps) Tool {
 						"properties": {
 							"file": {"type": "string", "description": "File path"},
 							"commit": {"type": "string", "description": "Commit hash or ref where the finding was identified (e.g. HEAD, branch name, or full SHA)"},
-							"line_start": {"type": "integer", "description": "Start line number"},
-							"line_end": {"type": "integer", "description": "End line number"},
+							"start": {"type": "integer", "description": "Start line number"},
+							"end": {"type": "integer", "description": "End line number"},
 							"severity": {"type": "string", "enum": ["critical", "high", "medium", "low", "info"]},
 							"title": {"type": "string", "description": "Short title for the finding"},
 							"description": {"type": "string", "description": "Detailed description — reference concrete code: function names, line numbers, variable names"},
@@ -545,7 +549,7 @@ func toolBatchCreateFindings(deps *toolDeps) Tool {
 							"vector": {"type": "string", "description": "CVSS vector string"},
 							"score": {"type": "number", "description": "CVSS score"},
 							"source": {"type": "string", "description": "Source tool or scanner (default: mcp)"},
-							"feature_ids": {"type": "array", "items": {"type": "string"}, "description": "Feature IDs to associate with this finding"}
+							"features": {"type": "array", "items": {"type": "string"}, "description": "Feature IDs to associate with this finding"}
 						},
 						"required": ["file", "commit", "severity", "title", "description"]
 					},
@@ -559,8 +563,8 @@ func toolBatchCreateFindings(deps *toolDeps) Tool {
 				Findings []struct {
 					File        string   `json:"file"`
 					Commit      string   `json:"commit"`
-					LineStart   int      `json:"line_start"`
-					LineEnd     int      `json:"line_end"`
+					LineStart   int      `json:"start"`
+					LineEnd     int      `json:"end"`
 					Severity    string   `json:"severity"`
 					Title       string   `json:"title"`
 					Description string   `json:"description"`
@@ -572,7 +576,7 @@ func toolBatchCreateFindings(deps *toolDeps) Tool {
 					Vector      string   `json:"vector"`
 					Score       float64  `json:"score"`
 					Source      string   `json:"source"`
-					FeatureIDs  []string `json:"feature_ids"`
+					FeatureIDs  []string `json:"features"`
 				} `json:"findings"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {

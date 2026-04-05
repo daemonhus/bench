@@ -37,7 +37,8 @@ A finding represents a discovered vulnerability or security issue.
   status: 'draft' | 'open' | 'in-progress' | 'false-positive' | 'accepted' | 'closed'
   source?: string        // tool or scanner that created it
   category?: string
-  featureIds?: string[]  // features this finding is linked to
+  features?: string[]  // features this finding is linked to
+  refs?: Ref[]           // external links (enriched inline)
   createdAt: string
   resolvedCommit?: string
 }
@@ -71,6 +72,7 @@ A comment is a code review note - free-form text attached to a location.
   parentId?: string      // reply to a specific comment
   findingId?: string     // link to a related finding
   featureId?: string     // link to a related feature
+  refs?: Ref[]           // external links (enriched inline)
   resolvedCommit?: string
 }
 ```
@@ -79,7 +81,7 @@ Comments can form threads (`threadId`), have replies (`parentId`), and be linked
 
 ### Comment types
 
-The `comment_type` field signals intent. Use it consistently so reviewers can filter and prioritize.
+The comment `type` field signals intent. Use it consistently so reviewers can filter and prioritize.
 
 | Type | Use when… |
 |------|-----------|
@@ -91,7 +93,7 @@ The `comment_type` field signals intent. Use it consistently so reviewers can fi
 
 ## Linking findings to features
 
-A finding can be linked to one or more [feature](/concepts/features) annotations via `featureIds`. This connects a vulnerability to the surface it affects. For example, link a SQL injection finding to the `source` feature for the query where it occurs.
+A finding can be linked to one or more [feature](/concepts/features) annotations via `features`. This connects a vulnerability to the surface it affects. For example, link a SQL injection finding to the `source` feature for the query where it occurs.
 
 Link whenever a finding is directly associated with a known feature. Links make findings easier to triage and show which surfaces have confirmed issues.
 
@@ -100,23 +102,23 @@ Via CLI:
 ```bash
 bench findings create \
   --severity high --title "SQL injection" \
-  --feature-ids feat-abc123,feat-def456
+  --features feat-abc123,feat-def456
 ```
 
 Via MCP:
 
 ```
-create_finding(severity="high", title="SQL injection", feature_ids=["feat-abc123"])
+create_finding(severity="high", title="SQL injection", features=["feat-abc123"])
 ```
 
 To update links on an existing finding (replaces the full list):
 
 ```bash
-bench findings update --id f-xyz --feature-ids feat-abc123
+bench findings update --id f-xyz --features feat-abc123
 ```
 
 ```
-update_finding(id="f-xyz", feature_ids=["feat-abc123"])
+update_finding(id="f-xyz", features=["feat-abc123"])
 ```
 
 Deleting a feature or finding automatically removes its links.
@@ -127,20 +129,20 @@ Via CLI:
 
 ```bash
 bench findings create \
-  --file-id src/api/auth.go --commit-id HEAD \
-  --line-start 42 --line-end 48 \
+  --file src/api/auth.go --commit HEAD \
+  --start 42 --end 48 \
   --severity high --title "SQL injection"
 
 bench comments create \
   --author alice --text "Needs a prepared statement" \
-  --file-id src/api/auth.go --commit-id HEAD --line-start 42
+  --file src/api/auth.go --commit HEAD --start 42
 ```
 
 Via MCP:
 
 ```
-create_finding(file="src/api/auth.go", commit="HEAD", line_start=42, severity="high", title="SQL injection")
-create_comment(author="alice", text="Needs a prepared statement", file="src/api/auth.go", commit="HEAD", line_start=42)
+create_finding(file="src/api/auth.go", commit="HEAD", start=42, severity="high", title="SQL injection")
+create_comment(author="alice", text="Needs a prepared statement", file="src/api/auth.go", commit="HEAD", start=42)
 ```
 
 ## Batch import

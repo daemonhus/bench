@@ -101,7 +101,7 @@ Returns `Finding[]`.
   "description": "User input concatenated directly into query",
   "cwe": "CWE-89",
   "status": "open",
-  "featureIds": ["feat-abc123"]
+  "features": ["feat-abc123"]
 }
 ```
 
@@ -109,7 +109,7 @@ Returns `Finding[]`.
 
 **Status values:** `draft` | `open` | `in-progress` | `false-positive` | `accepted` | `closed`
 
-`featureIds` links the finding to one or more feature annotations. The relationship is stored in a join table; deleting a feature or finding automatically removes the link.
+`features` links the finding to one or more feature annotations. The relationship is stored in a join table; deleting a feature or finding automatically removes the link.
 
 Returns the created `Finding`.
 
@@ -120,11 +120,11 @@ Partial update - only supplied fields are changed:
 {
   "status": "in-progress",
   "title": "Updated title",
-  "featureIds": ["feat-abc123", "feat-def456"]
+  "features": ["feat-abc123", "feat-def456"]
 }
 ```
 
-`featureIds` **replaces** the full list of linked features (same semantics as `tags` on features).
+`features` **replaces** the full list of linked features (same semantics as `tags` on features).
 
 ## Comments
 
@@ -208,8 +208,8 @@ If `commitId` is omitted, defaults to the tip of the default branch (main/master
   featuresTotal: number
   featuresActive: number
   byKind: Record<string, number>
-  findingIds: string[]  // every finding ID at snapshot time
-  featureIds: string[]  // every feature ID at snapshot time
+  findings: string[]  // every finding ID at snapshot time
+  features: string[]  // every feature ID at snapshot time
 }
 ```
 
@@ -262,7 +262,7 @@ Two delta modes:
   status: 'draft' | 'open' | 'in-progress' | 'false-positive' | 'accepted' | 'closed'
   source?: string
   category?: string
-  featureIds?: string[]  // features this finding is linked to
+  features?: string[]  // features this finding is linked to
   createdAt: string
   resolvedCommit?: string
 }

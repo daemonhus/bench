@@ -98,7 +98,7 @@ bench findings create --help
 
 ```bash
 # Regex search across the repo (uses ERE — alternation, +, ? and grouping work without escaping)
-bench git search-code --pattern "password.*=.*['\"]" --case-insensitive
+bench git search-code --pattern "password.*=.*['\"]" --ignore-case
 
 # Alternation and grouping
 bench git search-code --pattern "exec\(|eval\(" --path "src/"
@@ -133,10 +133,10 @@ bench git branches
 ```bash
 # Create a finding
 bench findings create \
-  --file-id src/api/auth.go \
-  --commit-id HEAD \
-  --line-start 42 \
-  --line-end 48 \
+  --file src/api/auth.go \
+  --commit HEAD \
+  --start 42 \
+  --end 48 \
   --severity high \
   --title "SQL injection in login handler" \
   --description "User input concatenated into query at line 45" \
@@ -156,10 +156,10 @@ bench findings get --id <finding-id>
 bench findings update --id <finding-id> --status in-progress
 
 # Link to features (replaces full list)
-bench findings update --id <finding-id> --feature-ids feat-abc123,feat-def456
+bench findings update --id <finding-id> --features feat-abc123,feat-def456
 
 # Re-anchor to a new location
-bench findings update --id <finding-id> --file-id src/api/newpath.go --commit-id HEAD --line-start 10 --line-end 20
+bench findings update --id <finding-id> --file src/api/newpath.go --commit HEAD --start 10 --end 20
 
 # Resolve a finding (marks it closed at a specific commit)
 bench findings resolve --id <finding-id> --commit <fix-commit>
@@ -192,10 +192,10 @@ The `--help` for any batch command shows the expected JSON structure:
 ```bash
 bench findings batch-create --help
 # Input format (findings):
-#   JSON array of objects. Flat anchor fields (file, commit, line_start, line_end)
+#   JSON array of objects. Flat anchor fields (file, commit, start, end)
 #   are promoted to the nested anchor automatically. IDs are generated if omitted.
 #     required: severity, title
-#     optional: category, commit, cve, cwe, description, file, line_end, line_start, score, source, status, vector
+#     optional: category, commit, cve, cwe, description, end, file, score, source, start, status, vector
 ```
 
 ## comments
@@ -205,12 +205,12 @@ bench findings batch-create --help
 bench comments create \
   --author alice \
   --text "This needs a prepared statement" \
-  --file-id src/api/auth.go \
-  --commit-id HEAD \
-  --line-start 42
+  --file src/api/auth.go \
+  --commit HEAD \
+  --start 42
 
 # List comments for a file
-bench comments list --file-id src/api/auth.go
+bench comments list --file src/api/auth.go
 
 # Get full details
 bench comments get --id <comment-id>
@@ -220,7 +220,7 @@ bench comments update --id <comment-id> --text "Updated note"
 bench comments update --id <comment-id> --author bob
 
 # Re-anchor to a new location
-bench comments update --id <comment-id> --file-id src/api/newpath.go --commit-id HEAD --line-start 55
+bench comments update --id <comment-id> --file src/api/newpath.go --commit HEAD --start 55
 
 # Resolve a comment
 bench comments resolve --id <comment-id> --commit <commit>
@@ -249,10 +249,10 @@ bench features get --id <feature-id>
 
 # Annotate an interface (title is the endpoint name, not the method; use --operation for that)
 bench features create \
-  --file-id src/api/auth.go \
-  --commit-id HEAD \
-  --line-start 12 \
-  --line-end 28 \
+  --file src/api/auth.go \
+  --commit HEAD \
+  --start 12 \
+  --end 28 \
   --kind interface \
   --title "Login endpoint" \
   --operation POST \
@@ -261,10 +261,10 @@ bench features create \
 
 # Annotate a data sink
 bench features create \
-  --file-id src/db/users.go \
-  --commit-id HEAD \
-  --line-start 44 \
-  --line-end 52 \
+  --file src/db/users.go \
+  --commit HEAD \
+  --start 44 \
+  --end 52 \
   --kind sink \
   --title "User record write" \
   --direction out
@@ -274,7 +274,7 @@ bench features update --id <feature-id> --status deprecated
 bench features update --id <feature-id> --tags auth,session
 
 # Re-anchor to a new location
-bench features update --id <feature-id> --file-id src/api/newpath.go --commit-id HEAD --line-start 12 --line-end 28
+bench features update --id <feature-id> --file src/api/newpath.go --commit HEAD --start 12 --end 28
 
 # Delete a feature
 bench features delete --id <feature-id>
@@ -283,14 +283,14 @@ bench features delete --id <feature-id>
 cat features.json | bench features batch-create
 
 # List parameters on an interface feature
-bench features params-list --feature-id <feature-id>
+bench features params-list --feature <feature-id>
 
 # Get a single parameter
-bench features params-get --feature-id <feature-id> --id <param-id>
+bench features params-get --feature <feature-id> --id <param-id>
 
 # Add a parameter
 bench features params-create \
-  --feature-id <feature-id> \
+  --feature <feature-id> \
   --name user_id \
   --type string \
   --description "Authenticated user ID" \
@@ -298,12 +298,12 @@ bench features params-create \
 
 # Update a parameter
 bench features params-update \
-  --feature-id <feature-id> \
+  --feature <feature-id> \
   --id <param-id> \
   --description "Updated note"
 
 # Delete a parameter
-bench features params-delete --feature-id <feature-id> --id <param-id>
+bench features params-delete --feature <feature-id> --id <param-id>
 ```
 
 ## baselines
@@ -353,7 +353,7 @@ When code changes move lines around, reconcile updates finding and comment posit
 bench reconcile start
 
 # Check progress
-bench reconcile status --job-id <job-id>
+bench reconcile status --job <job-id>
 
 # See how a finding's position has moved
 bench reconcile history --id <finding-id> --type finding

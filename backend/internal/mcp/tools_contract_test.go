@@ -87,8 +87,8 @@ func TestMCPToolRequiredFields(t *testing.T) {
 		{"get_blame", map[string]any{"path": "main.go"}},
 		{"read_file", map[string]any{"path": "main.go"}},
 		{"read_files", map[string]any{"paths": []any{"main.go"}}},
-		{"get_diff", map[string]any{"from_commit": head, "to_commit": head}},
-		{"list_changed_files", map[string]any{"from_commit": head, "to_commit": head}},
+		{"get_diff", map[string]any{"from": head, "to": head}},
+		{"list_changed_files", map[string]any{"from": head, "to": head}},
 		// findings
 		{"get_finding", map[string]any{"id": "nonexistent"}},
 		{"create_finding", map[string]any{
@@ -125,26 +125,26 @@ func TestMCPToolRequiredFields(t *testing.T) {
 			"file": "main.go", "commit": head, "kind": "interface", "title": "t",
 		}}}},
 		// baselines
-		{"delete_baseline", map[string]any{"baseline_id": "nonexistent"}},
+		{"delete_baseline", map[string]any{"baseline": "nonexistent"}},
 		// reconcile
 		{"get_annotation_history", map[string]any{"id": "nonexistent", "type": "finding"}},
 		// analytics
 		{"mark_reviewed", map[string]any{"path": "main.go", "commit": head}},
 		// feature parameters
-		{"list_feature_parameters", map[string]any{"feature_id": "nonexistent"}},
+		{"list_feature_parameters", map[string]any{"feature": "nonexistent"}},
 		{"get_feature_parameter", map[string]any{"id": "nonexistent"}},
-		{"create_feature_parameter", map[string]any{"feature_id": "nonexistent", "name": "user_id"}},
+		{"create_feature_parameter", map[string]any{"feature": "nonexistent", "name": "user_id"}},
 		{"update_feature_parameter", map[string]any{"id": "nonexistent", "name": "updated"}},
 		{"delete_feature_parameter", map[string]any{"id": "nonexistent"}},
 		// refs
 		{"get_ref", map[string]any{"id": "nonexistent"}},
 		{"create_ref", map[string]any{
-			"entity_type": "finding", "entity_id": "f-1", "provider": "jira", "url": "https://jira.example.com/PROJ-1",
+			"entity_type": "finding", "entity": "f-1", "provider": "jira", "url": "https://jira.example.com/PROJ-1",
 		}},
 		{"update_ref", map[string]any{"id": "nonexistent", "url": "https://updated.example.com"}},
 		{"delete_ref", map[string]any{"id": "nonexistent"}},
 		{"batch_create_refs", map[string]any{"refs": []any{map[string]any{
-			"entity_type": "finding", "entity_id": "f-1", "provider": "url", "url": "https://example.com",
+			"entity_type": "finding", "entity": "f-1", "provider": "url", "url": "https://example.com",
 		}}}},
 	}
 

@@ -42,12 +42,12 @@ Via CLI:
 ```bash
 # provider inferred from the URL
 bench refs create \
-  --entity-type finding --entity-id f-abc123 \
+  --entity-type finding --entity f-abc123 \
   --url https://github.com/org/repo/issues/42
 
 # explicit provider and display label
 bench refs create \
-  --entity-type finding --entity-id f-abc123 \
+  --entity-type finding --entity f-abc123 \
   --url https://acme.atlassian.net/browse/SEC-99 \
   --title "SEC-99: SQL injection in auth"
 ```
@@ -57,7 +57,7 @@ Via MCP:
 ```
 create_ref(
   entity_type="finding",
-  entity_id="f-abc123",
+  entity="f-abc123",
   url="https://github.com/org/repo/issues/42"
 )
 ```
@@ -87,8 +87,8 @@ echo '[
 
 ```
 batch_create_refs(refs=[
-  {"entity_type": "finding", "entity_id": "f-1", "url": "https://linear.app/team/issue/ENG-10"},
-  {"entity_type": "finding", "entity_id": "f-2", "url": "https://github.com/org/repo/issues/55"}
+  {"entity_type": "finding", "entity": "f-1", "url": "https://linear.app/team/issue/ENG-10"},
+  {"entity_type": "finding", "entity": "f-2", "url": "https://github.com/org/repo/issues/55"}
 ])
 ```
 
@@ -96,7 +96,7 @@ batch_create_refs(refs=[
 
 ## Feature references
 
-A finding can be linked to one or more [features](/concepts/features) via `featureIds`. This connects a vulnerability to the surface it exploits: a SQL injection to the `source` feature for the affected query, a broken auth check to the `interface` feature for the endpoint.
+A finding can be linked to one or more [features](/concepts/features) via `features`. This connects a vulnerability to the surface it exploits: a SQL injection to the `source` feature for the affected query, a broken auth check to the `interface` feature for the endpoint.
 
 Links make findings easier to triage and help identify which surfaces have confirmed issues.
 
@@ -114,25 +114,25 @@ At creation time:
 ```bash
 bench findings create \
   --severity high --title "SQL injection in user lookup" \
-  --feature-ids feat-abc123,feat-def456
+  --features feat-abc123,feat-def456
 ```
 
 ```
 create_finding(
   severity="high",
   title="SQL injection in user lookup",
-  feature_ids=["feat-abc123"]
+  features=["feat-abc123"]
 )
 ```
 
 Updating existing links (replaces the full list):
 
 ```bash
-bench findings update --id f-xyz --feature-ids feat-abc123
+bench findings update --id f-xyz --features feat-abc123
 ```
 
 ```
-update_finding(id="f-xyz", feature_ids=["feat-abc123", "feat-def456"])
+update_finding(id="f-xyz", features=["feat-abc123", "feat-def456"])
 ```
 
 ### In the UI

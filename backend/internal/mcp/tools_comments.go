@@ -29,24 +29,24 @@ func registerCommentTools(deps *toolDeps) []Tool {
 func toolListComments(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "list_comments",
-		Description: "List review comments. Filter by file, finding_id, or feature_id to scope results. Set full_text=true to return complete comment bodies in one call — use this instead of repeated get_comment calls when you need to read a thread.",
+		Description: "List review comments. Filter by file, finding, or feature to scope results. Set full=true to return complete comment bodies in one call — use this instead of repeated get_comment calls when you need to read a thread.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
 				"file": {"type": "string", "description": "Filter by file path"},
-				"finding_id": {"type": "string", "description": "Filter to comments linked to this finding"},
-				"feature_id": {"type": "string", "description": "Filter to comments linked to this feature"},
-				"include_resolved": {"type": "boolean", "description": "Include resolved comments (default: false)"},
-				"full_text": {"type": "boolean", "description": "Return complete comment body instead of truncated preview (default: false)"}
+				"finding": {"type": "string", "description": "Filter to comments linked to this finding"},
+				"feature": {"type": "string", "description": "Filter to comments linked to this feature"},
+				"resolved": {"type": "boolean", "description": "Include resolved comments (default: false)"},
+				"full": {"type": "boolean", "description": "Return complete comment body instead of truncated preview (default: false)"}
 			}
 		}`),
 		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
 			var p struct {
 				File            string `json:"file"`
-				FindingID       string `json:"finding_id"`
-				FeatureID       string `json:"feature_id"`
-				IncludeResolved bool   `json:"include_resolved"`
-				FullText        bool   `json:"full_text"`
+				FindingID       string `json:"finding"`
+				FeatureID       string `json:"feature"`
+				IncludeResolved bool   `json:"resolved"`
+				FullText        bool   `json:"full"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {
 				return "", fmt.Errorf("invalid params: %w", err)
@@ -159,20 +159,20 @@ func toolGetComment(deps *toolDeps) Tool {
 func toolCreateComment(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "create_comment",
-		Description: "Create a review comment anchored to a file location. To attach a comment to a finding (so it appears in the finding's discussion thread), set finding_id to the finding's ID. Comments linked to a finding should add new information — verification evidence, reproduction steps, related code paths, or remediation notes — not repeat the finding description.",
+		Description: "Create a review comment anchored to a file location. To attach a comment to a finding (so it appears in the finding's discussion thread), set finding to the finding's ID. Comments linked to a finding should add new information — verification evidence, reproduction steps, related code paths, or remediation notes — not repeat the finding description.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
 				"file": {"type": "string", "description": "File path"},
 				"commit": {"type": "string", "description": "Commit hash or ref (e.g. HEAD, branch name, or full SHA)"},
-				"line_start": {"type": "integer", "description": "Start line number"},
-				"line_end": {"type": "integer", "description": "End line number"},
+				"start": {"type": "integer", "description": "Start line number"},
+				"end": {"type": "integer", "description": "End line number"},
 				"text": {"type": "string", "description": "Comment text (markdown supported)"},
 				"author": {"type": "string", "description": "Author name (e.g. 'claude', 'reviewer-alice')"},
-				"comment_type": {"type": "string", "enum": ["feature", "improvement", "question", "concern", ""], "description": "Comment category (code review sense): 'feature'=feature request/suggestion, 'improvement'=non-critical enhancement, 'question'=needs clarification, 'concern'=potential issue. Not related to the Feature annotation entity."},
-				"finding_id": {"type": "string", "description": "Link to a finding ID (for finding-related discussion)"},
-				"feature_id": {"type": "string", "description": "Link to a feature ID (for feature-related discussion)"},
-				"parent_id": {"type": "string", "description": "Parent comment ID (for threading)"}
+				"type": {"type": "string", "enum": ["feature", "improvement", "question", "concern", ""], "description": "Comment category (code review sense): 'feature'=feature request/suggestion, 'improvement'=non-critical enhancement, 'question'=needs clarification, 'concern'=potential issue. Not related to the Feature annotation entity."},
+				"finding": {"type": "string", "description": "Link to a finding ID (for finding-related discussion)"},
+				"feature": {"type": "string", "description": "Link to a feature ID (for feature-related discussion)"},
+				"parent": {"type": "string", "description": "Parent comment ID (for threading)"}
 			},
 			"required": ["file", "commit", "text", "author"]
 		}`),
@@ -180,14 +180,14 @@ func toolCreateComment(deps *toolDeps) Tool {
 			var p struct {
 				File        string `json:"file"`
 				Commit      string `json:"commit"`
-				LineStart   int    `json:"line_start"`
-				LineEnd     int    `json:"line_end"`
+				LineStart   int    `json:"start"`
+				LineEnd     int    `json:"end"`
 				Text        string `json:"text"`
 				Author      string `json:"author"`
-				CommentType string `json:"comment_type"`
-				FindingID   string `json:"finding_id"`
-				FeatureID   string `json:"feature_id"`
-				ParentID    string `json:"parent_id"`
+				CommentType string `json:"type"`
+				FindingID   string `json:"finding"`
+				FeatureID   string `json:"feature"`
+				ParentID    string `json:"parent"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {
 				return "", fmt.Errorf("invalid params: %w", err)
@@ -270,11 +270,11 @@ func toolUpdateComment(deps *toolDeps) Tool {
 				"id": {"type": "string", "description": "Comment ID"},
 				"text": {"type": "string", "description": "New comment text"},
 				"author": {"type": "string", "description": "New author name"},
-				"comment_type": {"type": "string", "enum": ["feature", "improvement", "question", "concern", ""], "description": "Comment category (code review sense): 'feature'=feature request/suggestion, 'improvement'=non-critical enhancement, 'question'=needs clarification, 'concern'=potential issue. Not related to the Feature annotation entity."},
+				"type": {"type": "string", "enum": ["feature", "improvement", "question", "concern", ""], "description": "Comment category (code review sense): 'feature'=feature request/suggestion, 'improvement'=non-critical enhancement, 'question'=needs clarification, 'concern'=potential issue. Not related to the Feature annotation entity."},
 				"file": {"type": "string", "description": "New anchor file path"},
 				"commit": {"type": "string", "description": "New anchor commit"},
-				"line_start": {"type": "integer", "description": "New anchor start line"},
-				"line_end": {"type": "integer", "description": "New anchor end line"}
+				"start": {"type": "integer", "description": "New anchor start line"},
+				"end": {"type": "integer", "description": "New anchor end line"}
 			},
 			"required": ["id"]
 		}`),
@@ -288,6 +288,20 @@ func toolUpdateComment(deps *toolDeps) Tool {
 				return "", fmt.Errorf("id is required")
 			}
 			delete(raw, "id")
+
+			// Remap MCP param names → DB layer names
+			if v, ok := raw["start"]; ok {
+				raw["line_start"] = v
+				delete(raw, "start")
+			}
+			if v, ok := raw["end"]; ok {
+				raw["line_end"] = v
+				delete(raw, "end")
+			}
+			if v, ok := raw["type"]; ok {
+				raw["comment_type"] = v
+				delete(raw, "type")
+			}
 
 			// Detect if any anchor field is changing
 			_, hasFile := raw["file"]
@@ -456,7 +470,7 @@ func toolResolveComment(deps *toolDeps) Tool {
 func toolBatchCreateComments(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "batch_create_comments",
-		Description: "Create multiple review comments in one operation. All comments are inserted in a single transaction. Returns the list of created comment IDs. Use this instead of repeated create_comment calls. To attach comments to findings (so they appear in the finding's discussion thread), set finding_id on each comment. Comments linked to a finding should add new information — verification evidence, reproduction steps, related code paths, or remediation notes — not repeat the finding description.",
+		Description: "Create multiple review comments in one operation. All comments are inserted in a single transaction. Returns the list of created comment IDs. Use this instead of repeated create_comment calls. To attach comments to findings (so they appear in the finding's discussion thread), set finding on each comment. Comments linked to a finding should add new information — verification evidence, reproduction steps, related code paths, or remediation notes — not repeat the finding description.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
@@ -467,14 +481,14 @@ func toolBatchCreateComments(deps *toolDeps) Tool {
 						"properties": {
 							"file": {"type": "string"},
 							"commit": {"type": "string"},
-							"line_start": {"type": "integer"},
-							"line_end": {"type": "integer"},
+							"start": {"type": "integer"},
+							"end": {"type": "integer"},
 							"text": {"type": "string"},
 							"author": {"type": "string"},
-							"comment_type": {"type": "string", "enum": ["feature", "improvement", "question", "concern", ""]},
-							"finding_id": {"type": "string"},
-							"feature_id": {"type": "string"},
-							"parent_id": {"type": "string"}
+							"type": {"type": "string", "enum": ["feature", "improvement", "question", "concern", ""]},
+							"finding": {"type": "string"},
+							"feature": {"type": "string"},
+							"parent": {"type": "string"}
 						},
 						"required": ["file", "commit", "text", "author"]
 					},
@@ -488,14 +502,14 @@ func toolBatchCreateComments(deps *toolDeps) Tool {
 				Comments []struct {
 					File        string `json:"file"`
 					Commit      string `json:"commit"`
-					LineStart   int    `json:"line_start"`
-					LineEnd     int    `json:"line_end"`
+					LineStart   int    `json:"start"`
+					LineEnd     int    `json:"end"`
 					Text        string `json:"text"`
 					Author      string `json:"author"`
-					CommentType string `json:"comment_type"`
-					FindingID   string `json:"finding_id"`
-					FeatureID   string `json:"feature_id"`
-					ParentID    string `json:"parent_id"`
+					CommentType string `json:"type"`
+					FindingID   string `json:"finding"`
+					FeatureID   string `json:"feature"`
+					ParentID    string `json:"parent"`
 				} `json:"comments"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {

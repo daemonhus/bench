@@ -89,7 +89,7 @@ export interface Finding {
   resolvedCommit?: string;
   lineHash?: string;
   commentCount?: number;
-  featureIds?: string[];
+  features?: string[];
   refs?: Ref[];
 }
 
@@ -308,11 +308,11 @@ export interface Baseline {
   byCategory?: Record<string, number>;
   commentsTotal: number;
   commentsOpen: number;
-  findingIds: string[];
+  findings: string[];
   featuresTotal?: number;
   featuresActive?: number;
   byKind?: Record<string, number>;
-  featureIds?: string[];
+  features?: string[];
 }
 
 export interface FileStat {

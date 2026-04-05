@@ -78,13 +78,13 @@ bench reconcile start --file-paths src/api/auth.go,src/api/session.go
 Via MCP:
 
 ```
-reconcile(target_commit="HEAD")
+reconcile(target="HEAD")
 ```
 
 Reconciliation runs as a background job. Check progress with:
 
 ```bash
-bench reconcile status --job-id <job-id>
+bench reconcile status --job <job-id>
 ```
 
 ## What gets updated

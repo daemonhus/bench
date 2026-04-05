@@ -34,7 +34,7 @@ function findingsEqual(a: Finding[], b: Finding[]): boolean {
       a[i].status !== b[i].status ||
       a[i].severity !== b[i].severity ||
       a[i].title !== b[i].title ||
-      JSON.stringify(a[i].featureIds) !== JSON.stringify(b[i].featureIds)
+      JSON.stringify(a[i].features) !== JSON.stringify(b[i].features)
     ) return false;
   }
   return true;

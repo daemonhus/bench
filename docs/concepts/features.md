@@ -17,6 +17,8 @@ Features are architectural annotations that map the security-relevant surface of
   protocol?: string           // e.g. rest, grpc, graphql, websocket
   source?: string
   tags?: string[]
+  refs?: Ref[]                // external links (enriched inline)
+  parameters?: FeatureParameter[]  // structured inputs/outputs; meaningful for kind: 'interface'
   createdAt: string
 }
 ```
@@ -43,9 +45,52 @@ Do not include the HTTP method or protocol in `title`. Use `operation` for that.
 
 **`externality` vs `interface`:** If triggered by a scheduler or internal event → `externality`. If triggered by an inbound webhook or external message → `interface` with `direction: in`.
 
+## Parameters
+
+Parameters document the expected inputs and outputs of an `interface` feature — auth headers, path variables, query params, body fields.
+
+```typescript
+{
+  id: string
+  featureId: string
+  name: string          // e.g. "Authorization", "user_id"
+  description?: string  // what it carries, security notes
+  type?: string         // string | integer | boolean | object | array | file
+  pattern?: string      // constraint: regex, enum list, format hint
+  required: boolean
+  createdAt: string
+}
+```
+
+Parameters are ordered by `name` alphabetically in list responses.
+
+Via CLI:
+
+```bash
+bench features params-create \
+  --feature feat-abc123 \
+  --name Authorization --type string --required \
+  --description "Bearer token"
+
+bench features params-list --feature feat-abc123
+bench features params-get --id param-xyz
+bench features params-update --id param-xyz --description "JWT bearer token"
+bench features params-delete --id param-xyz
+```
+
+Via MCP:
+
+```
+create_feature_parameter(feature="feat-abc123", name="Authorization", type="string", required=true)
+list_feature_parameters(feature="feat-abc123")
+get_feature_parameter(id="param-xyz")
+update_feature_parameter(id="param-xyz", description="JWT bearer token")
+delete_feature_parameter(id="param-xyz")
+```
+
 ## Linking findings to features
 
-Findings can reference features via `featureIds`. See [Linking findings to features](/concepts/annotations#linking-findings-to-features).
+Findings can reference features via `features`. See [Linking findings to features](/concepts/annotations#linking-findings-to-features).
 
 ## Creating features
 
@@ -53,8 +98,8 @@ Via CLI:
 
 ```bash
 bench features create \
-  --file-id src/api/auth.go --commit-id HEAD \
-  --line-start 12 --line-end 28 \
+  --file src/api/auth.go --commit HEAD \
+  --start 12 --end 28 \
   --kind interface --title "Login endpoint" \
   --operation POST --protocol rest
 ```
@@ -64,7 +109,7 @@ Via MCP:
 ```
 create_feature(
   file="src/api/auth.go", commit="HEAD",
-  line_start=12, line_end=28,
+  start=12, end=28,
   kind="interface", title="Login endpoint",
   operation="POST", protocol="rest"
 )
