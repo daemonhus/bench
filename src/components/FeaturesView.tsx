@@ -243,10 +243,14 @@ export const FeaturesView: React.FC = () => {
   const featuresRef = useRef<Feature[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<FeaturesTab>('interfaces');
-  const [sortOrder, setSortOrder] = useState<FeatureSort>('file');
+  const [sortOrder, setSortOrder] = useState<FeatureSort>(() => {
+    try { return (sessionStorage.getItem('bench-features-sort-order') as FeatureSort) ?? 'file'; } catch { return 'file'; }
+  });
   const { query: searchQuery, setQuery: setSearchQuery, matcher: searchMatcher, isRegexValid } =
     useRegexSearch('bench-features-search');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>(() => {
+    try { return (sessionStorage.getItem('bench-features-sort-dir') as 'asc' | 'desc') ?? 'asc'; } catch { return 'asc'; }
+  });
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => {
     try {
       const stored = localStorage.getItem('bench-collapsed-features');
@@ -284,6 +288,14 @@ export const FeaturesView: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('bench-collapsed-features', JSON.stringify([...collapsedIds]));
   }, [collapsedIds]);
+
+  useEffect(() => {
+    try { sessionStorage.setItem('bench-features-sort-order', sortOrder); } catch {}
+  }, [sortOrder]);
+
+  useEffect(() => {
+    try { sessionStorage.setItem('bench-features-sort-dir', sortDir); } catch {}
+  }, [sortDir]);
 
   useEffect(() => {
     if (!scrollToFeature) return;

@@ -18,12 +18,14 @@
 </p>
 
 <div align="center">
-<strong>A devilishy good workbench for code reviews and long-lived annotations</strong><br/>
-
-The workspace for findings, comments, and features: anchored to their positions and tracked across commits, so they stay accurate as the code evolves.<br/>
-Point-in-time baselines snapshot the state of code and measure progress over time, or since you (or your agent) last looked at the codebase.<br/>
-Ships with a full-parity CLI and MCP to supercharge reviews.
+  <strong>A devilishy good workbench for code reviews and long-lived annotations</strong><br/>
 </div>
+
+The workspace for findings, comments, and features: anchored to their positions and tracked across commits, so they stay accurate as the code evolves.
+
+Point-in-time baselines snapshot the state of code and measure progress over time, or since you (or your agent) last looked at the codebase.
+
+Ships with a full-parity CLI and MCP to supercharge reviews.
 
 
 ## Quick Start
