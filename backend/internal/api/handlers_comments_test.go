@@ -2,8 +2,11 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	"bench/internal/model"
@@ -173,6 +176,45 @@ func TestCommentsAPI_LineRangeEndOmitted(t *testing.T) {
 
 	if w.Code != 201 {
 		t.Fatalf("status = %d, want 201; body: %s", w.Code, w.Body.String())
+	}
+}
+
+// TestCommentsAPI_RapidConcurrentCreation fires many comment POSTs simultaneously
+// over a real HTTP connection to catch EOF/connection-drop regressions.
+func TestCommentsAPI_RapidConcurrentCreation(t *testing.T) {
+	router, _ := setupEnv(t)
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	const n = 30
+	var wg sync.WaitGroup
+	errs := make([]string, n)
+
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			body := fmt.Sprintf(
+				`{"author":"alice","text":"comment %d","threadId":"t%d","timestamp":"2024-01-01T00:00:00Z","anchor":{"fileId":"src/a.go","commitId":"abc"}}`,
+				i, i,
+			)
+			resp, err := http.Post(server.URL+"/api/comments", "application/json", strings.NewReader(body))
+			if err != nil {
+				errs[i] = fmt.Sprintf("comment %d: %v", i, err)
+				return
+			}
+			resp.Body.Close()
+			if resp.StatusCode != http.StatusCreated {
+				errs[i] = fmt.Sprintf("comment %d: status %d", i, resp.StatusCode)
+			}
+		}(i)
+	}
+	wg.Wait()
+
+	for _, e := range errs {
+		if e != "" {
+			t.Error(e)
+		}
 	}
 }
 

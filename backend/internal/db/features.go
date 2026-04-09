@@ -77,6 +77,10 @@ func (d *DB) ListFeatures(fileID string, limit, offset int) ([]model.Feature, in
 }
 
 func (d *DB) GetFeature(id string) (*model.Feature, error) {
+	id, err := d.resolveID("features", id)
+	if err != nil {
+		return nil, err
+	}
 	rows, err := d.conn.Query(
 		`SELECT id, anchor_file_id, anchor_commit_id, anchor_line_start, anchor_line_end,
 			kind, title, description, operation, direction, protocol, status, tags, source, created_at, resolved_commit, line_hash, anchor_updated_at
@@ -154,6 +158,10 @@ func (d *DB) CreateFeature(f *model.Feature) error {
 }
 
 func (d *DB) UpdateFeature(id string, updates map[string]any) (*model.Feature, error) {
+	id, err := d.resolveID("features", id)
+	if err != nil {
+		return nil, err
+	}
 	allowed := map[string]string{
 		"kind":              "kind",
 		"title":             "title",
@@ -210,7 +218,7 @@ func (d *DB) UpdateFeature(id string, updates map[string]any) (*model.Feature, e
 	}
 	query += " WHERE id = ? AND project_id = ?"
 
-	err := wq0(d.wq, func() error {
+	err = wq0(d.wq, func() error {
 		res, err := d.conn.Exec(query, args...)
 		if err != nil {
 			return fmt.Errorf("update feature: %w", err)
@@ -228,6 +236,10 @@ func (d *DB) UpdateFeature(id string, updates map[string]any) (*model.Feature, e
 }
 
 func (d *DB) DeleteFeature(id string) error {
+	id, err := d.resolveID("features", id)
+	if err != nil {
+		return err
+	}
 	return wq0(d.wq, func() error {
 		tx, err := d.conn.Begin()
 		if err != nil {
@@ -427,9 +439,13 @@ func (d *DB) ListParameters(featureID string) ([]model.FeatureParameter, error) 
 
 // GetParameter returns a single feature parameter by ID.
 func (d *DB) GetParameter(id string) (*model.FeatureParameter, error) {
+	id, err := d.resolveID("feature_parameters", id)
+	if err != nil {
+		return nil, err
+	}
 	var p model.FeatureParameter
 	var req int
-	err := d.conn.QueryRow(
+	err = d.conn.QueryRow(
 		`SELECT id, feature_id, name, description, type, pattern, required, created_at
 		FROM feature_parameters WHERE id = ? AND project_id = ?`,
 		id, d.projectID,
@@ -465,6 +481,10 @@ func (d *DB) CreateParameter(p *model.FeatureParameter) error {
 
 // UpdateParameter applies a partial update to a feature parameter and returns the updated record.
 func (d *DB) UpdateParameter(id string, updates map[string]any) (*model.FeatureParameter, error) {
+	id, err := d.resolveID("feature_parameters", id)
+	if err != nil {
+		return nil, err
+	}
 	allowed := map[string]string{
 		"name":        "name",
 		"description": "description",
@@ -497,7 +517,7 @@ func (d *DB) UpdateParameter(id string, updates map[string]any) (*model.FeatureP
 	args = append(args, id, d.projectID)
 	query := "UPDATE feature_parameters SET " + strings.Join(setClauses, ", ") + " WHERE id = ? AND project_id = ?"
 
-	err := wq0(d.wq, func() error {
+	err = wq0(d.wq, func() error {
 		res, err := d.conn.Exec(query, args...)
 		if err != nil {
 			return fmt.Errorf("update parameter: %w", err)
@@ -516,6 +536,10 @@ func (d *DB) UpdateParameter(id string, updates map[string]any) (*model.FeatureP
 
 // DeleteParameter removes a feature parameter by ID.
 func (d *DB) DeleteParameter(id string) error {
+	id, err := d.resolveID("feature_parameters", id)
+	if err != nil {
+		return err
+	}
 	return wq0(d.wq, func() error {
 		res, err := d.conn.Exec(
 			`DELETE FROM feature_parameters WHERE id = ? AND project_id = ?`,

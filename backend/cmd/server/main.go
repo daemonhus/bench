@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	workbench "bench"
 	"bench/internal/api"
@@ -27,8 +28,15 @@ func main() {
 	mux.Handle("/mcp", wb.MCPHandler())
 	mux.Handle("/", workbench.SPAHandler())
 
+	srv := &http.Server{
+		Addr:         *addr,
+		Handler:      api.WithMiddleware(mux),
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  120 * time.Second,
+	}
 	log.Printf("listening on %s (repo=%s, db=%s)", *addr, *repoPath, *dbPath)
-	if err := http.ListenAndServe(*addr, api.WithMiddleware(mux)); err != nil {
+	if err := srv.ListenAndServe(); err != nil {
 		log.Fatal(err)
 	}
 }

@@ -1,6 +1,7 @@
 package git
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os/exec"
@@ -8,9 +9,12 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"bench/internal/model"
 )
+
+const gitTimeout = 10 * time.Second
 
 // gitExitError carries the exit code alongside the command output so callers
 // can distinguish "no matches" (exit 1) from real failures without re-parsing
@@ -63,9 +67,14 @@ func (r *Repo) validatePath(p string) error {
 }
 
 func (r *Repo) run(args ...string) (string, error) {
-	cmd := exec.Command("git", append([]string{"-C", r.path}, args...)...)
+	ctx, cancel := context.WithTimeout(context.Background(), gitTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", r.path}, args...)...)
 	out, err := cmd.Output()
 	if err != nil {
+		if ctx.Err() != nil {
+			return "", fmt.Errorf("git %s: timed out after %s", args[0], gitTimeout)
+		}
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			return "", &gitExitError{cmd: args[0], stderr: strings.TrimSpace(string(exitErr.Stderr)), code: exitErr.ExitCode()}
 		}
@@ -407,8 +416,13 @@ func (r *Repo) IsAncestor(ancestor, descendant string) (bool, error) {
 	if err := r.validateRef(descendant); err != nil {
 		return false, err
 	}
-	cmd := exec.Command("git", "-C", r.path, "merge-base", "--is-ancestor", ancestor, descendant)
+	ctx, cancel := context.WithTimeout(context.Background(), gitTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", "-C", r.path, "merge-base", "--is-ancestor", ancestor, descendant)
 	err := cmd.Run()
+	if ctx.Err() != nil {
+		return false, fmt.Errorf("git merge-base --is-ancestor: timed out after %s", gitTimeout)
+	}
 	if err == nil {
 		return true, nil
 	}

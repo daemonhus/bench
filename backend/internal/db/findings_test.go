@@ -281,6 +281,73 @@ func TestBatchCreateFindings_WithFeatureIDs(t *testing.T) {
 	}
 }
 
+func TestCreateFinding_SeverityInformationalNormalized(t *testing.T) {
+	d := openTestDB(t)
+
+	f := &model.Finding{
+		ID:       "f1",
+		Anchor:   model.Anchor{FileID: "src/a.go", CommitID: "abc"},
+		Severity: "informational",
+		Title:    "noisy finding",
+		Status:   "open",
+		Source:   "mcp",
+	}
+	if err := d.CreateFinding(f); err != nil {
+		t.Fatalf("CreateFinding: %v", err)
+	}
+	if f.Severity != "info" {
+		t.Errorf("in-memory severity = %q, want 'info'", f.Severity)
+	}
+
+	got, err := d.GetFinding("f1")
+	if err != nil {
+		t.Fatalf("GetFinding: %v", err)
+	}
+	if got.Severity != "info" {
+		t.Errorf("stored severity = %q, want 'info'", got.Severity)
+	}
+}
+
+func TestUpdateFinding_SeverityInformationalNormalized(t *testing.T) {
+	d := openTestDB(t)
+
+	f := &model.Finding{
+		ID: "f1", Anchor: model.Anchor{FileID: "src/a.go", CommitID: "abc"},
+		Severity: "high", Title: "x", Status: "open", Source: "mcp",
+	}
+	d.CreateFinding(f)
+
+	updated, err := d.UpdateFinding("f1", map[string]any{"severity": "informational"})
+	if err != nil {
+		t.Fatalf("UpdateFinding: %v", err)
+	}
+	if updated.Severity != "info" {
+		t.Errorf("updated severity = %q, want 'info'", updated.Severity)
+	}
+}
+
+func TestBatchCreateFindings_SeverityInformationalNormalized(t *testing.T) {
+	d := openTestDB(t)
+
+	findings := []model.Finding{
+		{
+			ID: "f1", Anchor: model.Anchor{FileID: "src/a.go", CommitID: "abc"},
+			Severity: "informational", Title: "A", Status: "open", Source: "mcp",
+		},
+	}
+	if _, err := d.BatchCreateFindings(findings); err != nil {
+		t.Fatalf("BatchCreateFindings: %v", err)
+	}
+
+	got, err := d.GetFinding("f1")
+	if err != nil {
+		t.Fatalf("GetFinding: %v", err)
+	}
+	if got.Severity != "info" {
+		t.Errorf("stored severity = %q, want 'info'", got.Severity)
+	}
+}
+
 func TestBatchResolveFindings(t *testing.T) {
 	d := openTestDB(t)
 

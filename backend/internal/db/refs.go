@@ -83,8 +83,12 @@ func (d *DB) ListRefs(entityType, entityID, provider string) ([]model.Ref, error
 }
 
 func (d *DB) GetRef(id string) (*model.Ref, error) {
+	id, err := d.resolveID("refs", id)
+	if err != nil {
+		return nil, err
+	}
 	var r model.Ref
-	err := d.conn.QueryRow(
+	err = d.conn.QueryRow(
 		`SELECT id, entity_type, entity_id, provider, url, title, created_at FROM refs WHERE id = ? AND project_id = ?`,
 		id, d.projectID,
 	).Scan(&r.ID, &r.EntityType, &r.EntityID, &r.Provider, &r.URL, &r.Title, &r.CreatedAt)
@@ -151,6 +155,10 @@ func (d *DB) BatchCreateRefs(refs []model.Ref) ([]string, error) {
 }
 
 func (d *DB) UpdateRef(id string, updates map[string]any) (*model.Ref, error) {
+	id, err := d.resolveID("refs", id)
+	if err != nil {
+		return nil, err
+	}
 	allowed := map[string]string{
 		"provider": "provider",
 		"url":      "url",
@@ -169,7 +177,7 @@ func (d *DB) UpdateRef(id string, updates map[string]any) (*model.Ref, error) {
 		return nil, fmt.Errorf("no valid fields to update")
 	}
 
-	err := wq0(d.wq, func() error {
+	err = wq0(d.wq, func() error {
 		args2 := append(args, id, d.projectID)
 		query := "UPDATE refs SET " + strings.Join(setClauses, ", ") + " WHERE id = ? AND project_id = ?"
 		res, err := d.conn.Exec(query, args2...)
@@ -189,6 +197,10 @@ func (d *DB) UpdateRef(id string, updates map[string]any) (*model.Ref, error) {
 }
 
 func (d *DB) DeleteRef(id string) error {
+	id, err := d.resolveID("refs", id)
+	if err != nil {
+		return err
+	}
 	return wq0(d.wq, func() error {
 		res, err := d.conn.Exec(`DELETE FROM refs WHERE id = ? AND project_id = ?`, id, d.projectID)
 		if err != nil {

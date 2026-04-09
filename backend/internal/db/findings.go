@@ -139,6 +139,9 @@ func (d *DB) ListFindings(fileID string, limit, offset int) ([]model.Finding, in
 }
 
 func (d *DB) CreateFinding(f *model.Finding) error {
+	if f.Severity == "informational" {
+		f.Severity = "info"
+	}
 	var lineStart, lineEnd *int
 	if f.Anchor.LineRange != nil {
 		lineStart = &f.Anchor.LineRange.Start
@@ -173,6 +176,10 @@ func (d *DB) CreateFinding(f *model.Finding) error {
 }
 
 func (d *DB) UpdateFinding(id string, updates map[string]any) (*model.Finding, error) {
+	id, err := d.resolveID("findings", id)
+	if err != nil {
+		return nil, err
+	}
 	allowed := map[string]string{
 		"severity":          "severity",
 		"title":             "title",
@@ -195,6 +202,10 @@ func (d *DB) UpdateFinding(id string, updates map[string]any) (*model.Finding, e
 		"line_end":          "anchor_line_end",
 		"line_hash":         "line_hash",
 		"anchor_updated_at": "anchor_updated_at",
+	}
+
+	if sev, ok := updates["severity"].(string); ok && sev == "informational" {
+		updates["severity"] = "info"
 	}
 
 	// Extract features before building SET clause — handled separately via join table.
@@ -228,7 +239,7 @@ func (d *DB) UpdateFinding(id string, updates map[string]any) (*model.Finding, e
 		return nil, fmt.Errorf("no valid fields to update")
 	}
 
-	err := wq0(d.wq, func() error {
+	err = wq0(d.wq, func() error {
 		tx, err := d.conn.Begin()
 		if err != nil {
 			return fmt.Errorf("begin tx: %w", err)
@@ -269,10 +280,14 @@ func (d *DB) UpdateFinding(id string, updates map[string]any) (*model.Finding, e
 }
 
 func (d *DB) GetFinding(id string) (*model.Finding, error) {
+	id, err := d.resolveID("findings", id)
+	if err != nil {
+		return nil, err
+	}
 	var f model.Finding
 	var lineStart, lineEnd sql.NullInt64
 	var resolvedCommit, anchorUpdatedAt sql.NullString
-	err := d.conn.QueryRow(
+	err = d.conn.QueryRow(
 		`SELECT id, anchor_file_id, anchor_commit_id, anchor_line_start, anchor_line_end,
 			severity, title, description, cwe, cve, vector, score, status, source, category, created_at, resolved_commit, line_hash, external_id, anchor_updated_at
 		FROM findings WHERE id = ? AND project_id = ?`, id, d.projectID,
@@ -328,6 +343,9 @@ func (d *DB) BatchCreateFindings(findings []model.Finding) ([]string, error) {
 		ids := make([]string, 0, len(findings))
 		for i := range findings {
 			f := &findings[i]
+			if f.Severity == "informational" {
+				f.Severity = "info"
+			}
 			var lineStart, lineEnd *int
 			if f.Anchor.LineRange != nil {
 				lineStart = &f.Anchor.LineRange.Start
@@ -390,6 +408,10 @@ func (d *DB) BatchResolveFindings(items []struct{ ID, Commit string }) (int, err
 }
 
 func (d *DB) DeleteFinding(id string) error {
+	id, err := d.resolveID("findings", id)
+	if err != nil {
+		return err
+	}
 	return wq0(d.wq, func() error {
 		tx, err := d.conn.Begin()
 		if err != nil {

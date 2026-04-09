@@ -57,6 +57,40 @@ func (d *DB) Close() error {
 	return nil
 }
 
+// resolveID returns the full ID matching id or its prefix within this project's table.
+// id may be a full UUID or any unambiguous prefix. Returns an error if the prefix
+// matches zero rows (not found) or more than one row (ambiguous).
+// table must be a hardcoded table name — it is interpolated directly into SQL.
+func (d *DB) resolveID(table, id string) (string, error) {
+	rows, err := d.conn.Query(
+		fmt.Sprintf("SELECT id FROM %s WHERE project_id = ? AND id LIKE ? LIMIT 2", table),
+		d.projectID, id+"%",
+	)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var full string
+		if err := rows.Scan(&full); err != nil {
+			return "", err
+		}
+		ids = append(ids, full)
+	}
+	if err := rows.Err(); err != nil {
+		return "", err
+	}
+	switch len(ids) {
+	case 0:
+		return "", fmt.Errorf("%s not found: %s", table[:len(table)-1], id)
+	case 1:
+		return ids[0], nil
+	default:
+		return "", fmt.Errorf("ambiguous id prefix %q matches multiple %s", id, table)
+	}
+}
+
 func (d *DB) migrate() error {
 	stmts := []string{
 		`CREATE TABLE IF NOT EXISTS findings (

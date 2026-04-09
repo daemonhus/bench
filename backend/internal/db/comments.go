@@ -120,10 +120,14 @@ func (d *DB) CreateComment(c *model.Comment) error {
 }
 
 func (d *DB) GetComment(id string) (*model.Comment, error) {
+	id, err := d.resolveID("comments", id)
+	if err != nil {
+		return nil, err
+	}
 	var c model.Comment
 	var lineStart, lineEnd sql.NullInt64
 	var parentID, findingID, featureID, resolvedCommit, anchorUpdatedAt sql.NullString
-	err := d.conn.QueryRow(
+	err = d.conn.QueryRow(
 		`SELECT id, anchor_file_id, anchor_commit_id, anchor_line_start, anchor_line_end,
 			author, text, comment_type, timestamp, thread_id, parent_id, finding_id, feature_id, resolved_commit, line_hash, anchor_updated_at
 		FROM comments WHERE id = ? AND project_id = ?`, id, d.projectID,
@@ -158,6 +162,10 @@ func (d *DB) GetComment(id string) (*model.Comment, error) {
 }
 
 func (d *DB) UpdateComment(id string, updates map[string]any) error {
+	id, err := d.resolveID("comments", id)
+	if err != nil {
+		return err
+	}
 	allowed := map[string]string{
 		"text":              "text",
 		"author":            "author",
@@ -247,12 +255,21 @@ func (d *DB) BatchCreateComments(comments []model.Comment) ([]string, error) {
 }
 
 func (d *DB) DeleteComment(id string) error {
+	id, err := d.resolveID("comments", id)
+	if err != nil {
+		return err
+	}
 	return wq0(d.wq, func() error {
-		// Remove refs for this comment
-		if _, err := d.conn.Exec(`DELETE FROM refs WHERE entity_type = 'comment' AND entity_id = ? AND project_id = ?`, id, d.projectID); err != nil {
+		tx, err := d.conn.Begin()
+		if err != nil {
+			return fmt.Errorf("begin tx: %w", err)
+		}
+		defer tx.Rollback()
+
+		if _, err := tx.Exec(`DELETE FROM refs WHERE entity_type = 'comment' AND entity_id = ? AND project_id = ?`, id, d.projectID); err != nil {
 			return fmt.Errorf("delete refs: %w", err)
 		}
-		res, err := d.conn.Exec(`DELETE FROM comments WHERE id = ? AND project_id = ?`, id, d.projectID)
+		res, err := tx.Exec(`DELETE FROM comments WHERE id = ? AND project_id = ?`, id, d.projectID)
 		if err != nil {
 			return err
 		}
@@ -260,7 +277,7 @@ func (d *DB) DeleteComment(id string) error {
 		if n == 0 {
 			return fmt.Errorf("comment not found: %s", id)
 		}
-		return nil
+		return tx.Commit()
 	})
 }
 
