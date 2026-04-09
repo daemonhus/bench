@@ -126,7 +126,10 @@ func (h *featuresHandlers) create(w http.ResponseWriter, r *http.Request) {
 			lines := strings.Split(content, "\n")
 			start := f.Anchor.LineRange.Start - 1
 			end := f.Anchor.LineRange.End
-			if start >= 0 && end <= len(lines) {
+			if end == 0 {
+				end = f.Anchor.LineRange.Start
+			}
+			if start >= 0 && start < end && end <= len(lines) {
 				f.LineHash = reconcile.LineHash(lines[start:end])
 			}
 		}

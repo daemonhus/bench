@@ -261,6 +261,56 @@ func TestBuildRequest_PathSubstitution_Commitish_Default(t *testing.T) {
 	}
 }
 
+// TestBuildRequest_StartWithoutEnd_DefaultsToStart verifies the fix for the
+// slice-bounds panic: when --start is given but --end is omitted, the CLI
+// should default lineRange.end to lineRange.start instead of leaving it absent
+// (which the server would deserialize as 0, causing lines[N:0] to panic).
+func TestBuildRequest_StartWithoutEnd_DefaultsToStart(t *testing.T) {
+	for _, cat := range []string{"comments", "findings", "features"} {
+		t.Run(cat, func(t *testing.T) {
+			cmd := findCmd(cat, "create")
+			if cmd == nil {
+				t.Fatalf("command %s create not found", cat)
+			}
+			// Build a minimal set of required flags plus --start without --end.
+			args := []string{"--file", "src/a.go", "--commit", "abc123", "--start", "23"}
+			switch cat {
+			case "comments":
+				args = append(args, "--author", "alice", "--text", "note")
+			case "findings":
+				args = append(args, "--title", "SQLi", "--severity", "high")
+			case "features":
+				args = append(args, "--kind", "interface", "--title", "Login")
+			}
+			pf, err := parseFlags(cmd.Flags, args)
+			if err != nil {
+				t.Fatalf("parseFlags: %v", err)
+			}
+			_, _, body, _, err := buildRequest(cmd, pf)
+			if err != nil {
+				t.Fatalf("buildRequest: %v", err)
+			}
+			m := parseBody(t, body)
+			anchor, ok := m["anchor"].(map[string]any)
+			if !ok {
+				t.Fatalf("anchor missing from body; keys: %v", keys(m))
+			}
+			lr, ok := anchor["lineRange"].(map[string]any)
+			if !ok {
+				t.Fatalf("lineRange missing from anchor; anchor keys: %v", keys(anchor))
+			}
+			start := int(lr["start"].(float64))
+			end := int(lr["end"].(float64))
+			if start != 23 {
+				t.Errorf("lineRange.start = %d, want 23", start)
+			}
+			if end != 23 {
+				t.Errorf("lineRange.end = %d, want 23 (defaulted from start)", end)
+			}
+		})
+	}
+}
+
 func TestBuildRequest_ListType_Tags(t *testing.T) {
 	cmd := findCmd("features", "create")
 	pf, _ := parseFlags(cmd.Flags, []string{

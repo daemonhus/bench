@@ -256,7 +256,7 @@ func toolCreateFinding(deps *toolDeps) Tool {
 					lines := strings.Split(content, "\n")
 					start := p.LineStart - 1
 					end := p.LineEnd
-					if start >= 0 && end <= len(lines) {
+					if start >= 0 && start < end && end <= len(lines) {
 						f.LineHash = reconcile.LineHash(lines[start:end])
 					}
 				}
@@ -390,7 +390,7 @@ func toolUpdateFinding(deps *toolDeps) Tool {
 							lines := strings.Split(content, "\n")
 							s := newStart - 1
 							e := newEnd
-							if s >= 0 && e <= len(lines) {
+							if s >= 0 && s < e && e <= len(lines) {
 								raw["line_hash"] = reconcile.LineHash(lines[s:e])
 							}
 						}
@@ -625,7 +625,7 @@ func toolBatchCreateFindings(deps *toolDeps) Tool {
 						lines := strings.Split(content, "\n")
 						start := pf.LineStart - 1
 						end := pf.LineEnd
-						if start >= 0 && end <= len(lines) {
+						if start >= 0 && start < end && end <= len(lines) {
 							f.LineHash = reconcile.LineHash(lines[start:end])
 						}
 					}

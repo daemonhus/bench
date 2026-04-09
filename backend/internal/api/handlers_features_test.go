@@ -211,3 +211,34 @@ func TestFeaturesAPI_ListFilterByKind(t *testing.T) {
 		t.Errorf("kind = %q, want sink", list[0].Kind)
 	}
 }
+
+// TestFeaturesAPI_LineRangeEndOmitted verifies that lineRange.end absent
+// (deserializes as 0) does not panic the server.
+func TestFeaturesAPI_LineRangeEndOmitted(t *testing.T) {
+	router, _ := setupEnv(t)
+
+	body := `{"id":"feat1","anchor":{"fileId":"readme.txt","commitId":"HEAD","lineRange":{"start":1}},"kind":"interface","title":"Login"}`
+	req := httptest.NewRequest("POST", "/api/features", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != 201 {
+		t.Fatalf("status = %d, want 201; body: %s", w.Code, w.Body.String())
+	}
+}
+
+// TestFeaturesAPI_LineRangeInverted verifies that start > end does not panic.
+func TestFeaturesAPI_LineRangeInverted(t *testing.T) {
+	router, _ := setupEnv(t)
+
+	body := `{"id":"feat1","anchor":{"fileId":"readme.txt","commitId":"HEAD","lineRange":{"start":5,"end":2}},"kind":"interface","title":"Login"}`
+	req := httptest.NewRequest("POST", "/api/features", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != 201 {
+		t.Fatalf("status = %d, want 201; body: %s", w.Code, w.Body.String())
+	}
+}

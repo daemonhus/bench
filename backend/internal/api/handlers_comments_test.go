@@ -157,3 +157,37 @@ func TestCommentsAPI_FilterByFinding(t *testing.T) {
 		t.Errorf("got comment %q, want c1", list[0].ID)
 	}
 }
+
+// TestCommentsAPI_LineRangeEndOmitted verifies that creating a comment with
+// lineRange.end absent (deserializes as 0) does not panic the server.
+// This was the original bug: lines[start:0] when start > 0.
+func TestCommentsAPI_LineRangeEndOmitted(t *testing.T) {
+	router, _ := setupEnv(t)
+
+	// lineRange has start but no end — end will deserialize as 0.
+	body := `{"id":"c1","author":"alice","text":"note","threadId":"t1","timestamp":"2024-01-01T00:00:00Z","anchor":{"fileId":"readme.txt","commitId":"HEAD","lineRange":{"start":1}}}`
+	req := httptest.NewRequest("POST", "/api/comments", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != 201 {
+		t.Fatalf("status = %d, want 201; body: %s", w.Code, w.Body.String())
+	}
+}
+
+// TestCommentsAPI_LineRangeInverted verifies that start > end does not panic.
+// The guard should skip lineHash computation and let the create succeed.
+func TestCommentsAPI_LineRangeInverted(t *testing.T) {
+	router, _ := setupEnv(t)
+
+	body := `{"id":"c1","author":"alice","text":"note","threadId":"t1","timestamp":"2024-01-01T00:00:00Z","anchor":{"fileId":"readme.txt","commitId":"HEAD","lineRange":{"start":5,"end":2}}}`
+	req := httptest.NewRequest("POST", "/api/comments", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != 201 {
+		t.Fatalf("status = %d, want 201; body: %s", w.Code, w.Body.String())
+	}
+}

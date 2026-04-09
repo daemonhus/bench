@@ -227,7 +227,7 @@ func toolCreateComment(deps *toolDeps) Tool {
 					lines := strings.Split(content, "\n")
 					start := p.LineStart - 1
 					end := p.LineEnd
-					if start >= 0 && end <= len(lines) {
+					if start >= 0 && start < end && end <= len(lines) {
 						c.LineHash = reconcile.LineHash(lines[start:end])
 					}
 				}
@@ -356,7 +356,7 @@ func toolUpdateComment(deps *toolDeps) Tool {
 							lines := strings.Split(content, "\n")
 							s := newStart - 1
 							e := newEnd
-							if s >= 0 && e <= len(lines) {
+							if s >= 0 && s < e && e <= len(lines) {
 								raw["line_hash"] = reconcile.LineHash(lines[s:e])
 							}
 						}
@@ -560,7 +560,7 @@ func toolBatchCreateComments(deps *toolDeps) Tool {
 						lines := strings.Split(content, "\n")
 						start := pc.LineStart - 1
 						end := pc.LineEnd
-						if start >= 0 && end <= len(lines) {
+						if start >= 0 && start < end && end <= len(lines) {
 							c.LineHash = reconcile.LineHash(lines[start:end])
 						}
 					}

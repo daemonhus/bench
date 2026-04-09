@@ -795,6 +795,13 @@ func buildRequest(cmd *cmdDef, pf *parsedFlags) (method, path string, body io.Re
 				obj[fd.Param] = val
 			}
 		}
+		// Default lineRange.end to lineRange.start when only --start was given.
+		if lr, ok := anchor["lineRange"].(map[string]any); ok {
+			if _, hasEnd := lr["end"]; !hasEnd {
+				lr["end"] = lr["start"]
+			}
+		}
+
 		if anchor != nil {
 			obj["anchor"] = anchor
 		}
@@ -1021,6 +1028,13 @@ func normalizeBatchItem(raw json.RawMessage) (json.RawMessage, error) {
 		lr["start"] = *lineStart
 		lr["end"] = *lineEnd
 		anchor["lineRange"] = lr
+	}
+
+	// Default lineRange.end to lineRange.start when only start was provided.
+	if lr, ok := anchor["lineRange"].(map[string]any); ok {
+		if _, hasEnd := lr["end"]; !hasEnd {
+			lr["end"] = lr["start"]
+		}
 	}
 
 	if len(anchor) > 0 {

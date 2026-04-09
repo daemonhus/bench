@@ -184,3 +184,34 @@ func TestFindingsAPI_BodyTooLarge(t *testing.T) {
 		t.Fatalf("status = %d, want 413", w.Code)
 	}
 }
+
+// TestFindingsAPI_LineRangeEndOmitted verifies that lineRange.end absent
+// (deserializes as 0) does not panic the server.
+func TestFindingsAPI_LineRangeEndOmitted(t *testing.T) {
+	router, _ := setupEnv(t)
+
+	body := `{"id":"f1","title":"SQLi","severity":"high","status":"open","source":"mcp","anchor":{"fileId":"readme.txt","commitId":"HEAD","lineRange":{"start":1}}}`
+	req := httptest.NewRequest("POST", "/api/findings", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != 201 {
+		t.Fatalf("status = %d, want 201; body: %s", w.Code, w.Body.String())
+	}
+}
+
+// TestFindingsAPI_LineRangeInverted verifies that start > end does not panic.
+func TestFindingsAPI_LineRangeInverted(t *testing.T) {
+	router, _ := setupEnv(t)
+
+	body := `{"id":"f1","title":"SQLi","severity":"high","status":"open","source":"mcp","anchor":{"fileId":"readme.txt","commitId":"HEAD","lineRange":{"start":5,"end":2}}}`
+	req := httptest.NewRequest("POST", "/api/findings", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != 201 {
+		t.Fatalf("status = %d, want 201; body: %s", w.Code, w.Body.String())
+	}
+}
