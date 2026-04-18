@@ -1,22 +1,28 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useAnnotationStore } from '../stores/annotation-store';
 import { useRepoStore } from '../stores/repo-store';
 import { useUIStore } from '../stores/ui-store';
 import { gitApi } from '../core/api';
+import { useSnippetState } from '../core/use-snippet-state';
 import { detectLanguage, ensureLanguageRegistered } from '../core/language-map';
 import { highlight, renderToken } from '../core/tokenizer';
 import { InlineMarkdown } from '../core/markdown';
 import type { Feature, FeatureKind, FeatureStatus, FeatureParameter } from '../core/types';
 import { RefProviderIcon } from './RefProviderIcon';
 import { RefManageModal } from './RefManageModal';
+import { LinkManageModal } from './LinkManageModal';
 
 interface FeatureCardProps {
   feature: Feature;
   isExpanded: boolean;
+  expandSnippetsTick?: number;
+  collapseSnippetsTick?: number;
+  onSnippetCollapsedChange?: (collapsed: boolean) => void;
   onToggle: () => void;
   onScrollTo?: () => void;
   compact?: boolean;
+  allFeatures?: Feature[];
 }
 
 const PARAM_TYPE_COLORS: Record<string, string> = {
@@ -80,10 +86,16 @@ function extractMethod(title: string): { method: string; path: string } | null {
 export const FeatureCard: React.FC<FeatureCardProps> = ({
   feature,
   isExpanded,
+  expandSnippetsTick,
+  collapseSnippetsTick,
+  onSnippetCollapsedChange,
   onToggle,
   onScrollTo,
   compact = false,
+  allFeatures: allFeaturesProp,
 }) => {
+  const storeFeatures = useAnnotationStore((s) => s.features);
+  const allFeatures = allFeaturesProp ?? storeFeatures;
   const updateFeature = useAnnotationStore((s) => s.updateFeature);
   const deleteFeature = useAnnotationStore((s) => s.deleteFeature);
   const addComment = useAnnotationStore((s) => s.addComment);
@@ -124,6 +136,9 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
   const [editParams, setEditParams] = useState<Array<{id?: string; name: string; type: string; required: boolean; description: string; pattern: string}>>(
     (feature.parameters ?? []).map((p) => ({ id: p.id, name: p.name, type: p.type ?? '', required: p.required, description: p.description ?? '', pattern: p.pattern ?? '' })),
   );
+  const [editLinkedFeatures, setEditLinkedFeatures] = useState<Array<{id: string; description: string}>>(
+    (feature.linkedFeatures ?? []).map((lf) => ({ id: lf.id, description: lf.description ?? '' })),
+  );
 
   const fp = feature as Feature & { effectiveAnchor?: { fileId?: string; commitId?: string; lineRange?: { start: number; end: number } }; confidence?: string };
   const lineRange = fp.effectiveAnchor?.lineRange ?? feature.anchor.lineRange;
@@ -131,8 +146,25 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
   const isOrphaned = feature.status === 'orphaned' || confidence === 'orphaned';
 
   const [fileLines, setFileLines] = useState<{ lines: string[]; lang: string } | null>(null);
-  const [extraBefore, setExtraBefore] = useState(0);
-  const [extraAfter, setExtraAfter] = useState(0);
+  const { collapsed: snippetCollapsed, setCollapsed: setSnippetCollapsed, extraBefore, setExtraBefore, extraAfter, setExtraAfter } = useSnippetState(feature.id);
+
+  const seenExpandTick = useRef(expandSnippetsTick ?? 0);
+  const seenCollapseTick = useRef(collapseSnippetsTick ?? 0);
+  useEffect(() => {
+    if ((expandSnippetsTick ?? 0) > seenExpandTick.current) {
+      seenExpandTick.current = expandSnippetsTick ?? 0;
+      setSnippetCollapsed(false);
+    }
+  }, [expandSnippetsTick]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if ((collapseSnippetsTick ?? 0) > seenCollapseTick.current) {
+      seenCollapseTick.current = collapseSnippetsTick ?? 0;
+      setSnippetCollapsed(true);
+    }
+  }, [collapseSnippetsTick]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    onSnippetCollapsedChange?.(snippetCollapsed);
+  }, [snippetCollapsed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!isExpanded || !lineRange || !feature.anchor.fileId) { setFileLines(null); return; }
@@ -210,7 +242,8 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
         description: p.description.trim() || undefined,
         pattern: p.pattern.trim() || undefined,
       } as FeatureParameter));
-    const updates: Record<string, unknown> = { title, description, kind, status, operation: operation || undefined, direction: (direction || undefined) as 'in' | 'out' | undefined, protocol: protocol || undefined, tags, source: source || undefined, parameters };
+    const linkedFeatures = editLinkedFeatures.map((lf) => ({ id: lf.id, description: lf.description.trim() || undefined }));
+    const updates: Record<string, unknown> = { title, description, kind, status, operation: operation || undefined, direction: (direction || undefined) as 'in' | 'out' | undefined, protocol: protocol || undefined, tags, source: source || undefined, parameters, linkedFeatures };
     if (anchorFileId.trim()) updates['file_id'] = anchorFileId.trim();
     if (startNum > 0 && endNum > 0) { updates['line_start'] = startNum; updates['line_end'] = endNum; }
     updateFeature(feature.id, updates as unknown as Partial<Feature>);
@@ -231,6 +264,7 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
     setAnchorLineStart(feature.anchor.lineRange?.start?.toString() ?? '');
     setAnchorLineEnd(feature.anchor.lineRange?.end?.toString() ?? '');
     setEditParams((feature.parameters ?? []).map((p) => ({ id: p.id, name: p.name, type: p.type ?? '', required: p.required, description: p.description ?? '', pattern: p.pattern ?? '' })));
+    setEditLinkedFeatures((feature.linkedFeatures ?? []).map((lf) => ({ id: lf.id, description: lf.description ?? '' })));
     setEditing(false);
   };
 
@@ -274,10 +308,10 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
       <button
         className="comment-icon-btn"
         onClick={(e) => { e.stopPropagation(); setManagingRefs(true); }}
-        title="Manage web links"
+        title="Manage links"
       >
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M2 10L10 2M10 2H5M10 2v5"/>
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M7.775 3.275a.75.75 0 0 0 1.06 1.06l1.25-1.25a2 2 0 1 1 2.83 2.83l-2.5 2.5a2 2 0 0 1-2.83 0 .75.75 0 0 0-1.06 1.06 3.5 3.5 0 0 0 4.95 0l2.5-2.5a3.5 3.5 0 0 0-4.95-4.95l-1.25 1.25Zm-4.69 9.64a2 2 0 0 1 0-2.83l2.5-2.5a2 2 0 0 1 2.83 0 .75.75 0 0 0 1.06-1.06 3.5 3.5 0 0 0-4.95 0l-2.5 2.5a3.5 3.5 0 0 0 4.95 4.95l1.25-1.25a.75.75 0 0 0-1.06-1.06l-1.25 1.25a2 2 0 0 1-2.83 0Z"/>
         </svg>
       </button>
       <button className="comment-icon-btn" onClick={handleStartEdit} title="Edit">&#x270E;</button>
@@ -336,6 +370,54 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
           {feature.description && (
             <p className="feature-description feature-description-collapsed">{feature.description}</p>
           )}
+          {!compact && feature.linkedFeatures && feature.linkedFeatures.length > 0 && (() => {
+            const linked = feature.linkedFeatures
+              .map((lf) => ({ lf, feat: allFeatures.find((f) => f.id === lf.id) }))
+              .filter((item): item is { lf: NonNullable<typeof item.lf>; feat: NonNullable<typeof item.feat> } => item.feat != null);
+            if (linked.length === 0) return null;
+            return (
+              <div className="feature-linked-list" style={{ marginTop: 6 }} onClick={(e) => e.stopPropagation()}>
+                {linked.map(({ lf, feat: f }) => {
+                  const fKindColor = KIND_COLORS[f.kind] ?? '#6b7280';
+                  const isInterface = f.kind === 'interface';
+                  const method = f.operation?.toUpperCase();
+                  const miniKindBadge = isInterface && method ? (
+                    <span className="feature-method-badge" style={{ background: METHOD_COLORS[method] ?? fKindColor, fontSize: 9 }}>{method}</span>
+                  ) : (
+                    <span className="feature-kind-badge" style={{ background: fKindColor, fontSize: 9 }}>{KIND_LABELS[f.kind as FeatureKind] ?? f.kind}</span>
+                  );
+                  const miniTitle = isInterface ? (
+                    <code className="feature-endpoint-path" style={{ fontSize: 11 }}>{f.title}</code>
+                  ) : (
+                    <span className="feature-linked-title">{f.title}</span>
+                  );
+                  const displayDesc = lf.description || f.description;
+                  const filename = f.anchor.fileId?.split('/').pop();
+                  return (
+                    <div
+                      key={f.id}
+                      className="feature-linked-card"
+                      style={{ borderLeftColor: fKindColor }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        useUIStore.getState().setScrollToFeature({ id: f.id, kind: f.kind as import('../core/types').FeatureKind });
+                        useUIStore.getState().setViewMode('features');
+                      }}
+                    >
+                      <div className="feature-linked-card-header">
+                        {miniKindBadge}
+                        {miniTitle}
+                        {filename && <span className="feature-linked-file">{filename}</span>}
+                      </div>
+                      {displayDesc && (
+                        <p className="feature-linked-card-desc">{displayDesc}</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
       )}
 
@@ -352,30 +434,11 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
         </div>
       )}
 
-      {(refs.length > 0 || (confidence && confidence !== 'exact')) && (
+      {confidence && confidence !== 'exact' && (
         <div className="finding-card-meta">
-          {refs.length > 0 && (
-            <span className="ref-icons" onClick={(e) => e.stopPropagation()}>
-              <span className="ref-icons-label">Links</span>
-              {refs.map((ref) => (
-                <a
-                  key={ref.id}
-                  href={ref.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="ref-icon-link"
-                  title={ref.title || ref.url}
-                >
-                  <RefProviderIcon provider={ref.provider} size={14} />
-                </a>
-              ))}
-            </span>
-          )}
-          {confidence && confidence !== 'exact' && (
-            <span className={`finding-confidence finding-confidence-${confidence}`}>
-              {confidence === 'moved' ? 'Moved' : 'Orphaned'}
-            </span>
-          )}
+          <span className={`finding-confidence finding-confidence-${confidence}`}>
+            {confidence === 'moved' ? 'Moved' : 'Orphaned'}
+          </span>
         </div>
       )}
 
@@ -396,6 +459,78 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
                   ))}
                 </div>
               )}
+
+              {(() => {
+                const linked = (feature.linkedFeatures ?? [])
+                  .map((lf) => ({ lf, feat: allFeatures.find((f) => f.id === lf.id) }))
+                  .filter((item): item is { lf: NonNullable<typeof item.lf>; feat: NonNullable<typeof item.feat> } => item.feat != null);
+                if (refs.length === 0 && linked.length === 0) return null;
+                return (
+                  <div className="feature-params-section">
+                    <div className="feature-params-heading">Links<span className="section-count-badge">{refs.length + linked.length}</span></div>
+                    {refs.length > 0 && (
+                      <div className="feature-links-refs-row" onClick={(e) => e.stopPropagation()}>
+                        {refs.map((ref) => (
+                          <a
+                            key={ref.id}
+                            href={ref.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="feature-links-ref-chip"
+                            title={ref.title || ref.url}
+                          >
+                            <RefProviderIcon provider={ref.provider} size={13} />
+                            <span>{ref.title || ref.url}</span>
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                    {linked.length > 0 && (
+                      <div className="feature-linked-list" style={refs.length > 0 ? { marginTop: 6 } : undefined}>
+
+                        {linked.map(({ lf, feat: f }) => {
+                          const fKindColor = KIND_COLORS[f.kind] ?? '#6b7280';
+                          const isInterface = f.kind === 'interface';
+                          const method = f.operation?.toUpperCase();
+                          const miniKindBadge = isInterface && method ? (
+                            <span className="feature-method-badge" style={{ background: METHOD_COLORS[method] ?? fKindColor, fontSize: 9 }}>{method}</span>
+                          ) : (
+                            <span className="feature-kind-badge" style={{ background: fKindColor, fontSize: 9 }}>{KIND_LABELS[f.kind as FeatureKind] ?? f.kind}</span>
+                          );
+                          const miniTitle = isInterface ? (
+                            <code className="feature-endpoint-path" style={{ fontSize: 11 }}>{f.title}</code>
+                          ) : (
+                            <span className="feature-linked-title">{f.title}</span>
+                          );
+                          const displayDesc = lf.description || f.description;
+                          const filename = f.anchor.fileId?.split('/').pop();
+                          return (
+                            <div
+                              key={f.id}
+                              className="feature-linked-card"
+                              style={{ borderLeftColor: fKindColor }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                useUIStore.getState().setScrollToFeature({ id: f.id, kind: f.kind as import('../core/types').FeatureKind });
+                                useUIStore.getState().setViewMode('features');
+                              }}
+                            >
+                              <div className="feature-linked-card-header">
+                                {miniKindBadge}
+                                {miniTitle}
+                                {filename && <span className="feature-linked-file">{filename}</span>}
+                              </div>
+                              {displayDesc && (
+                                <p className="feature-linked-card-desc">{displayDesc}</p>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {feature.kind === 'interface' && feature.parameters && feature.parameters.length > 0 && (
                 <div className="feature-params-section">
@@ -433,26 +568,35 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
 
               {snippet && lineRange && (
                 <div className="feature-snippet">
-                  {snippet.canExpandUp && (
-                    <button className="feature-snippet-expand" onClick={() => setExtraBefore((n) => n + 5)}>
-                      ▲ 5 more
+                  <div className="feature-snippet-bar">
+                    {snippet.canExpandUp && !snippetCollapsed ? (
+                      <button className="feature-snippet-expand feature-snippet-bar-btn" onClick={() => setExtraBefore((n) => n + 5)}>
+                        ▲ 5 more
+                      </button>
+                    ) : <span />}
+                    <button className="feature-snippet-expand feature-snippet-bar-btn feature-snippet-bar-collapse" onClick={() => setSnippetCollapsed((c) => !c)}>
+                      {snippetCollapsed ? '▼ expand' : '▲ collapse'}
                     </button>
-                  )}
-                  {snippet.lines.map((line, i) => {
-                    const lineNum = snippet.startLine + i;
-                    const isHighlighted = lineNum >= lineRange.start && lineNum <= lineRange.end;
-                    const tokens = snippet.lang ? highlight(line, snippet.lang) : [{ type: 'text' as const, value: line }];
-                    return (
-                      <div key={i} className={`feature-snippet-row${isHighlighted ? ' feature-snippet-row-highlight' : ''}`}>
-                        <span className="feature-snippet-ln">{lineNum}</span>
-                        <code className="feature-snippet-code">{tokens.map((t, ti) => renderToken(t, ti))}</code>
-                      </div>
-                    );
-                  })}
-                  {snippet.canExpandDown && (
-                    <button className="feature-snippet-expand" onClick={() => setExtraAfter((n) => n + 5)}>
-                      ▼ 5 more
-                    </button>
+                  </div>
+                  {!snippetCollapsed && (
+                    <>
+                      {snippet.lines.map((line, i) => {
+                        const lineNum = snippet.startLine + i;
+                        const isHighlighted = lineNum >= lineRange.start && lineNum <= lineRange.end;
+                        const tokens = snippet.lang ? highlight(line, snippet.lang) : [{ type: 'text' as const, value: line }];
+                        return (
+                          <div key={i} className={`feature-snippet-row${isHighlighted ? ' feature-snippet-row-highlight' : ''}`}>
+                            <span className="feature-snippet-ln">{lineNum}</span>
+                            <code className="feature-snippet-code">{tokens.map((t, ti) => renderToken(t, ti))}</code>
+                          </div>
+                        );
+                      })}
+                      {snippet.canExpandDown && (
+                        <button className="feature-snippet-expand" onClick={() => setExtraAfter((n) => n + 5)}>
+                          ▼ 5 more
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               )}
@@ -568,6 +712,62 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
                 </div>
               )}
 
+              {(() => {
+                const linkedIds = new Set(editLinkedFeatures.map((lf) => lf.id));
+                const linkable = allFeatures.filter((f) => f.id !== feature.id && !linkedIds.has(f.id));
+                return (
+                  <div className="feature-params-edit-section">
+                    <div className="feature-params-edit-header">
+                      <span className="feature-params-heading">Linked features</span>
+                    </div>
+                    {editLinkedFeatures.map((lf, i) => {
+                      const feat = allFeatures.find((f) => f.id === lf.id);
+                      const label = feat
+                        ? (feat.kind === 'interface' && feat.operation
+                            ? `${feat.operation.toUpperCase()} ${feat.title}`
+                            : feat.title)
+                        : lf.id.slice(0, 8) + '\u2026';
+                      return (
+                        <div key={lf.id} className="feature-linked-edit-row">
+                          <span className="feature-linked-edit-label" title={feat?.title ?? lf.id}>{label}</span>
+                          <input
+                            className="finding-input"
+                            value={lf.description}
+                            onChange={(e) => setEditLinkedFeatures((ls) => ls.map((x, j) => j === i ? { ...x, description: e.target.value } : x))}
+                            placeholder="Relationship description"
+                          />
+                          <button
+                            type="button"
+                            className="comment-icon-btn comment-icon-btn-danger"
+                            onClick={() => setEditLinkedFeatures((ls) => ls.filter((_, j) => j !== i))}
+                            title="Remove link"
+                          >&#x2715;</button>
+                        </div>
+                      );
+                    })}
+                    {linkable.length > 0 && (
+                      <select
+                        className="finding-edit-select feature-linked-add-select"
+                        value=""
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            setEditLinkedFeatures((ls) => [...ls, { id: e.target.value, description: '' }]);
+                            e.target.value = '';
+                          }
+                        }}
+                      >
+                        <option value="">+ Link a feature…</option>
+                        {linkable.map((f) => (
+                          <option key={f.id} value={f.id}>
+                            {f.kind === 'interface' && f.operation ? `${f.operation.toUpperCase()} ${f.title}` : `[${f.kind}] ${f.title}`}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                );
+              })()}
+
               <div className="finding-form-row">
                 <input
                   className="finding-input"
@@ -620,6 +820,9 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
           )}
 
           <div className="finding-comments" onClick={(e) => e.stopPropagation()}>
+            {sortedComments.length > 0 && (
+              <div className="feature-params-heading">Comments<span className="section-count-badge">{sortedComments.length}</span></div>
+            )}
             {(() => {
               const hiddenCount = sortedComments.length > 1 && !showAllComments ? sortedComments.length - 1 : 0;
               const visibleComments = hiddenCount > 0 ? sortedComments.slice(-1) : sortedComments;
@@ -750,10 +953,12 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
       )}
 
       {managingRefs && createPortal(
-        <RefManageModal
+        <LinkManageModal
           entityType="feature"
           entityId={feature.id}
           refs={refs}
+          linkedFeatures={feature.linkedFeatures ?? []}
+          allFeatures={allFeatures}
           onClose={() => setManagingRefs(false)}
           onRefsChange={setCardRefs}
         />,

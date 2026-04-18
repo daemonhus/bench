@@ -28,6 +28,24 @@
   margin-right: 2px;
 }
 
+.section-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  padding: 0 4px;
+  height: 15px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  border-radius: 8px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
 /* ----- Finding Card ----- */
 .finding-card {
   background: var(--bg-surface);
