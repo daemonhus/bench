@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { featuresApi } from '../core/api';
+import { useNavList } from '../core/use-nav-list';
 import { useEvents } from '../core/use-events';
+import { useAnnotationStore } from '../stores/annotation-store';
 import { useRepoStore } from '../stores/repo-store';
 import { useUIStore } from '../stores/ui-store';
 import { FeatureCard } from './FeatureCard';
@@ -259,6 +261,9 @@ export const FeaturesView: React.FC = () => {
       return new Set<string>();
     }
   });
+  const [expandSnippetsTick, setExpandSnippetsTick] = useState(0);
+  const [collapseSnippetsTick, setCollapseSnippetsTick] = useState(0);
+  const [collapsedSnippetIds, setCollapsedSnippetIds] = useState<Set<string>>(new Set());
   const showCreate = useUIStore((s) => s.showFeatureCreate);
   const setShowCreate = useUIStore((s) => s.setShowFeatureCreate);
   const scrollToFeature = useUIStore((s) => s.scrollToFeature);
@@ -376,29 +381,67 @@ export const FeaturesView: React.FC = () => {
 
   const defaultKind = currentTab.kinds[0];
 
+  // Keyboard nav for the features list
+  const { focusedId: navFocusedId, containerRef: navContainerRef, handleKeyDown: navHandleKeyDown } = useNavList({
+    items: tabFeatures,
+    getId: f => f.id,
+    onSelect: (f) => setCollapsedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(f.id)) next.delete(f.id); else next.add(f.id);
+      return next;
+    }),
+    nextArea: 'features-filter',
+    prevArea: 'features-tabs',
+  });
+
   const renderCard = (f: Feature) => (
-    <div key={f.id} data-feature-id={f.id}>
+    <div key={f.id} data-feature-id={f.id} data-nav-id={f.id} data-nav-focused={navFocusedId === f.id ? 'true' : undefined}>
       <FeatureCard
         feature={f}
         isExpanded={!collapsedIds.has(f.id)}
+        expandSnippetsTick={expandSnippetsTick}
+        collapseSnippetsTick={collapseSnippetsTick}
+        onSnippetCollapsedChange={(collapsed) => setCollapsedSnippetIds(prev => {
+          const next = new Set(prev);
+          if (collapsed) next.add(f.id); else next.delete(f.id);
+          return next;
+        })}
         onToggle={() => setCollapsedIds(prev => {
           const next = new Set(prev);
           if (next.has(f.id)) next.delete(f.id); else next.add(f.id);
           return next;
         })}
         onScrollTo={() => navigateToFile(f.anchor.fileId, f.anchor.lineRange ?? undefined, f.anchor.commitId)}
+        allFeatures={features}
       />
     </div>
   );
 
   if (loading) return <div className="empty-state">Loading...</div>;
 
+  const allCardsOpen = tabFeatures.every(f => !collapsedIds.has(f.id));
+  const anyCardsOpen = tabFeatures.some(f => !collapsedIds.has(f.id));
+  const anySnippetsVisible = tabFeatures.some(f => !collapsedIds.has(f.id) && !collapsedSnippetIds.has(f.id));
+
   return (
     <div className="features-view">
       <section className="overview-section">
         <div className="findings-title-row">
           <h2 className="overview-section-title">Features</h2>
-          <div className="activity-kind-toggles">
+          <div
+            className="activity-kind-toggles"
+            tabIndex={0}
+            data-nav-area="features-tabs"
+            onKeyDown={(e) => {
+              const idx = TABS.findIndex(t => t.id === activeTab);
+              if (e.key === 'ArrowRight') { e.preventDefault(); setActiveTab(TABS[Math.min(idx + 1, TABS.length - 1)].id); }
+              else if (e.key === 'ArrowLeft') { e.preventDefault(); setActiveTab(TABS[Math.max(idx - 1, 0)].id); }
+              else if (e.key === 'Tab') {
+                e.preventDefault();
+                (document.querySelector(`[data-nav-area="${e.shiftKey ? 'features-filter' : 'features-list'}"]`) as HTMLElement | null)?.focus();
+              }
+            }}
+          >
             {TABS.map(tab => (
               <button
                 key={tab.id}
@@ -508,9 +551,12 @@ export const FeaturesView: React.FC = () => {
       {tabFeatures.length > 0 && (
         <div className="view-expand-fabs">
           <button
-            className="view-expand-fab-btn"
-            title="Expand all"
-            onClick={() => setCollapsedIds(new Set())}
+            className={`view-expand-fab-btn${allCardsOpen && collapsedSnippetIds.size > 0 ? ' view-expand-fab-btn--active' : allCardsOpen ? ' view-expand-fab-btn--disabled' : ''}`}
+            title={allCardsOpen && collapsedSnippetIds.size > 0 ? 'Expand code snippets' : 'Expand all'}
+            onClick={() => {
+              if (!allCardsOpen) { setCollapsedIds(new Set()); }
+              else { setExpandSnippetsTick(t => t + 1); }
+            }}
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M5 1L1 1L1 5" />
@@ -520,9 +566,12 @@ export const FeaturesView: React.FC = () => {
             </svg>
           </button>
           <button
-            className="view-expand-fab-btn"
-            title="Collapse all"
-            onClick={() => setCollapsedIds(new Set(tabFeatures.map(f => f.id)))}
+            className={`view-expand-fab-btn${anyCardsOpen && anySnippetsVisible ? ' view-expand-fab-btn--active' : !anyCardsOpen ? ' view-expand-fab-btn--disabled' : ''}`}
+            title={anySnippetsVisible ? 'Collapse code snippets' : 'Collapse all'}
+            onClick={() => {
+              if (anyCardsOpen && anySnippetsVisible) { setCollapseSnippetsTick(t => t + 1); }
+              else if (anyCardsOpen) { setCollapsedIds(new Set(tabFeatures.map(f => f.id))); }
+            }}
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M2 6L6 6L6 2" />

@@ -318,14 +318,29 @@
   align-items: center;
   justify-content: center;
   box-shadow: 0 0 8px rgba(255, 255, 255, 0.06), var(--shadow-sm);
-  transition: box-shadow var(--transition-base), background var(--transition-base), color var(--transition-base);
+  transition: box-shadow var(--transition-base), background var(--transition-base), color var(--transition-base), border-color var(--transition-base), opacity var(--transition-base);
 }
 
 .view-expand-fab-btn:hover {
   background: var(--bg-surface);
   color: var(--text-primary);
+}
+
+.view-expand-fab-btn--disabled {
+  opacity: 0.3;
+  cursor: default;
+  pointer-events: none;
+}
+
+.view-expand-fab-btn--active {
   border-color: var(--accent-blue);
-  box-shadow: 0 0 12px color-mix(in srgb, var(--accent-blue) 20%, transparent);
+  color: var(--accent-blue);
+}
+
+.view-expand-fab-btn--active:hover {
+  background: var(--bg-secondary);
+  color: var(--accent-blue);
+  border-color: var(--accent-blue);
 }
 
 /* FAB must stay fixed — override the tooltip's position: relative */

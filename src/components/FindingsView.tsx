@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { findingsApi, featuresApi } from '../core/api';
+import { useNavList } from '../core/use-nav-list';
 import { useEvents } from '../core/use-events';
 import { useAnnotationStore } from '../stores/annotation-store';
 import { useRepoStore } from '../stores/repo-store';
@@ -52,6 +53,9 @@ export const FindingsView: React.FC = () => {
       return new Set<string>();
     }
   });
+  const [expandSnippetsTick, setExpandSnippetsTick] = useState(0);
+  const [collapseSnippetsTick, setCollapseSnippetsTick] = useState(0);
+  const [collapsedSnippetIds, setCollapsedSnippetIds] = useState<Set<string>>(new Set());
   const [metricsOpen, setMetricsOpen] = useState(true);
   const [filterKinds, setFilterKinds] = useState<Set<FindingsKind>>(() => {
     try {
@@ -199,12 +203,37 @@ export const FindingsView: React.FC = () => {
 
   const hasActiveFilter = filterSeverities.size < ALL_SEVERITIES.length || filterActors !== null || filterKinds.size < ALL_FINDING_KINDS.length || searchQuery !== '';
 
+  const listRef = useRef<HTMLDivElement>(null);
+  const { focusedId: navFocusedId, containerRef: navContainerRef, handleKeyDown: navHandleKeyDown } = useNavList({
+    items: displayedFindings,
+    getId: f => f.id,
+    onSelect: (f) => setCollapsedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(f.id)) next.delete(f.id); else next.add(f.id);
+      return next;
+    }),
+    nextArea: 'findings-filter',
+    prevArea: 'findings-filter',
+  });
+  // Keep both refs pointing at the same element
+  const setListRef = (el: HTMLDivElement | null) => {
+    (listRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+    (navContainerRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+  };
+
   const renderFindingList = (list: Finding[]) =>
     list.map((f) => (
-      <div key={f.id} data-finding-id={f.id}>
+      <div key={f.id} data-finding-id={f.id} data-nav-id={f.id} data-nav-focused={navFocusedId === f.id ? 'true' : undefined}>
         <FindingCard
           finding={f}
           isExpanded={!collapsedIds.has(f.id)}
+          expandSnippetsTick={expandSnippetsTick}
+          collapseSnippetsTick={collapseSnippetsTick}
+          onSnippetCollapsedChange={(collapsed) => setCollapsedSnippetIds(prev => {
+            const next = new Set(prev);
+            if (collapsed) next.add(f.id); else next.delete(f.id);
+            return next;
+          })}
           onToggle={() => setCollapsedIds((prev) => {
             const next = new Set(prev);
             if (next.has(f.id)) next.delete(f.id); else next.add(f.id);
@@ -217,10 +246,24 @@ export const FindingsView: React.FC = () => {
 
   if (loading) return <div className="empty-state">Loading...</div>;
 
+  const allCardsOpen = displayedFindings.every(f => !collapsedIds.has(f.id));
+  const anyCardsOpen = displayedFindings.some(f => !collapsedIds.has(f.id));
+  const anySnippetsVisible = displayedFindings.some(f => !collapsedIds.has(f.id) && !collapsedSnippetIds.has(f.id));
+
   return (
     <div className="findings-view">
       <section className="overview-section">
-        <div className="findings-title-row">
+        <div
+          className="findings-title-row"
+          tabIndex={0}
+          data-nav-area="findings-filter"
+          onKeyDown={(e) => {
+            if (e.key === 'Tab') {
+              e.preventDefault();
+              (document.querySelector('[data-nav-area="findings-list"]') as HTMLElement | null)?.focus();
+            }
+          }}
+        >
           <h2 className="overview-section-title">Findings</h2>
           <div className="activity-kind-toggles">
             {ALL_FINDING_KINDS.map((k) => (
@@ -292,14 +335,18 @@ export const FindingsView: React.FC = () => {
           </button>
         </div>
       )}
+      </div>{/* /findings-list nav area */}
       </section>
 
       {displayedFindings.length > 0 && (
         <div className="view-expand-fabs">
           <button
-            className="view-expand-fab-btn"
-            title="Expand all"
-            onClick={() => setCollapsedIds(new Set())}
+            className={`view-expand-fab-btn${allCardsOpen && collapsedSnippetIds.size > 0 ? ' view-expand-fab-btn--active' : allCardsOpen ? ' view-expand-fab-btn--disabled' : ''}`}
+            title={allCardsOpen && collapsedSnippetIds.size > 0 ? 'Expand code snippets' : 'Expand all'}
+            onClick={() => {
+              if (!allCardsOpen) { setCollapsedIds(new Set()); }
+              else { setExpandSnippetsTick(t => t + 1); }
+            }}
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M5 1L1 1L1 5" />
@@ -309,9 +356,12 @@ export const FindingsView: React.FC = () => {
             </svg>
           </button>
           <button
-            className="view-expand-fab-btn"
-            title="Collapse all"
-            onClick={() => setCollapsedIds(new Set(displayedFindings.map(f => f.id)))}
+            className={`view-expand-fab-btn${anyCardsOpen && anySnippetsVisible ? ' view-expand-fab-btn--active' : !anyCardsOpen ? ' view-expand-fab-btn--disabled' : ''}`}
+            title={anySnippetsVisible ? 'Collapse code snippets' : 'Collapse all'}
+            onClick={() => {
+              if (anyCardsOpen && anySnippetsVisible) { setCollapseSnippetsTick(t => t + 1); }
+              else if (anyCardsOpen) { setCollapsedIds(new Set(displayedFindings.map(f => f.id))); }
+            }}
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M2 6L6 6L6 2" />
