@@ -159,6 +159,54 @@ func TestFlagsContract_GET_FeaturesList(t *testing.T) {
 	requireQuery(t, path, "status", "active")
 }
 
+func TestFlagsContract_GET_FeaturesList_LinkedTo(t *testing.T) {
+	_, path, _ := parseAndBuild(t, "features", "list", []string{
+		"--linked-to", "feat-abc123",
+	})
+	requireQuery(t, path, "linkedTo", "feat-abc123")
+}
+
+func TestFlagsContract_POST_FeaturesCreate_Features(t *testing.T) {
+	_, _, body := parseAndBuild(t, "features", "create", []string{
+		"--file", "src/api.go",
+		"--commit", "abc",
+		"--kind", "interface",
+		"--title", "Login",
+		"--features", "feat-1,feat-2",
+	})
+	requireField(t, body, "linkedFeatures", []map[string]any{{"id": "feat-1"}, {"id": "feat-2"}})
+}
+
+func TestFlagsContract_PATCH_FeaturesUpdate_Features(t *testing.T) {
+	_, _, body := parseAndBuild(t, "features", "update", []string{
+		"--id", "feat-abc",
+		"--features", "feat-1,feat-2",
+	})
+	requireField(t, body, "linkedFeatures", []map[string]any{{"id": "feat-1"}, {"id": "feat-2"}})
+}
+
+func TestFlagsContract_PATCH_FeaturesUpdate_FeaturesEmpty(t *testing.T) {
+	_, _, body := parseAndBuild(t, "features", "update", []string{
+		"--id", "feat-abc",
+		"--features", "",
+	})
+	requireField(t, body, "linkedFeatures", []map[string]any{})
+}
+
+func TestFlagsContract_POST_FeaturesCreate_FeaturesWithDesc(t *testing.T) {
+	_, _, body := parseAndBuild(t, "features", "create", []string{
+		"--file", "src/api.go",
+		"--commit", "abc",
+		"--kind", "interface",
+		"--title", "Login",
+		"--features", "feat-1|auth sink,feat-2",
+	})
+	requireField(t, body, "linkedFeatures", []map[string]any{
+		{"id": "feat-1", "description": "auth sink"},
+		{"id": "feat-2"},
+	})
+}
+
 func TestFlagsContract_GET_AnalyticsSummary(t *testing.T) {
 	_, path, _ := parseAndBuild(t, "analytics", "summary", []string{
 		"--commit", "abc123",

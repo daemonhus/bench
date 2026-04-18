@@ -144,12 +144,13 @@ export const commentsApi = {
 };
 
 export const featuresApi = {
-  list(fileId?: string, kind?: FeatureKind, status?: FeatureStatus, commit?: string): Promise<(Feature | FeatureWithPosition)[]> {
+  list(fileId?: string, kind?: FeatureKind, status?: FeatureStatus, commit?: string, linkedTo?: string): Promise<(Feature | FeatureWithPosition)[]> {
     const params = new URLSearchParams();
     if (fileId) params.set('fileId', fileId);
     if (kind) params.set('kind', kind);
     if (status) params.set('status', status);
     if (commit) params.set('commit', commit);
+    if (linkedTo) params.set('linkedTo', linkedTo);
     const q = params.toString() ? `?${params}` : '';
     return fetchJSON(`/api/features${q}`);
   },

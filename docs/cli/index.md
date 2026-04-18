@@ -244,6 +244,9 @@ bench features list --kind interface
 # Filter by status
 bench features list --kind sink --status active
 
+# Filter to features linked to a specific feature (either direction)
+bench features list --linked-to <feature-id>
+
 # Get full details
 bench features get --id <feature-id>
 
@@ -272,6 +275,12 @@ bench features create \
 # Update status or metadata
 bench features update --id <feature-id> --status deprecated
 bench features update --id <feature-id> --tags auth,session
+
+# Link to other features (replaces full list)
+bench features update --id <feature-id> --features feat-abc123,feat-def456
+
+# Clear all feature links
+bench features update --id <feature-id> --features ""
 
 # Re-anchor to a new location
 bench features update --id <feature-id> --file src/api/newpath.go --commit HEAD --start 12 --end 28

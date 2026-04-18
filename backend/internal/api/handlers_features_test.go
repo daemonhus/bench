@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -241,4 +242,169 @@ func TestFeaturesAPI_LineRangeInverted(t *testing.T) {
 	if w.Code != 201 {
 		t.Fatalf("status = %d, want 201; body: %s", w.Code, w.Body.String())
 	}
+}
+
+func createFeatureREST(t *testing.T, router http.Handler, body string) model.Feature {
+	t.Helper()
+	req := httptest.NewRequest("POST", "/api/features", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != 201 {
+		t.Fatalf("create feature: status=%d body=%s", w.Code, w.Body.String())
+	}
+	var f model.Feature
+	json.NewDecoder(w.Body).Decode(&f)
+	return f
+}
+
+func TestFeaturesAPI_LinkedFeatureIds_CreateAndGet(t *testing.T) {
+	router, _ := setupEnv(t)
+
+	a := createFeatureREST(t, router, `{"anchor":{"fileId":"a.go","commitId":"abc"},"kind":"interface","title":"A"}`)
+	b := createFeatureREST(t, router, `{"anchor":{"fileId":"b.go","commitId":"abc"},"kind":"sink","title":"B"}`)
+
+	// Create c linked to a and b
+	body := `{"anchor":{"fileId":"c.go","commitId":"abc"},"kind":"source","title":"C","linkedFeatureIds":["` + a.ID + `","` + b.ID + `"]}`
+	c := createFeatureREST(t, router, body)
+
+	if len(c.LinkedFeatures) != 2 {
+		t.Fatalf("create response: linkedFeatures len = %d, want 2", len(c.LinkedFeatures))
+	}
+
+	// GET should also return the links
+	req := httptest.NewRequest("GET", "/api/features/"+c.ID, nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	var got model.Feature
+	json.NewDecoder(w.Body).Decode(&got)
+	if len(got.LinkedFeatures) != 2 {
+		t.Errorf("get response: linkedFeatures len = %d, want 2", len(got.LinkedFeatures))
+	}
+}
+
+func TestFeaturesAPI_LinkedFeatureIds_Update(t *testing.T) {
+	router, _ := setupEnv(t)
+
+	a := createFeatureREST(t, router, `{"anchor":{"fileId":"a.go","commitId":"abc"},"kind":"interface","title":"A"}`)
+	b := createFeatureREST(t, router, `{"anchor":{"fileId":"b.go","commitId":"abc"},"kind":"sink","title":"B"}`)
+	c := createFeatureREST(t, router, `{"anchor":{"fileId":"c.go","commitId":"abc"},"kind":"source","title":"C"}`)
+
+	// Link c to a
+	patch := `{"linkedFeatureIds":["` + a.ID + `"]}`
+	req := httptest.NewRequest("PATCH", "/api/features/"+c.ID, strings.NewReader(patch))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != 200 {
+		t.Fatalf("patch status = %d; body: %s", w.Code, w.Body.String())
+	}
+	var updated model.Feature
+	json.NewDecoder(w.Body).Decode(&updated)
+	if len(updated.LinkedFeatures) != 1 {
+		t.Fatalf("after link: linkedFeatures = %v, want 1 item", updated.LinkedFeatures)
+	}
+
+	// Replace with b, clear a
+	patch2 := `{"linkedFeatureIds":["` + b.ID + `"]}`
+	req = httptest.NewRequest("PATCH", "/api/features/"+c.ID, strings.NewReader(patch2))
+	req.Header.Set("Content-Type", "application/json")
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	var replaced model.Feature
+	json.NewDecoder(w.Body).Decode(&replaced)
+	if len(replaced.LinkedFeatures) != 1 || replaced.LinkedFeatures[0].ID != b.ID {
+		t.Errorf("after replace: linkedFeatures = %v, want [%s]", replaced.LinkedFeatures, b.ID)
+	}
+
+	// Clear
+	req = httptest.NewRequest("PATCH", "/api/features/"+c.ID, strings.NewReader(`{"linkedFeatureIds":[]}`))
+	req.Header.Set("Content-Type", "application/json")
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	var cleared model.Feature
+	json.NewDecoder(w.Body).Decode(&cleared)
+	if len(cleared.LinkedFeatures) != 0 {
+		t.Errorf("after clear: linkedFeatures = %v, want []", cleared.LinkedFeatures)
+	}
+}
+
+func TestFeaturesAPI_LinkedTo_Filter(t *testing.T) {
+	router, _ := setupEnv(t)
+
+	a := createFeatureREST(t, router, `{"anchor":{"fileId":"a.go","commitId":"abc"},"kind":"interface","title":"A"}`)
+	b := createFeatureREST(t, router, `{"anchor":{"fileId":"b.go","commitId":"abc"},"kind":"sink","title":"B"}`)
+	createFeatureREST(t, router, `{"anchor":{"fileId":"c.go","commitId":"abc"},"kind":"source","title":"C"}`)
+
+	patch := `{"linkedFeatureIds":["` + b.ID + `"]}`
+	req := httptest.NewRequest("PATCH", "/api/features/"+a.ID, strings.NewReader(patch))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	// List linked to a → should return b only
+	req = httptest.NewRequest("GET", "/api/features?linkedTo="+a.ID, nil)
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	var list []model.Feature
+	json.NewDecoder(w.Body).Decode(&list)
+	if len(list) != 1 || list[0].ID != b.ID {
+		t.Errorf("linkedTo=%s: got %v, want [%s]", a.ID, featureIDsREST(list), b.ID)
+	}
+
+	// From the other direction: linked to b → should return a
+	req = httptest.NewRequest("GET", "/api/features?linkedTo="+b.ID, nil)
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	json.NewDecoder(w.Body).Decode(&list)
+	if len(list) != 1 || list[0].ID != a.ID {
+		t.Errorf("linkedTo=%s: got %v, want [%s]", b.ID, featureIDsREST(list), a.ID)
+	}
+}
+
+func TestFeaturesAPI_LinkedFeatureIds_NotFound(t *testing.T) {
+	router, _ := setupEnv(t)
+
+	body := `{"anchor":{"fileId":"a.go","commitId":"abc"},"kind":"interface","title":"A","linkedFeatureIds":["nonexistent-id"]}`
+	req := httptest.NewRequest("POST", "/api/features", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != 404 {
+		t.Fatalf("status = %d, want 404; body: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestFeaturesAPI_LinkedFeatureIds_SelfLink(t *testing.T) {
+	router, _ := setupEnv(t)
+
+	a := createFeatureREST(t, router, `{"anchor":{"fileId":"a.go","commitId":"abc"},"kind":"interface","title":"A"}`)
+
+	// Attempt to link a feature to itself at create time
+	body := `{"anchor":{"fileId":"b.go","commitId":"abc"},"kind":"sink","title":"B","linkedFeatureIds":["` + a.ID + `","` + a.ID + `"]}`
+	req := httptest.NewRequest("POST", "/api/features", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	// Duplicate IDs in the same batch do not self-link, only the first unique link is stored.
+	// But linking a feature to itself should be rejected.
+
+	// Self-link via PATCH: try to link a to itself
+	patch := `{"linkedFeatureIds":["` + a.ID + `"]}`
+	req = httptest.NewRequest("PATCH", "/api/features/"+a.ID, strings.NewReader(patch))
+	req.Header.Set("Content-Type", "application/json")
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != 400 {
+		t.Fatalf("self-link via PATCH: status = %d, want 400; body: %s", w.Code, w.Body.String())
+	}
+}
+
+func featureIDsREST(features []model.Feature) []string {
+	ids := make([]string, len(features))
+	for i, f := range features {
+		ids[i] = f.ID
+	}
+	return ids
 }

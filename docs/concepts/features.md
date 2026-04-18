@@ -17,6 +17,7 @@ Features are architectural annotations that map the security-relevant surface of
   protocol?: string           // e.g. rest, grpc, graphql, websocket
   source?: string
   tags?: string[]
+  linkedFeatures?: { id: string; description?: string }[]  // bidirectional; populated in both directions
   refs?: Ref[]                // external links (enriched inline)
   parameters?: FeatureParameter[]  // structured inputs/outputs; meaningful for kind: 'interface'
   createdAt: string
@@ -86,6 +87,45 @@ list_feature_parameters(feature="feat-abc123")
 get_feature_parameter(id="param-xyz")
 update_feature_parameter(id="param-xyz", description="JWT bearer token")
 delete_feature_parameter(id="param-xyz")
+```
+
+## Linking features to features
+
+Features can be linked to other features. Links are bidirectional — adding feature B to feature A's links makes A appear in B's `linkedFeatures` too. Each link can carry an optional `description` to explain the relationship. Use this to connect related surfaces: an interface to its backing source/sink, a dependency to the externality that polls it, etc.
+
+**Constraints:** Self-links (linking a feature to itself) are rejected with 400. Linking to a non-existent feature ID returns 404. Updating links replaces the full list — omit the field to leave links unchanged.
+
+Via CLI:
+
+```bash
+# Link two features at create time (IDs only)
+bench features create --file src/api/auth.go --commit HEAD --kind interface --title "/login" \
+  --features feat-abc123,feat-def456
+
+# Link with descriptions (use | to separate ID from description)
+bench features update --id feat-xyz --features "feat-abc123|validates JWT,feat-def456|writes audit log"
+
+# Clear all links
+bench features update --id feat-xyz --features ""
+
+# Filter: features linked to a specific feature (either direction)
+bench features list --linked-to feat-abc123
+```
+
+Via MCP:
+
+```
+# ID strings only
+create_feature(file="...", commit="HEAD", kind="interface", title="/login",
+  linked_feature_ids=["feat-abc123", "feat-def456"])
+
+# With descriptions — pass {id, description} objects
+update_feature(id="feat-xyz", linked_feature_ids=[
+  {"id": "feat-abc123", "description": "validates JWT"},
+  {"id": "feat-def456", "description": "writes audit log"}
+])
+
+list_features(linked_to="feat-abc123")
 ```
 
 ## Linking findings to features

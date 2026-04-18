@@ -1,6 +1,8 @@
 package api
 
 import (
+	"encoding/json"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -24,8 +26,9 @@ type featuresHandlers struct {
 func (h *featuresHandlers) list(w http.ResponseWriter, r *http.Request) {
 	fileID := r.URL.Query().Get("fileId")
 	commit := r.URL.Query().Get("commit")
+	linkedTo := r.URL.Query().Get("linkedTo")
 
-	features, _, err := h.db.ListFeatures(fileID, 0, 0)
+	features, _, err := h.db.ListFeatures(fileID, linkedTo, 0, 0)
 	if err != nil {
 		writeInternalError(w, err)
 		return
@@ -82,10 +85,21 @@ func (h *featuresHandlers) list(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *featuresHandlers) create(w http.ResponseWriter, r *http.Request) {
-	var f model.Feature
-	if !decodeBody(w, r, &f) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	bodyBytes, err := io.ReadAll(r.Body)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "failed to read request body")
 		return
 	}
+	var f model.Feature
+	if err := json.Unmarshal(bodyBytes, &f); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON")
+		return
+	}
+	// Also parse as raw map so extractLinkedFeatures handles both
+	// "linkedFeatures" (new) and "linkedFeatureIds" (legacy string array).
+	var rawBody map[string]any
+	json.Unmarshal(bodyBytes, &rawBody) //nolint:errcheck — already validated above
 	if f.ID == "" {
 		f.ID = uuid.New().String()
 	}
@@ -135,9 +149,12 @@ func (h *featuresHandlers) create(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Capture parameters before creating (they're decoded into f.Parameters via JSON).
+	// Capture parameters and linked features before creating.
+	// extractLinkedFeatures handles both "linkedFeatures" (objects) and "linkedFeatureIds" (string array).
 	params := f.Parameters
+	_, linkedFeatures := extractLinkedFeatures(rawBody)
 	f.Parameters = []model.FeatureParameter{}
+	f.LinkedFeatures = []model.LinkedFeature{}
 
 	if err := h.db.CreateFeature(&f); err != nil {
 		writeDBError(w, err)
@@ -152,6 +169,23 @@ func (h *featuresHandlers) create(w http.ResponseWriter, r *http.Request) {
 		if err := h.db.ReplaceParameters(f.ID, params); err == nil {
 			f.Parameters, _ = h.db.ListParameters(f.ID)
 		}
+	}
+
+	// Persist linked features if provided.
+	if len(linkedFeatures) > 0 {
+		if err := h.db.ReplaceLinkedFeatures(f.ID, linkedFeatures); err != nil {
+			if strings.Contains(err.Error(), "self-link") {
+				writeError(w, http.StatusBadRequest, err.Error())
+				return
+			}
+			if strings.Contains(err.Error(), "FOREIGN KEY") {
+				writeError(w, http.StatusNotFound, "one or more linked feature IDs not found")
+				return
+			}
+			writeInternalError(w, err)
+			return
+		}
+		f.LinkedFeatures = linkedFeatures
 	}
 
 	// Create initial position entry
@@ -203,9 +237,14 @@ func (h *featuresHandlers) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract parameters from the update map — handled separately.
+	// Extract parameters and linked features from the update map — handled separately.
 	replaceParams, newParams := extractParameters(id, updates)
 	delete(updates, "parameters")
+
+	replaceLinks, newLinkedFeatures := extractLinkedFeatures(updates)
+	delete(updates, "linkedFeatureIds")
+	delete(updates, "linked_feature_ids")
+	delete(updates, "linkedFeatures")
 
 	var (
 		feature *model.Feature
@@ -232,6 +271,25 @@ func (h *featuresHandlers) update(w http.ResponseWriter, r *http.Request) {
 	if replaceParams {
 		if err := h.db.ReplaceParameters(id, newParams); err == nil {
 			feature.Parameters, _ = h.db.ListParameters(id)
+		}
+	}
+
+	if replaceLinks {
+		if err := h.db.ReplaceLinkedFeatures(id, newLinkedFeatures); err != nil {
+			if strings.Contains(err.Error(), "self-link") {
+				writeError(w, http.StatusBadRequest, err.Error())
+				return
+			}
+			if strings.Contains(err.Error(), "FOREIGN KEY") {
+				writeError(w, http.StatusNotFound, "one or more linked feature IDs not found")
+				return
+			}
+			writeInternalError(w, err)
+			return
+		}
+		// Re-fetch to get current linked features
+		if updated, err := h.db.GetFeature(id); err == nil {
+			feature.LinkedFeatures = updated.LinkedFeatures
 		}
 	}
 
@@ -281,6 +339,41 @@ func extractParameters(featureID string, updates map[string]any) (bool, []model.
 		}
 	}
 	return true, params
+}
+
+// extractLinkedFeatures pulls linked feature data from an update map.
+// Accepts "linkedFeatures" (array of {id, description?} objects), "linkedFeatureIds", or "linked_feature_ids" (array of strings).
+func extractLinkedFeatures(updates map[string]any) (bool, []model.LinkedFeature) {
+	var raw any
+	if v, ok := updates["linkedFeatures"]; ok {
+		raw = v
+	} else if v, ok := updates["linkedFeatureIds"]; ok {
+		raw = v
+	} else if v, ok := updates["linked_feature_ids"]; ok {
+		raw = v
+	} else {
+		return false, nil
+	}
+	arr, ok := raw.([]any)
+	if !ok {
+		return true, nil
+	}
+	links := make([]model.LinkedFeature, 0, len(arr))
+	for _, item := range arr {
+		switch v := item.(type) {
+		case string:
+			if v != "" {
+				links = append(links, model.LinkedFeature{ID: v})
+			}
+		case map[string]any:
+			id, _ := v["id"].(string)
+			desc, _ := v["description"].(string)
+			if id != "" {
+				links = append(links, model.LinkedFeature{ID: id, Description: desc})
+			}
+		}
+	}
+	return true, links
 }
 
 func (h *featuresHandlers) delete(w http.ResponseWriter, r *http.Request) {

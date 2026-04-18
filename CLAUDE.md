@@ -98,6 +98,7 @@ An architectural annotation marking a security-relevant surface: API endpoint, d
   protocol?: string           // e.g. rest, grpc, graphql, websocket
   source?: string
   tags?: string[]
+  linkedFeatures?: { id: string; description?: string }[]  // bidirectional; includes links from either direction
   refs?: Ref[]                // external references (enriched inline)
   parameters?: FeatureParameter[]  // only meaningful for kind: 'interface'
   createdAt: string
@@ -405,6 +406,8 @@ Bench exposes MCP tools and a CLI. Tool schemas and CLI `--help` are the source 
 | `source` (findings) | any string | `pentest`, `tool`, `manual`, or `mcp` (SQLite CHECK) |
 | `tags` (features) | `"http,rest"` | `["http", "rest"]` (JSON array) |
 | `feature_ids` (MCP) | `"feat-1,feat-2"` | `["feat-1", "feat-2"]` (JSON array); CLI uses `--features feat-1,feat-2` |
+| `linked_feature_ids` (MCP/input) | `"feat-1,feat-2"` | `["feat-1", "feat-2"]` (JSON array); CLI uses `--features feat-1,feat-2` on features commands |
+| `linkedFeatures` (response) | flat string array | array of `{id, description}` objects; use `linkedFeatures[].id` to get the ID |
 | `features` (CLI update) | appends | replaces the full list (same semantic as `tags`) |
 | `parameters` on non-interface features | technically allowed | by convention interface-only |
 | `commit` | omitted | always set — empty `commitId` breaks reconciliation |

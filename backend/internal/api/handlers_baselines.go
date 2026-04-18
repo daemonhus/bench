@@ -346,7 +346,7 @@ func (h *baselineHandlers) computeDelta(baseline *model.Baseline) (*model.Baseli
 	for _, id := range baseline.FeatureIDs {
 		baselineFeatureIDs[id] = true
 	}
-	currentFeatures, _, _ := h.db.ListFeatures("", 0, 0)
+	currentFeatures, _, _ := h.db.ListFeatures("", "", 0, 0)
 	currentFeatureIDs := make(map[string]bool)
 	var newFeatures []model.Feature
 	for _, f := range currentFeatures {
@@ -545,7 +545,7 @@ func (h *baselineHandlers) buildStats() (model.ProjectStats, error) {
 	stats.CommentsOpen = openComments
 
 	// Add features stats
-	allFeatures, _, _ := h.db.ListFeatures("", 0, 0)
+	allFeatures, _, _ := h.db.ListFeatures("", "", 0, 0)
 	byKind := make(map[string]int)
 	for _, f := range allFeatures {
 		stats.FeaturesTotal++

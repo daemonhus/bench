@@ -12,12 +12,16 @@ import (
 	"github.com/google/uuid"
 )
 
-func (d *DB) ListFeatures(fileID string, limit, offset int) ([]model.Feature, int, error) {
+func (d *DB) ListFeatures(fileID string, linkedTo string, limit, offset int) ([]model.Feature, int, error) {
 	baseWhere := ` WHERE project_id = ?`
 	whereArgs := []any{d.projectID}
 	if fileID != "" {
 		baseWhere += ` AND anchor_file_id = ?`
 		whereArgs = append(whereArgs, fileID)
+	}
+	if linkedTo != "" {
+		baseWhere += ` AND id IN (SELECT linked_feature_id FROM feature_links WHERE feature_id = ? UNION SELECT feature_id FROM feature_links WHERE linked_feature_id = ?)`
+		whereArgs = append(whereArgs, linkedTo, linkedTo)
 	}
 
 	total := 0
@@ -73,6 +77,7 @@ func (d *DB) ListFeatures(fileID string, limit, offset int) ([]model.Feature, in
 			}
 		}
 	}
+	_ = d.enrichWithLinkedFeatures(features)
 	return features, total, nil
 }
 
@@ -103,6 +108,9 @@ func (d *DB) GetFeature(id string) (*model.Feature, error) {
 	if params, err := d.ListParameters(f.ID); err == nil {
 		f.Parameters = params
 	}
+	slice := []model.Feature{*f}
+	_ = d.enrichWithLinkedFeatures(slice)
+	f.LinkedFeatures = slice[0].LinkedFeatures
 	return f, nil
 }
 
@@ -133,8 +141,77 @@ func scanFeatureRow(rows *sql.Rows) (*model.Feature, error) {
 	if err := json.Unmarshal([]byte(tagsJSON), &f.Tags); err != nil {
 		f.Tags = []string{}
 	}
+	f.LinkedFeatures = []model.LinkedFeature{}
 	f.Parameters = []model.FeatureParameter{}
 	return &f, nil
+}
+
+// enrichWithLinkedFeatures batch-queries feature_links and populates LinkedFeatures on each feature.
+func (d *DB) enrichWithLinkedFeatures(features []model.Feature) error {
+	if len(features) == 0 {
+		return nil
+	}
+	idIdx := make(map[string]int, len(features))
+	placeholders := make([]string, len(features))
+	args := make([]any, 0, len(features)*2)
+	for i, f := range features {
+		idIdx[f.ID] = i
+		placeholders[i] = "?"
+		args = append(args, f.ID)
+	}
+	// Duplicate args for the second IN clause
+	args = append(args, args[:len(features)]...)
+
+	ph := strings.Join(placeholders, ",")
+	query := fmt.Sprintf(
+		`SELECT feature_id, linked_feature_id, description FROM feature_links WHERE feature_id IN (%s) OR linked_feature_id IN (%s)`,
+		ph, ph,
+	)
+	rows, err := d.conn.Query(query, args...)
+	if err != nil {
+		return fmt.Errorf("query feature_links: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var fid, lid, desc string
+		if err := rows.Scan(&fid, &lid, &desc); err != nil {
+			return fmt.Errorf("scan feature_link: %w", err)
+		}
+		if i, ok := idIdx[fid]; ok {
+			features[i].LinkedFeatures = append(features[i].LinkedFeatures, model.LinkedFeature{ID: lid, Description: desc})
+		}
+		if i, ok := idIdx[lid]; ok {
+			features[i].LinkedFeatures = append(features[i].LinkedFeatures, model.LinkedFeature{ID: fid, Description: desc})
+		}
+	}
+	return rows.Err()
+}
+
+// ReplaceLinkedFeatures atomically replaces all feature links for the given feature (either direction).
+func (d *DB) ReplaceLinkedFeatures(featureID string, links []model.LinkedFeature) error {
+	for _, lf := range links {
+		if lf.ID == featureID {
+			return fmt.Errorf("self-link not allowed: feature cannot link to itself")
+		}
+	}
+	return wq0(d.wq, func() error {
+		tx, err := d.conn.Begin()
+		if err != nil {
+			return fmt.Errorf("begin tx: %w", err)
+		}
+		defer tx.Rollback()
+
+		if _, err := tx.Exec(`DELETE FROM feature_links WHERE feature_id = ? OR linked_feature_id = ?`, featureID, featureID); err != nil {
+			return fmt.Errorf("delete feature_links: %w", err)
+		}
+		for _, lf := range links {
+			if _, err := tx.Exec(`INSERT INTO feature_links (feature_id, linked_feature_id, description) VALUES (?, ?, ?)`, featureID, lf.ID, lf.Description); err != nil {
+				return fmt.Errorf("insert feature_link %s: %w", lf.ID, err)
+			}
+		}
+		return tx.Commit()
+	})
 }
 
 func (d *DB) CreateFeature(f *model.Feature) error {

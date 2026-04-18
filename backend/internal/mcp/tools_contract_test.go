@@ -247,7 +247,7 @@ func TestMCPCreateDefaults(t *testing.T) {
 		if _, err := tools["create_feature"].Handler(ctx, params); err != nil {
 			t.Fatalf("create_feature: %v", err)
 		}
-		features, _, err := deps.db.ListFeatures("", 0, 0)
+		features, _, err := deps.db.ListFeatures("", "", 0, 0)
 		if err != nil || len(features) == 0 {
 			t.Fatalf("list features: %v (len=%d)", err, len(features))
 		}
@@ -306,4 +306,144 @@ func TestMCPUpdateFinding_ScoreIsFloat(t *testing.T) {
 func isRequiredFieldError(err error) bool {
 	msg := strings.ToLower(err.Error())
 	return strings.Contains(msg, "required")
+}
+
+func TestMCPFeatureLinks_CreateAndGet(t *testing.T) {
+	deps := setupMCPDeps(t)
+	head, _ := deps.repo.Head()
+	ctx := context.Background()
+	tools := registerAllTools(deps)
+
+	// Create two features to link
+	makeParams := func(id, kind, title string) json.RawMessage {
+		p, _ := json.Marshal(map[string]any{"file": "main.go", "commit": head, "kind": kind, "title": title})
+		return p
+	}
+	if _, err := tools["create_feature"].Handler(ctx, makeParams("", "interface", "A")); err != nil {
+		t.Fatalf("create A: %v", err)
+	}
+	if _, err := tools["create_feature"].Handler(ctx, makeParams("", "sink", "B")); err != nil {
+		t.Fatalf("create B: %v", err)
+	}
+
+	features, _, _ := deps.db.ListFeatures("", "", 0, 0)
+	if len(features) < 2 {
+		t.Fatalf("expected 2 features, got %d", len(features))
+	}
+	idA := features[len(features)-2].ID
+	idB := features[len(features)-1].ID
+
+	// Create C with linked_feature_ids pointing to A and B
+	p, _ := json.Marshal(map[string]any{
+		"file": "main.go", "commit": head, "kind": "source", "title": "C",
+		"linked_feature_ids": []string{idA, idB},
+	})
+	result, err := tools["create_feature"].Handler(ctx, p)
+	if err != nil {
+		t.Fatalf("create C with links: %v", err)
+	}
+
+	// Parse the returned JSON
+	jsonPart := result
+	if i := strings.Index(result, "\n"); i >= 0 {
+		jsonPart = result[i+1:]
+	}
+	var m map[string]any
+	if err := json.Unmarshal([]byte(jsonPart), &m); err != nil {
+		t.Fatalf("parse result: %v", err)
+	}
+	linked, _ := m["linkedFeatures"].([]any)
+	if len(linked) != 2 {
+		t.Errorf("create_feature linkedFeatures len = %d, want 2; result: %s", len(linked), result)
+	}
+
+	// get_feature should also return the links
+	allFeatures, _, _ := deps.db.ListFeatures("", "", 0, 0)
+	idC := allFeatures[len(allFeatures)-1].ID
+	getP, _ := json.Marshal(map[string]any{"id": idC})
+	getResult, err := tools["get_feature"].Handler(ctx, getP)
+	if err != nil {
+		t.Fatalf("get_feature: %v", err)
+	}
+	var got map[string]any
+	json.Unmarshal([]byte(getResult), &got)
+	if ids, _ := got["linkedFeatures"].([]any); len(ids) != 2 {
+		t.Errorf("get_feature linkedFeatures len = %d, want 2", len(ids))
+	}
+}
+
+func TestMCPFeatureLinks_Update(t *testing.T) {
+	deps := setupMCPDeps(t)
+	head, _ := deps.repo.Head()
+	ctx := context.Background()
+	tools := registerAllTools(deps)
+
+	for _, title := range []string{"A", "B"} {
+		p, _ := json.Marshal(map[string]any{"file": "main.go", "commit": head, "kind": "interface", "title": title})
+		tools["create_feature"].Handler(ctx, p)
+	}
+	features, _, _ := deps.db.ListFeatures("", "", 0, 0)
+	idA, idB := features[0].ID, features[1].ID
+
+	// Link A to B via update_feature
+	p, _ := json.Marshal(map[string]any{"id": idA, "linked_feature_ids": []string{idB}})
+	result, err := tools["update_feature"].Handler(ctx, p)
+	if err != nil {
+		t.Fatalf("update_feature link: %v", err)
+	}
+	jsonPart := result
+	if i := strings.Index(result, "\n"); i >= 0 {
+		jsonPart = result[i+1:]
+	}
+	var m map[string]any
+	json.Unmarshal([]byte(jsonPart), &m)
+	if ids, _ := m["linkedFeatures"].([]any); len(ids) != 1 {
+		t.Errorf("after link: linkedFeatures = %v, want 1 item", ids)
+	}
+
+	// Clear by passing empty array
+	p2, _ := json.Marshal(map[string]any{"id": idA, "linked_feature_ids": []string{}})
+	result2, err := tools["update_feature"].Handler(ctx, p2)
+	if err != nil {
+		t.Fatalf("update_feature clear: %v", err)
+	}
+	jsonPart2 := result2
+	if i := strings.Index(result2, "\n"); i >= 0 {
+		jsonPart2 = result2[i+1:]
+	}
+	var m2 map[string]any
+	json.Unmarshal([]byte(jsonPart2), &m2)
+	if ids, _ := m2["linkedFeatures"].([]any); len(ids) != 0 {
+		t.Errorf("after clear: linkedFeatures = %v, want []", ids)
+	}
+}
+
+func TestMCPFeatureLinks_ListLinkedTo(t *testing.T) {
+	deps := setupMCPDeps(t)
+	head, _ := deps.repo.Head()
+	ctx := context.Background()
+	tools := registerAllTools(deps)
+
+	for _, title := range []string{"A", "B", "C"} {
+		p, _ := json.Marshal(map[string]any{"file": "main.go", "commit": head, "kind": "interface", "title": title})
+		tools["create_feature"].Handler(ctx, p)
+	}
+	features, _, _ := deps.db.ListFeatures("", "", 0, 0)
+	idA, idB := features[0].ID, features[1].ID
+
+	deps.db.ReplaceLinkedFeatures(idA, []model.LinkedFeature{{ID: idB}})
+
+	// list_features with linked_to=idA should return only B
+	p, _ := json.Marshal(map[string]any{"linked_to": idA})
+	result, err := tools["list_features"].Handler(ctx, p)
+	if err != nil {
+		t.Fatalf("list_features linked_to: %v", err)
+	}
+	// Count occurrences of "id" in results — crude but sufficient
+	if !strings.Contains(result, idB) {
+		t.Errorf("list_features linked_to result missing idB (%s): %s", idB, result)
+	}
+	if strings.Contains(result, idA) {
+		t.Errorf("list_features linked_to result should not contain idA (%s): %s", idA, result)
+	}
 }

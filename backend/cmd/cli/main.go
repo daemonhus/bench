@@ -366,6 +366,7 @@ var commands = []cmdDef{
 			{Name: "file", Param: "fileId", Desc: "Filter by file path"},
 			{Name: "kind", Param: "kind", Desc: "Filter by kind [interface|source|sink|dependency|externality]"},
 			{Name: "status", Param: "status", Desc: "Filter by status [draft|active|deprecated|removed|orphaned]"},
+			{Name: "linked-to", Param: "linkedTo", Desc: "Filter to features linked to the given feature ID (either direction)"},
 		}},
 	{Cat: "features", Name: "get", Desc: "Get a single feature annotation by ID.",
 		EP: endpoint{"GET", "/api/features/{id}"},
@@ -388,6 +389,7 @@ var commands = []cmdDef{
 			{Name: "status", Param: "status", Desc: "Initial status (default: active)"},
 			{Name: "tags", Param: "tags", Desc: "Comma-separated tags", Type: "list"},
 			{Name: "source", Param: "source", Desc: "Tool or scanner that identified the feature"},
+			{Name: "features", Param: "linkedFeatures", Desc: "Comma-separated feature links: ID alone or ID|description (e.g. feat-abc,feat-def|calls auth sink)", Type: "linked-features"},
 		}},
 	{Cat: "features", Name: "update", Desc: "Update a feature annotation (partial update).",
 		EP: endpoint{"PATCH", "/api/features/{id}"},
@@ -406,6 +408,7 @@ var commands = []cmdDef{
 			{Name: "commit", Param: "commit_id", Desc: "New anchor commit"},
 			{Name: "start", Param: "line_start", Desc: "Anchor line range start", Type: "int"},
 			{Name: "end", Param: "line_end", Desc: "Anchor line range end", Type: "int"},
+			{Name: "features", Param: "linkedFeatures", Desc: "Comma-separated feature links: ID alone or ID|description; replaces full list, pass empty string to clear", Type: "linked-features"},
 		}},
 	{Cat: "features", Name: "delete", Desc: "Delete a feature annotation.",
 		EP: endpoint{"DELETE", "/api/features/{id}"},
@@ -741,7 +744,10 @@ func buildRequest(cmd *cmdDef, pf *parsedFlags) (method, path string, body io.Re
 			}
 
 			val, ok := pf.values[fd.Name]
-			if !ok || val == "" {
+			if !ok {
+				continue
+			}
+			if val == "" && fd.Type != "list" && fd.Type != "linked-features" {
 				continue
 			}
 			// Group anchor fields only for annotation commands.
@@ -783,14 +789,41 @@ func buildRequest(cmd *cmdDef, pf *parsedFlags) (method, path string, body io.Re
 				}
 				obj[fd.Param] = n
 			case "list":
-				parts := strings.Split(val, ",")
-				trimmed := make([]string, 0, len(parts))
-				for _, p := range parts {
-					if s := strings.TrimSpace(p); s != "" {
-						trimmed = append(trimmed, s)
+				if val == "" {
+					obj[fd.Param] = []string{}
+				} else {
+					parts := strings.Split(val, ",")
+					trimmed := make([]string, 0, len(parts))
+					for _, p := range parts {
+						if s := strings.TrimSpace(p); s != "" {
+							trimmed = append(trimmed, s)
+						}
 					}
+					obj[fd.Param] = trimmed
 				}
-				obj[fd.Param] = trimmed
+			case "linked-features":
+				if val == "" {
+					obj[fd.Param] = []map[string]any{}
+				} else {
+					parts := strings.Split(val, ",")
+					links := make([]map[string]any, 0, len(parts))
+					for _, part := range parts {
+						part = strings.TrimSpace(part)
+						if part == "" {
+							continue
+						}
+						if idx := strings.IndexByte(part, '|'); idx >= 0 {
+							id := strings.TrimSpace(part[:idx])
+							desc := strings.TrimSpace(part[idx+1:])
+							if id != "" {
+								links = append(links, map[string]any{"id": id, "description": desc})
+							}
+						} else {
+							links = append(links, map[string]any{"id": part})
+						}
+					}
+					obj[fd.Param] = links
+				}
 			default:
 				obj[fd.Param] = val
 			}

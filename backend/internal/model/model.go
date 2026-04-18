@@ -133,6 +133,12 @@ type FeatureParameter struct {
 	CreatedAt   string `json:"createdAt"`
 }
 
+// LinkedFeature represents a bidirectional link between two features, with an optional description.
+type LinkedFeature struct {
+	ID          string `json:"id"`
+	Description string `json:"description,omitempty"`
+}
+
 type Feature struct {
 	ID              string             `json:"id"`
 	Anchor          Anchor             `json:"anchor"`
@@ -149,6 +155,7 @@ type Feature struct {
 	ResolvedCommit  *string            `json:"resolvedCommit,omitempty"`
 	LineHash        string             `json:"lineHash,omitempty"`
 	AnchorUpdatedAt *string            `json:"anchorUpdatedAt,omitempty"`
+	LinkedFeatures  []LinkedFeature    `json:"linkedFeatures"`
 	Refs            []Ref              `json:"refs,omitempty"`
 	Parameters      []FeatureParameter `json:"parameters"`
 }

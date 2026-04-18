@@ -44,7 +44,7 @@ type ReconcileStore interface {
 type AnnotationReader interface {
 	ListFindings(fileID string, limit, offset int) ([]model.Finding, int, error)
 	ListComments(fileID, findingID string, limit, offset int, featureID ...string) ([]model.Comment, int, error)
-	ListFeatures(fileID string, limit, offset int) ([]model.Feature, int, error)
+	ListFeatures(fileID string, linkedTo string, limit, offset int) ([]model.Feature, int, error)
 }
 
 // AnnotationResolver resolves findings and creates comments.
@@ -269,7 +269,7 @@ func (r *Reconciler) GetEffectivePositions(fileID, commitID string) (map[string]
 	if err != nil {
 		return nil, err
 	}
-	features, _, err := r.ann.ListFeatures(fileID, 0, 0)
+	features, _, err := r.ann.ListFeatures(fileID, "", 0, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -406,7 +406,7 @@ func (r *Reconciler) reconcileFile(job *Job, fileID, targetCommit string) (int, 
 	if err != nil {
 		return 0, ReconcileSummary{}, err
 	}
-	features, _, err := r.ann.ListFeatures(fileID, 0, 0)
+	features, _, err := r.ann.ListFeatures(fileID, "", 0, 0)
 	if err != nil {
 		return 0, ReconcileSummary{}, err
 	}

@@ -14,6 +14,27 @@ import (
 	"github.com/google/uuid"
 )
 
+// parseMCPLinkedFeatures converts the MCP linked_feature_ids array to model objects.
+// Each item may be a plain ID string or a {id, description?} object.
+func parseMCPLinkedFeatures(items []json.RawMessage) []model.LinkedFeature {
+	links := make([]model.LinkedFeature, 0, len(items))
+	for _, raw := range items {
+		var id string
+		if json.Unmarshal(raw, &id) == nil && id != "" {
+			links = append(links, model.LinkedFeature{ID: id})
+			continue
+		}
+		var obj struct {
+			ID          string `json:"id"`
+			Description string `json:"description"`
+		}
+		if json.Unmarshal(raw, &obj) == nil && obj.ID != "" {
+			links = append(links, model.LinkedFeature{ID: obj.ID, Description: obj.Description})
+		}
+	}
+	return links
+}
+
 func registerFeatureTools(deps *toolDeps) []Tool {
 	return []Tool{
 		toolListFeatures(deps),
@@ -52,20 +73,22 @@ func toolListFeatures(deps *toolDeps) Tool {
 			"properties": {
 				"file": {"type": "string", "description": "Filter by file path"},
 				"kind": {"type": "string", "enum": ["interface","source","sink","dependency","externality"], "description": "Filter by feature kind"},
-				"status": {"type": "string", "enum": ["draft","active","deprecated","removed","orphaned"], "description": "Filter by status"}
+				"status": {"type": "string", "enum": ["draft","active","deprecated","removed","orphaned"], "description": "Filter by status"},
+				"linked_to": {"type": "string", "description": "Return only features linked to this feature ID (either direction)"}
 			}
 		}`),
 		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
 			var p struct {
-				File   string `json:"file"`
-				Kind   string `json:"kind"`
-				Status string `json:"status"`
+				File     string `json:"file"`
+				Kind     string `json:"kind"`
+				Status   string `json:"status"`
+				LinkedTo string `json:"linked_to"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {
 				return "", fmt.Errorf("invalid params: %w", err)
 			}
 
-			features, _, err := deps.db.ListFeatures(p.File, 0, 0)
+			features, _, err := deps.db.ListFeatures(p.File, p.LinkedTo, 0, 0)
 			if err != nil {
 				return "", err
 			}
@@ -180,26 +203,28 @@ func toolCreateFeature(deps *toolDeps) Tool {
 				"status": {"type": "string", "enum": ["draft","active"], "description": "Initial status (default: active)"},
 				"tags": {"type": "array", "items": {"type": "string"}, "description": "Optional tags"},
 				"source": {"type": "string", "description": "Tool or scanner that identified the feature"},
+				"linked_feature_ids": {"type": "array", "items": {"oneOf": [{"type": "string"}, {"type": "object", "properties": {"id": {"type": "string"}, "description": {"type": "string"}}, "required": ["id"]}]}, "description": "Features to link to"},
 				"parameters": {"type": "array", "items": ` + paramItemSchema + `, "description": "Optional parameters documenting the interface contract (auth headers, path vars, query params, body fields)"}
 			},
 			"required": ["file", "commit", "kind", "title"]
 		}`),
 		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
 			var p struct {
-				File        string   `json:"file"`
-				Commit      string   `json:"commit"`
-				LineStart   int      `json:"start"`
-				LineEnd     int      `json:"end"`
-				Kind        string   `json:"kind"`
-				Title       string   `json:"title"`
-				Description string   `json:"description"`
-				Operation   string   `json:"operation"`
-				Direction   string   `json:"direction"`
-				Protocol    string   `json:"protocol"`
-				Status      string   `json:"status"`
-				Tags        []string `json:"tags"`
-				Source      string   `json:"source"`
-				Parameters  []struct {
+				File             string            `json:"file"`
+				Commit           string            `json:"commit"`
+				LineStart        int               `json:"start"`
+				LineEnd          int               `json:"end"`
+				Kind             string            `json:"kind"`
+				Title            string            `json:"title"`
+				Description      string            `json:"description"`
+				Operation        string            `json:"operation"`
+				Direction        string            `json:"direction"`
+				Protocol         string            `json:"protocol"`
+				Status           string            `json:"status"`
+				Tags             []string          `json:"tags"`
+				Source           string            `json:"source"`
+				LinkedFeatureIds []json.RawMessage `json:"linked_feature_ids"`
+				Parameters       []struct {
 					Name        string `json:"name"`
 					Description string `json:"description"`
 					Type        string `json:"type"`
@@ -286,6 +311,16 @@ func toolCreateFeature(deps *toolDeps) Tool {
 				}
 			}
 
+			// Persist linked features if provided.
+			if links := parseMCPLinkedFeatures(p.LinkedFeatureIds); len(links) > 0 {
+				if err := deps.db.ReplaceLinkedFeatures(f.ID, links); err != nil {
+					return "", fmt.Errorf("link features: %w", err)
+				}
+				if updated, err := deps.db.GetFeature(f.ID); err == nil {
+					f.LinkedFeatures = updated.LinkedFeatures
+				}
+			}
+
 			if deps.broker != nil {
 				deps.broker.Publish(events.TopicAnnotations)
 			}
@@ -319,6 +354,7 @@ func toolUpdateFeature(deps *toolDeps) Tool {
 				"source": {"type": "string", "description": "Source tool or scanner"},
 				"start": {"type": "integer"},
 				"end": {"type": "integer"},
+				"linked_feature_ids": {"type": "array", "items": {"oneOf": [{"type": "string"}, {"type": "object", "properties": {"id": {"type": "string"}, "description": {"type": "string"}}, "required": ["id"]}]}, "description": "Replace all feature links — each item is an ID string or {id, description} object. Pass [] to clear. Omitting leaves links unchanged."},
 				"parameters": {"type": "array", "items": ` + paramItemSchema + `, "description": "Replace all parameters. Omitting this field leaves parameters unchanged."}
 			},
 			"required": ["id"]
@@ -461,6 +497,30 @@ func toolUpdateFeature(deps *toolDeps) Tool {
 				}
 			}
 
+			// Extract linked_feature_ids before UpdateFeature (it doesn't handle them).
+			var replaceLinks bool
+			var newLinkedFeatures []model.LinkedFeature
+			if rawLinks, ok := raw["linked_feature_ids"]; ok {
+				replaceLinks = true
+				delete(raw, "linked_feature_ids")
+				if arr, ok := rawLinks.([]any); ok {
+					for _, item := range arr {
+						switch v := item.(type) {
+						case string:
+							if v != "" {
+								newLinkedFeatures = append(newLinkedFeatures, model.LinkedFeature{ID: v})
+							}
+						case map[string]any:
+							id2, _ := v["id"].(string)
+							desc, _ := v["description"].(string)
+							if id2 != "" {
+								newLinkedFeatures = append(newLinkedFeatures, model.LinkedFeature{ID: id2, Description: desc})
+							}
+						}
+					}
+				}
+			}
+
 			var f *model.Feature
 			var err error
 			if len(raw) > 0 {
@@ -478,6 +538,15 @@ func toolUpdateFeature(deps *toolDeps) Tool {
 			if replaceParams {
 				if err := deps.db.ReplaceParameters(id, newParams); err == nil {
 					f.Parameters, _ = deps.db.ListParameters(id)
+				}
+			}
+
+			if replaceLinks {
+				if err := deps.db.ReplaceLinkedFeatures(id, newLinkedFeatures); err != nil {
+					return "", fmt.Errorf("link features: %w", err)
+				}
+				if updated, err := deps.db.GetFeature(id); err == nil {
+					f.LinkedFeatures = updated.LinkedFeatures
 				}
 			}
 
@@ -552,6 +621,7 @@ func toolBatchCreateFeatures(deps *toolDeps) Tool {
 							"status": {"type": "string", "enum": ["draft","active"], "description": "Initial status (default: active)"},
 							"tags": {"type": "array", "items": {"type": "string"}, "description": "Optional tags"},
 							"source": {"type": "string", "description": "Tool or scanner that identified the feature"},
+							"linked_feature_ids": {"type": "array", "items": {"oneOf": [{"type": "string"}, {"type": "object", "properties": {"id": {"type": "string"}, "description": {"type": "string"}}, "required": ["id"]}]}, "description": "Features to link to — ID strings or {id, description} objects; forward references within the same batch are allowed"},
 							"parameters": {"type": "array", "items": ` + paramItemSchema + `, "description": "Optional parameters documenting the interface contract"}
 						},
 						"required": ["file", "commit", "kind", "title"]
@@ -564,20 +634,21 @@ func toolBatchCreateFeatures(deps *toolDeps) Tool {
 		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
 			var p struct {
 				Features []struct {
-					File        string   `json:"file"`
-					Commit      string   `json:"commit"`
-					LineStart   int      `json:"start"`
-					LineEnd     int      `json:"end"`
-					Kind        string   `json:"kind"`
-					Title       string   `json:"title"`
-					Description string   `json:"description"`
-					Operation   string   `json:"operation"`
-					Direction   string   `json:"direction"`
-					Protocol    string   `json:"protocol"`
-					Status      string   `json:"status"`
-					Tags        []string `json:"tags"`
-					Source      string   `json:"source"`
-					Parameters  []struct {
+					File             string            `json:"file"`
+					Commit           string            `json:"commit"`
+					LineStart        int               `json:"start"`
+					LineEnd          int               `json:"end"`
+					Kind             string            `json:"kind"`
+					Title            string            `json:"title"`
+					Description      string            `json:"description"`
+					Operation        string            `json:"operation"`
+					Direction        string            `json:"direction"`
+					Protocol         string            `json:"protocol"`
+					Status           string            `json:"status"`
+					Tags             []string          `json:"tags"`
+					Source           string            `json:"source"`
+					LinkedFeatureIds []json.RawMessage `json:"linked_feature_ids"`
+					Parameters       []struct {
 						Name        string `json:"name"`
 						Description string `json:"description"`
 						Type        string `json:"type"`
@@ -673,6 +744,9 @@ func toolBatchCreateFeatures(deps *toolDeps) Tool {
 						}
 					}
 					_ = deps.db.ReplaceParameters(f.ID, mparams)
+				}
+				if links := parseMCPLinkedFeatures(p.Features[i].LinkedFeatureIds); len(links) > 0 {
+					_ = deps.db.ReplaceLinkedFeatures(f.ID, links)
 				}
 			}
 

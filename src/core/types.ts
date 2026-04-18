@@ -269,6 +269,11 @@ export interface FeatureParameter {
   createdAt?: string;
 }
 
+export interface LinkedFeature {
+  id: string;
+  description?: string;
+}
+
 export interface Feature {
   id: string;
   anchor: Anchor;
@@ -284,6 +289,7 @@ export interface Feature {
   createdAt?: string;
   resolvedCommit?: string;
   lineHash?: string;
+  linkedFeatures?: LinkedFeature[];
   refs?: Ref[];
   parameters?: FeatureParameter[];
 }

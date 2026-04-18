@@ -183,7 +183,7 @@ func (m *mockAnnotationReader) ListComments(fileID, findingID string, limit, off
 	return c, len(c), nil
 }
 
-func (m *mockAnnotationReader) ListFeatures(fileID string, limit, offset int) ([]model.Feature, int, error) {
+func (m *mockAnnotationReader) ListFeatures(fileID string, linkedTo string, limit, offset int) ([]model.Feature, int, error) {
 	f := m.features[fileID]
 	return f, len(f), nil
 }

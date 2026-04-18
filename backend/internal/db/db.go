@@ -481,6 +481,26 @@ func (d *DB) migrate() error {
 		return fmt.Errorf("create idx_feature_parameters_project: %w", err)
 	}
 
+	// Add feature_links join table
+	if _, err := d.conn.Exec(`CREATE TABLE IF NOT EXISTS feature_links (
+		feature_id        TEXT NOT NULL REFERENCES features(id) ON DELETE CASCADE,
+		linked_feature_id TEXT NOT NULL REFERENCES features(id) ON DELETE CASCADE,
+		PRIMARY KEY (feature_id, linked_feature_id),
+		CHECK (feature_id != linked_feature_id)
+	)`); err != nil {
+		return fmt.Errorf("create feature_links: %w", err)
+	}
+	// Add description column to feature_links if not present (migration for existing databases).
+	var descColCount int
+	if err := d.conn.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('feature_links') WHERE name='description'`).Scan(&descColCount); err != nil {
+		return fmt.Errorf("check feature_links schema: %w", err)
+	}
+	if descColCount == 0 {
+		if _, err := d.conn.Exec(`ALTER TABLE feature_links ADD COLUMN description TEXT NOT NULL DEFAULT ''`); err != nil {
+			return fmt.Errorf("alter feature_links add description: %w", err)
+		}
+	}
+
 	return nil
 }
 

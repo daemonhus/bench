@@ -251,6 +251,7 @@ List architectural feature annotations, optionally filtered.
 | `file` | string | no | Filter by file path |
 | `kind` | string | no | Filter by kind: `interface` \| `source` \| `sink` \| `dependency` \| `externality` |
 | `status` | string | no | Filter by status: `draft` \| `active` \| `deprecated` \| `removed` \| `orphaned` |
+| `linked_to` | string | no | Return only features linked to this feature ID (either direction) |
 
 ### get_feature
 
@@ -277,6 +278,7 @@ Annotate an architectural feature: an API interface, data source/sink, dependenc
 | `status` | string | no | Initial status (default: `active`) |
 | `tags` | string[] | no | Optional tags |
 | `source` | string | no | Tool or scanner that identified the feature |
+| `linked_feature_ids` | array | no | Features to link — each item is an ID string or `{id, description}` object. Self-links return 400; unknown IDs return 404. |
 
 ### update_feature
 
@@ -295,6 +297,7 @@ Annotate an architectural feature: an API interface, data source/sink, dependenc
 | `commit` | string | no | New commit (re-anchors; recomputes line hash) |
 | `start` | int | no | New start line (re-anchors; recomputes line hash) |
 | `end` | int | no | New end line (re-anchors; recomputes line hash) |
+| `linked_feature_ids` | array | no | Replace all links — ID strings or `{id, description}` objects; pass `[]` to clear; omit to leave unchanged. Self-links return 400. |
 
 ### delete_feature
 
@@ -304,7 +307,7 @@ Annotate an architectural feature: an API interface, data source/sink, dependenc
 
 ### batch_create_features
 
-Create multiple feature annotations in one transaction. All-or-nothing. Accepts a `features` array where each item takes the same fields as `create_feature`. `file`, `commit`, `kind`, and `title` are required per item. Max 100 per call.
+Create multiple feature annotations in one transaction. All-or-nothing. Accepts a `features` array where each item takes the same fields as `create_feature`. `file`, `commit`, `kind`, and `title` are required per item. Optional fields include `linked_feature_ids` — features within the same batch can reference each other by ID. Max 100 per call.
 
 ### list_feature_parameters
 
