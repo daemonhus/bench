@@ -16,6 +16,7 @@ import { LinkManageModal } from './LinkManageModal';
 interface FeatureCardProps {
   feature: Feature;
   isExpanded: boolean;
+  isNavFocused?: boolean;
   expandSnippetsTick?: number;
   collapseSnippetsTick?: number;
   onSnippetCollapsedChange?: (collapsed: boolean) => void;
@@ -86,6 +87,7 @@ function extractMethod(title: string): { method: string; path: string } | null {
 export const FeatureCard: React.FC<FeatureCardProps> = ({
   feature,
   isExpanded,
+  isNavFocused,
   expandSnippetsTick,
   collapseSnippetsTick,
   onSnippetCollapsedChange,
@@ -96,6 +98,7 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
 }) => {
   const storeFeatures = useAnnotationStore((s) => s.features);
   const allFeatures = allFeaturesProp ?? storeFeatures;
+  const viewMode = useUIStore((s) => s.viewMode);
   const updateFeature = useAnnotationStore((s) => s.updateFeature);
   const deleteFeature = useAnnotationStore((s) => s.deleteFeature);
   const addComment = useAnnotationStore((s) => s.addComment);
@@ -187,8 +190,12 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
   const snippet = useMemo(() => {
     if (!fileLines || !lineRange) return null;
     const CONTEXT = 1;
+    const MAX_RANGE_LINES = 5;
+    // Cap displayed range so long annotations don't balloon the card. The
+    // "N more" button still extends via extraAfter.
+    const cappedRangeEnd = Math.min(lineRange.end, lineRange.start + MAX_RANGE_LINES - 1);
     const from = Math.max(0, lineRange.start - 1 - CONTEXT - extraBefore);
-    const to = Math.min(fileLines.lines.length, lineRange.end + CONTEXT + extraAfter);
+    const to = Math.min(fileLines.lines.length, cappedRangeEnd + CONTEXT + extraAfter);
     return {
       lines: fileLines.lines.slice(from, to),
       startLine: from + 1,
@@ -341,14 +348,22 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
     </span>
   );
 
+  const titleNavProps = {
+    onClick: (e: React.MouseEvent) => {
+      e.stopPropagation();
+      useUIStore.getState().setScrollToFeature({ id: feature.id, kind: feature.kind as import('../core/types').FeatureKind });
+      useUIStore.getState().setViewMode('features');
+    },
+    title: 'Open in Features',
+  };
   const titleEl = feature.kind === 'interface' ? (() => {
     const op = feature.operation?.toUpperCase();
     const parsed = op ? null : extractMethod(feature.title);
     const method = op ?? parsed?.method;
     const displayTitle = method ? (op ? feature.title : parsed?.path ?? feature.title) : feature.title;
-    return <code className="feature-endpoint-path">{displayTitle}</code>;
+    return <code className="feature-endpoint-path feature-title-link" {...titleNavProps}>{displayTitle}</code>;
   })() : (
-    <span className="feature-title">{feature.title}</span>
+    <span className="feature-title feature-title-link" {...titleNavProps}>{feature.title}</span>
   );
 
   return (
@@ -370,49 +385,57 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
           {feature.description && (
             <p className="feature-description feature-description-collapsed">{feature.description}</p>
           )}
-          {!compact && feature.linkedFeatures && feature.linkedFeatures.length > 0 && (() => {
-            const linked = feature.linkedFeatures
+          {!compact && (() => {
+            const linked = (feature.linkedFeatures ?? [])
               .map((lf) => ({ lf, feat: allFeatures.find((f) => f.id === lf.id) }))
               .filter((item): item is { lf: NonNullable<typeof item.lf>; feat: NonNullable<typeof item.feat> } => item.feat != null);
-            if (linked.length === 0) return null;
+            if (refs.length === 0 && linked.length === 0) return null;
             return (
-              <div className="feature-linked-list" style={{ marginTop: 6 }} onClick={(e) => e.stopPropagation()}>
+              <div className="feature-links-row feature-links-row-inline" onClick={(e) => e.stopPropagation()}>
+                <span className="feature-params-heading feature-links-heading-inline">Links<span className="section-count-badge">{refs.length + linked.length}</span></span>
+                {refs.map((ref) => (
+                  <a
+                    key={ref.id}
+                    href={ref.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="feature-links-ref-chip"
+                    title={ref.title || ref.url}
+                  >
+                    <RefProviderIcon provider={ref.provider} size={13} />
+                    <span>{ref.title || ref.url}</span>
+                  </a>
+                ))}
                 {linked.map(({ lf, feat: f }) => {
                   const fKindColor = KIND_COLORS[f.kind] ?? '#6b7280';
                   const isInterface = f.kind === 'interface';
                   const method = f.operation?.toUpperCase();
-                  const miniKindBadge = isInterface && method ? (
-                    <span className="feature-method-badge" style={{ background: METHOD_COLORS[method] ?? fKindColor, fontSize: 9 }}>{method}</span>
-                  ) : (
-                    <span className="feature-kind-badge" style={{ background: fKindColor, fontSize: 9 }}>{KIND_LABELS[f.kind as FeatureKind] ?? f.kind}</span>
-                  );
-                  const miniTitle = isInterface ? (
-                    <code className="feature-endpoint-path" style={{ fontSize: 11 }}>{f.title}</code>
-                  ) : (
-                    <span className="feature-linked-title">{f.title}</span>
-                  );
                   const displayDesc = lf.description || f.description;
                   const filename = f.anchor.fileId?.split('/').pop();
+                  const tooltipParts = [displayDesc, filename ? `(${filename})` : null].filter(Boolean);
                   return (
-                    <div
+                    <button
                       key={f.id}
-                      className="feature-linked-card"
-                      style={{ borderLeftColor: fKindColor }}
+                      type="button"
+                      className="feature-linked-badge"
+                      title={tooltipParts.join(' ')}
                       onClick={(e) => {
                         e.stopPropagation();
                         useUIStore.getState().setScrollToFeature({ id: f.id, kind: f.kind as import('../core/types').FeatureKind });
                         useUIStore.getState().setViewMode('features');
                       }}
                     >
-                      <div className="feature-linked-card-header">
-                        {miniKindBadge}
-                        {miniTitle}
-                        {filename && <span className="feature-linked-file">{filename}</span>}
-                      </div>
-                      {displayDesc && (
-                        <p className="feature-linked-card-desc">{displayDesc}</p>
+                      {isInterface && method ? (
+                        <span className="feature-method-badge" style={{ background: METHOD_COLORS[method] ?? fKindColor, fontSize: 9 }}>{method}</span>
+                      ) : (
+                        <span className="feature-kind-badge" style={{ background: fKindColor, fontSize: 9 }}>{KIND_LABELS[f.kind as FeatureKind] ?? f.kind}</span>
                       )}
-                    </div>
+                      {isInterface ? (
+                        <code className="feature-linked-badge-title feature-endpoint-path">{f.title}</code>
+                      ) : (
+                        <span className="feature-linked-badge-title">{f.title}</span>
+                      )}
+                    </button>
                   );
                 })}
               </div>
@@ -466,73 +489,61 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
                   .filter((item): item is { lf: NonNullable<typeof item.lf>; feat: NonNullable<typeof item.feat> } => item.feat != null);
                 if (refs.length === 0 && linked.length === 0) return null;
                 return (
-                  <div className="feature-params-section">
-                    <div className="feature-params-heading">Links<span className="section-count-badge">{refs.length + linked.length}</span></div>
-                    {refs.length > 0 && (
-                      <div className="feature-links-refs-row" onClick={(e) => e.stopPropagation()}>
-                        {refs.map((ref) => (
-                          <a
-                            key={ref.id}
-                            href={ref.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="feature-links-ref-chip"
-                            title={ref.title || ref.url}
+                  <div className="feature-links-row feature-links-row-inline" onClick={(e) => e.stopPropagation()}>
+                    <span className="feature-params-heading feature-links-heading-inline">Links<span className="section-count-badge">{refs.length + linked.length}</span></span>
+                    {refs.map((ref) => (
+                        <a
+                          key={ref.id}
+                          href={ref.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="feature-links-ref-chip"
+                          title={ref.title || ref.url}
+                        >
+                          <RefProviderIcon provider={ref.provider} size={13} />
+                          <span>{ref.title || ref.url}</span>
+                        </a>
+                      ))}
+                      {linked.map(({ lf, feat: f }) => {
+                        const fKindColor = KIND_COLORS[f.kind] ?? '#6b7280';
+                        const isInterface = f.kind === 'interface';
+                        const method = f.operation?.toUpperCase();
+                        const displayDesc = lf.description || f.description;
+                        const filename = f.anchor.fileId?.split('/').pop();
+                        const tooltipParts = [
+                          displayDesc,
+                          filename ? `(${filename})` : null,
+                        ].filter(Boolean);
+                        return (
+                          <button
+                            key={f.id}
+                            type="button"
+                            className="feature-linked-badge"
+                            title={tooltipParts.join(' ')}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              useUIStore.getState().setScrollToFeature({ id: f.id, kind: f.kind as import('../core/types').FeatureKind });
+                              useUIStore.getState().setViewMode('features');
+                            }}
                           >
-                            <RefProviderIcon provider={ref.provider} size={13} />
-                            <span>{ref.title || ref.url}</span>
-                          </a>
-                        ))}
-                      </div>
-                    )}
-                    {linked.length > 0 && (
-                      <div className="feature-linked-list" style={refs.length > 0 ? { marginTop: 6 } : undefined}>
-
-                        {linked.map(({ lf, feat: f }) => {
-                          const fKindColor = KIND_COLORS[f.kind] ?? '#6b7280';
-                          const isInterface = f.kind === 'interface';
-                          const method = f.operation?.toUpperCase();
-                          const miniKindBadge = isInterface && method ? (
-                            <span className="feature-method-badge" style={{ background: METHOD_COLORS[method] ?? fKindColor, fontSize: 9 }}>{method}</span>
-                          ) : (
-                            <span className="feature-kind-badge" style={{ background: fKindColor, fontSize: 9 }}>{KIND_LABELS[f.kind as FeatureKind] ?? f.kind}</span>
-                          );
-                          const miniTitle = isInterface ? (
-                            <code className="feature-endpoint-path" style={{ fontSize: 11 }}>{f.title}</code>
-                          ) : (
-                            <span className="feature-linked-title">{f.title}</span>
-                          );
-                          const displayDesc = lf.description || f.description;
-                          const filename = f.anchor.fileId?.split('/').pop();
-                          return (
-                            <div
-                              key={f.id}
-                              className="feature-linked-card"
-                              style={{ borderLeftColor: fKindColor }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                useUIStore.getState().setScrollToFeature({ id: f.id, kind: f.kind as import('../core/types').FeatureKind });
-                                useUIStore.getState().setViewMode('features');
-                              }}
-                            >
-                              <div className="feature-linked-card-header">
-                                {miniKindBadge}
-                                {miniTitle}
-                                {filename && <span className="feature-linked-file">{filename}</span>}
-                              </div>
-                              {displayDesc && (
-                                <p className="feature-linked-card-desc">{displayDesc}</p>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                            {isInterface && method ? (
+                              <span className="feature-method-badge" style={{ background: METHOD_COLORS[method] ?? fKindColor, fontSize: 9 }}>{method}</span>
+                            ) : (
+                              <span className="feature-kind-badge" style={{ background: fKindColor, fontSize: 9 }}>{KIND_LABELS[f.kind as FeatureKind] ?? f.kind}</span>
+                            )}
+                            {isInterface ? (
+                              <code className="feature-linked-badge-title feature-endpoint-path">{f.title}</code>
+                            ) : (
+                              <span className="feature-linked-badge-title">{f.title}</span>
+                            )}
+                          </button>
+                        );
+                      })}
                   </div>
                 );
               })()}
 
-              {feature.kind === 'interface' && feature.parameters && feature.parameters.length > 0 && (
+              {viewMode === 'features' && feature.kind === 'interface' && feature.parameters && feature.parameters.length > 0 && (
                 <div className="feature-params-section">
                   <div className="feature-params-heading">Parameters</div>
                   <div className="feature-params-list">
@@ -566,7 +577,7 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
                 </div>
               )}
 
-              {snippet && lineRange && (
+              {snippet && lineRange && viewMode !== 'browse' && (
                 <div className="feature-snippet">
                   <div className="feature-snippet-bar">
                     {snippet.canExpandUp && !snippetCollapsed ? (
@@ -931,7 +942,7 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
 
             <div className="finding-comment-compose">
               <textarea
-                placeholder="Reply..."
+                placeholder={isNavFocused ? 'Reply... (⏎)' : 'Reply...'}
                 value={replyText}
                 onChange={(e) => setReplyText(e.target.value)}
                 onKeyDown={(e) => {

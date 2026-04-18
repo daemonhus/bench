@@ -27,6 +27,20 @@ import { FeaturesView } from './components/FeaturesView';
 import { FolderView } from './components/FolderView';
 import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
 import type { ViewMode, Severity, FindingStatus, CommentType, Finding, Feature } from './core/types';
+
+const NAV_AREA: Partial<Record<ViewMode, string>> = {
+  browse: 'filetree',
+  delta: 'delta-header',
+  findings: 'findings-filter',
+  features: 'features-tabs',
+};
+
+const TAB_CYCLES: Partial<Record<ViewMode, string[]>> = {
+  browse:   ['filetree', 'codeview', 'sidebar'],
+  delta:    ['delta-header', 'delta-filters', 'delta'],
+  findings: ['findings-filter', 'findings-list'],
+  features: ['features-tabs', 'features-list', 'features-filter'],
+};
 import { COMMENT_TYPE_ICON, COMMENT_TYPE_LABEL } from './core/types';
 import { getDiffEmptyMessage } from './core/diff-utils';
 import './App.css';
@@ -122,6 +136,12 @@ export function App() {
   const [inFileSearchInitialQuery, setInFileSearchInitialQuery] = useState('');
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [browseDir, setBrowseDir] = useState<string | null>(null);
+  const pendingNavFocus = useUIStore(s => s.pendingNavFocus);
+  const setPendingNavFocus = useUIStore(s => s.setPendingNavFocus);
+  const codeviewTypePick = useUIStore(s => s.codeviewTypePick);
+  const setCodeviewTypePick = useUIStore(s => s.setCodeviewTypePick);
+  const [typePickIndex, setTypePickIndex] = useState(0);
+  const TYPE_PICK_KINDS = ['finding', 'comment', 'feature'] as const;
   const [diffFiles, setDiffFiles] = useState<string[] | null>(null);
 
   // Quick-add finding/comment popover
@@ -371,6 +391,37 @@ export function App() {
     return () => document.removeEventListener('mousedown', handler);
   }, [quickAdd, handleQuickAddCancel]);
 
+  // Type-picker keyboard navigation (active only when codeviewTypePick is set)
+  useEffect(() => {
+    if (!codeviewTypePick) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        setTypePickIndex(i => Math.min(i + 1, TYPE_PICK_KINDS.length - 1));
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        setTypePickIndex(i => Math.max(i - 1, 0));
+      } else if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        const kind = TYPE_PICK_KINDS[typePickIndex];
+        const { start, end } = codeviewTypePick;
+        setCodeviewTypePick(null);
+        useUIStore.getState().setCodeviewFocusedLine(null);
+        setQuickAdd({ kind, scope: 'file', lineRange: { start, end } });
+        setQuickTitle(''); setQuickText(''); setQuickConfirmDiscard(false);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        // Go back to selecting mode
+        const { anchor, current } = codeviewTypePick;
+        setCodeviewTypePick(null);
+        useUIStore.getState().setCodeviewSelectAnchor(anchor);
+        useUIStore.getState().setCodeviewFocusedLine(current);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [codeviewTypePick, typePickIndex]);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -394,17 +445,104 @@ export function App() {
         const selected = window.getSelection()?.toString().trim() ?? '';
         setInFileSearchInitialQuery(selected);
         setInFileSearchOpen(true);
+      } else if (!inEditable && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+        if (e.key === '1') { e.preventDefault(); setViewMode('browse'); setPendingNavFocus(NAV_AREA['browse'] ?? null); }
+        else if (e.key === '2') { e.preventDefault(); setViewMode('delta'); setPendingNavFocus(NAV_AREA['delta'] ?? null); }
+        else if (e.key === '3') { e.preventDefault(); setViewMode('findings'); setPendingNavFocus(NAV_AREA['findings'] ?? null); }
+        else if (e.key === '4') { e.preventDefault(); setViewMode('features'); setPendingNavFocus(NAV_AREA['features'] ?? null); }
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [handleGoBack, handleGoForward]);
 
+  // Global Tab/Shift+Tab area cycling — capture phase so it fires before
+  // any component handler or browser default.
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement)?.isContentEditable) return;
+
+      const cycle = TAB_CYCLES[viewMode];
+      if (!cycle || cycle.length === 0) return;
+
+      // Filter to areas currently in DOM (e.g. sidebar may be closed)
+      const live = cycle.filter(a => document.querySelector(`[data-nav-area="${a}"]`));
+      if (live.length === 0) return;
+
+      const current = (e.target as HTMLElement)?.closest?.('[data-nav-area]');
+      const currentName = current?.getAttribute('data-nav-area');
+      const idx = currentName ? live.indexOf(currentName) : -1;
+
+      let next: number;
+      if (idx === -1) {
+        next = 0;
+      } else if (live.length <= 1) {
+        // Single-area view — suppress Tab but don't move
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      } else if (e.shiftKey) {
+        next = (idx - 1 + live.length) % live.length;
+      } else {
+        next = (idx + 1) % live.length;
+      }
+
+      e.preventDefault();
+      e.stopPropagation();
+      const target = document.querySelector(`[data-nav-area="${live[next]}"]`) as HTMLElement | null;
+      if (target) {
+        target.focus({ preventScroll: true });
+        target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    };
+
+    document.addEventListener('keydown', handler, { capture: true });
+    return () => document.removeEventListener('keydown', handler, { capture: true });
+  }, [viewMode]);
+
   // Close in-file search when file or view changes
   useEffect(() => {
     setInFileSearchOpen(false);
     setInFileSearchInitialQuery('');
+    useUIStore.getState().setCodeviewFocusedLine(null);
   }, [selectedFilePath, viewMode]);
+
+  // Auto-focus the primary nav area after a tab switch.
+  // Try synchronously first (element already exists for Browse/Features tabs area).
+  // If the element doesn't exist yet (view is in a loading state), watch for it via
+  // MutationObserver so we focus it the moment it appears, regardless of API latency.
+  useEffect(() => {
+    if (!pendingNavFocus) return;
+    const area = pendingNavFocus;
+    const applyPendingLine = () => {
+      const line = useUIStore.getState().pendingCodeviewLine;
+      if (line != null) {
+        useUIStore.getState().setCodeviewFocusedLine(line);
+        useUIStore.getState().setPendingCodeviewLine(null);
+      }
+    };
+    const immediate = document.querySelector(`[data-nav-area="${area}"]`) as HTMLElement | null;
+    if (immediate) {
+      immediate.focus();
+      setPendingNavFocus(null);
+      applyPendingLine();
+      return;
+    }
+    // Element not yet in DOM — watch for it
+    const observer = new MutationObserver(() => {
+      const el = document.querySelector(`[data-nav-area="${area}"]`) as HTMLElement | null;
+      if (el) {
+        observer.disconnect();
+        el.focus();
+        setPendingNavFocus(null);
+        applyPendingLine();
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [viewMode, pendingNavFocus]);
 
   // Load commits + reconciled HEAD + review state on mount
   useEffect(() => {
@@ -727,11 +865,11 @@ export function App() {
             </button>
           </div>
           {([
-            { mode: 'browse' as ViewMode, label: 'Browse', icon: <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 2h5l1 2h6v9H2V2z" /></svg> },
-            { mode: 'delta' as ViewMode, label: 'Changes', icon: <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 8H3M8 3v10M3 5l5-4 5 4" /></svg> },
-            { mode: 'findings' as ViewMode, label: 'Findings', icon: <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 1L1 14h14L8 1z" /><line x1="8" y1="6" x2="8" y2="9" /><circle cx="8" cy="11.5" r="0.5" fill="currentColor" /></svg> },
-            { mode: 'features' as ViewMode, label: 'Features', icon: <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="8" r="3" /><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.1 3.1l1.4 1.4M11.5 11.5l1.4 1.4M3.1 12.9l1.4-1.4M11.5 4.5l1.4-1.4" /></svg> },
-          ]).map(({ mode, label, icon }) => {
+            { mode: 'browse' as ViewMode, label: 'Browse', shortcut: '1', icon: <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 2h5l1 2h6v9H2V2z" /></svg> },
+            { mode: 'delta' as ViewMode, label: 'Changes', shortcut: '2', icon: <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 8H3M8 3v10M3 5l5-4 5 4" /></svg> },
+            { mode: 'findings' as ViewMode, label: 'Findings', shortcut: '3', icon: <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 1L1 14h14L8 1z" /><line x1="8" y1="6" x2="8" y2="9" /><circle cx="8" cy="11.5" r="0.5" fill="currentColor" /></svg> },
+            { mode: 'features' as ViewMode, label: 'Features', shortcut: '4', icon: <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="8" r="3" /><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.1 3.1l1.4 1.4M11.5 11.5l1.4 1.4M3.1 12.9l1.4-1.4M11.5 4.5l1.4-1.4" /></svg> },
+          ]).map(({ mode, label, shortcut, icon }) => {
             const isActive = mode === 'browse'
               ? viewMode === 'browse' || viewMode === 'diff'
               : viewMode === mode;
@@ -739,9 +877,9 @@ export function App() {
               <button
                 key={mode}
                 className={`tab-bar-tab${isActive ? ' tab-bar-tab-active' : ''}`}
-                onClick={() => setViewMode(mode)}
+                onClick={() => { setViewMode(mode); setPendingNavFocus(NAV_AREA[mode] ?? null); }}
               >
-                {icon}{label}
+                {icon}{label}<kbd className="tab-bar-kbd">{shortcut}</kbd>
               </button>
             );
           })}
@@ -904,14 +1042,70 @@ export function App() {
             onClose={() => { setGitTreeOpen(false); setDiffSelectTarget(null); }}
           />
 
-          <FileTree files={treeFiles} selectedFile={selectedFilePath} onSelectFile={handleSelectFile} severityMap={findingSeverityMap} />
+          <FileTree files={treeFiles} selectedFile={selectedFilePath} onSelectFile={handleSelectFile} onSelectDir={setBrowseDir} severityMap={findingSeverityMap} />
           {error && <div className="error-banner">{error}</div>}
           <div className="left-panel-resize-handle" onMouseDown={handleLeftPanelResizeMouseDown} />
         </div>
       )}
 
       {/* Center: code viewer */}
-      <main className="main-panel">
+      <main
+        className="main-panel"
+        tabIndex={isCodeView ? 0 : undefined}
+        data-nav-area={isCodeView ? 'codeview' : undefined}
+        onClick={isCodeView ? (e) => {
+          // Focus the codeview container when clicking non-interactive children
+          const tag = (e.target as HTMLElement).tagName;
+          if (tag !== 'BUTTON' && tag !== 'A' && tag !== 'INPUT' && tag !== 'SELECT') {
+            (e.currentTarget as HTMLElement).focus();
+          }
+        } : undefined}
+        onKeyDown={isCodeView ? (e) => {
+          if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            const scroller = e.currentTarget.querySelector('.diff-view');
+            if (!scroller) return;
+            const rows = scroller.querySelectorAll('.diff-row[data-new-line]');
+            if (rows.length === 0) return;
+            const maxLine = parseInt((rows[rows.length - 1] as HTMLElement).getAttribute('data-new-line')!, 10);
+            const cur = useUIStore.getState().codeviewFocusedLine;
+            let next: number;
+            if (cur === null) {
+              next = 1;
+            } else {
+              next = e.key === 'ArrowDown' ? Math.min(cur + 1, maxLine) : Math.max(cur - 1, 1);
+            }
+            useUIStore.getState().setCodeviewFocusedLine(next);
+            const row = scroller.querySelector(`[data-new-line="${next}"]`);
+            row?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          } else if (e.key === 'Enter') {
+            const state = useUIStore.getState();
+            const line = state.codeviewFocusedLine;
+            const anchor = state.codeviewSelectAnchor;
+            if (line === null || !selectedFilePath) return;
+            e.preventDefault();
+            if (anchor === null) {
+              // Phase 1: enter selecting mode — current line becomes the anchor
+              state.setCodeviewSelectAnchor(line);
+            } else {
+              // Phase 2: confirm range and open type picker
+              const start = Math.min(anchor, line);
+              const end = Math.max(anchor, line);
+              state.setCodeviewSelectAnchor(null);
+              setTypePickIndex(0);
+              setCodeviewTypePick({ start, end, anchor, current: line });
+            }
+          } else if (e.key === 'Escape') {
+            const state = useUIStore.getState();
+            if (state.codeviewSelectAnchor !== null) {
+              // Cancel range selection — stay on current focused line
+              state.setCodeviewSelectAnchor(null);
+            } else {
+              state.setCodeviewFocusedLine(null);
+            }
+          }
+        } : undefined}
+      >
         {/* File sub-header — breadcrumb + nav (browse/diff only) */}
         {(viewMode === 'browse' || viewMode === 'diff') && (
         <header className="file-header">
@@ -1127,6 +1321,30 @@ export function App() {
       {/* SVG connector from sidebar finding card to code line */}
       {isCodeView && !isMobile && <ConnectorOverlay />}
 
+      {/* Type picker — appears after range selection to choose annotation kind */}
+      {codeviewTypePick && (
+        <div className="typepick-overlay" onClick={() => setCodeviewTypePick(null)}>
+          <div className="typepick-pill" onClick={(e) => e.stopPropagation()}>
+            <span className="typepick-hint">L{codeviewTypePick.start}–{codeviewTypePick.end}</span>
+            {TYPE_PICK_KINDS.map((kind, i) => (
+              <button
+                key={kind}
+                className={`typepick-btn${typePickIndex === i ? ' typepick-btn-active' : ''}`}
+                onClick={() => {
+                  const { start, end } = codeviewTypePick;
+                  setCodeviewTypePick(null);
+                  useUIStore.getState().setCodeviewFocusedLine(null);
+                  setQuickAdd({ kind, scope: 'file', lineRange: { start, end } });
+                  setQuickTitle(''); setQuickText(''); setQuickConfirmDiscard(false);
+                }}
+              >
+                {kind.charAt(0).toUpperCase() + kind.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Quick-add finding/comment popover */}
       {quickAdd && (
         <div className="quick-add-overlay" onClick={handleQuickAddCancel}>
@@ -1299,6 +1517,7 @@ export function App() {
             handleSelectFile(file);
             useUIStore.getState().setScrollTargetLine(line);
             useUIStore.getState().setHighlightRange({ start: line, end: line });
+            useUIStore.getState().setPendingCodeviewLine(line);
           }}
           onClose={() => setContentSearchOpen(false)}
           initialQuery={contentSearchInitialQuery}

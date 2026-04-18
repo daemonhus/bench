@@ -28,14 +28,6 @@ const TABS: { id: FeaturesTab; label: string; kinds: FeatureKind[] }[] = [
   { id: 'externalities', label: 'Externalities', kinds: ['externality'] },
 ];
 
-function featuresEqual(a: Feature[], b: Feature[]): boolean {
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) {
-    if (a[i].id !== b[i].id || a[i].status !== b[i].status || a[i].title !== b[i].title) return false;
-  }
-  return true;
-}
-
 // Create modal component
 interface CreateFeatureModalProps {
   onClose: () => void;
@@ -241,8 +233,8 @@ const CreateFeatureModal: React.FC<CreateFeatureModalProps> = ({ onClose, onCrea
 };
 
 export const FeaturesView: React.FC = () => {
-  const [features, setFeatures] = useState<Feature[]>([]);
-  const featuresRef = useRef<Feature[]>([]);
+  const features = useAnnotationStore((s) => s.features);
+  const loadFeatures = useAnnotationStore((s) => s.loadFeatures);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<FeaturesTab>('interfaces');
   const [sortOrder, setSortOrder] = useState<FeatureSort>(() => {
@@ -272,16 +264,9 @@ export const FeaturesView: React.FC = () => {
   const setScrollTargetLine = useUIStore((s) => s.setScrollTargetLine);
   const setHighlightRange = useUIStore((s) => s.setHighlightRange);
 
-  const stableSetFeatures = useCallback((incoming: Feature[]) => {
-    if (!featuresEqual(featuresRef.current, incoming)) {
-      featuresRef.current = incoming;
-      setFeatures(incoming);
-    }
-  }, []);
-
   const refreshFeatures = useCallback(() => {
-    return featuresApi.list().then(stableSetFeatures as (f: (Feature | { effectiveAnchor?: unknown })[]) => void).catch(() => {});
-  }, [stableSetFeatures]);
+    return featuresApi.list().then((f) => loadFeatures(f as Feature[])).catch(() => {});
+  }, [loadFeatures]);
 
   useEffect(() => {
     setLoading(true);
@@ -335,7 +320,9 @@ export const FeaturesView: React.FC = () => {
     if (!fileId) return;
     if (commitId) useRepoStore.getState().selectCommit(commitId);
     scrollToRange(range);
+    if (range) useUIStore.getState().setPendingCodeviewLine(range.start);
     useUIStore.getState().setViewMode('browse');
+    useUIStore.getState().setPendingNavFocus('codeview');
     useRepoStore.getState().selectFile(fileId);
   };
 
@@ -382,23 +369,67 @@ export const FeaturesView: React.FC = () => {
   const defaultKind = currentTab.kinds[0];
 
   // Keyboard nav for the features list
-  const { focusedId: navFocusedId, containerRef: navContainerRef, handleKeyDown: navHandleKeyDown } = useNavList({
+  const pendingReplyFocusId = useRef<string | null>(null);
+  const { focusedId: navFocusedId, containerRef: navContainerRef, handleKeyDown: navHandleKeyDown, handleFocus: navHandleFocus } = useNavList({
     items: tabFeatures,
     getId: f => f.id,
     onSelect: (f) => setCollapsedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(f.id)) next.delete(f.id); else next.add(f.id);
+      const expanding = next.has(f.id);
+      if (expanding) {
+        next.delete(f.id);
+        // Also uncollapse the snippet so it's visible on expand
+        try {
+          const key = `bench:snippet:${f.id}`;
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed.collapsed) {
+              parsed.collapsed = false;
+              localStorage.setItem(key, JSON.stringify(parsed));
+              setExpandSnippetsTick(t => t + 1);
+            }
+          }
+        } catch { /* ignore */ }
+      } else {
+        next.add(f.id);
+      }
       return next;
     }),
-    nextArea: 'features-filter',
-    prevArea: 'features-tabs',
+    // Enter: expand the card in place; if already expanded, focus the reply textarea.
+    // Shift+Enter: jump to the file in Browse.
+    onActivate: (f) => {
+      const isExpanded = !collapsedIds.has(f.id);
+      if (isExpanded) {
+        const card = navContainerRef.current?.querySelector(`[data-nav-id="${CSS.escape(f.id)}"]`);
+        card?.querySelector<HTMLTextAreaElement>('textarea')?.focus();
+        return;
+      }
+      pendingReplyFocusId.current = f.id;
+      setCollapsedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(f.id);
+        return next;
+      });
+    },
+    onShiftActivate: (f) => navigateToFile(f.anchor.fileId, f.anchor.lineRange ?? undefined, f.anchor.commitId),
   });
+
+  // After expand commits, focus the reply textarea of the newly expanded card.
+  useEffect(() => {
+    const id = pendingReplyFocusId.current;
+    if (!id || collapsedIds.has(id)) return;
+    const card = navContainerRef.current?.querySelector(`[data-nav-id="${CSS.escape(id)}"]`);
+    card?.querySelector<HTMLTextAreaElement>('textarea')?.focus();
+    pendingReplyFocusId.current = null;
+  }, [collapsedIds, navContainerRef]);
 
   const renderCard = (f: Feature) => (
     <div key={f.id} data-feature-id={f.id} data-nav-id={f.id} data-nav-focused={navFocusedId === f.id ? 'true' : undefined}>
       <FeatureCard
         feature={f}
         isExpanded={!collapsedIds.has(f.id)}
+        isNavFocused={navFocusedId === f.id}
         expandSnippetsTick={expandSnippetsTick}
         collapseSnippetsTick={collapseSnippetsTick}
         onSnippetCollapsedChange={(collapsed) => setCollapsedSnippetIds(prev => {
@@ -436,10 +467,6 @@ export const FeaturesView: React.FC = () => {
               const idx = TABS.findIndex(t => t.id === activeTab);
               if (e.key === 'ArrowRight') { e.preventDefault(); setActiveTab(TABS[Math.min(idx + 1, TABS.length - 1)].id); }
               else if (e.key === 'ArrowLeft') { e.preventDefault(); setActiveTab(TABS[Math.max(idx - 1, 0)].id); }
-              else if (e.key === 'Tab') {
-                e.preventDefault();
-                (document.querySelector(`[data-nav-area="${e.shiftKey ? 'features-filter' : 'features-list'}"]`) as HTMLElement | null)?.focus();
-              }
             }}
           >
             {TABS.map(tab => (
@@ -455,8 +482,30 @@ export const FeaturesView: React.FC = () => {
               </button>
             ))}
           </div>
-          <div className="features-title-row-right">
-            <SearchBox value={searchQuery} onChange={setSearchQuery} invalid={!isRegexValid} />
+          <div
+            className="features-title-row-right"
+            tabIndex={0}
+            data-nav-area="features-filter"
+            onKeyDown={(e) => {
+              const tag = (e.target as HTMLElement).tagName;
+              if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+              if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft' && e.key !== 'Enter' && e.key !== ' ') return;
+              e.preventDefault();
+              const container = e.currentTarget;
+              const items = Array.from(container.querySelectorAll<HTMLElement>('button:not([disabled])'));
+              if (items.length === 0) return;
+              const idx = items.indexOf(document.activeElement as HTMLElement);
+              if (e.key === 'ArrowRight') {
+                items[Math.min(idx + 1, items.length - 1)].focus();
+              } else if (e.key === 'ArrowLeft') {
+                items[Math.max(idx < 0 ? 0 : idx - 1, 0)].focus();
+              } else if (e.key === 'Enter' || e.key === ' ') {
+                if (idx >= 0) items[idx].click();
+                else items[0].focus();
+              }
+            }}
+          >
+            <SearchBox value={searchQuery} onChange={setSearchQuery} invalid={!isRegexValid} shortcut={['/']} />
             <span className="features-sort-label">Sort</span>
             <div className="features-sort-toggle">
               {SORT_OPTIONS.map(opt => {
@@ -497,6 +546,13 @@ export const FeaturesView: React.FC = () => {
             </div>
           </div>
         </div>
+        <div
+          ref={navContainerRef}
+          tabIndex={0}
+          data-nav-area="features-list"
+          onKeyDown={navHandleKeyDown}
+          onFocus={navHandleFocus}
+        >
         {orphaned.length > 0 && (
           <div className="overview-subsection">
             <h3 className="overview-subsection-title" style={{ color: '#b45309' }}>
@@ -521,23 +577,20 @@ export const FeaturesView: React.FC = () => {
           </div>
         )}
 
-        {tabFeatures.length === 0 ? (
+        {tabFeatures.length === 0 && (
           <div className="overview-empty">
             No {currentTab.label.toLowerCase()} annotated yet
-            <button className="features-empty-add-btn" onClick={() => setShowCreate(true)}>
-              + Add one
-            </button>
-          </div>
-        ) : (
-          <div className="feed-new-pill-wrap">
-            <button className="feed-new-pill" onClick={() => setShowCreate(true)}>
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                <path d="M8 3v10M3 8h10" />
-              </svg>
-              New
-            </button>
           </div>
         )}
+        <div className="feed-new-pill-wrap">
+          <button className="feed-new-pill" onClick={() => setShowCreate(true)}>
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M8 3v10M3 8h10" />
+            </svg>
+            New
+          </button>
+        </div>
+        </div>{/* /features-list nav area */}
       </section>
 
       {showCreate && (

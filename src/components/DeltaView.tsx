@@ -12,6 +12,7 @@ import { MultiSelectDropdown } from './MultiSelectDropdown';
 import type { Finding, Comment, Feature, GraphCommit, Severity, LineRange, BaselineDelta } from '../core/types';
 import { COMMENT_TYPE_ICON, COMMENT_TYPE_LABEL } from '../core/types';
 import { InlineMarkdown } from '../core/markdown';
+import { useNavList } from '../core/use-nav-list';
 
 type ActivityKind = 'comment' | 'comment-on-finding' | 'comment-on-feature' | 'merge' | 'commit-group' | 'finding-opened' | 'feature-created';
 type FilterKind = 'comment' | 'merge' | 'finding-opened' | 'feature-created';
@@ -329,6 +330,54 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
   const hasMore = displayCount < allFilteredActivity.length;
   const hasActiveFilter = filterKinds.size < ALL_KINDS.length || filterSeverities.size < ALL_SEVERITIES.length || filterActors !== null;
 
+  const getActivityNavId = (item: ActivityItem): string => {
+    switch (item.kind) {
+      case 'comment': return `c-${item.data.id}`;
+      case 'comment-on-finding': return `cf-${(item.data as Comment).id}`;
+      case 'comment-on-feature': return `cft-${(item.data as Comment).id}`;
+      case 'finding-opened': return `f-${item.data.id}`;
+      case 'feature-created': return `feat-${item.data.id}`;
+      case 'merge': return `g-${(item.data as GraphCommit).hash}`;
+      case 'commit-group': return `cg-${(item.data as GraphCommit[])[0]?.hash}`;
+      default: return '';
+    }
+  };
+
+  const { focusedId: navFocusedId, containerRef: navContainerRef, handleKeyDown: navBaseKeyDown, handleFocus: navHandleFocus } = useNavList({
+    items: activityStream,
+    getId: getActivityNavId,
+    onSelect: (item) => {
+      if (item.kind === 'commit-group') {
+        const key = (item.data as GraphCommit[])[0]?.hash;
+        if (key) setExpandedGroups(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
+      } else if (item.kind === 'merge') {
+        const hash = (item.data as GraphCommit).hash;
+        setExpandedMerges(prev => { const n = new Set(prev); n.has(hash) ? n.delete(hash) : n.add(hash); return n; });
+      }
+    },
+    onActivate: (item) => {
+      if (item.kind === 'finding-opened') navigateToFile((item.data as Finding).anchor.fileId, (item.data as Finding).anchor.lineRange ?? undefined, (item.data as Finding).anchor.commitId);
+      else if (item.kind === 'comment' || item.kind === 'comment-on-finding' || item.kind === 'comment-on-feature') navigateToFile((item.data as Comment).anchor.fileId, (item.data as Comment).anchor.lineRange ?? undefined, (item.data as Comment).anchor.commitId);
+      else if (item.kind === 'feature-created') navigateToFile((item.data as Feature).anchor.fileId, (item.data as Feature).anchor.lineRange ?? undefined, (item.data as Feature).anchor.commitId);
+      else if (item.kind === 'merge') { const hash = (item.data as GraphCommit).hash; const parent = (item.data as GraphCommit).parents?.[0]; if (parent) navigateToDiff(hash, parent); }
+      else if (item.kind === 'commit-group') { const key = (item.data as GraphCommit[])[0]?.hash; if (key) setExpandedGroups(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; }); }
+    },
+  });
+
+  // Tab on the activity list: if a card is focused, move into its first focusable child
+  const navHandleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    const tag = (e.target as HTMLElement).tagName;
+    const inEditable = tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable;
+    if (!inEditable && e.key === 'Tab' && navFocusedId) {
+      const itemEl = navContainerRef.current?.querySelector(`[data-nav-id="${CSS.escape(navFocusedId)}"]`);
+      if (itemEl) {
+        const focusable = itemEl.querySelector<HTMLElement>('textarea, input');
+        if (focusable) { e.preventDefault(); focusable.focus(); return; }
+      }
+    }
+    navBaseKeyDown(e);
+  }, [navFocusedId, navContainerRef, navBaseKeyDown]);
+
 
   const shortDate = (iso: string) => {
     const d = new Date(iso);
@@ -337,7 +386,14 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
 
   const navigateToFile = (fileId: string, range?: LineRange, commitId?: string) => {
     if (commitId) useRepoStore.getState().selectCommit(commitId);
+    if (range) {
+      useUIStore.getState().setScrollTargetLine(range.start);
+      useUIStore.getState().setHighlightRange({ start: range.start, end: range.end });
+      useUIStore.getState().setPendingCodeviewLine(range.start);
+      setTimeout(() => useUIStore.getState().setHighlightRange(null), 3000);
+    }
     useUIStore.getState().setViewMode('browse');
+    useUIStore.getState().setPendingNavFocus('codeview');
     useRepoStore.getState().selectFile(fileId);
   };
 
@@ -440,7 +496,22 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
   return (
     <div className="delta-view">
       {/* Header bar — two-column grid */}
-      <div className="delta-header">
+      <div className="delta-header" tabIndex={0} data-nav-area="delta-header" onKeyDown={(e) => {
+        if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft' && e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        const container = e.currentTarget;
+        const items = Array.from(container.querySelectorAll<HTMLElement>('button:not([disabled]), [role="button"]:not([aria-disabled="true"])'));
+        if (items.length === 0) return;
+        const idx = items.indexOf(document.activeElement as HTMLElement);
+        if (e.key === 'ArrowRight') {
+          items[Math.min(idx + 1, items.length - 1)].focus();
+        } else if (e.key === 'ArrowLeft') {
+          items[Math.max(idx < 0 ? 0 : idx - 1, 0)].focus();
+        } else if (e.key === 'Enter' || e.key === ' ') {
+          if (idx >= 0) items[idx].click();
+          else items[0].focus();
+        }
+      }}>
         <div className="delta-header-left">
           <div className="delta-header-left-content">
             <div className="delta-header-info">
@@ -448,6 +519,9 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
                 className={`delta-header-label${pastBaselines.length > 1 ? ' delta-header-label-clickable' : ''}${historyOpen ? ' delta-header-label-active' : ''}`}
                 onClick={pastBaselines.length > 1 ? () => setHistoryOpen((v) => !v) : undefined}
                 data-tooltip={pastBaselines.length > 1 ? 'Toggle baseline history' : undefined}
+                role={pastBaselines.length > 1 ? 'button' : undefined}
+                tabIndex={pastBaselines.length > 1 ? 0 : undefined}
+                aria-pressed={pastBaselines.length > 1 ? historyOpen : undefined}
               >
                 {pastBaselines.length > 1 && (
                   <svg className="delta-header-label-icon" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -657,7 +731,22 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
       )}
       <div className="delta-body">
           <section className="overview-section">
-            <div className="findings-title-row">
+            <div className="findings-title-row" tabIndex={0} data-nav-area="delta-filters" onKeyDown={(e) => {
+              if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft' && e.key !== 'Enter' && e.key !== ' ') return;
+              e.preventDefault();
+              const container = e.currentTarget;
+              const items = Array.from(container.querySelectorAll<HTMLElement>('button:not([disabled]), select'));
+              if (items.length === 0) return;
+              const idx = items.indexOf(document.activeElement as HTMLElement);
+              if (e.key === 'ArrowRight') {
+                items[Math.min(idx + 1, items.length - 1)].focus();
+              } else if (e.key === 'ArrowLeft') {
+                items[Math.max(idx < 0 ? 0 : idx - 1, 0)].focus();
+              } else if (e.key === 'Enter' || e.key === ' ') {
+                if (idx >= 0) items[idx].click();
+                else items[0].focus();
+              }
+            }}>
               <h2 className="overview-section-title">
                 Activity
                 <span className="overview-section-count">{hasMore ? `${activityStream.length} of ${allFilteredActivity.length}` : allFilteredActivity.length}</span>
@@ -703,6 +792,7 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
                   className={`activity-filter-clear${hasActiveFilter ? ' activity-filter-clear-visible' : ''}`}
                   onClick={() => { setFilterKinds(new Set<FilterKind>(ALL_KINDS)); setFilterSeverities(new Set(ALL_SEVERITIES)); setFilterActors(null); }}
                   title="Reset filters"
+                  disabled={!hasActiveFilter}
                 >
                   &#x2715;
                 </button>
@@ -715,11 +805,20 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
               </div>
             )}
 
+            <div
+              ref={navContainerRef}
+              tabIndex={0}
+              data-nav-area="delta"
+              onKeyDown={navHandleKeyDown}
+              onFocus={navHandleFocus}
+            >
             {activityStream.map((item) => {
+              const navId = getActivityNavId(item);
+              const navFocused = navFocusedId === navId;
               if (item.kind === 'comment') {
                 const c = item.data;
                 return (
-                  <div key={`c-${c.id}`} className="activity-item-wrap">
+                  <div key={`c-${c.id}`} className="activity-item-wrap" data-nav-id={navId} data-nav-focused={navFocused ? 'true' : undefined}>
                     <div className="activity-event-label">
                       <span className="comment-card-author">{c.author}</span>
                       <span className="activity-event-verb">commented</span>
@@ -764,7 +863,7 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
                 const f = item.finding;
                 const sevColor = SEVERITY_COLORS[f.severity] ?? '#6b7280';
                 return (
-                  <div key={`cf-${c.id}`} className="activity-item-wrap">
+                  <div key={`cf-${c.id}`} className="activity-item-wrap" data-nav-id={navId} data-nav-focused={navFocused ? 'true' : undefined}>
                     <div className="activity-event-label">
                       <span className="comment-card-author">{c.author}</span>
                       <span className="activity-event-verb">commented on</span>
@@ -780,12 +879,16 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
                     <div
                       className="activity-finding-ref"
                       style={{ '--card-severity': sevColor } as React.CSSProperties}
-                      onClick={() => { useUIStore.getState().setScrollToFindingId(f.id); useUIStore.getState().setViewMode('findings'); }}
+                      onClick={() => navigateToFile(f.anchor.fileId, f.anchor.lineRange ?? undefined, f.anchor.commitId)}
                     >
                       <div className="activity-finding-ref-header">
                         <span className="activity-finding-ref-dot" style={{ background: sevColor }} />
                         <span className="activity-finding-ref-label">Finding:</span>
-                        <span className="activity-finding-ref-title">{f.title}</span>
+                        <span
+                          className="activity-finding-ref-title finding-title-link"
+                          onClick={(e) => { e.stopPropagation(); useUIStore.getState().setScrollToFindingId(f.id); useUIStore.getState().setViewMode('findings'); }}
+                          title="Open in Findings"
+                        >{f.title}</span>
                         <span className="activity-finding-ref-severity" style={{ color: sevColor }}>{f.severity}</span>
                       </div>
                       {f.anchor.fileId && (
@@ -808,7 +911,7 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
                 const c = item.data;
                 const feat = item.feature;
                 return (
-                  <div key={`cft-${c.id}`} className="activity-item-wrap">
+                  <div key={`cft-${c.id}`} className="activity-item-wrap" data-nav-id={navId} data-nav-focused={navFocused ? 'true' : undefined}>
                     <div className="activity-event-label">
                       <span className="comment-card-author">{c.author}</span>
                       <span className="activity-event-verb">commented on</span>
@@ -823,11 +926,15 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
                       </div>
                       <div
                         className="activity-feature-ref"
-                        onClick={() => { useUIStore.getState().setScrollToFeature({ id: feat.id, kind: feat.kind }); useUIStore.getState().setViewMode('features'); }}
+                        onClick={() => navigateToFile(feat.anchor.fileId, feat.anchor.lineRange ?? undefined, feat.anchor.commitId)}
                       >
                         <div className="activity-feature-ref-header">
                           <span className="activity-feature-ref-kind">Feature:</span>
-                          <span className="activity-feature-ref-title">{feat.title}</span>
+                          <span
+                            className="activity-feature-ref-title feature-title-link"
+                            onClick={(e) => { e.stopPropagation(); useUIStore.getState().setScrollToFeature({ id: feat.id, kind: feat.kind }); useUIStore.getState().setViewMode('features'); }}
+                            title="Open in Features"
+                          >{feat.title}</span>
                         </div>
                         {feat.anchor.fileId && (
                           <div className="activity-finding-ref-meta">
@@ -859,7 +966,7 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
                   });
                 };
                 return (
-                  <div key={`g-${g.hash}`} className="activity-item-wrap">
+                  <div key={`g-${g.hash}`} className="activity-item-wrap" data-nav-id={navId} data-nav-focused={navFocused ? 'true' : undefined}>
                     <div className="activity-event-label">
                       <span className="overview-merge-icon">
                         <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -946,7 +1053,7 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
                   </div>
                 );
                 return (
-                  <div key={`cg-${groupKey}`} className="activity-item-wrap">
+                  <div key={`cg-${groupKey}`} className="activity-item-wrap" data-nav-id={navId} data-nav-focused={navFocused ? 'true' : undefined}>
                     <div className="activity-event-label">
                       <span className="activity-event-label-text">{groupCommits.length} commit{groupCommits.length !== 1 ? 's' : ''}</span>
                       <span className="overview-card-date">{shortDate(groupCommits[0].date)}</span>
@@ -988,7 +1095,7 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
               if (item.kind === 'feature-created') {
                 const feat = item.data as Feature;
                 return (
-                  <div key={`fc-${feat.id}`} className="activity-item-wrap">
+                  <div key={`fc-${feat.id}`} className="activity-item-wrap" data-nav-id={navId} data-nav-focused={navFocused ? 'true' : undefined}>
                     <div className="activity-event-label">
                       <span className="activity-event-label-text">New feature</span>
                       {feat.source && <span className="activity-event-label-actor">{feat.source}</span>}
@@ -996,11 +1103,15 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
                     </div>
                     <div
                       className="overview-comment-card activity-feature-ref"
-                      onClick={() => { useUIStore.getState().setScrollToFeature({ id: feat.id, kind: feat.kind }); useUIStore.getState().setViewMode('features'); }}
+                      onClick={() => navigateToFile(feat.anchor.fileId, feat.anchor.lineRange ?? undefined, feat.anchor.commitId)}
                     >
                       <div className="activity-feature-ref-header">
                         <span className="activity-feature-ref-kind">{feat.kind}</span>
-                        <span className="activity-feature-ref-title">{feat.title}</span>
+                        <span
+                          className="activity-feature-ref-title feature-title-link"
+                          onClick={(e) => { e.stopPropagation(); useUIStore.getState().setScrollToFeature({ id: feat.id, kind: feat.kind }); useUIStore.getState().setViewMode('features'); }}
+                          title="Open in Features"
+                        >{feat.title}</span>
                       </div>
                       {feat.anchor.fileId && (
                         <div className="activity-finding-ref-meta">
@@ -1020,7 +1131,7 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
               // finding-opened
               const f = item.data;
               return (
-                <div key={`fo-${f.id}`} className="activity-finding-wrap">
+                <div key={`fo-${f.id}`} className="activity-finding-wrap" data-nav-id={navId} data-nav-focused={navFocused ? 'true' : undefined}>
                   <div className="activity-event-label">
                     <span className="activity-event-label-text">New finding</span>
                     {f.source && <span className="activity-event-label-actor">{f.source}</span>}
@@ -1044,6 +1155,7 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
                 Show more ({allFilteredActivity.length - displayCount} remaining)
               </button>
             )}
+            </div>{/* /delta nav area */}
           </section>
       </div>
 

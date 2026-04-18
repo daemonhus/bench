@@ -47,8 +47,10 @@
 }
 
 /* ----- Finding Card ----- */
+/* Default sits one tier dimmer than --bg-surface; hover + keyboard focus
+   brighten to --bg-surface so the "active" card is the one that pops. */
 .finding-card {
-  background: var(--bg-surface);
+  background: #1c2540;
   border: 1px solid var(--border-muted);
   border-left: 3px solid var(--card-severity, var(--severity-high));
   border-radius: 0;
@@ -59,8 +61,9 @@
   animation: annotation-appear 0.3s ease-out;
 }
 
-.finding-card:hover {
-  background: var(--bg-tertiary);
+.finding-card:hover,
+[data-nav-focused="true"] .finding-card {
+  background: #252f4c;
   border-color: rgba(148, 163, 184, 0.16);
   border-left-color: var(--card-severity, var(--severity-high));
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.24), 0 0 0 1px rgba(148, 163, 184, 0.08);
@@ -71,7 +74,7 @@
 }
 
 .finding-card-expanded:hover {
-  background: var(--bg-surface);
+  background: #252f4c;
   border-color: var(--border-muted);
   border-left-color: var(--card-severity, var(--severity-high));
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(148, 163, 184, 0.05);
@@ -1247,12 +1250,13 @@
 
 /* Cards are white, floating above the cloud canvas */
 [data-theme="light"] .finding-card {
-  background: #ffffff;
+  background: #f8fafc;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.06);
 }
 
-[data-theme="light"] .finding-card:hover {
-  background: var(--bg-tertiary);
+[data-theme="light"] .finding-card:hover,
+[data-theme="light"] [data-nav-focused="true"] .finding-card {
+  background: #ffffff;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.09), 0 0 0 1px rgba(0, 0, 0, 0.08);
 }
 

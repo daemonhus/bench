@@ -115,6 +115,12 @@
   gap: 10px;
 }
 
+.seg-btn:focus-visible,
+.activity-kind-toggle:focus-visible {
+  outline: 1.5px solid color-mix(in srgb, var(--accent-blue) 65%, transparent);
+  outline-offset: -1px;
+}
+
 .seg-btn:hover,
 .activity-kind-toggle:hover {
   color: var(--text-primary);
@@ -306,6 +312,114 @@
 .status-closed {
   background: var(--status-closed-subtle);
   color: var(--status-closed);
+}
+
+/* ----- Keyboard nav focus ring ----- */
+/* Applied via data-nav-focused="true" on list item wrappers when arrow-navigating.
+   Solid blue left rail + tinted backdrop so the focused item stands out clearly
+   against the rest of the list. `box-shadow` is used instead of `border-left` so
+   layout doesn't shift when focus moves between items. */
+[data-nav-focused="true"] {
+  /* Elevation + slight background shift — no accent-color chrome so the card's
+     own left-edge severity/kind color stays the hero cue and we don't fight
+     the sidebar's own focus ring. */
+  background-color: color-mix(in srgb, var(--text-primary) 4%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--text-primary) 18%, transparent),
+    0 2px 6px rgba(0, 0, 0, 0.18);
+  border-radius: var(--radius-base);
+  transition: box-shadow 0.12s ease, background-color 0.12s ease;
+}
+
+/* ----- Nav area focus outline ----- */
+[data-nav-area]:focus {
+  outline: none;
+}
+
+[data-nav-area]:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--accent-blue) 35%, transparent);
+  outline-offset: 5px;
+  border-radius: var(--radius-base);
+}
+
+/* Codeview: use inset outline so overflow:hidden doesn't clip it */
+[data-nav-area="codeview"]:focus-visible {
+  outline: 1.5px solid color-mix(in srgb, var(--accent-blue) 55%, transparent);
+  outline-offset: -2px;
+}
+
+/* Sidebar: .sidebar-wrapper has overflow:hidden, which clips the default
+   outset ring so only the top edge (around the header) was visible. Use inset
+   + brighter so the whole panel reads as the focus target. */
+[data-nav-area="sidebar"]:focus-visible {
+  outline: 1.5px solid color-mix(in srgb, var(--accent-blue) 55%, transparent);
+  outline-offset: -2px;
+}
+
+/* Codeview keyboard range selection highlight (phase 1: selecting mode) */
+.codeview-select-range {
+  background: color-mix(in srgb, var(--accent-blue) 12%, transparent) !important;
+}
+
+/* Codeview line-by-line focus highlight */
+.codeview-focused-line {
+  background: color-mix(in srgb, var(--accent-blue) 25%, transparent) !important;
+  outline: 1.5px solid color-mix(in srgb, var(--accent-blue) 65%, transparent);
+  outline-offset: -1px;
+  border-radius: 2px;
+}
+
+/* ----- Type picker overlay (codeview range annotation) ----- */
+
+.typepick-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--z-modal) - 1);
+  pointer-events: none;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 56px; /* clear shortcuts FAB */
+}
+
+.typepick-pill {
+  pointer-events: all;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: 20px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+}
+
+.typepick-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 2px 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.typepick-btn {
+  padding: 4px 12px;
+  border-radius: 14px;
+  border: 1px solid transparent;
+  background: none;
+  color: var(--text-default);
+  cursor: pointer;
+  font-size: 12px;
+  transition: background var(--transition-base), border-color var(--transition-base);
+}
+
+.typepick-btn:hover {
+  background: var(--bg-hover);
+}
+
+.typepick-btn-active {
+  background: color-mix(in srgb, var(--accent-blue) 15%, transparent);
+  border-color: color-mix(in srgb, var(--accent-blue) 50%, transparent);
+  color: var(--accent-blue);
 }
 
 /* ── Light mode overrides ─────────────────────────────────────────── */

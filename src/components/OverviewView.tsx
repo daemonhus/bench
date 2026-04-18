@@ -277,6 +277,7 @@ export const OverviewView: React.FC = () => {
   const navigateToFile = (fileId: string, range?: LineRange, commitId?: string) => {
     if (commitId) useRepoStore.getState().selectCommit(commitId);
     scrollToRange(range);
+    if (range) useUIStore.getState().setPendingCodeviewLine(range.start);
     useUIStore.getState().setViewMode('browse');
     useRepoStore.getState().selectFile(fileId);
   };

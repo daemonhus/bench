@@ -69,6 +69,23 @@
   opacity: 1;
 }
 
+.tab-bar-kbd {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-default);
+  border-radius: 3px;
+  padding: 1px 4px;
+  line-height: 1.4;
+  margin-left: 2px;
+  transition: opacity var(--transition-base);
+}
+
+.tab-bar-tab-active .tab-bar-kbd {
+  opacity: 0;
+}
+
 .tab-bar-tab-active::after {
   content: '';
   position: absolute;

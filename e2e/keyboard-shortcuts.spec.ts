@@ -53,6 +53,16 @@ test.describe('Keyboard Shortcuts Button & Modal', () => {
     await expect(modal).not.toBeVisible();
   });
 
+  test('modal lists the / shortcut for search box focus', async ({ page }) => {
+    await page.locator('.shortcuts-fab').click();
+    await page.waitForTimeout(200);
+    const modal = page.locator('.shortcuts-modal');
+    await expect(modal).toBeVisible();
+    // Find the row with "/" key and the search box description
+    const slashKbd = modal.locator('.shortcuts-row', { hasText: 'Focus search box' }).locator('.shortcuts-kbd', { hasText: '/' });
+    await expect(slashKbd).toBeVisible();
+  });
+
   test('clicking overlay closes the shortcuts modal', async ({ page }) => {
     const btn = page.locator('.shortcuts-fab');
     await btn.click();

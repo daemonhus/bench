@@ -39,6 +39,8 @@ export const BrowseView: React.FC = () => {
   const commentDrag = useUIStore((s) => s.commentDrag);
   const annotationAction = useUIStore((s) => s.annotationAction);
   const highlightRange = useUIStore((s) => s.highlightRange);
+  const codeviewFocusedLine = useUIStore((s) => s.codeviewFocusedLine);
+  const codeviewSelectAnchor = useUIStore((s) => s.codeviewSelectAnchor);
   const inFileSearch = useUIStore((s) => s.inFileSearch);
 
   const isMobile = useBreakpoint() === 'mobile';
@@ -176,6 +178,12 @@ export const BrowseView: React.FC = () => {
               hasComments={hasComments}
               isInCommentRange={inRange}
               isHighlighted={highlighted}
+              isFocused={codeviewFocusedLine === ln}
+              isSelectRange={
+                codeviewSelectAnchor !== null && codeviewFocusedLine !== null &&
+                ln >= Math.min(codeviewSelectAnchor, codeviewFocusedLine) &&
+                ln <= Math.max(codeviewSelectAnchor, codeviewFocusedLine)
+              }
               commentRangePosition={rangePos}
               onActionGutterMouseDown={handleActionGutterMouseDown}
               onActionGutterMouseEnter={handleActionGutterMouseEnter}

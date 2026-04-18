@@ -44,11 +44,26 @@ interface UIState {
   showFeatureCreate: boolean;
   /** Request to open the quick-add finding popover from child components. */
   requestFindingCreate: boolean;
+  /** Nav area to focus after the next view render. */
+  pendingNavFocus: string | null;
+  /** Line number focused by arrow keys in codeview (1-indexed, null = none). */
+  codeviewFocusedLine: number | null;
+  setCodeviewFocusedLine: (line: number | null) => void;
+  /** Anchor line for keyboard range selection (set on first Enter; null = not in selecting mode). */
+  codeviewSelectAnchor: number | null;
+  setCodeviewSelectAnchor: (line: number | null) => void;
+  /** Type-picker state: range to annotate, waiting for user to choose kind. */
+  codeviewTypePick: { start: number; end: number; anchor: number; current: number } | null;
+  setCodeviewTypePick: (pick: { start: number; end: number; anchor: number; current: number } | null) => void;
+  /** Line to focus in codeview after a view transition (consumed by App.tsx after pendingNavFocus). */
+  pendingCodeviewLine: number | null;
+  setPendingCodeviewLine: (line: number | null) => void;
   /** Navigate to Findings view and scroll to this finding id. */
   scrollToFindingId: string | null;
   /** Navigate to Features view and scroll to this feature. */
   scrollToFeature: { id: string; kind: FeatureKind } | null;
   setViewMode: (mode: ViewMode) => void;
+  setPendingNavFocus: (area: string | null) => void;
   setCommentDrag: (drag: Partial<CommentDragState>) => void;
   setExpandedFinding: (id: string | null) => void;
   setScrollTargetLine: (line: number | null) => void;
@@ -97,10 +112,20 @@ export const useUIStore = create<UIState>((set) => ({
   draftComment: null,
   showFeatureCreate: false,
   requestFindingCreate: false,
+  pendingNavFocus: null,
+  codeviewFocusedLine: null,
+  setCodeviewFocusedLine: (line) => set({ codeviewFocusedLine: line }),
+  codeviewSelectAnchor: null,
+  setCodeviewSelectAnchor: (line) => set({ codeviewSelectAnchor: line }),
+  codeviewTypePick: null,
+  setCodeviewTypePick: (pick) => set({ codeviewTypePick: pick }),
+  pendingCodeviewLine: null,
+  setPendingCodeviewLine: (line) => set({ pendingCodeviewLine: line }),
   scrollToFindingId: null,
   scrollToFeature: null,
 
   setViewMode: (mode) => set({ viewMode: mode }),
+  setPendingNavFocus: (area) => set({ pendingNavFocus: area }),
 
   setCommentDrag: (drag) =>
     set((state) => ({

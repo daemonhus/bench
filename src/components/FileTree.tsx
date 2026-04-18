@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
+import { useUIStore } from '../stores/ui-store';
 import type { FileEntry, Severity } from '../core/types';
 
 interface TreeNode {
@@ -17,6 +18,7 @@ interface FileTreeProps {
   files: FileEntry[];
   selectedFile: string | null;
   onSelectFile: (path: string) => void;
+  onSelectDir?: (path: string) => void;
   severityMap?: Map<string, SeverityIndicator>;
 }
 
@@ -176,7 +178,7 @@ const TreeNodeRow: React.FC<{
   );
 };
 
-export const FileTree: React.FC<FileTreeProps> = ({ files, selectedFile, onSelectFile, severityMap }) => {
+export const FileTree: React.FC<FileTreeProps> = ({ files, selectedFile, onSelectFile, onSelectDir, severityMap }) => {
   const tree = useMemo(() => buildTree(files), [files]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [focusedPath, setFocusedPath] = useState<string | null>(null);
@@ -234,21 +236,33 @@ export const FileTree: React.FC<FileTreeProps> = ({ files, selectedFile, onSelec
         setFocusedPath(visibleNodes[next].fullPath);
         // Scroll into view
         const el = containerRef.current?.querySelector(`[data-tree-path="${CSS.escape(visibleNodes[next].fullPath)}"]`);
-        el?.scrollIntoView({ block: 'nearest' });
+        el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
         const prev = Math.max(currentIndex - 1, 0);
         setFocusedPath(visibleNodes[prev].fullPath);
         const el = containerRef.current?.querySelector(`[data-tree-path="${CSS.escape(visibleNodes[prev].fullPath)}"]`);
-        el?.scrollIntoView({ block: 'nearest' });
+        el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       } else if (e.key === 'Enter') {
         e.preventDefault();
         if (currentIndex < 0) return;
         const node = visibleNodes[currentIndex];
         if (node.isDirectory) {
-          handleToggle(node.fullPath);
+          // Enter on folder = open in code browser
+          if (onSelectDir) {
+            onSelectDir(node.fullPath);
+            useUIStore.getState().setPendingNavFocus('codeview');
+          }
         } else {
           onSelectFile(node.fullPath);
+          useUIStore.getState().setPendingNavFocus('codeview');
+        }
+      } else if (e.key === ' ') {
+        e.preventDefault();
+        if (currentIndex < 0) return;
+        const node = visibleNodes[currentIndex];
+        if (node.isDirectory) {
+          handleToggle(node.fullPath);
         }
       } else if (e.key === 'ArrowRight') {
         e.preventDefault();
@@ -264,6 +278,8 @@ export const FileTree: React.FC<FileTreeProps> = ({ files, selectedFile, onSelec
         if (node.isDirectory && expanded.has(node.fullPath)) {
           handleToggle(node.fullPath);
         }
+      } else if (e.key === 'Escape') {
+        setFocusedPath(null);
       }
     },
     [visibleNodes, focusedPath, expanded, handleToggle, onSelectFile],
@@ -272,6 +288,7 @@ export const FileTree: React.FC<FileTreeProps> = ({ files, selectedFile, onSelec
   return (
     <div
       className="file-tree"
+      data-nav-area="filetree"
       ref={containerRef}
       tabIndex={0}
       onKeyDown={handleKeyDown}

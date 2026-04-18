@@ -15,6 +15,8 @@ interface CodeRowProps {
   hasComments: boolean;
   isInCommentRange: boolean;
   isHighlighted: boolean;
+  isFocused?: boolean;
+  isSelectRange?: boolean;
   commentRangePosition: 'first' | 'middle' | 'last' | 'single' | null;
   onActionGutterMouseDown: (lineId: string) => void;
   onActionGutterMouseEnter: (lineId: string) => void;
@@ -38,6 +40,8 @@ export const CodeRow: React.FC<CodeRowProps> = React.memo(
     hasComments,
     isInCommentRange,
     isHighlighted,
+    isFocused,
+    isSelectRange,
     commentRangePosition,
     onActionGutterMouseDown,
     onActionGutterMouseEnter,
@@ -65,7 +69,7 @@ export const CodeRow: React.FC<CodeRowProps> = React.memo(
 
     return (
       <div
-        className={`diff-row ${typeClass} ${rangeClass} ${isInCommentRange ? 'in-comment-range' : ''} ${isHighlighted ? 'highlight-range' : ''} ${browseMode ? 'browse-row' : ''}`}
+        className={`diff-row ${typeClass} ${rangeClass} ${isInCommentRange ? 'in-comment-range' : ''} ${isHighlighted ? 'highlight-range' : ''} ${isFocused ? 'codeview-focused-line' : ''} ${isSelectRange && !isFocused ? 'codeview-select-range' : ''} ${browseMode ? 'browse-row' : ''}`}
         data-line-id={change.id}
         data-old-line={change.oldLine ?? undefined}
         data-new-line={change.newLine ?? undefined}

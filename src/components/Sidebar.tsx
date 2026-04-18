@@ -11,6 +11,7 @@ import { getEffectiveLineRange, COMMENT_TYPE_ICON, COMMENT_TYPE_LABEL } from '..
 import { featuresApi } from '../core/api';
 import { InlineMarkdown } from '../core/markdown';
 import { useBranchMap } from '../core/use-branch-map';
+import { useNavList } from '../core/use-nav-list';
 
 const ReconcileIndicator: React.FC<{
   reconciledHead: ReconciledHead | null;
@@ -217,6 +218,10 @@ export const Sidebar: React.FC = () => {
   const [editText, setEditText] = useState('');
   const [editCommentType, setEditCommentType] = useState<CommentType>('');
 
+  // Pending focus target after Enter expands a finding card — consumed by effect
+  // below once React commits the expanded state and the textarea is in the DOM.
+  const pendingReplyFocusId = useRef<string | null>(null);
+
   // Severity filter (empty = show all)
   const [severityFilter, setSeverityFilter] = useState<Set<Severity>>(new Set());
   const toggleSeverity = useCallback((sev: Severity) => {
@@ -328,6 +333,51 @@ export const Sidebar: React.FC = () => {
     return items;
   }, [fileFindings, fileComments, fileFeatures, severityFilter]);
 
+  // Keyboard navigation through sidebar annotation cards
+  const { focusedId: navFocusedId, containerRef: navContainerRef, handleKeyDown: navHandleKeyDown, handleFocus: navHandleFocus, setFocusedId: setNavFocusedId } = useNavList({
+    items: activityItems,
+    getId: item => item.data.id,
+    onFocusChange: (item) => {
+      if (!item) return;
+      const range = getEffectiveLineRange(item.data);
+      if (range) setScrollTargetLine(range.start);
+    },
+    onSelect: (item) => {
+      // Space: toggle expand/collapse. Works for findings and features; comments
+      // have no expanded state so Space is a no-op on them.
+      if (item.kind === 'finding' || item.kind === 'feature') {
+        const id = item.data.id;
+        const expanding = expandedFindingId !== id;
+        const range = getEffectiveLineRange(item.data);
+        setExpandedFinding(expanding ? id : null);
+        setHighlightRange(expanding && range ? range : null);
+      }
+    },
+    onActivate: (item) => {
+      // Enter: expand card and focus the reply textarea. No codeview scroll —
+      // Shift+Enter is the "jump to code" action.
+      const id = item.data.id;
+      if (expandedFindingId !== id) {
+        const range = getEffectiveLineRange(item.data);
+        setExpandedFinding(id);
+        if (item.kind === 'finding') setHighlightRange(range ?? null);
+        // Queue focus for after React commits the expanded state — the textarea
+        // isn't in the DOM yet when onActivate runs. Effect below consumes this.
+        pendingReplyFocusId.current = id;
+      } else {
+        // Already expanded — textarea is already in the DOM, focus it directly.
+        const card = navContainerRef.current?.querySelector(`[data-nav-id="${CSS.escape(id)}"]`);
+        card?.querySelector<HTMLTextAreaElement>('textarea')?.focus();
+      }
+    },
+    onShiftActivate: (item) => {
+      // Shift+Enter: scroll to the code location and focus codeview
+      const range = getEffectiveLineRange(item.data);
+      if (range) setScrollTargetLine(range.start);
+      useUIStore.getState().setPendingNavFocus('codeview');
+    },
+  });
+
   // Measure actual card heights and compute collision-free positions
   useLayoutEffect(() => {
     if (isLoading) {
@@ -365,6 +415,22 @@ export const Sidebar: React.FC = () => {
     });
     setPositionsReady(true);
   }, [activityItems, expandedFindingId, editingId, isLoading, layoutTick]);
+
+  // Consume pendingReplyFocusId after the expanded card commits — focus the
+  // textarea if present, else the first interactive element in the card.
+  useEffect(() => {
+    const id = pendingReplyFocusId.current;
+    if (!id || expandedFindingId !== id) return;
+    const card = navContainerRef.current?.querySelector(`[data-nav-id="${CSS.escape(id)}"]`);
+    if (!card) return;
+    const textarea = card.querySelector<HTMLElement>('textarea');
+    if (textarea) {
+      textarea.focus();
+    } else {
+      card.querySelector<HTMLElement>('button, a, input, [tabindex]')?.focus();
+    }
+    pendingReplyFocusId.current = null;
+  }, [expandedFindingId, positionsReady]);
 
   // Re-layout when any card grows/shrinks (e.g. async comment/file-preview loads after expansion)
   useEffect(() => {
@@ -593,10 +659,51 @@ export const Sidebar: React.FC = () => {
   const hasItems = activityItems.length > 0 || showNewComment || showNewFinding || showNewFeature;
 
   return (
-    <aside className="sidebar">
+    <aside
+      className="sidebar"
+      tabIndex={0}
+      data-nav-area="sidebar"
+      ref={navContainerRef}
+      onKeyDown={navHandleKeyDown}
+      onFocus={navHandleFocus}
+      onMouseDown={(e) => {
+        // Mouse-clicking a card should move keyboard-nav focus to it so Enter
+        // immediately works to start a reply.
+        const el = (e.target as HTMLElement).closest('[data-nav-id]') as HTMLElement | null;
+        const id = el?.getAttribute('data-nav-id');
+        if (!id) return;
+        setNavFocusedId(id);
+        // If the click landed on a non-focusable element, ensure the sidebar
+        // receives keyboard focus so Enter fires the nav handler.
+        const target = e.target as HTMLElement;
+        const targetTag = target.tagName;
+        const targetInteractive = targetTag === 'BUTTON' || targetTag === 'A' || targetTag === 'INPUT' || targetTag === 'TEXTAREA' || targetTag === 'SELECT';
+        if (!targetInteractive) {
+          requestAnimationFrame(() => navContainerRef.current?.focus({ preventScroll: true }));
+        }
+      }}
+      onKeyDownCapture={(e) => {
+        // Tab inside a textarea should cycle to the next nav area instead of
+        // going to the adjacent submit button (which is the browser default).
+        if (e.key !== 'Tab' || (e.target as HTMLElement).tagName !== 'TEXTAREA') return;
+        e.preventDefault();
+        const sidebar = navContainerRef.current;
+        if (!sidebar) return;
+        sidebar.focus({ preventScroll: true });
+        // Dispatch Tab from the sidebar container so the global Tab interceptor
+        // picks it up and cycles to the next nav area.
+        sidebar.dispatchEvent(new KeyboardEvent('keydown', {
+          key: 'Tab',
+          bubbles: true,
+          shiftKey: e.shiftKey,
+          cancelable: true,
+          composed: true,
+        }));
+      }}
+    >
       <div className="sidebar-header">
         <span className="sidebar-title">Activity</span>
-        <span className="sidebar-count">{activityItems.length}{fileFeatures.length > 0 ? ` · ${fileFeatures.length}f` : ''}</span>
+        <span className="sidebar-count">{activityItems.length + fileFeatures.length}</span>
         <ReconcileIndicator reconciledHead={reconciledHead} activeJob={activeJob} />
         <button className="panel-drawer-btn" onClick={toggleSidebar} data-tooltip="Collapse sidebar">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -667,7 +774,7 @@ export const Sidebar: React.FC = () => {
                     onChange={(e) => setNewCommentText(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSubmitNewComment();
-                      if (e.key === 'Escape' && !newCommentText.trim()) { e.stopPropagation(); handleCancelNewComment(); }
+                      if (e.key === 'Escape' && !newCommentText.trim()) handleCancelNewComment();
                     }}
                     rows={3}
                     autoFocus
@@ -711,7 +818,7 @@ export const Sidebar: React.FC = () => {
                     onChange={(e) => setNewFindingTitle(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSubmitNewFinding();
-                      if (e.key === 'Escape' && !newFindingTitle.trim()) { e.stopPropagation(); handleCancelNewFinding(); }
+                      if (e.key === 'Escape' && !newFindingTitle.trim()) handleCancelNewFinding();
                     }}
                     autoFocus
                   />
@@ -887,6 +994,8 @@ export const Sidebar: React.FC = () => {
                 return (
                   <div
                     key={id}
+                    data-nav-id={id}
+                    data-nav-focused={navFocusedId === id ? 'true' : undefined}
                     ref={(el) => {
                       if (el) cardRefs.current.set(id, el);
                       else cardRefs.current.delete(id);
@@ -897,6 +1006,7 @@ export const Sidebar: React.FC = () => {
                       finding={item.data}
                       isExpanded={expandedFindingId === id}
                       isFocused={expandedFindingId === id}
+                      isNavFocused={navFocusedId === id}
                       onToggle={() => {
                         const expanding = expandedFindingId !== id;
                         setExpandedFinding(expanding ? id : null);
@@ -915,6 +1025,8 @@ export const Sidebar: React.FC = () => {
                 return (
                   <div
                     key={id}
+                    data-nav-id={id}
+                    data-nav-focused={navFocusedId === id ? 'true' : undefined}
                     ref={(el) => {
                       if (el) cardRefs.current.set(id, el);
                       else cardRefs.current.delete(id);
@@ -924,6 +1036,7 @@ export const Sidebar: React.FC = () => {
                     <FeatureCard
                       feature={item.data}
                       isExpanded={expandedFindingId === id}
+                      isNavFocused={navFocusedId === id}
                       compact
                       onToggle={() => {
                         const expanding = expandedFindingId !== id;
@@ -946,6 +1059,8 @@ export const Sidebar: React.FC = () => {
               return (
                 <div
                   key={id}
+                  data-nav-id={id}
+                  data-nav-focused={navFocusedId === id ? 'true' : undefined}
                   ref={(el) => {
                     if (el) cardRefs.current.set(id, el);
                     else cardRefs.current.delete(id);

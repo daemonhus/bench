@@ -21,6 +21,7 @@ interface FindingCardProps {
   finding: Finding;
   isExpanded: boolean;
   isFocused?: boolean;
+  isNavFocused?: boolean;
   expandSnippetsTick?: number;
   collapseSnippetsTick?: number;
   onSnippetCollapsedChange?: (collapsed: boolean) => void;
@@ -34,6 +35,24 @@ const KIND_COLORS: Record<string, string> = {
   sink:        '#ea580c',
   dependency:  '#7c3aed',
   externality: '#6b7280',
+};
+
+const KIND_LABELS: Record<string, string> = {
+  interface:   'Interface',
+  source:      'Source',
+  sink:        'Sink',
+  dependency:  'Dependency',
+  externality: 'Externality',
+};
+
+const METHOD_COLORS: Record<string, string> = {
+  GET: '#16a34a',
+  POST: '#2563eb',
+  PUT: '#d97706',
+  PATCH: '#7c3aed',
+  DELETE: '#dc2626',
+  HEAD: '#6b7280',
+  OPTIONS: '#6b7280',
 };
 
 const SEVERITY_COLORS: Record<string, string> = {
@@ -61,6 +80,7 @@ export const FindingCard: React.FC<FindingCardProps> = ({
   finding,
   isExpanded,
   isFocused,
+  isNavFocused,
   expandSnippetsTick,
   collapseSnippetsTick,
   onSnippetCollapsedChange,
@@ -204,8 +224,12 @@ export const FindingCard: React.FC<FindingCardProps> = ({
   const snippet = useMemo(() => {
     if (!fileLines || !lineRange) return null;
     const CONTEXT = 1;
+    const MAX_RANGE_LINES = 5;
+    // Cap displayed range so long annotations don't balloon the card. The
+    // "N more" button still extends via extraAfter.
+    const cappedRangeEnd = Math.min(lineRange.end, lineRange.start + MAX_RANGE_LINES - 1);
     const from = Math.max(0, lineRange.start - 1 - CONTEXT - extraBefore);
-    const to = Math.min(fileLines.lines.length, lineRange.end + CONTEXT + extraAfter);
+    const to = Math.min(fileLines.lines.length, cappedRangeEnd + CONTEXT + extraAfter);
     return {
       lines: fileLines.lines.slice(from, to),
       startLine: from + 1,
@@ -533,7 +557,15 @@ export const FindingCard: React.FC<FindingCardProps> = ({
         </div>
         <div className="finding-title-row">
           <span className={`finding-expand-chevron${isExpanded ? ' finding-expand-chevron--open' : ''}`}>&#9658;</span>
-          <span className="finding-title">{finding.title}</span>
+          <span
+            className="finding-title finding-title-link"
+            onClick={(e) => {
+              e.stopPropagation();
+              useUIStore.getState().setScrollToFindingId(finding.id);
+              useUIStore.getState().setViewMode('findings');
+            }}
+            title="Open in Findings"
+          >{finding.title}</span>
         </div>
         {!isExpanded && finding.description && (
           <p className="finding-description feature-description-collapsed">{finding.description}</p>
@@ -541,23 +573,6 @@ export const FindingCard: React.FC<FindingCardProps> = ({
       </div>
 
       <div className="finding-card-meta">
-        {cardRefs.length > 0 && (
-          <span className="ref-icons" onClick={(e) => e.stopPropagation()}>
-            <span className="ref-icons-label">Links<span className="section-count-badge">{cardRefs.length}</span></span>
-            {cardRefs.map((ref) => (
-              <a
-                key={ref.id}
-                href={ref.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="ref-icon-link"
-                title={ref.title || ref.url}
-              >
-                <RefProviderIcon provider={ref.provider} size={14} />
-              </a>
-            ))}
-          </span>
-        )}
         {finding.cve && <span className="finding-cve">{finding.cve}</span>}
         {finding.score > 0 && <span className="finding-score">{finding.score.toFixed(1)}</span>}
         {confidence && confidence !== 'exact' && (
@@ -615,28 +630,55 @@ export const FindingCard: React.FC<FindingCardProps> = ({
         </div>
       )}
 
-      {isExpanded && linkedFeatures.length > 0 && linkedFeatures.map((feat) => (
-        <div
-          key={feat.id}
-          className="activity-feature-ref finding-feature-ref"
-          onClick={() => { useUIStore.getState().setScrollToFeature({ id: feat.id, kind: feat.kind }); useUIStore.getState().setViewMode('features'); }}
-        >
-          <div className="activity-feature-ref-header">
-            <span className="activity-feature-ref-kind">Feature:</span>
-            <span className="activity-feature-ref-title">{feat.title}</span>
-          </div>
-          {feat.anchor.fileId && (
-            <div className="activity-finding-ref-meta">
-              <span className="activity-finding-ref-file">
-                {feat.anchor.fileId}{feat.anchor.lineRange ? `:${feat.anchor.lineRange.start}` : ''}
-              </span>
-            </div>
-          )}
-          {feat.description && (
-            <div className="activity-finding-ref-desc">{feat.description}</div>
-          )}
+      {(cardRefs.length > 0 || linkedFeatures.length > 0) && (
+        <div className="feature-links-row feature-links-row-inline" onClick={(e) => e.stopPropagation()}>
+          <span className="feature-params-heading feature-links-heading-inline">Links<span className="section-count-badge">{cardRefs.length + linkedFeatures.length}</span></span>
+          {cardRefs.map((ref) => (
+            <a
+              key={ref.id}
+              href={ref.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="feature-links-ref-chip"
+              title={ref.title || ref.url}
+            >
+              <RefProviderIcon provider={ref.provider} size={13} />
+              <span>{ref.title || ref.url}</span>
+            </a>
+          ))}
+          {linkedFeatures.map((feat) => {
+            const fKindColor = KIND_COLORS[feat.kind] ?? '#6b7280';
+            const isInterface = feat.kind === 'interface';
+            const method = feat.operation?.toUpperCase();
+            const filename = feat.anchor.fileId?.split('/').pop();
+            const tooltipParts = [feat.description, filename ? `(${filename})` : null].filter(Boolean);
+            return (
+              <button
+                key={feat.id}
+                type="button"
+                className="feature-linked-badge"
+                title={tooltipParts.join(' ')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  useUIStore.getState().setScrollToFeature({ id: feat.id, kind: feat.kind });
+                  useUIStore.getState().setViewMode('features');
+                }}
+              >
+                {isInterface && method ? (
+                  <span className="feature-method-badge" style={{ background: METHOD_COLORS[method] ?? fKindColor, fontSize: 9 }}>{method}</span>
+                ) : (
+                  <span className="feature-kind-badge" style={{ background: fKindColor, fontSize: 9 }}>{KIND_LABELS[feat.kind] ?? feat.kind}</span>
+                )}
+                {isInterface ? (
+                  <code className="feature-linked-badge-title feature-endpoint-path">{feat.title}</code>
+                ) : (
+                  <span className="feature-linked-badge-title">{feat.title}</span>
+                )}
+              </button>
+            );
+          })}
         </div>
-      ))}
+      )}
 
       {isExpanded && (sortedComments.length > 0 || true) && (
         <div className="finding-comments" onClick={(e) => e.stopPropagation()}>
@@ -757,7 +799,7 @@ export const FindingCard: React.FC<FindingCardProps> = ({
 
           <div className="finding-comment-compose">
             <textarea
-              placeholder="Reply..."
+              placeholder={isNavFocused ? 'Reply... (⏎)' : 'Reply...'}
               value={replyText}
               onChange={(e) => {
                 setReplyText(e.target.value);

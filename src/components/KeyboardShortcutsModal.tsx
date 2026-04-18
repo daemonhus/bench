@@ -21,9 +21,19 @@ const GROUPS: ShortcutGroup[] = [
   {
     title: 'Search',
     shortcuts: [
+      { keys: ['/'], description: 'Focus search box (Findings / Features)' },
       { keys: [MOD, 'F'], description: 'Find in file' },
       { keys: [MOD, SHIFT, 'F'], description: 'Find in all files' },
       { keys: [MOD, 'G'], description: 'Go to file' },
+    ],
+  },
+  {
+    title: 'Tabs',
+    shortcuts: [
+      { keys: ['1'], description: 'Browse' },
+      { keys: ['2'], description: 'Changes' },
+      { keys: ['3'], description: 'Findings' },
+      { keys: ['4'], description: 'Features' },
     ],
   },
   {
@@ -44,12 +54,25 @@ const GROUPS: ShortcutGroup[] = [
     ],
   },
   {
+    title: 'Panel Navigation',
+    shortcuts: [
+      { keys: ['\u21E5'], description: 'Focus next panel area' },
+      { keys: [SHIFT, '\u21E5'], description: 'Focus previous panel area' },
+      { keys: ['\u2191', '\u2193'], description: 'Move between items in list' },
+      { keys: ['\u2190', '\u2192'], description: 'Switch kind tabs (Features)' },
+      { keys: [' '], description: 'Expand / collapse focused item' },
+      { keys: [ENTER], description: 'Navigate to item in file' },
+      { keys: [ESC], description: 'Deselect focused item' },
+    ],
+  },
+  {
     title: 'File Tree',
     shortcuts: [
       { keys: ['\u2191', '\u2193'], description: 'Navigate items' },
       { keys: ['\u2192'], description: 'Expand folder' },
       { keys: ['\u2190'], description: 'Collapse folder' },
-      { keys: [ENTER], description: 'Open file / toggle folder' },
+      { keys: [' '], description: 'Toggle folder expand / collapse' },
+      { keys: [ENTER], description: 'Open file / expand folder' },
     ],
   },
   {

@@ -26,24 +26,10 @@ type FindingsKind = 'open' | 'closed';
 const ALL_FINDING_KINDS: FindingsKind[] = ['open', 'closed'];
 const KIND_LABELS: Record<FindingsKind, string> = { open: 'Open', closed: 'Closed' };
 
-/** Shallow-compare two finding arrays by id + key fields to avoid unnecessary re-renders. */
-function findingsEqual(a: Finding[], b: Finding[]): boolean {
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) {
-    if (
-      a[i].id !== b[i].id ||
-      a[i].status !== b[i].status ||
-      a[i].severity !== b[i].severity ||
-      a[i].title !== b[i].title ||
-      JSON.stringify(a[i].features) !== JSON.stringify(b[i].features)
-    ) return false;
-  }
-  return true;
-}
 
 export const FindingsView: React.FC = () => {
-  const [findings, setFindings] = useState<Finding[]>([]);
-  const findingsRef = useRef<Finding[]>([]);
+  const findings = useAnnotationStore((s) => s.findings);
+  const loadFindings = useAnnotationStore((s) => s.loadFindings);
   const [loading, setLoading] = useState(true);
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => {
     try {
@@ -107,19 +93,12 @@ export const FindingsView: React.FC = () => {
   const { query: searchQuery, setQuery: setSearchQuery, matcher: searchMatcher, isRegexValid } =
     useRegexSearch('bench-findings-search');
 
-  const stableSetFindings = useCallback((incoming: Finding[]) => {
-    if (!findingsEqual(findingsRef.current, incoming as Finding[])) {
-      findingsRef.current = incoming as Finding[];
-      setFindings(incoming as Finding[]);
-    }
-  }, []);
-
   const loadFeatures = useAnnotationStore((s) => s.loadFeatures);
 
   const refreshFindings = useCallback(() => {
     featuresApi.list().then((f) => loadFeatures(f as Feature[])).catch(() => {});
-    return findingsApi.list().then(stableSetFindings).catch(() => {});
-  }, [stableSetFindings, loadFeatures]);
+    return findingsApi.list().then((f) => loadFindings(f as Finding[])).catch(() => {});
+  }, [loadFindings, loadFeatures]);
 
   useEffect(() => {
     setLoading(true);
@@ -139,7 +118,9 @@ export const FindingsView: React.FC = () => {
   const navigateToFile = (fileId: string, range?: LineRange, commitId?: string) => {
     if (commitId) useRepoStore.getState().selectCommit(commitId);
     scrollToRange(range);
+    if (range) useUIStore.getState().setPendingCodeviewLine(range.start);
     useUIStore.getState().setViewMode('browse');
+    useUIStore.getState().setPendingNavFocus('codeview');
     useRepoStore.getState().selectFile(fileId);
   };
 
@@ -204,7 +185,8 @@ export const FindingsView: React.FC = () => {
   const hasActiveFilter = filterSeverities.size < ALL_SEVERITIES.length || filterActors !== null || filterKinds.size < ALL_FINDING_KINDS.length || searchQuery !== '';
 
   const listRef = useRef<HTMLDivElement>(null);
-  const { focusedId: navFocusedId, containerRef: navContainerRef, handleKeyDown: navHandleKeyDown } = useNavList({
+  const pendingReplyFocusId = useRef<string | null>(null);
+  const { focusedId: navFocusedId, containerRef: navContainerRef, handleKeyDown: navHandleKeyDown, handleFocus: navHandleFocus } = useNavList({
     items: displayedFindings,
     getId: f => f.id,
     onSelect: (f) => setCollapsedIds((prev) => {
@@ -212,9 +194,33 @@ export const FindingsView: React.FC = () => {
       if (next.has(f.id)) next.delete(f.id); else next.add(f.id);
       return next;
     }),
-    nextArea: 'findings-filter',
-    prevArea: 'findings-filter',
+    // Enter: expand the card in place; if already expanded, focus the reply textarea.
+    // Shift+Enter: jump to the file in Browse.
+    onActivate: (f) => {
+      const isExpanded = !collapsedIds.has(f.id);
+      if (isExpanded) {
+        const card = navContainerRef.current?.querySelector(`[data-nav-id="${CSS.escape(f.id)}"]`);
+        card?.querySelector<HTMLTextAreaElement>('textarea')?.focus();
+        return;
+      }
+      pendingReplyFocusId.current = f.id;
+      setCollapsedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(f.id);
+        return next;
+      });
+    },
+    onShiftActivate: (f) => navigateToFile(f.anchor.fileId, f.anchor.lineRange ?? undefined, f.anchor.commitId),
   });
+
+  // After expand commits, focus the reply textarea of the newly expanded card.
+  useEffect(() => {
+    const id = pendingReplyFocusId.current;
+    if (!id || collapsedIds.has(id)) return;
+    const card = navContainerRef.current?.querySelector(`[data-nav-id="${CSS.escape(id)}"]`);
+    card?.querySelector<HTMLTextAreaElement>('textarea')?.focus();
+    pendingReplyFocusId.current = null;
+  }, [collapsedIds, navContainerRef]);
   // Keep both refs pointing at the same element
   const setListRef = (el: HTMLDivElement | null) => {
     (listRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
@@ -227,6 +233,7 @@ export const FindingsView: React.FC = () => {
         <FindingCard
           finding={f}
           isExpanded={!collapsedIds.has(f.id)}
+          isNavFocused={navFocusedId === f.id}
           expandSnippetsTick={expandSnippetsTick}
           collapseSnippetsTick={collapseSnippetsTick}
           onSnippetCollapsedChange={(collapsed) => setCollapsedSnippetIds(prev => {
@@ -258,9 +265,21 @@ export const FindingsView: React.FC = () => {
           tabIndex={0}
           data-nav-area="findings-filter"
           onKeyDown={(e) => {
-            if (e.key === 'Tab') {
-              e.preventDefault();
-              (document.querySelector('[data-nav-area="findings-list"]') as HTMLElement | null)?.focus();
+            const tag = (e.target as HTMLElement).tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+            if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft' && e.key !== 'Enter' && e.key !== ' ') return;
+            e.preventDefault();
+            const container = e.currentTarget;
+            const items = Array.from(container.querySelectorAll<HTMLElement>('button:not([disabled])'));
+            if (items.length === 0) return;
+            const idx = items.indexOf(document.activeElement as HTMLElement);
+            if (e.key === 'ArrowRight') {
+              items[Math.min(idx + 1, items.length - 1)].focus();
+            } else if (e.key === 'ArrowLeft') {
+              items[Math.max(idx < 0 ? 0 : idx - 1, 0)].focus();
+            } else if (e.key === 'Enter' || e.key === ' ') {
+              if (idx >= 0) items[idx].click();
+              else items[0].focus();
             }
           }}
         >
@@ -281,7 +300,7 @@ export const FindingsView: React.FC = () => {
             ))}
           </div>
           <div className="findings-filter-group">
-            <SearchBox value={searchQuery} onChange={setSearchQuery} invalid={!isRegexValid} />
+            <SearchBox value={searchQuery} onChange={setSearchQuery} invalid={!isRegexValid} shortcut={['/']} />
             <AnnotationFilters
               severities={filterSeverities}
               onSeveritiesChange={setFilterSeverities}
@@ -316,6 +335,13 @@ export const FindingsView: React.FC = () => {
         </div>
       )}
 
+      <div
+        ref={setListRef}
+        tabIndex={0}
+        data-nav-area="findings-list"
+        onKeyDown={navHandleKeyDown}
+        onFocus={navHandleFocus}
+      >
       {renderFindingList(displayedFindings)}
 
       {findings.length === 0 && (
