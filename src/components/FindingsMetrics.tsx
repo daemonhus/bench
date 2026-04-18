@@ -107,8 +107,7 @@ function ResolutionTiles({ totals }: { totals: Record<string, number> }) {
 
 // ── 3. Findings by Source — large centred donut ───────────────────────────────
 
-const SRC_SIZE = 160, SRC_OUTER = 70, SRC_INNER = 50;
-const T_PRIMARY = '#e6edf3';
+const SRC_SIZE = 180, SRC_OUTER = 82, SRC_INNER = 59;
 const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif";
 
 interface LegendEntry { label: string; value: number; color: string; }
@@ -137,7 +136,7 @@ function SourcePanel({ entries, total }: { entries: LegendEntry[]; total: number
                   />
                 ))}
               </Pie>
-              <text textAnchor="middle" fill={T_PRIMARY} fontSize={26} fontWeight={800} fontFamily={FONT} dy="-4" letterSpacing="-0.025em">{total}</text>
+              <text textAnchor="middle" fill="var(--text-primary)" fontSize={26} fontWeight={800} fontFamily={FONT} dy="-4" letterSpacing="-0.025em">{total}</text>
               <text textAnchor="middle" fill="#55606f" fontSize={9} fontWeight={700} fontFamily={FONT} dy="14" letterSpacing="0.1em">TOTAL FINDINGS</text>
             </g>
           </svg>
