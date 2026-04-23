@@ -1,0 +1,44 @@
+package git
+
+import "bench/internal/model"
+
+// Backend is the pluggable git implementation behind *Repo. Two impls ship:
+// GoGitBackend (in-process via go-git, default) and CLIBackend (shells out to
+// `git`, escape hatch via BENCH_GIT_BACKEND=cli). Every Repo op that hits
+// the repository goes through here.
+//
+// Name() is intentionally not on Backend: it's derived from the path and
+// doesn't touch git state.
+type Backend interface {
+	Head() (string, error)
+	DefaultBranch() string
+	BranchTip(branch string) (string, error)
+	ResolveRef(ref string) (string, error)
+
+	Log(limit int) ([]model.CommitInfo, error)
+	LogRange(from, to, path string, limit int) ([]model.CommitInfo, error)
+	Graph(limit int) ([]model.GraphCommit, error)
+
+	Tree(commitish string) ([]model.FileEntry, error)
+	Show(commitish, path string) (string, error)
+
+	Diff(from, to, path string) (*model.DiffResult, error)
+	DiffRaw(from, to, path string) (string, error)
+	DiffFiles(from, to string) ([]string, error)
+	DiffStat(from, to string) ([]model.FileStat, error)
+	DetectRename(from, to, path string) (string, error)
+
+	IsAncestor(ancestor, descendant string) (bool, error)
+	MergeBase(a, b string) (string, error)
+	RevList(from, to string) ([]string, error)
+
+	Branches() ([]model.BranchInfo, error)
+	RemoteURL() string
+
+	Grep(pattern, commit, path string, caseInsensitive, fixed bool, maxResults int) ([]model.GrepMatch, error)
+	Blame(commit, path string, lineStart, lineEnd int) ([]model.BlameLine, error)
+
+	PinCommit(sha string) error
+	UnpinCommit(sha string) error
+	ListPinnedCommits() ([]string, error)
+}
