@@ -37,6 +37,7 @@ export function useCommentDrag() {
         startLine: minLine,
         endLine: maxLine,
         side,
+        source: 'mouse',
       });
     }
 
@@ -66,6 +67,7 @@ export function useCommentDrag() {
         startLine: null,
         endLine: null,
         side: null,
+        source: null,
       });
       setAnnotationAction(null);
 

@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import type { FileEntry } from '../core/types';
+import { useNavList } from '../core/use-nav-list';
 
 interface FolderViewProps {
   files: FileEntry[];
@@ -9,9 +10,11 @@ interface FolderViewProps {
 }
 
 interface DirEntry {
+  id: string;
   name: string;
   fullPath: string;
   isDir: boolean;
+  isParent?: boolean;
   childCount?: number;
 }
 
@@ -21,6 +24,10 @@ export const FolderView: React.FC<FolderViewProps> = ({
   onSelectFile,
   onNavigateDir,
 }) => {
+  const parentDir = dirPath.includes('/')
+    ? dirPath.slice(0, dirPath.lastIndexOf('/'))
+    : '';
+
   const entries = useMemo<DirEntry[]>(() => {
     const prefix = dirPath ? dirPath + '/' : '';
     const seen = new Set<string>();
@@ -32,58 +39,72 @@ export const FolderView: React.FC<FolderViewProps> = ({
       const slashIdx = rest.indexOf('/');
 
       if (slashIdx === -1) {
-        // Direct file child
-        result.push({ name: rest, fullPath: f.path, isDir: false });
+        result.push({ id: f.path, name: rest, fullPath: f.path, isDir: false });
       } else {
-        // Directory child
         const dirName = rest.slice(0, slashIdx);
         const dirFullPath = prefix + dirName;
         if (!seen.has(dirFullPath)) {
           seen.add(dirFullPath);
-          // Count children in this directory
           const childPrefix = dirFullPath + '/';
           const count = files.filter((c) => c.path.startsWith(childPrefix)).length;
-          result.push({ name: dirName, fullPath: dirFullPath, isDir: true, childCount: count });
+          result.push({ id: dirFullPath, name: dirName, fullPath: dirFullPath, isDir: true, childCount: count });
         }
       }
     }
 
-    // Sort: dirs first, then alpha
     result.sort((a, b) => {
       if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
       return a.name.localeCompare(b.name);
     });
 
-    return result;
-  }, [files, dirPath]);
+    if (dirPath) {
+      result.unshift({ id: '__parent__', name: '..', fullPath: parentDir, isDir: true, isParent: true });
+    }
 
-  const parentDir = dirPath.includes('/')
-    ? dirPath.slice(0, dirPath.lastIndexOf('/'))
-    : '';
+    return result;
+  }, [files, dirPath, parentDir]);
+
+  const activate = (entry: DirEntry) => {
+    if (entry.isDir) onNavigateDir(entry.fullPath);
+    else onSelectFile(entry.fullPath);
+  };
+
+  const { focusedId, containerRef, handleKeyDown, handleFocus } = useNavList<DirEntry>({
+    items: entries,
+    getId: (e) => e.id,
+    onActivate: activate,
+  });
+
+  // Auto-focus the container when entering this view (or when dirPath changes)
+  // so arrow keys work immediately without a click.
+  useEffect(() => {
+    containerRef.current?.focus({ preventScroll: true });
+  }, [dirPath, containerRef]);
 
   return (
-    <div className="folder-view">
+    <div
+      className="folder-view"
+      ref={containerRef}
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+      onFocus={handleFocus}
+      data-nav-area="folder-view"
+    >
       <div className="folder-header">
         {dirPath || '.'}/
       </div>
-      {dirPath && (
-        <div
-          className="folder-entry folder-entry-dir"
-          onClick={() => onNavigateDir(parentDir)}
-        >
-          <span className="folder-icon">../</span>
-        </div>
-      )}
       {entries.map((entry) => (
         <div
-          key={entry.fullPath}
+          key={entry.id}
+          data-nav-id={entry.id}
+          data-nav-focused={focusedId === entry.id ? 'true' : undefined}
           className={`folder-entry ${entry.isDir ? 'folder-entry-dir' : 'folder-entry-file'}`}
-          onClick={() => entry.isDir ? onNavigateDir(entry.fullPath) : onSelectFile(entry.fullPath)}
+          onClick={() => activate(entry)}
         >
           {entry.isDir ? (
             <>
-              <span className="folder-icon">{entry.name}/</span>
-              <span className="folder-count">{entry.childCount}</span>
+              <span className="folder-icon">{entry.isParent ? '../' : `${entry.name}/`}</span>
+              {!entry.isParent && <span className="folder-count">{entry.childCount}</span>}
             </>
           ) : (
             <span className="folder-name">{entry.name}</span>

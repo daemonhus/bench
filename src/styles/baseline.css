@@ -584,6 +584,7 @@
   border-right: 1px solid var(--border-default);
   background: var(--bg-secondary);
   overflow: hidden;
+  outline: none;
 }
 
 .delta-history-drawer .delta-sidebar-body {

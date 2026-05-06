@@ -95,6 +95,37 @@ export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({ startLine, e
     if (!isMobile && !sidebarOpen) toggleSidebar();
   };
 
+  // Auto-focus the first button only for keyboard-initiated opens. On mouse
+  // open the click event keeps processing after mount and would shift focus
+  // off the button, dismissing the toolbar.
+  const dragSource = useUIStore((s) => s.commentDrag.source);
+  useEffect(() => {
+    if (dragSource !== 'keyboard') return;
+    const first = toolbarRef.current?.querySelector<HTMLButtonElement>('button');
+    first?.focus({ preventScroll: true });
+  }, [dragSource]);
+
+  // Intra-toolbar arrow nav. Without stopPropagation, Tab would be captured by
+  // App's global nav-area Tab handler and yank focus out of the toolbar.
+  const onToolbarKeyDown = (e: React.KeyboardEvent) => {
+    const isArrow = e.key === 'ArrowLeft' || e.key === 'ArrowRight';
+    if (e.key !== 'Tab' && !isArrow) return;
+    const root = toolbarRef.current;
+    if (!root) return;
+    const focusables = Array.from(root.querySelectorAll<HTMLButtonElement>('button:not([disabled])'));
+    if (focusables.length === 0) return;
+    const idx = focusables.indexOf(document.activeElement as HTMLButtonElement);
+    const forward = e.key === 'ArrowRight' || (e.key === 'Tab' && !e.shiftKey);
+    const next = idx === -1
+      ? 0
+      : forward
+        ? (idx + 1) % focusables.length
+        : (idx - 1 + focusables.length) % focusables.length;
+    e.preventDefault();
+    e.stopPropagation();
+    focusables[next].focus();
+  };
+
   const canCopyLink = !!(remoteUrl && currentCommit && selectedFilePath);
 
   const handleCopyLink = async () => {
@@ -111,6 +142,7 @@ export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({ startLine, e
       ref={toolbarRef}
       className="selection-toolbar"
       style={{ top }}
+      onKeyDown={onToolbarKeyDown}
     >
       <button
         className="selection-toolbar-btn"
@@ -121,6 +153,7 @@ export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({ startLine, e
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
           <path d="M2 2h12v8H9l-3 3v-3H2V2z" />
         </svg>
+        <span className="selection-toolbar-label">Comment</span>
       </button>
       <button
         className="selection-toolbar-btn selection-toolbar-btn-finding"
@@ -133,6 +166,7 @@ export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({ startLine, e
           <path d="M8 5v3" />
           <circle cx="8" cy="10.5" r="0.5" fill="currentColor" stroke="none" />
         </svg>
+        <span className="selection-toolbar-label">Finding</span>
       </button>
       <button
         className="selection-toolbar-btn selection-toolbar-btn-feature"
@@ -148,6 +182,7 @@ export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({ startLine, e
           <circle cx="1" cy="8" r="1" fill="currentColor" stroke="none" />
           <circle cx="15" cy="8" r="1" fill="currentColor" stroke="none" />
         </svg>
+        <span className="selection-toolbar-label">Feature</span>
       </button>
       {canCopyLink && (
         <button
@@ -167,6 +202,7 @@ export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({ startLine, e
               <path d="M9.5 6.5a3.5 3.5 0 00-5 0l-2 2a3.5 3.5 0 005 5l1-1" />
             </svg>
           )}
+          <span className="selection-toolbar-label">{copied ? 'Copied' : 'Link'}</span>
         </button>
       )}
     </div>

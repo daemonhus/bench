@@ -72,10 +72,10 @@ export function useNavList<T>({
     const onInteractiveChild = target !== containerRef.current
       && (tag === 'BUTTON' || tag === 'A' || tag === 'SELECT' || target.getAttribute('role') === 'button');
 
-    if (e.key === 'ArrowDown') {
+    if (e.key === 'ArrowDown' && !onInteractiveChild) {
       e.preventDefault();
       moveFocus(focusedIndex < 0 ? 0 : focusedIndex + 1);
-    } else if (e.key === 'ArrowUp') {
+    } else if (e.key === 'ArrowUp' && !onInteractiveChild) {
       e.preventDefault();
       moveFocus(focusedIndex <= 0 ? 0 : focusedIndex - 1);
     } else if (e.key === 'Enter' && !onInteractiveChild && focusedIndex >= 0 && e.shiftKey && onShiftActivate) {

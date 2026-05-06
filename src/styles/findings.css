@@ -944,14 +944,27 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
+  gap: 5px;
   height: 28px;
+  padding: 0 8px;
   background: none;
   border: none;
   border-radius: 4px;
   color: var(--text-secondary);
   cursor: pointer;
+  font-size: 12px;
   transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.selection-toolbar-btn:focus-visible {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: -1px;
+  background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
+}
+
+.selection-toolbar-label {
+  font-size: 12px;
+  line-height: 1;
 }
 
 .selection-toolbar-btn:hover {

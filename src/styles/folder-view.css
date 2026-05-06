@@ -6,6 +6,7 @@
   font-size: var(--font-size-code);
   line-height: var(--line-height);
   padding: 4px 0;
+  outline: none;
 }
 
 .folder-header {

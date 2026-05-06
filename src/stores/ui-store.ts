@@ -97,6 +97,7 @@ export const useUIStore = create<UIState>((set) => ({
     startLine: null,
     endLine: null,
     side: null,
+    source: null,
   },
   expandedFindingId: localStorage.getItem('bench-expanded-finding'),
   scrollTargetLine: null,

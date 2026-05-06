@@ -7,7 +7,7 @@ import { useReconcileStore } from '../stores/reconcile-store';
 import { FindingCard } from './FindingCard';
 import { FeatureCard } from './FeatureCard';
 import type { Finding, Comment, Feature, CommentType, Severity, FindingStatus, FeatureKind, ReconciledHead, JobSnapshot } from '../core/types';
-import { getEffectiveLineRange, COMMENT_TYPE_ICON, COMMENT_TYPE_LABEL } from '../core/types';
+import { getEffectiveLineRange, COMMENT_TYPE_ICON, COMMENT_TYPE_LABEL, FINDING_CATEGORIES } from '../core/types';
 import { featuresApi } from '../core/api';
 import { InlineMarkdown } from '../core/markdown';
 import { useBranchMap } from '../core/use-branch-map';
@@ -202,6 +202,10 @@ export const Sidebar: React.FC = () => {
   const [newFindingDescription, setNewFindingDescription] = useState('');
   const [newFindingSeverity, setNewFindingSeverity] = useState<Severity>('medium');
   const [newFindingStatus, setNewFindingStatus] = useState<FindingStatus>('draft');
+  const [newFindingCwe, setNewFindingCwe] = useState('');
+  const [newFindingCve, setNewFindingCve] = useState('');
+  const [newFindingScore, setNewFindingScore] = useState('');
+  const [newFindingCategory, setNewFindingCategory] = useState('');
 
   // New feature form state
   const [showNewFeature, setShowNewFeature] = useState(false);
@@ -242,6 +246,7 @@ export const Sidebar: React.FC = () => {
   const contentRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const syncingScroll = useRef(false);
+  const lastSidebarScrollHeight = useRef(0);
 
   // When annotationAction changes, show the appropriate form
   useEffect(() => {
@@ -256,6 +261,10 @@ export const Sidebar: React.FC = () => {
       setNewFindingDescription('');
       setNewFindingSeverity('medium');
       setNewFindingStatus('draft');
+      setNewFindingCwe('');
+      setNewFindingCve('');
+      setNewFindingScore('');
+      setNewFindingCategory('');
       setShowNewComment(false);
       setShowNewFeature(false);
     } else if (annotationAction === 'feature') {
@@ -466,9 +475,18 @@ export const Sidebar: React.FC = () => {
       requestAnimationFrame(() => { syncingScroll.current = false; });
     };
 
-    // Sync: sidebar scroll → code viewer scroll
+    // Sync: sidebar scroll → code viewer scroll. Skip when the scroll event
+    // was triggered by content shrinking (browser auto-clamps scrollTop) — that
+    // would yank the codeview to the top whenever a draft form unmounts.
+    lastSidebarScrollHeight.current = sidebar.scrollHeight;
     const onSidebarScroll = () => {
       if (syncingScroll.current) return;
+      const h = sidebar.scrollHeight;
+      if (h < lastSidebarScrollHeight.current) {
+        lastSidebarScrollHeight.current = h;
+        return;
+      }
+      lastSidebarScrollHeight.current = h;
       syncingScroll.current = true;
       codeViewer.scrollTop = sidebar.scrollTop;
       requestAnimationFrame(() => { syncingScroll.current = false; });
@@ -555,6 +573,7 @@ export const Sidebar: React.FC = () => {
   const handleSubmitNewFinding = () => {
     const trimmedTitle = newFindingTitle.trim();
     if (!trimmedTitle || !commentDrag.startLine) return;
+    const parsedScore = parseFloat(newFindingScore);
     addFinding({
       id: `FND-${Date.now()}`,
       anchor: {
@@ -568,16 +587,21 @@ export const Sidebar: React.FC = () => {
       severity: newFindingSeverity,
       title: trimmedTitle,
       description: newFindingDescription.trim(),
-      cwe: '',
-      cve: '',
+      cwe: newFindingCwe.trim(),
+      cve: newFindingCve.trim(),
       vector: '',
-      score: 0,
+      score: Number.isFinite(parsedScore) ? parsedScore : 0,
       status: newFindingStatus,
       source: 'manual',
+      category: newFindingCategory || undefined,
     });
     setNewFindingTitle('');
     setNewFindingDescription('');
     setNewFindingStatus('draft');
+    setNewFindingCwe('');
+    setNewFindingCve('');
+    setNewFindingScore('');
+    setNewFindingCategory('');
     setShowNewFinding(false);
     setCommentDrag({ isActive: false, startLine: null, endLine: null, side: null });
     setAnnotationAction(null);
@@ -587,6 +611,23 @@ export const Sidebar: React.FC = () => {
     setShowNewFinding(false);
     setNewFindingTitle('');
     setNewFindingDescription('');
+    setNewFindingCwe('');
+    setNewFindingCve('');
+    setNewFindingScore('');
+    setNewFindingCategory('');
+    setCommentDrag({ isActive: false, startLine: null, endLine: null, side: null });
+    setAnnotationAction(null);
+  };
+
+  const handleCancelNewFeature = () => {
+    setShowNewFeature(false);
+    setNewFeatureTitle('');
+    setNewFeatureKind('interface');
+    setNewFeatureDescription('');
+    setNewFeatureOperation('');
+    setNewFeatureProtocol('');
+    setNewFeatureDirection('');
+    setNewFeatureTags('');
     setCommentDrag({ isActive: false, startLine: null, endLine: null, side: null });
     setAnnotationAction(null);
   };
@@ -615,6 +656,33 @@ export const Sidebar: React.FC = () => {
     setShowNewFeature(false);
     setAnnotationAction(null);
     setCommentDrag({ isActive: false, startLine: null, endLine: null, side: null });
+  };
+
+  // Trap Tab within a draft form card so focus cycles through the fields
+  // instead of escaping to the next nav-area / out of the sidebar entirely.
+  // Also stop Escape from bubbling to the sidebar's nav-list handler, which
+  // would otherwise steal focus to the sidebar container. Primary field
+  // onKeyDown handlers handle cancel-on-empty before this runs.
+  const trapDraftTab = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Escape') { e.stopPropagation(); return; }
+    if (e.key !== 'Tab') return;
+    const card = e.currentTarget;
+    const focusables = Array.from(
+      card.querySelectorAll<HTMLElement>(
+        'input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled])',
+      ),
+    );
+    if (focusables.length === 0) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    const active = document.activeElement as HTMLElement | null;
+    if (e.shiftKey && active === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && active === last) {
+      e.preventDefault();
+      first.focus();
+    }
   };
 
   const handleStartEdit = (comment: Comment) => {
@@ -686,6 +754,9 @@ export const Sidebar: React.FC = () => {
         // Tab inside a textarea should cycle to the next nav area instead of
         // going to the adjacent submit button (which is the browser default).
         if (e.key !== 'Tab' || (e.target as HTMLElement).tagName !== 'TEXTAREA') return;
+        // Exception: while editing a draft form, Tab should cycle the form
+        // fields (browser default), not jump out of the sidebar.
+        if ((e.target as HTMLElement).closest('.comment-card-new, .finding-card-new, .feature-card-new')) return;
         e.preventDefault();
         const sidebar = navContainerRef.current;
         if (!sidebar) return;
@@ -728,7 +799,7 @@ export const Sidebar: React.FC = () => {
       )}
 
       <div className="sidebar-content" ref={contentRef}>
-        {isUnreconciled ? (
+        {isUnreconciled && !showNewComment && !showNewFinding && !showNewFeature ? (
           <div className="sidebar-unreconciled">
             <div className="sidebar-unreconciled-icon">&#x26A0;</div>
             <div className="sidebar-unreconciled-text">
@@ -745,6 +816,7 @@ export const Sidebar: React.FC = () => {
               <div
                 className="comment-card comment-card-new"
                 style={{ position: 'absolute', top: newCommentTop, left: 12, right: 12, zIndex: 10 }}
+                onKeyDown={trapDraftTab}
               >
                 <div className="comment-card-header">
                   <span className="comment-card-line-label">
@@ -800,6 +872,7 @@ export const Sidebar: React.FC = () => {
               <div
                 className="finding-card finding-card-new"
                 style={{ position: 'absolute', top: newCommentTop, left: 12, right: 12, zIndex: 10 }}
+                onKeyDown={trapDraftTab}
               >
                 <div className="comment-card-header">
                   <span className="comment-card-line-label">
@@ -847,6 +920,44 @@ export const Sidebar: React.FC = () => {
                       <option value="closed">Closed</option>
                     </select>
                   </div>
+                  <div className="finding-form-row">
+                    <input
+                      className="finding-input"
+                      type="text"
+                      placeholder="CWE (e.g. CWE-89)"
+                      value={newFindingCwe}
+                      onChange={(e) => setNewFindingCwe(e.target.value)}
+                    />
+                    <input
+                      className="finding-input"
+                      type="text"
+                      placeholder="CVE (optional)"
+                      value={newFindingCve}
+                      onChange={(e) => setNewFindingCve(e.target.value)}
+                    />
+                  </div>
+                  <div className="finding-form-row">
+                    <input
+                      className="finding-input"
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      max="10"
+                      placeholder="CVSS score"
+                      value={newFindingScore}
+                      onChange={(e) => setNewFindingScore(e.target.value)}
+                    />
+                    <select
+                      className="finding-status-select"
+                      value={newFindingCategory}
+                      onChange={(e) => setNewFindingCategory(e.target.value)}
+                    >
+                      <option value="">Category…</option>
+                      {FINDING_CATEGORIES.map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </div>
                   <textarea
                     className="comment-textarea"
                     placeholder="Description (optional)"
@@ -875,6 +986,7 @@ export const Sidebar: React.FC = () => {
               <div
                 className="finding-card feature-card-new"
                 style={{ position: 'absolute', top: newCommentTop, left: 12, right: 12, zIndex: 10 }}
+                onKeyDown={trapDraftTab}
               >
                 <div className="comment-card-header">
                   <span className="comment-card-line-label">
@@ -906,7 +1018,7 @@ export const Sidebar: React.FC = () => {
                       placeholder="e.g. GET /api/users"
                       value={newFeatureTitle}
                       onChange={e => setNewFeatureTitle(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') handleSaveFeature(); if (e.key === 'Escape') { setShowNewFeature(false); setAnnotationAction(null); }}}
+                      onKeyDown={e => { if (e.key === 'Enter') handleSaveFeature(); if (e.key === 'Escape' && !newFeatureTitle.trim()) handleCancelNewFeature(); }}
                       autoFocus
                     />
                   </div>
@@ -968,7 +1080,7 @@ export const Sidebar: React.FC = () => {
                   </div>
                 </div>
                 <div className="comment-form-actions">
-                  <button className="comment-btn comment-btn-cancel" onClick={() => { setShowNewFeature(false); setAnnotationAction(null); }}>
+                  <button className="comment-btn comment-btn-cancel" onClick={handleCancelNewFeature}>
                     Cancel
                   </button>
                   <button

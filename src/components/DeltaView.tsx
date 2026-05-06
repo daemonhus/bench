@@ -356,11 +356,52 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
       }
     },
     onActivate: (item) => {
+      if (item.kind === 'finding-opened') {
+        const f = item.data as Finding;
+        useUIStore.getState().setScrollToFindingId(f.id);
+        useUIStore.getState().setViewMode('findings');
+      } else if (item.kind === 'feature-created') {
+        const feat = item.data as Feature;
+        useUIStore.getState().setScrollToFeature({ id: feat.id, kind: feat.kind });
+        useUIStore.getState().setViewMode('features');
+      } else if (item.kind === 'comment-on-finding') {
+        const c = item.data as Comment;
+        if (c.findingId) { useUIStore.getState().setScrollToFindingId(c.findingId); useUIStore.getState().setViewMode('findings'); }
+        else navigateToFile(c.anchor.fileId, c.anchor.lineRange ?? undefined, c.anchor.commitId);
+      } else if (item.kind === 'comment-on-feature') {
+        const c = item.data as Comment;
+        if (c.featureId) {
+          const feat = allFeatures.find((x) => x.id === c.featureId);
+          if (feat) { useUIStore.getState().setScrollToFeature({ id: feat.id, kind: feat.kind }); useUIStore.getState().setViewMode('features'); }
+          else navigateToFile(c.anchor.fileId, c.anchor.lineRange ?? undefined, c.anchor.commitId);
+        } else navigateToFile(c.anchor.fileId, c.anchor.lineRange ?? undefined, c.anchor.commitId);
+      } else if (item.kind === 'comment') {
+        const c = item.data as Comment;
+        navigateToFile(c.anchor.fileId, c.anchor.lineRange ?? undefined, c.anchor.commitId);
+      } else if (item.kind === 'merge') {
+        const hash = (item.data as GraphCommit).hash; const parent = (item.data as GraphCommit).parents?.[0]; if (parent) navigateToDiff(hash, parent);
+      } else if (item.kind === 'commit-group') {
+        const key = (item.data as GraphCommit[])[0]?.hash; if (key) setExpandedGroups(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
+      }
+    },
+    onShiftActivate: (item) => {
       if (item.kind === 'finding-opened') navigateToFile((item.data as Finding).anchor.fileId, (item.data as Finding).anchor.lineRange ?? undefined, (item.data as Finding).anchor.commitId);
       else if (item.kind === 'comment' || item.kind === 'comment-on-finding' || item.kind === 'comment-on-feature') navigateToFile((item.data as Comment).anchor.fileId, (item.data as Comment).anchor.lineRange ?? undefined, (item.data as Comment).anchor.commitId);
       else if (item.kind === 'feature-created') navigateToFile((item.data as Feature).anchor.fileId, (item.data as Feature).anchor.lineRange ?? undefined, (item.data as Feature).anchor.commitId);
-      else if (item.kind === 'merge') { const hash = (item.data as GraphCommit).hash; const parent = (item.data as GraphCommit).parents?.[0]; if (parent) navigateToDiff(hash, parent); }
-      else if (item.kind === 'commit-group') { const key = (item.data as GraphCommit[])[0]?.hash; if (key) setExpandedGroups(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; }); }
+    },
+  });
+
+  const sortedPastBaselines = useMemo(
+    () => [...pastBaselines].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    [pastBaselines],
+  );
+  const { focusedId: histFocusedId, containerRef: histContainerRef, handleKeyDown: histHandleKeyDown, handleFocus: histHandleFocus } = useNavList({
+    items: sortedPastBaselines,
+    getId: (bl) => bl.id,
+    onActivate: (bl) => {
+      const isLatest = bl.id === storeBaseline?.id;
+      window.location.hash = isLatest ? '#/delta' : `#/delta/${bl.id}`;
+      setHistoryOpen(false);
     },
   });
 
@@ -688,18 +729,27 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
       <div className="delta-body-wrap">
       {/* History drawer — left side */}
       {historyOpen && (
-        <div className="delta-history-drawer">
+        <div
+          className="delta-history-drawer"
+          ref={histContainerRef}
+          tabIndex={0}
+          data-nav-area="delta-history"
+          onKeyDown={histHandleKeyDown}
+          onFocus={histHandleFocus}
+        >
           <div className="delta-sidebar-header">
             <span className="delta-sidebar-title">History</span>
             <span className="overview-section-count">{pastBaselines.length}</span>
           </div>
           <div className="delta-sidebar-body">
-            {[...pastBaselines].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map((bl) => {
+            {sortedPastBaselines.map((bl) => {
               const isActive = bl.id === (baseline?.id ?? null);
               const isLatest = bl.id === storeBaseline?.id;
               return (
                 <div
                   key={bl.id}
+                  data-nav-id={bl.id}
+                  data-nav-focused={histFocusedId === bl.id ? 'true' : undefined}
                   className={`past-baseline-card${isActive ? ' past-baseline-card-active' : ''}`}
                   onClick={() => {
                     window.location.hash = isLatest ? '#/delta' : `#/delta/${bl.id}`;

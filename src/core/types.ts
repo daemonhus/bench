@@ -168,6 +168,7 @@ export interface CommentDragState {
   startLine: number | null;
   endLine: number | null;
   side: 'old' | 'new' | null;
+  source: 'mouse' | 'keyboard' | null;
 }
 
 // Git graph types

@@ -19,6 +19,7 @@ export const InFileSearchBar: React.FC<InFileSearchBarProps> = ({ content, onClo
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const barRef = useRef<HTMLDivElement>(null);
   const setInFileSearch = useUIStore((s) => s.setInFileSearch);
   const setScrollTargetLine = useUIStore((s) => s.setScrollTargetLine);
 
@@ -121,8 +122,60 @@ export const InFileSearchBar: React.FC<InFileSearchBarProps> = ({ content, onClo
     }
   };
 
+  // Cycle focus among the bar's controls. Without this, Tab on a button inside
+  // the bar bubbles up to App's global Tab handler and yanks focus to the next
+  // nav-area; arrows have no effect at all.
+  const handleBarKeyDown = (e: React.KeyboardEvent) => {
+    const isArrow = e.key === 'ArrowLeft' || e.key === 'ArrowRight';
+    const targetTag = (e.target as HTMLElement).tagName;
+    // From the input, ArrowDown jumps focus into the button row (the input's
+    // dedicated escape hatch that isn't Tab). Caret-movement arrows are left
+    // to the browser.
+    if (targetTag === 'INPUT' && e.key === 'ArrowDown') {
+      const root = barRef.current;
+      const firstBtn = root?.querySelector<HTMLElement>('button:not([disabled])');
+      if (firstBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        firstBtn.focus();
+      }
+      return;
+    }
+    if (isArrow && targetTag === 'INPUT') return;
+    // ArrowUp from a button returns focus to the input.
+    if (targetTag === 'BUTTON' && e.key === 'ArrowUp') {
+      e.preventDefault();
+      e.stopPropagation();
+      inputRef.current?.focus();
+      return;
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      onClose();
+      return;
+    }
+    if (e.key !== 'Tab' && !isArrow) return;
+    const root = barRef.current;
+    if (!root) return;
+    const focusables = Array.from(
+      root.querySelectorAll<HTMLElement>('input, button:not([disabled])'),
+    );
+    if (focusables.length === 0) return;
+    const idx = focusables.indexOf(document.activeElement as HTMLElement);
+    const forward = e.key === 'ArrowRight' || (e.key === 'Tab' && !e.shiftKey);
+    const next = idx === -1
+      ? 0
+      : forward
+        ? (idx + 1) % focusables.length
+        : (idx - 1 + focusables.length) % focusables.length;
+    e.preventDefault();
+    e.stopPropagation();
+    focusables[next].focus();
+  };
+
   return (
-    <div className="in-file-search-bar">
+    <div className="in-file-search-bar" ref={barRef} onKeyDown={handleBarKeyDown}>
       <input
         ref={inputRef}
         className="in-file-search-input"
