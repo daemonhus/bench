@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -8,6 +9,16 @@ import (
 	"bench/internal/git"
 	"bench/internal/model"
 )
+
+// writeRefError returns 404 for unknown-ref errors, 500 otherwise. Used by
+// handlers that dereference a caller-supplied commitish.
+func writeRefError(w http.ResponseWriter, err error) {
+	if errors.Is(err, git.ErrUnknownRef) {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	writeInternalError(w, err)
+}
 
 type gitHandlers struct {
 	repo *git.Repo
@@ -58,7 +69,7 @@ func (h *gitHandlers) listTree(w http.ResponseWriter, r *http.Request) {
 	}
 	entries, err := h.repo.Tree(commitish)
 	if err != nil {
-		writeInternalError(w, err)
+		writeRefError(w, err)
 		return
 	}
 	if prefix := r.URL.Query().Get("prefix"); prefix != "" {
@@ -82,7 +93,7 @@ func (h *gitHandlers) showFile(w http.ResponseWriter, r *http.Request) {
 	}
 	content, err := h.repo.Show(commitish, path)
 	if err != nil {
-		writeInternalError(w, err)
+		writeRefError(w, err)
 		return
 	}
 

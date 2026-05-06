@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"bench/internal/git"
 	"bench/internal/model"
 )
 
@@ -14,13 +15,14 @@ import (
 // ---------------------------------------------------------------------------
 
 type mockGit struct {
-	headCommit string
-	revLists   map[string][]string // "from..to" → commits
-	ancestors  map[string]bool     // "ancestor:descendant" → bool
-	mergeBases map[string]string   // "a:b" → commit
-	diffs      map[string]string   // "from:to:path" → raw diff
-	shows      map[string]string   // "commit:path" → content
-	renames    map[string]string   // "from:to:path" → new path
+	headCommit     string
+	revLists       map[string][]string // "from..to" → commits
+	ancestors      map[string]bool     // "ancestor:descendant" → bool
+	ancestorErrors map[string]error    // "ancestor:descendant" → error (takes precedence over ancestors)
+	mergeBases     map[string]string   // "a:b" → commit
+	diffs          map[string]string   // "from:to:path" → raw diff
+	shows          map[string]string   // "commit:path" → content
+	renames        map[string]string   // "from:to:path" → new path
 }
 
 func (m *mockGit) Head() (string, error) {
@@ -41,6 +43,9 @@ func (m *mockGit) RevList(from, to string) ([]string, error) {
 
 func (m *mockGit) IsAncestor(ancestor, descendant string) (bool, error) {
 	key := ancestor + ":" + descendant
+	if err, ok := m.ancestorErrors[key]; ok {
+		return false, err
+	}
 	if v, ok := m.ancestors[key]; ok {
 		return v, nil
 	}
@@ -736,6 +741,52 @@ func TestReconcile_GetReconciledHead_Partial(t *testing.T) {
 	}
 	if len(head.Unreconciled) != 2 {
 		t.Fatalf("expected 2 unreconciled files, got %d", len(head.Unreconciled))
+	}
+}
+
+// An annotation pinned to a commit that no longer exists (rebase / GC / shared
+// DB across checkouts) must surface as "needs reconciliation", not crash the
+// whole head computation with a 500.
+func TestReconcile_GetReconciledHead_StaleCommit(t *testing.T) {
+	g := &mockGit{
+		headCommit: "HEAD1",
+		ancestorErrors: map[string]error{
+			"STALE:HEAD1": fmt.Errorf("%w: STALE", git.ErrUnknownRef),
+		},
+		ancestors: map[string]bool{"B:HEAD1": true},
+		revLists:  map[string][]string{"B..HEAD1": {"C", "HEAD1"}},
+	}
+	pos := &mockPositionStore{}
+	rec := &mockReconcileStore{
+		states: map[string]string{
+			"src/ok.py":    "B",
+			"src/stale.py": "STALE",
+		},
+		files: []string{"src/ok.py", "src/stale.py"},
+	}
+	ann := &mockAnnotationReader{}
+
+	r := NewReconciler(g, pos, rec, ann)
+	head, err := r.GetReconciledHead()
+	if err != nil {
+		t.Fatalf("stale commit must not error: %v", err)
+	}
+	if head.IsFullyReconciled {
+		t.Fatal("expected not fully reconciled")
+	}
+	// Both files should appear as unreconciled — ok.py because it's behind HEAD,
+	// stale.py because its commit doesn't resolve at all.
+	if len(head.Unreconciled) != 2 {
+		t.Fatalf("expected 2 unreconciled files, got %d", len(head.Unreconciled))
+	}
+	var found bool
+	for _, f := range head.Unreconciled {
+		if f.FileID == "src/stale.py" && f.LastReconciledCommit == "STALE" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected stale file to surface with its original commit, got %+v", head.Unreconciled)
 	}
 }
 

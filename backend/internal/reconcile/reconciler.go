@@ -1,12 +1,14 @@
 package reconcile
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"strings"
 	"sync"
 	"time"
 
+	"bench/internal/git"
 	"bench/internal/model"
 
 	"github.com/google/uuid"
@@ -208,9 +210,21 @@ func (r *Reconciler) GetReconciledHead() (*model.ReconciledHead, error) {
 			continue
 		}
 
-		// Check if this file's lastCommit is an ancestor of HEAD
+		// Check if this file's lastCommit is an ancestor of HEAD. An unknown-ref
+		// error means the stored commit no longer exists in this repo (rebase,
+		// GC, or DB carried across checkouts) — treat it like a rebase so the
+		// file shows up as needing reconciliation instead of 500-ing the whole
+		// head computation.
 		isAnc, err := r.git.IsAncestor(lastCommit, head)
 		if err != nil {
+			if errors.Is(err, git.ErrUnknownRef) {
+				allReconciled = false
+				result.Unreconciled = append(result.Unreconciled, model.UnreconciledFile{
+					FileID:               f,
+					LastReconciledCommit: lastCommit,
+				})
+				continue
+			}
 			return nil, err
 		}
 
