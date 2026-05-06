@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -197,6 +198,13 @@ func (h *baselineHandlers) create(w http.ResponseWriter, r *http.Request) {
 	if err := h.db.CreateBaseline(baseline); err != nil {
 		writeInternalError(w, err)
 		return
+	}
+
+	// Pin the commit so it survives rebases / GC. Best-effort: a read-only
+	// repo or unwritable .git will fail here, but the baseline is already
+	// saved and the rest of the app doesn't depend on the pin.
+	if err := h.repo.PinCommit(head); err != nil {
+		log.Printf("[baselines] pin commit %s failed: %v", head, err)
 	}
 
 	if h.broker != nil {

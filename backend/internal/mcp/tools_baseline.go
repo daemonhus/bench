@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 
 	"bench/internal/events"
@@ -96,6 +97,11 @@ func toolSetBaseline(deps *toolDeps) Tool {
 
 			if err := deps.db.CreateBaseline(baseline); err != nil {
 				return "", err
+			}
+
+			// Pin the commit so it survives rebases / GC. Best-effort.
+			if err := deps.repo.PinCommit(head); err != nil {
+				log.Printf("[baselines] pin commit %s failed: %v", head, err)
 			}
 
 			// Re-read to get server-assigned seq
