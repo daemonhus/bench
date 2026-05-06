@@ -18,10 +18,10 @@
 </p>
 
 <div align="center">
-  <strong>A devilishy good workbench for code reviews and long-lived annotations</strong><br/>
+  <strong>A devilishy good workbench for code reviews and long-lived annotations</strong><br/></br>
 </div>
 
-The workspace for findings, comments, and features: anchored to their positions and tracked across commits, so they stay accurate as the code evolves.
+The workspace for findings, comments, and features: anchored to their positions and tracked across commits, so they stay accurate as code evolves.
 
 Point-in-time baselines snapshot the state of code and measure progress over time, or since you (or your agent) last looked at the codebase.
 
