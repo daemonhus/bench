@@ -9,7 +9,7 @@ COPY src/ src/
 RUN npm run build
 
 # --- Build backend ---
-FROM golang:1.23-alpine AS backend
+FROM golang:1.24-alpine AS backend
 RUN apk add --no-cache git
 WORKDIR /app/backend
 COPY backend/go.mod backend/go.sum ./
