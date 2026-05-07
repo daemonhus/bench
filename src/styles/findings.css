@@ -333,6 +333,42 @@
 .finding-status-label.status-accepted { background-color: var(--status-accepted-subtle); color: var(--status-accepted); }
 .finding-status-label.status-closed { background-color: var(--status-closed-subtle); color: var(--status-closed); }
 
+/* ----- Finding Status Dropdown ----- */
+.finding-status-dropdown {
+  z-index: 1000;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+  min-width: 130px;
+}
+
+.finding-status-dropdown-item {
+  padding: 6px 10px;
+  font-size: var(--font-size-small);
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  transition: filter var(--transition-fast);
+}
+
+.finding-status-dropdown-item:hover {
+  filter: brightness(1.15);
+}
+
+.finding-status-dropdown-item.active {
+  outline: 2px solid currentColor;
+  outline-offset: -2px;
+}
+
+.finding-status-dropdown-item.status-draft { background-color: var(--status-draft-subtle); color: var(--status-draft); }
+.finding-status-dropdown-item.status-open { background-color: var(--status-open-subtle); color: var(--status-open); }
+.finding-status-dropdown-item.status-in-progress { background-color: var(--status-in-progress-subtle); color: var(--status-in-progress); }
+.finding-status-dropdown-item.status-false-positive { background-color: var(--status-draft-subtle); color: var(--status-false-positive); }
+.finding-status-dropdown-item.status-accepted { background-color: var(--status-accepted-subtle); color: var(--status-accepted); }
+.finding-status-dropdown-item.status-closed { background-color: var(--status-closed-subtle); color: var(--status-closed); }
+
 /* ----- Finding Status Toggle (edit form) ----- */
 .finding-status-toggle {
   display: flex;

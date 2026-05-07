@@ -297,9 +297,16 @@ export const FeaturesView: React.FC = () => {
       if (cancelled) return;
       const el = document.querySelector(`[data-feature-id="${scrollToFeature.id}"]`);
       if (el) {
-        el.scrollIntoView({ behavior: 'auto', block: 'start' });
-        el.classList.add('scroll-target-highlight');
-        el.addEventListener('animationend', () => el.classList.remove('scroll-target-highlight'), { once: true });
+        const container = el.closest('.features-view') as HTMLElement | null;
+        if (container) {
+          const targetTop = container.scrollTop + el.getBoundingClientRect().top - container.getBoundingClientRect().top;
+          container.scrollTo({ top: targetTop, behavior: 'smooth' });
+        } else {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        const card = (el.querySelector('.feature-card') ?? el) as HTMLElement;
+        card.classList.add('scroll-target-highlight');
+        card.addEventListener('animationend', () => card.classList.remove('scroll-target-highlight'), { once: true });
         setScrollToFeature(null);
       } else if (attempts < 30) {
         requestAnimationFrame(() => tryScroll(attempts + 1));

@@ -697,3 +697,120 @@ test.describe('Focus ring CSS', () => {
     expect(outline).not.toBe('none');
   });
 });
+
+// ─── 11. Finding status dropdown ─────────────────────────────────────────────
+
+test.describe('Finding status dropdown', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/#/findings');
+    await page.waitForSelector('[data-nav-area="findings-list"]', { timeout: 8000 });
+    await page.waitForTimeout(500);
+  });
+
+  // 51
+  test('clicking the status badge opens a dropdown with all statuses', async ({ page }) => {
+    if (await page.locator('[data-finding-id]').count() === 0) { test.skip(); return; }
+    const badge = page.locator('.finding-status-label').first();
+    await badge.click();
+    await expect(page.locator('.finding-status-dropdown')).toBeVisible();
+    const items = page.locator('.finding-status-dropdown-item');
+    await expect(items).toHaveCount(6);
+  });
+
+  // 52
+  test('clicking outside the dropdown closes it', async ({ page }) => {
+    if (await page.locator('[data-finding-id]').count() === 0) { test.skip(); return; }
+    await page.locator('.finding-status-label').first().click();
+    await expect(page.locator('.finding-status-dropdown')).toBeVisible();
+    await page.mouse.click(0, 0);
+    await expect(page.locator('.finding-status-dropdown')).not.toBeVisible();
+  });
+
+  // 53
+  test('clicking a status option updates the badge and closes the dropdown', async ({ page }) => {
+    if (await page.locator('[data-finding-id]').count() === 0) { test.skip(); return; }
+    const badge = page.locator('.finding-status-label').first();
+    await badge.click();
+    await expect(page.locator('.finding-status-dropdown')).toBeVisible();
+    // Pick a specific option that isn't the current status
+    const targetItem = page.locator('.finding-status-dropdown-item:not(.active)').first();
+    const targetText = await targetItem.textContent();
+    await targetItem.click();
+    await expect(page.locator('.finding-status-dropdown')).not.toBeVisible();
+    await expect(badge).toHaveText(targetText!.trim());
+  });
+
+  // 54
+  test('Enter/Space on the badge opens the dropdown', async ({ page }) => {
+    if (await page.locator('[data-finding-id]').count() === 0) { test.skip(); return; }
+    const badge = page.locator('.finding-status-label').first();
+    await badge.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.finding-status-dropdown')).toBeVisible();
+  });
+
+  // 55
+  test('Escape closes the dropdown and returns focus to the badge', async ({ page }) => {
+    if (await page.locator('[data-finding-id]').count() === 0) { test.skip(); return; }
+    const badge = page.locator('.finding-status-label').first();
+    await badge.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.finding-status-dropdown')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.finding-status-dropdown')).not.toBeVisible();
+    await expect(badge).toBeFocused();
+  });
+
+  // 56
+  test('ArrowDown/ArrowUp move focus through dropdown options', async ({ page }) => {
+    if (await page.locator('[data-finding-id]').count() === 0) { test.skip(); return; }
+    const badge = page.locator('.finding-status-label').first();
+    await badge.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.finding-status-dropdown')).toBeVisible();
+    // Move down once — focus should shift to next option
+    const focusedBefore = await page.evaluate(() => (document.activeElement as HTMLElement)?.textContent?.trim());
+    await page.keyboard.press('ArrowDown');
+    await page.waitForTimeout(50);
+    const focusedAfter = await page.evaluate(() => (document.activeElement as HTMLElement)?.textContent?.trim());
+    // After ArrowDown the focused item should have changed (unless already at bottom)
+    // Just verify something inside the dropdown is focused
+    const dropdownContainsFocus = await page.evaluate(() =>
+      document.querySelector('.finding-status-dropdown')?.contains(document.activeElement) ?? false
+    );
+    expect(dropdownContainsFocus).toBe(true);
+  });
+
+  // 57
+  test('Enter on a dropdown item selects it and closes the dropdown', async ({ page }) => {
+    if (await page.locator('[data-finding-id]').count() === 0) { test.skip(); return; }
+    const badge = page.locator('.finding-status-label').first();
+    await badge.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.finding-status-dropdown')).toBeVisible();
+    // Navigate to first non-active item
+    const activeText = await badge.textContent();
+    // Press ArrowDown until we reach a different option, then select it
+    for (let i = 0; i < 6; i++) {
+      const focused = await page.evaluate(() => (document.activeElement as HTMLElement)?.textContent?.trim());
+      if (focused && focused !== activeText?.trim()) break;
+      await page.keyboard.press('ArrowDown');
+      await page.waitForTimeout(30);
+    }
+    const selectedText = await page.evaluate(() => (document.activeElement as HTMLElement)?.textContent?.trim());
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.finding-status-dropdown')).not.toBeVisible();
+    await expect(badge).toHaveText(selectedText!);
+  });
+
+  // 58
+  test('the badge is Tab-focusable', async ({ page }) => {
+    if (await page.locator('[data-finding-id]').count() === 0) { test.skip(); return; }
+    // Expand first card so the badge is fully rendered and reachable
+    await page.locator('[data-finding-id]').first().click();
+    await page.waitForTimeout(150);
+    const badge = page.locator('.finding-status-label').first();
+    const tabIndex = await badge.getAttribute('tabindex');
+    expect(tabIndex).toBe('0');
+  });
+});

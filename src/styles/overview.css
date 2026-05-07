@@ -887,7 +887,7 @@
 
 /* ----- Findings View (standalone tab) ----- */
 .findings-view {
-  padding: 28px 40px;
+  padding: 28px 40px 60vh;
   overflow-y: auto;
   flex: 1;
 }
