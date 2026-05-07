@@ -284,90 +284,37 @@
 /* ----- Status Select (inline dropdown) ----- */
 .status-select {
   font-size: var(--font-size-small);
-  padding: 2px 4px;
+  padding: 2px 20px 2px 7px;
   border-radius: 4px;
   font-weight: 600;
   letter-spacing: 0.3px;
   flex-shrink: 0;
-  border: none;
+  border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+  background-color: color-mix(in srgb, currentColor 10%, transparent);
   cursor: pointer;
   appearance: none;
   -webkit-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg width='8' height='5' viewBox='0 0 8 5' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l3 3 3-3' stroke='%238b949e' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg width='8' height='5' viewBox='0 0 8 5' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l3 3 3-3' stroke='%23ffffff' stroke-opacity='0.5' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 4px center;
-  padding-right: 16px;
+  background-position: right 7px center;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
+}
+.status-select:hover {
+  background-color: color-mix(in srgb, currentColor 18%, transparent);
+  border-color: color-mix(in srgb, currentColor 50%, transparent);
 }
 
-.status-select.status-draft { background-color: var(--status-draft-subtle); color: var(--status-draft); }
-.status-select.status-open { background-color: var(--status-open-subtle); color: var(--status-open); }
-.status-select.status-in-progress { background-color: var(--status-in-progress-subtle); color: var(--status-in-progress); }
-.status-select.status-false-positive { background-color: var(--status-draft-subtle); color: var(--status-false-positive); }
-.status-select.status-accepted { background-color: var(--status-accepted-subtle); color: var(--status-accepted); }
-.status-select.status-closed { background-color: var(--status-closed-subtle); color: var(--status-closed); }
+.status-select.status-draft { color: var(--status-draft); }
+.status-select.status-open { color: var(--status-open); }
+.status-select.status-in-progress { color: var(--status-in-progress); }
+.status-select.status-false-positive { color: var(--status-false-positive); }
+.status-select.status-accepted { color: var(--status-accepted); }
+.status-select.status-closed { color: var(--status-closed); }
 
 .status-select option {
   background: var(--bg-secondary);
   color: var(--text-primary);
 }
-
-.finding-status-label {
-  font-size: var(--font-size-small);
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-weight: 600;
-  letter-spacing: 0.3px;
-  flex-shrink: 0;
-  cursor: pointer;
-  user-select: none;
-  transition: filter var(--transition-fast);
-}
-.finding-status-label:hover {
-  filter: brightness(1.3);
-}
-
-.finding-status-label.status-draft { background-color: var(--status-draft-subtle); color: var(--status-draft); }
-.finding-status-label.status-open { background-color: var(--status-open-subtle); color: var(--status-open); }
-.finding-status-label.status-in-progress { background-color: var(--status-in-progress-subtle); color: var(--status-in-progress); }
-.finding-status-label.status-false-positive { background-color: var(--status-draft-subtle); color: var(--status-false-positive); }
-.finding-status-label.status-accepted { background-color: var(--status-accepted-subtle); color: var(--status-accepted); }
-.finding-status-label.status-closed { background-color: var(--status-closed-subtle); color: var(--status-closed); }
-
-/* ----- Finding Status Dropdown ----- */
-.finding-status-dropdown {
-  z-index: 1000;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-subtle);
-  border-radius: 6px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
-  overflow: hidden;
-  min-width: 130px;
-}
-
-.finding-status-dropdown-item {
-  padding: 6px 10px;
-  font-size: var(--font-size-small);
-  font-weight: 600;
-  letter-spacing: 0.3px;
-  cursor: pointer;
-  transition: filter var(--transition-fast);
-}
-
-.finding-status-dropdown-item:hover {
-  filter: brightness(1.15);
-}
-
-.finding-status-dropdown-item.active {
-  outline: 2px solid currentColor;
-  outline-offset: -2px;
-}
-
-.finding-status-dropdown-item.status-draft { background-color: var(--status-draft-subtle); color: var(--status-draft); }
-.finding-status-dropdown-item.status-open { background-color: var(--status-open-subtle); color: var(--status-open); }
-.finding-status-dropdown-item.status-in-progress { background-color: var(--status-in-progress-subtle); color: var(--status-in-progress); }
-.finding-status-dropdown-item.status-false-positive { background-color: var(--status-draft-subtle); color: var(--status-false-positive); }
-.finding-status-dropdown-item.status-accepted { background-color: var(--status-accepted-subtle); color: var(--status-accepted); }
-.finding-status-dropdown-item.status-closed { background-color: var(--status-closed-subtle); color: var(--status-closed); }
 
 /* ----- Finding Status Toggle (edit form) ----- */
 .finding-status-toggle {

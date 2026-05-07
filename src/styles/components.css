@@ -284,32 +284,32 @@
   flex-shrink: 0;
 }
 
-.status-draft {
+.status-badge.status-draft {
   background: var(--status-draft-subtle);
   color: var(--status-draft);
 }
 
-.status-open {
+.status-badge.status-open {
   background: var(--status-open-subtle);
   color: var(--status-open);
 }
 
-.status-in-progress {
+.status-badge.status-in-progress {
   background: var(--status-in-progress-subtle);
   color: var(--status-in-progress);
 }
 
-.status-false-positive {
+.status-badge.status-false-positive {
   background: var(--status-false-positive-subtle);
   color: var(--status-false-positive);
 }
 
-.status-accepted {
+.status-badge.status-accepted {
   background: var(--status-accepted-subtle);
   color: var(--status-accepted);
 }
 
-.status-closed {
+.status-badge.status-closed {
   background: var(--status-closed-subtle);
   color: var(--status-closed);
 }

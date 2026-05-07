@@ -698,9 +698,9 @@ test.describe('Focus ring CSS', () => {
   });
 });
 
-// ─── 11. Finding status dropdown ─────────────────────────────────────────────
+// ─── 11. Finding status select ────────────────────────────────────────────────
 
-test.describe('Finding status dropdown', () => {
+test.describe('Finding status select', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/#/findings');
     await page.waitForSelector('[data-nav-area="findings-list"]', { timeout: 8000 });
@@ -708,109 +708,59 @@ test.describe('Finding status dropdown', () => {
   });
 
   // 51
-  test('clicking the status badge opens a dropdown with all statuses', async ({ page }) => {
+  test('status select is visible on the finding card and has all 6 options', async ({ page }) => {
     if (await page.locator('[data-finding-id]').count() === 0) { test.skip(); return; }
-    const badge = page.locator('.finding-status-label').first();
-    await badge.click();
-    await expect(page.locator('.finding-status-dropdown')).toBeVisible();
-    const items = page.locator('.finding-status-dropdown-item');
-    await expect(items).toHaveCount(6);
+    const select = page.locator('.status-select').first();
+    await expect(select).toBeVisible();
+    const options = await select.locator('option').allTextContents();
+    expect(options).toHaveLength(6);
   });
 
   // 52
-  test('clicking outside the dropdown closes it', async ({ page }) => {
+  test('status select value reflects the current finding status', async ({ page }) => {
     if (await page.locator('[data-finding-id]').count() === 0) { test.skip(); return; }
-    await page.locator('.finding-status-label').first().click();
-    await expect(page.locator('.finding-status-dropdown')).toBeVisible();
-    await page.mouse.click(0, 0);
-    await expect(page.locator('.finding-status-dropdown')).not.toBeVisible();
+    const select = page.locator('.status-select').first();
+    const value = await select.inputValue();
+    expect(['draft', 'open', 'in-progress', 'false-positive', 'accepted', 'closed']).toContain(value);
   });
 
   // 53
-  test('clicking a status option updates the badge and closes the dropdown', async ({ page }) => {
+  test('selecting a different status updates the finding', async ({ page }) => {
     if (await page.locator('[data-finding-id]').count() === 0) { test.skip(); return; }
-    const badge = page.locator('.finding-status-label').first();
-    await badge.click();
-    await expect(page.locator('.finding-status-dropdown')).toBeVisible();
-    // Pick a specific option that isn't the current status
-    const targetItem = page.locator('.finding-status-dropdown-item:not(.active)').first();
-    const targetText = await targetItem.textContent();
-    await targetItem.click();
-    await expect(page.locator('.finding-status-dropdown')).not.toBeVisible();
-    await expect(badge).toHaveText(targetText!.trim());
+    const select = page.locator('.status-select').first();
+    const before = await select.inputValue();
+    const allValues = ['draft', 'open', 'in-progress', 'false-positive', 'accepted', 'closed'];
+    const next = allValues.find((v) => v !== before) ?? 'open';
+    await select.selectOption(next);
+    await expect(select).toHaveValue(next);
   });
 
   // 54
-  test('Enter/Space on the badge opens the dropdown', async ({ page }) => {
+  test('status select is keyboard-focusable when card is expanded', async ({ page }) => {
     if (await page.locator('[data-finding-id]').count() === 0) { test.skip(); return; }
-    const badge = page.locator('.finding-status-label').first();
-    await badge.focus();
-    await page.keyboard.press('Enter');
-    await expect(page.locator('.finding-status-dropdown')).toBeVisible();
+    await page.locator('[data-finding-id]').first().click();
+    await page.waitForTimeout(100);
+    const select = page.locator('.status-select').first();
+    await select.focus();
+    await expect(select).toBeFocused();
   });
 
   // 55
-  test('Escape closes the dropdown and returns focus to the badge', async ({ page }) => {
-    if (await page.locator('[data-finding-id]').count() === 0) { test.skip(); return; }
-    const badge = page.locator('.finding-status-label').first();
-    await badge.focus();
-    await page.keyboard.press('Enter');
-    await expect(page.locator('.finding-status-dropdown')).toBeVisible();
-    await page.keyboard.press('Escape');
-    await expect(page.locator('.finding-status-dropdown')).not.toBeVisible();
-    await expect(badge).toBeFocused();
-  });
-
-  // 56
-  test('ArrowDown/ArrowUp move focus through dropdown options', async ({ page }) => {
-    if (await page.locator('[data-finding-id]').count() === 0) { test.skip(); return; }
-    const badge = page.locator('.finding-status-label').first();
-    await badge.focus();
-    await page.keyboard.press('Enter');
-    await expect(page.locator('.finding-status-dropdown')).toBeVisible();
-    // Move down once — focus should shift to next option
-    const focusedBefore = await page.evaluate(() => (document.activeElement as HTMLElement)?.textContent?.trim());
-    await page.keyboard.press('ArrowDown');
-    await page.waitForTimeout(50);
-    const focusedAfter = await page.evaluate(() => (document.activeElement as HTMLElement)?.textContent?.trim());
-    // After ArrowDown the focused item should have changed (unless already at bottom)
-    // Just verify something inside the dropdown is focused
-    const dropdownContainsFocus = await page.evaluate(() =>
-      document.querySelector('.finding-status-dropdown')?.contains(document.activeElement) ?? false
-    );
-    expect(dropdownContainsFocus).toBe(true);
-  });
-
-  // 57
-  test('Enter on a dropdown item selects it and closes the dropdown', async ({ page }) => {
-    if (await page.locator('[data-finding-id]').count() === 0) { test.skip(); return; }
-    const badge = page.locator('.finding-status-label').first();
-    await badge.focus();
-    await page.keyboard.press('Enter');
-    await expect(page.locator('.finding-status-dropdown')).toBeVisible();
-    // Navigate to first non-active item
-    const activeText = await badge.textContent();
-    // Press ArrowDown until we reach a different option, then select it
-    for (let i = 0; i < 6; i++) {
-      const focused = await page.evaluate(() => (document.activeElement as HTMLElement)?.textContent?.trim());
-      if (focused && focused !== activeText?.trim()) break;
-      await page.keyboard.press('ArrowDown');
-      await page.waitForTimeout(30);
-    }
-    const selectedText = await page.evaluate(() => (document.activeElement as HTMLElement)?.textContent?.trim());
-    await page.keyboard.press('Enter');
-    await expect(page.locator('.finding-status-dropdown')).not.toBeVisible();
-    await expect(badge).toHaveText(selectedText!);
-  });
-
-  // 58
-  test('the badge is Tab-focusable', async ({ page }) => {
-    if (await page.locator('[data-finding-id]').count() === 0) { test.skip(); return; }
-    // Expand first card so the badge is fully rendered and reachable
-    await page.locator('[data-finding-id]').first().click();
+  test('status select on a collapsed card is not reachable via Tab', async ({ page }) => {
+    if (await page.locator('[data-finding-id]').count() < 2) { test.skip(); return; }
+    // Cards start expanded by default. Collapse the second card so there is one
+    // expanded card (with a textarea) followed by one collapsed card.
+    await page.locator('.finding-card-header').nth(1).click();
     await page.waitForTimeout(150);
-    const badge = page.locator('.finding-status-label').first();
-    const tabIndex = await badge.getAttribute('tabindex');
-    expect(tabIndex).toBe('0');
+    // Focus the compose textarea in the first (still-expanded) card
+    const textarea = page.locator('.finding-comment-compose textarea').first();
+    await textarea.focus();
+    await expect(textarea).toBeFocused();
+    // Tab forward — the submit button is disabled (empty textarea) so focus jumps
+    // to the next card. That card is collapsed, so its status select must NOT
+    // receive focus (tabIndex should be -1).
+    await page.keyboard.press('Tab');
+    const focused = await page.evaluate(() => document.activeElement?.className ?? '');
+    expect(focused).not.toContain('status-select');
   });
 });

@@ -4,6 +4,8 @@ set -e
 REPO="${1:-.}"
 cd "$(dirname "$0")"
 
+VITE_PORT=5173
+
 cleanup() {
     echo ""
     echo "Shutting down..."
@@ -12,6 +14,9 @@ cleanup() {
     exit 0
 }
 trap cleanup EXIT INT TERM
+
+# Kill any stale Vite instances left over from previous runs
+lsof -ti ":$VITE_PORT" 2>/dev/null | xargs kill -9 2>/dev/null || true
 
 # Build frontend so backend can embed real dist
 npm run build
@@ -25,15 +30,15 @@ npm run dev &
 VITE_PID=$!
 
 # Wait for Vite to be ready
-echo "Waiting for Vite on :5173..."
+echo "Waiting for Vite on :$VITE_PORT..."
 for i in $(seq 1 30); do
-    curl -s -o /dev/null http://localhost:5173 && break
+    curl -s -o /dev/null "http://localhost:$VITE_PORT" && break
     sleep 0.5
 done
 
 echo "Starting Go backend (repo=$REPO)..."
-echo "  Frontend: http://localhost:5173 (Vite, proxies /api -> :8081)"
-echo "  Backend:  http://localhost:8081"
+echo "  Open http://localhost:$VITE_PORT for hot reload"
+echo "  (http://localhost:8081 serves embedded static files — no HMR)"
 echo ""
 
 # Resolve repo path to absolute before cd-ing into backend

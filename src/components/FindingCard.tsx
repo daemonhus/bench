@@ -110,10 +110,6 @@ export const FindingCard: React.FC<FindingCardProps> = ({
   const [idCopied, setIdCopied] = useState(false);
   const [managingRefs, setManagingRefs] = useState(false);
   const [managingRefsCommentId, setManagingRefsCommentId] = useState<string | null>(null);
-  const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
-  const [statusDropdownFocusIdx, setStatusDropdownFocusIdx] = useState(0);
-  const statusBadgeRef = useRef<HTMLSpanElement>(null);
-  const statusDropdownRef = useRef<HTMLDivElement>(null);
 
   // Comment state — consume draft carried from another view (e.g. Overview → Browse)
   const draftComment = useUIStore((s) => s.draftComment);
@@ -304,78 +300,9 @@ export const FindingCard: React.FC<FindingCardProps> = ({
     setConfirmDelete(false);
   };
 
-  const openStatusDropdown = () => {
-    const currentIdx = STATUSES.indexOf(finding.status);
-    setStatusDropdownFocusIdx(currentIdx >= 0 ? currentIdx : 0);
-    setStatusDropdownOpen(true);
+  const handleStatusChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    updateFinding(finding.id, { status: e.target.value as FindingStatus });
   };
-
-  const handleStatusBadgeClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (statusDropdownOpen) {
-      setStatusDropdownOpen(false);
-    } else {
-      openStatusDropdown();
-    }
-  };
-
-  const handleStatusBadgeKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      e.stopPropagation();
-      if (statusDropdownOpen) setStatusDropdownOpen(false);
-      else openStatusDropdown();
-    } else if (e.key === 'Escape' && statusDropdownOpen) {
-      e.preventDefault();
-      e.stopPropagation();
-      setStatusDropdownOpen(false);
-    }
-  };
-
-  const handleStatusSelect = (s: FindingStatus) => {
-    updateFinding(finding.id, { status: s });
-    setStatusDropdownOpen(false);
-    statusBadgeRef.current?.focus();
-  };
-
-  const handleStatusDropdownKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setStatusDropdownFocusIdx((i) => Math.min(i + 1, STATUSES.length - 1));
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setStatusDropdownFocusIdx((i) => Math.max(i - 1, 0));
-    } else if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      handleStatusSelect(STATUSES[statusDropdownFocusIdx]);
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      setStatusDropdownOpen(false);
-      statusBadgeRef.current?.focus();
-    } else if (e.key === 'Tab') {
-      setStatusDropdownOpen(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!statusDropdownOpen) return;
-    const handleClick = (e: MouseEvent) => {
-      if (
-        statusDropdownRef.current && !statusDropdownRef.current.contains(e.target as Node) &&
-        statusBadgeRef.current && !statusBadgeRef.current.contains(e.target as Node)
-      ) {
-        setStatusDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [statusDropdownOpen]);
-
-  useEffect(() => {
-    if (!statusDropdownOpen || !statusDropdownRef.current) return;
-    const items = statusDropdownRef.current.querySelectorAll<HTMLElement>('[role="option"]');
-    items[statusDropdownFocusIdx]?.focus();
-  }, [statusDropdownOpen, statusDropdownFocusIdx]);
 
   const handleSubmitReply = () => {
     const trimmed = replyText.trim();
@@ -587,46 +514,18 @@ export const FindingCard: React.FC<FindingCardProps> = ({
             {!idCopied && <span className="finding-id-copy">&#x2398;</span>}
           </span>
           <span className="finding-source-badge">{finding.source}</span>
-          <span
-            ref={statusBadgeRef}
-            className={`finding-status-label status-${finding.status}`}
-            onClick={handleStatusBadgeClick}
-            onKeyDown={handleStatusBadgeKeyDown}
+          <select
+            className={`status-select status-${finding.status}`}
+            value={finding.status}
+            onChange={handleStatusChange}
+            onClick={(e) => e.stopPropagation()}
+            tabIndex={isExpanded ? 0 : -1}
             title="Change status"
-            role="button"
-            tabIndex={0}
-            aria-haspopup="listbox"
-            aria-expanded={statusDropdownOpen}
           >
-            {STATUS_LABELS[finding.status]}
-          </span>
-          {statusDropdownOpen && statusBadgeRef.current && createPortal(
-            <div
-              ref={statusDropdownRef}
-              className="finding-status-dropdown"
-              style={{
-                position: 'fixed',
-                top: statusBadgeRef.current.getBoundingClientRect().bottom + 4,
-                left: statusBadgeRef.current.getBoundingClientRect().left,
-              }}
-              role="listbox"
-              onKeyDown={handleStatusDropdownKeyDown}
-            >
-              {STATUSES.map((s) => (
-                <div
-                  key={s}
-                  className={`finding-status-dropdown-item status-${s}${s === finding.status ? ' active' : ''}`}
-                  role="option"
-                  aria-selected={s === finding.status}
-                  tabIndex={-1}
-                  onMouseDown={() => handleStatusSelect(s)}
-                >
-                  {STATUS_LABELS[s]}
-                </div>
-              ))}
-            </div>,
-            document.body
-          )}
+            {STATUSES.map((s) => (
+              <option key={s} value={s}>{STATUS_LABELS[s]}</option>
+            ))}
+          </select>
           <div className="comment-card-header-right">
             <button
               className="comment-icon-btn"
