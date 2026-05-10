@@ -444,37 +444,70 @@
   gap: 6px;
 }
 
+.anchor-field-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
 .anchor-field-file,
 .anchor-field-line {
   font-family: var(--font-mono);
-  font-size: var(--font-size-xs);
-  padding: 5px 8px;
+  font-size: var(--font-size-small);
+  padding: 7px 10px;
   background: var(--bg-tertiary);
   color: var(--text-primary);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-base);
   outline: none;
-  transition: border-color var(--transition-base), box-shadow var(--transition-base);
+  transition: border-color var(--transition-base), box-shadow var(--transition-base), background var(--transition-base);
+}
+
+.anchor-field-file:hover,
+.anchor-field-line:hover {
+  border-color: rgba(148, 163, 184, 0.28);
 }
 
 .anchor-field-file:focus,
 .anchor-field-line:focus {
+  background: var(--bg-surface);
   border-color: var(--accent-blue);
   box-shadow: var(--shadow-focus-blue);
 }
 
 .anchor-field-file {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
 }
 
 .anchor-field-lines {
   display: flex;
-  gap: 6px;
+  gap: 4px;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .anchor-field-line {
-  width: 72px;
+  width: 64px;
+  text-align: right;
+}
+
+/* Hide spinner buttons on number inputs for a cleaner monospace look */
+.anchor-field-line::-webkit-outer-spin-button,
+.anchor-field-line::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.anchor-field-line {
+  -moz-appearance: textfield;
+}
+
+.anchor-field-line-invalid,
+.anchor-field-line-invalid:focus {
+  border-color: var(--severity-high);
+  box-shadow: var(--shadow-focus-orange);
 }
 
 .anchor-field-line-sep {
@@ -784,4 +817,128 @@
   justify-content: flex-end;
   gap: 6px;
   margin-top: 8px;
+}
+
+/* ----- TagInput ----- */
+.tag-input {
+  position: relative;
+  width: 100%;
+}
+
+.tag-input-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  padding: 5px 10px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-base);
+  cursor: text;
+  min-height: 36px;
+  transition: border-color var(--transition-base), box-shadow var(--transition-base), background var(--transition-base);
+}
+
+.tag-input-chip-row:hover {
+  border-color: rgba(148, 163, 184, 0.28);
+}
+
+.tag-input-chip-row:focus-within {
+  background: var(--bg-surface);
+  border-color: var(--accent-blue);
+  box-shadow: var(--shadow-focus-blue);
+}
+
+.tag-input-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  background: var(--accent-blue-subtle);
+  color: var(--accent-blue);
+  border: 1px solid color-mix(in srgb, var(--accent-blue) 30%, transparent);
+  border-radius: var(--radius-xs);
+  font-size: 10px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  line-height: 1.4;
+}
+
+.tag-input-chip-remove {
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0.7;
+  transition: opacity var(--transition-fast);
+}
+
+.tag-input-chip-remove:hover,
+.tag-input-chip-remove:focus-visible {
+  opacity: 1;
+  outline: 2px solid var(--accent-blue);
+  outline-offset: 1px;
+  border-radius: var(--radius-xs);
+}
+
+.tag-input-field {
+  flex: 1;
+  min-width: 80px;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-small);
+  padding: 4px 0;
+}
+
+.tag-input-popover {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-base);
+  box-shadow: var(--shadow-md);
+  z-index: var(--z-tooltip);
+  display: flex;
+  flex-direction: column;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.tag-input-suggestion {
+  background: transparent;
+  border: none;
+  text-align: left;
+  padding: 6px 10px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.tag-input-suggestion:hover,
+.tag-input-suggestion-active,
+.tag-input-suggestion:focus-visible {
+  background: var(--hover-subtle);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.tag-input-suggestion-create {
+  font-family: var(--font-sans);
+  color: var(--text-muted);
+  border-top: 1px solid var(--border-default);
+}
+
+.tag-input-suggestion-emphasis {
+  font-family: var(--font-mono);
+  color: var(--accent-blue);
 }

@@ -104,6 +104,8 @@
   padding: 20px 24px;
   width: 560px;
   max-width: 92vw;
+  max-height: calc(100vh - 100px);
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 12px;

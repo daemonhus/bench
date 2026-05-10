@@ -548,6 +548,30 @@
   margin-bottom: 6px;
 }
 
+/* Clickable heading variant — used when the parameters list is collapsible. */
+button.feature-params-heading-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+button.feature-params-heading-toggle:hover {
+  color: var(--text-primary);
+}
+
+.feature-params-heading-caret {
+  font-size: 9px;
+  color: var(--text-muted);
+  display: inline-block;
+  width: 10px;
+}
+
 /* Expanded view: parameters list */
 .feature-params-section {
   margin-top: 10px;

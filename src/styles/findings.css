@@ -492,61 +492,97 @@
   cursor: default;
 }
 
+/* ============================================================
+   Form input baseline
+   ----------------------------------------------------------------
+   One geometry across every input/select/textarea in finding,
+   feature, comment, and AnchorField forms. Draft-card containers
+   (.finding-card-new, .feature-card-new, .comment-card-new) layer
+   their accent colour on top via descendant selectors at the bottom
+   of this file.
+   ============================================================ */
+
 .finding-edit-form {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
-.finding-edit-input {
+/* Shared geometry for every typed input across the form family. */
+.finding-edit-input,
+.finding-edit-input-sm,
+.finding-edit-select,
+.finding-edit-textarea,
+.finding-input,
+.finding-severity-select,
+.finding-status-select {
   width: 100%;
   background: var(--bg-tertiary);
   border: 1px solid var(--border-default);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   color: var(--text-primary);
+  font-family: var(--font-sans);
   font-size: var(--font-size-ui);
-  font-weight: 500;
-  padding: 9px 12px;
+  padding: 8px 12px;
   box-sizing: border-box;
+  outline: none;
   transition: border-color var(--transition-base), box-shadow var(--transition-base), background var(--transition-base);
 }
 
-.finding-edit-input:hover {
+.finding-edit-input:hover,
+.finding-edit-input-sm:hover,
+.finding-edit-select:hover,
+.finding-edit-textarea:hover,
+.finding-input:hover,
+.finding-severity-select:hover,
+.finding-status-select:hover {
   border-color: rgba(148, 163, 184, 0.28);
 }
 
-.finding-edit-input:focus {
-  outline: none;
+.finding-edit-input:focus,
+.finding-edit-input-sm:focus,
+.finding-edit-select:focus,
+.finding-edit-textarea:focus,
+.finding-input:focus,
+.finding-severity-select:focus,
+.finding-status-select:focus {
   background: var(--bg-surface);
   border-color: var(--accent-blue);
   box-shadow: var(--shadow-focus-blue);
 }
 
 .finding-edit-textarea {
-  width: 100%;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-default);
-  border-radius: 6px;
-  color: var(--text-secondary);
-  font-size: var(--font-size-ui);
-  padding: 9px 12px;
   resize: vertical;
   min-height: 56px;
   line-height: 1.5;
-  font-family: inherit;
-  box-sizing: border-box;
-  transition: border-color var(--transition-base), box-shadow var(--transition-base), background var(--transition-base);
+  color: var(--text-secondary);
 }
 
-.finding-edit-textarea:hover {
-  border-color: rgba(148, 163, 184, 0.28);
+/* Compact variant for monospace fields (line numbers, CWE/CVE, hashes). */
+.finding-edit-input-sm {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-small);
+  padding: 5px 10px;
 }
 
-.finding-edit-textarea:focus {
-  outline: none;
-  background: var(--bg-surface);
-  border-color: var(--accent-blue);
-  box-shadow: var(--shadow-focus-blue);
+.finding-edit-input-sm[type="number"] {
+  width: 72px;
+  flex: none;
+  text-align: right;
+}
+
+/* Native <select> needs its own chevron and right padding. */
+.finding-edit-select,
+.finding-severity-select,
+.finding-status-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2355606f'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 32px;
+  cursor: pointer;
+  font-size: var(--font-size-small);
 }
 
 .finding-edit-row {
@@ -557,65 +593,10 @@
 
 .finding-edit-label {
   font-size: var(--font-size-small);
+  font-weight: 500;
   color: var(--text-muted);
-  min-width: 54px;
+  min-width: 60px;
   flex-shrink: 0;
-}
-
-.finding-edit-select {
-  flex: 1;
-  appearance: none;
-  -webkit-appearance: none;
-  background-color: var(--bg-tertiary);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2355606f'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 8px center;
-  border: 1px solid var(--border-default);
-  border-radius: 6px;
-  color: var(--text-primary);
-  font-size: var(--font-size-small);
-  padding: 11px 36px 11px 12px;
-  cursor: pointer;
-  outline: none;
-  transition: border-color var(--transition-base), box-shadow var(--transition-base);
-}
-
-.finding-edit-select:hover {
-  border-color: rgba(148, 163, 184, 0.28);
-}
-
-.finding-edit-select:focus {
-  border-color: var(--accent-blue);
-  box-shadow: var(--shadow-focus-blue);
-}
-
-.finding-edit-input-sm {
-  flex: 1;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-default);
-  border-radius: 6px;
-  color: var(--text-primary);
-  font-size: var(--font-size-small);
-  font-family: var(--font-mono);
-  padding: 6px 10px;
-  box-sizing: border-box;
-  transition: border-color var(--transition-base), box-shadow var(--transition-base), background var(--transition-base);
-}
-
-.finding-edit-input-sm:hover {
-  border-color: rgba(148, 163, 184, 0.28);
-}
-
-.finding-edit-input-sm:focus {
-  outline: none;
-  background: var(--bg-surface);
-  border-color: var(--accent-blue);
-  box-shadow: var(--shadow-focus-blue);
-}
-
-.finding-edit-input-sm[type="number"] {
-  width: 72px;
-  flex: none;
 }
 
 .finding-edit-actions {
@@ -991,7 +972,7 @@
 .finding-form-row {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 .finding-form-label {
@@ -1000,50 +981,25 @@
   color: var(--text-muted);
 }
 
-.finding-input {
-  width: 100%;
-  background: var(--bg-tertiary);
-  border: 1px solid color-mix(in srgb, var(--severity-high) 25%, transparent);
-  border-radius: 6px;
-  color: var(--text-primary);
-  font-family: var(--font-sans);
-  font-size: var(--font-size-ui);
-  padding: 9px 12px;
-  outline: none;
-  transition: border-color var(--transition-base), box-shadow var(--transition-base), background var(--transition-base);
-}
+/* ============================================================
+   Draft-card themes
+   ----------------------------------------------------------------
+   The card stripe + accent colour telegraphs what the user is
+   creating. Descendant selectors retint the (otherwise neutral)
+   inputs to match, so every form looks of-a-piece.
+   ============================================================ */
 
-.finding-input:focus {
-  border-color: var(--severity-high);
-  box-shadow: var(--shadow-focus-orange);
-}
-
-.finding-severity-select,
-.finding-status-select {
-  flex: 1;
-  background: var(--bg-tertiary);
-  border: 1px solid color-mix(in srgb, var(--severity-high) 25%, transparent);
-  border-radius: 6px;
-  color: var(--text-primary);
-  font-family: var(--font-sans);
-  font-size: var(--font-size-ui);
-  padding: 9px 12px;
-  outline: none;
-  cursor: pointer;
-  transition: border-color var(--transition-base), box-shadow var(--transition-base);
-}
-
-.finding-severity-select:focus,
-.finding-status-select:focus {
-  border-color: var(--severity-high);
-  box-shadow: var(--shadow-focus-orange);
-}
-
+/* Finding draft — severity-high orange */
+.finding-card-new .finding-input,
+.finding-card-new .finding-severity-select,
+.finding-card-new .finding-status-select,
 .finding-card-new .comment-textarea {
-  background: var(--bg-primary);
-  border-color: color-mix(in srgb, var(--severity-high) 25%, transparent);
+  border-color: color-mix(in srgb, var(--severity-high) 22%, var(--border-default));
 }
 
+.finding-card-new .finding-input:focus,
+.finding-card-new .finding-severity-select:focus,
+.finding-card-new .finding-status-select:focus,
 .finding-card-new .comment-textarea:focus {
   border-color: var(--severity-high);
   box-shadow: var(--shadow-focus-orange);
@@ -1058,16 +1014,29 @@
   background: color-mix(in srgb, var(--severity-high) 80%, black);
 }
 
-/* ----- Feature Form (new feature in sidebar) ----- */
+/* Feature draft — pure white */
 .feature-card-new {
   background: var(--bg-surface);
   border-color: color-mix(in srgb, #ffffff 20%, transparent);
   border-left: 3px solid #ffffff;
 }
 
+.feature-card-new .finding-input,
+.feature-card-new .finding-edit-select,
+.feature-card-new .finding-severity-select,
+.feature-card-new .finding-status-select,
+.feature-card-new .tag-input-chip-row,
+.feature-card-new .comment-textarea {
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
 .feature-card-new .finding-input:focus,
-.feature-card-new .finding-edit-select:focus {
-  border-color: #ffffff;
+.feature-card-new .finding-edit-select:focus,
+.feature-card-new .finding-severity-select:focus,
+.feature-card-new .finding-status-select:focus,
+.feature-card-new .tag-input-chip-row:focus-within,
+.feature-card-new .comment-textarea:focus {
+  border-color: rgba(255, 255, 255, 0.9);
   box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.12);
 }
 

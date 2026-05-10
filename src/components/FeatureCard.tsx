@@ -13,6 +13,7 @@ import { RefProviderIcon } from './RefProviderIcon';
 import { RefManageModal } from './RefManageModal';
 import { LinkManageModal } from './LinkManageModal';
 import { AnchorField } from './AnchorField';
+import { TagInput } from './TagInput';
 
 interface FeatureCardProps {
   feature: Feature;
@@ -132,7 +133,7 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
   const [operation, setOperation] = useState(feature.operation ?? '');
   const [direction, setDirection] = useState(feature.direction ?? '');
   const [protocol, setProtocol] = useState(feature.protocol ?? '');
-  const [tagsInput, setTagsInput] = useState((feature.tags ?? []).join(', '));
+  const [editTags, setEditTags] = useState<string[]>(feature.tags ?? []);
   const [source, setSource] = useState(feature.source ?? '');
   const [anchorFileId, setAnchorFileId] = useState(feature.anchor.fileId ?? '');
   const [anchorLineStart, setAnchorLineStart] = useState(feature.anchor.lineRange?.start?.toString() ?? '');
@@ -144,6 +145,16 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
     (feature.linkedFeatures ?? []).map((lf) => ({ id: lf.id, description: lf.description ?? '' })),
   );
 
+  // Suggest every tag already in use across the project so users converge on
+  // a small shared vocabulary instead of spelling "auth" five ways.
+  const tagSuggestions = useMemo(() => {
+    const seen = new Set<string>();
+    for (const f of allFeatures) {
+      for (const t of f.tags ?? []) seen.add(t);
+    }
+    return [...seen].sort();
+  }, [allFeatures]);
+
   const fp = feature as Feature & { effectiveAnchor?: { fileId?: string; commitId?: string; lineRange?: { start: number; end: number } }; confidence?: string };
   const lineRange = fp.effectiveAnchor?.lineRange ?? feature.anchor.lineRange;
   const confidence = fp.confidence;
@@ -151,6 +162,7 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
 
   const [fileLines, setFileLines] = useState<{ lines: string[]; lang: string } | null>(null);
   const { collapsed: snippetCollapsed, setCollapsed: setSnippetCollapsed, extraBefore, setExtraBefore, extraAfter, setExtraAfter } = useSnippetState(feature.id);
+  const [paramsCollapsed, setParamsCollapsed] = useState(false);
 
   const seenExpandTick = useRef(expandSnippetsTick ?? 0);
   const seenCollapseTick = useRef(collapseSnippetsTick ?? 0);
@@ -236,7 +248,7 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
   };
 
   const handleSave = () => {
-    const tags = tagsInput.split(',').map((t) => t.trim()).filter(Boolean);
+    const tags = editTags;
     const startNum = parseInt(anchorLineStart, 10);
     const endNum = parseInt(anchorLineEnd, 10);
     const parameters: FeatureParameter[] = editParams
@@ -266,7 +278,7 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
     setOperation(feature.operation ?? '');
     setDirection(feature.direction ?? '');
     setProtocol(feature.protocol ?? '');
-    setTagsInput((feature.tags ?? []).join(', '));
+    setEditTags(feature.tags ?? []);
     setSource(feature.source ?? '');
     setAnchorFileId(feature.anchor.fileId ?? '');
     setAnchorLineStart(feature.anchor.lineRange?.start?.toString() ?? '');
@@ -546,7 +558,17 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
 
               {viewMode === 'features' && feature.kind === 'interface' && feature.parameters && feature.parameters.length > 0 && (
                 <div className="feature-params-section">
-                  <div className="feature-params-heading">Parameters</div>
+                  <button
+                    type="button"
+                    className="feature-params-heading feature-params-heading-toggle"
+                    onClick={() => setParamsCollapsed((c) => !c)}
+                    aria-expanded={!paramsCollapsed}
+                  >
+                    <span className="feature-params-heading-caret">{paramsCollapsed ? '▶' : '▼'}</span>
+                    Parameters
+                    <span className="section-count-badge">{feature.parameters.length}</span>
+                  </button>
+                  {!paramsCollapsed && (
                   <div className="feature-params-list">
                     {feature.parameters.map((p) => (
                       <div key={p.id} className="feature-param-row">
@@ -575,6 +597,7 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
                       </div>
                     ))}
                   </div>
+                  )}
                 </div>
               )}
 
@@ -781,11 +804,11 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
               })()}
 
               <div className="finding-form-row">
-                <input
-                  className="finding-input"
-                  value={tagsInput}
-                  onChange={(e) => setTagsInput(e.target.value)}
-                  placeholder="Tags (comma-separated)"
+                <TagInput
+                  value={editTags}
+                  onChange={setEditTags}
+                  suggestions={tagSuggestions}
+                  placeholder="Add tag (Enter, space, or comma to confirm)"
                 />
               </div>
               <div className="finding-form-row">

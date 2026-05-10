@@ -13,6 +13,7 @@ import { explainReconcileError } from '../core/reconcileErrors';
 import { isOrphaned, countOrphaned } from '../core/orphan';
 import { CommentEditor } from './CommentEditor';
 import { OrphanTriagePanel } from './OrphanTriagePanel';
+import { TagInput } from './TagInput';
 import { InlineMarkdown } from '../core/markdown';
 import { useBranchMap } from '../core/use-branch-map';
 import { useNavList } from '../core/use-nav-list';
@@ -298,7 +299,14 @@ export const Sidebar: React.FC = () => {
   const [newFeatureOperation, setNewFeatureOperation] = useState('');
   const [newFeatureProtocol, setNewFeatureProtocol] = useState('');
   const [newFeatureDirection, setNewFeatureDirection] = useState<'in' | 'out' | ''>('');
-  const [newFeatureTags, setNewFeatureTags] = useState('');
+  const [newFeatureTags, setNewFeatureTags] = useState<string[]>([]);
+  // Suggest tags already in use so the new-feature form converges on the
+  // same vocabulary as the rest of the project.
+  const tagSuggestionsSidebar = useMemo(() => {
+    const seen = new Set<string>();
+    for (const f of features) for (const t of f.tags ?? []) seen.add(t);
+    return [...seen].sort();
+  }, [features]);
 
   // Editing state
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -356,7 +364,7 @@ export const Sidebar: React.FC = () => {
       setNewFeatureDescription('');
       setNewFeatureProtocol('');
       setNewFeatureDirection('');
-      setNewFeatureTags('');
+      setNewFeatureTags([]);
       setShowNewComment(false);
       setShowNewFinding(false);
     } else {
@@ -708,14 +716,14 @@ export const Sidebar: React.FC = () => {
     setNewFeatureOperation('');
     setNewFeatureProtocol('');
     setNewFeatureDirection('');
-    setNewFeatureTags('');
+    setNewFeatureTags([]);
     setCommentDrag({ isActive: false, startLine: null, endLine: null, side: null });
     setAnnotationAction(null);
   };
 
   const handleSaveFeature = async () => {
     if (!newFeatureTitle.trim() || !selectedFilePath || !currentCommit) return;
-    const tags = newFeatureTags.split(',').map(t => t.trim()).filter(Boolean);
+    const tags = newFeatureTags;
     const anchor = {
       fileId: selectedFilePath,
       commitId: currentCommit,
@@ -1137,11 +1145,11 @@ export const Sidebar: React.FC = () => {
                   )}
                   <div className="finding-form-row">
                     <label className="finding-form-label">Tags</label>
-                    <input
-                      className="finding-input"
-                      placeholder="pii, auth, public (comma separated)"
+                    <TagInput
                       value={newFeatureTags}
-                      onChange={e => setNewFeatureTags(e.target.value)}
+                      onChange={setNewFeatureTags}
+                      suggestions={tagSuggestionsSidebar}
+                      placeholder="Add tag (Enter, space, or comma to confirm)"
                     />
                   </div>
                 </div>

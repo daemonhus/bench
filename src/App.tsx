@@ -28,7 +28,12 @@ import { FindingsView } from './components/FindingsView';
 import { FeaturesView } from './components/FeaturesView';
 import { FolderView } from './components/FolderView';
 import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
+import { AnchorField } from './components/AnchorField';
+import { TagInput } from './components/TagInput';
+import { FINDING_CATEGORIES } from './core/types';
 import type { ViewMode, Severity, FindingStatus, CommentType, Finding, Feature, FeatureKind } from './core/types';
+
+const FINDING_SOURCES = ['pentest', 'tool', 'manual'] as const;
 
 const NAV_AREA: Partial<Record<ViewMode, string>> = {
   browse: 'filetree',
@@ -157,8 +162,24 @@ export function App() {
   const [quickCategory, setQuickCategory] = useState('');
   const [quickCommentType, setQuickCommentType] = useState<CommentType>('');
   const [quickFeatureKind, setQuickFeatureKind] = useState<FeatureKind>('interface');
+  const [quickVector, setQuickVector] = useState('');
+  const [quickSource, setQuickSource] = useState<typeof FINDING_SOURCES[number]>('manual');
+  const [quickFeatureSource, setQuickFeatureSource] = useState('');
+  const [quickFeatureDirection, setQuickFeatureDirection] = useState('');
+  const [quickFeatureOperation, setQuickFeatureOperation] = useState('');
+  const [quickFeatureProtocol, setQuickFeatureProtocol] = useState('');
+  const [quickFeatureTags, setQuickFeatureTags] = useState<string[]>([]);
+  const [quickAnchorFile, setQuickAnchorFile] = useState('');
+  const [quickAnchorStart, setQuickAnchorStart] = useState('');
+  const [quickAnchorEnd, setQuickAnchorEnd] = useState('');
   const [quickConfirmDiscard, setQuickConfirmDiscard] = useState(false);
   const quickRef = useRef<HTMLDivElement>(null);
+  const allFeaturesForSuggestions = useAnnotationStore((s) => s.features);
+  const quickFeatureTagSuggestions = useMemo(() => {
+    const seen = new Set<string>();
+    for (const f of allFeaturesForSuggestions) for (const t of f.tags ?? []) seen.add(t);
+    return [...seen].sort();
+  }, [allFeaturesForSuggestions]);
 
   // Watch for finding-create requests from child components (e.g. feed pill)
   const requestFindingCreate = useUIStore((s) => s.requestFindingCreate);
@@ -169,6 +190,24 @@ export function App() {
       setQuickTitle(''); setQuickText(''); setQuickConfirmDiscard(false);
     }
   }, [requestFindingCreate]);
+
+  // When quickAdd opens, seed the anchor fields from scope + selected file + line range.
+  // We track the previous quickAdd via a ref so this only fires on open transitions.
+  const prevQuickAddRef = useRef<typeof quickAdd>(null);
+  useEffect(() => {
+    if (quickAdd && !prevQuickAddRef.current) {
+      if (quickAdd.scope === 'file') {
+        setQuickAnchorFile(selectedFilePath ?? '');
+        setQuickAnchorStart(quickAdd.lineRange ? String(quickAdd.lineRange.start) : '');
+        setQuickAnchorEnd(quickAdd.lineRange ? String(quickAdd.lineRange.end) : '');
+      } else {
+        setQuickAnchorFile('');
+        setQuickAnchorStart('');
+        setQuickAnchorEnd('');
+      }
+    }
+    prevQuickAddRef.current = quickAdd;
+  }, [quickAdd, selectedFilePath]);
 
   // Track whether initial route has been applied
   const initialRouteApplied = useRef(false);
@@ -247,11 +286,21 @@ export function App() {
   // Quick-add submit
   const handleQuickAddSubmit = useCallback(() => {
     if (!quickAdd) return;
-    const fileId = quickAdd.scope === 'file' || quickAdd.lineRange ? (selectedFilePath ?? '') : '';
     const commitId = currentCommit ?? '';
-    const anchor = quickAdd.lineRange
-      ? { fileId, commitId, lineRange: quickAdd.lineRange }
-      : { fileId, commitId };
+
+    // Resolve anchor. File scope reads from the editable anchor fields;
+    // project scope skips the anchor entirely.
+    let anchor: { fileId: string; commitId: string; lineRange?: { start: number; end: number } };
+    if (quickAdd.scope === 'file') {
+      const startNum = parseInt(quickAnchorStart, 10);
+      const endNum = parseInt(quickAnchorEnd, 10);
+      const hasRange = startNum > 0 && endNum >= startNum;
+      anchor = hasRange
+        ? { fileId: quickAnchorFile, commitId, lineRange: { start: startNum, end: endNum } }
+        : { fileId: quickAnchorFile, commitId };
+    } else {
+      anchor = { fileId: '', commitId };
+    }
 
     if (quickAdd.kind === 'finding') {
       const trimmed = quickTitle.trim();
@@ -265,10 +314,10 @@ export function App() {
         description: quickText.trim(),
         cwe: quickCwe.trim(),
         cve: quickCve.trim(),
-        vector: '',
+        vector: quickVector.trim(),
         score: quickScore !== '' ? parseFloat(quickScore) : 0,
         category: quickCategory.trim() || undefined,
-        source: 'manual',
+        source: quickSource,
       });
     } else if (quickAdd.kind === 'feature') {
       const trimmed = quickTitle.trim();
@@ -280,8 +329,11 @@ export function App() {
         title: trimmed,
         description: quickText.trim() || undefined,
         status: 'active',
-        tags: [],
-        source: 'manual',
+        direction: (quickFeatureDirection || undefined) as 'in' | 'out' | undefined,
+        operation: quickFeatureOperation.trim() || undefined,
+        protocol: quickFeatureProtocol.trim() || undefined,
+        tags: quickFeatureTags,
+        source: quickFeatureSource.trim() || 'manual',
         createdAt: new Date().toISOString(),
       });
     } else {
@@ -301,9 +353,13 @@ export function App() {
     setQuickTitle(''); setQuickText('');
     setQuickSeverity('medium'); setQuickStatus('open');
     setQuickCwe(''); setQuickCve(''); setQuickScore(''); setQuickCategory('');
+    setQuickVector(''); setQuickSource('manual');
     setQuickCommentType('');
     setQuickFeatureKind('interface');
-  }, [quickAdd, quickTitle, quickText, quickSeverity, quickStatus, quickCwe, quickCve, quickScore, quickCategory, quickCommentType, quickFeatureKind, selectedFilePath, currentCommit, addFinding, addComment, addFeature]);
+    setQuickFeatureDirection(''); setQuickFeatureOperation(''); setQuickFeatureProtocol('');
+    setQuickFeatureTags([]); setQuickFeatureSource('');
+    setQuickAnchorFile(''); setQuickAnchorStart(''); setQuickAnchorEnd('');
+  }, [quickAdd, quickTitle, quickText, quickSeverity, quickStatus, quickCwe, quickCve, quickScore, quickCategory, quickVector, quickSource, quickCommentType, quickFeatureKind, quickFeatureDirection, quickFeatureOperation, quickFeatureProtocol, quickFeatureTags, quickFeatureSource, quickAnchorFile, quickAnchorStart, quickAnchorEnd, currentCommit, addFinding, addComment, addFeature]);
 
   // Cancel quick-add: confirm if there's unsaved input
   const handleQuickAddCancel = useCallback(() => {
@@ -316,7 +372,12 @@ export function App() {
     setQuickTitle(''); setQuickText('');
     setQuickSeverity('medium'); setQuickStatus('open');
     setQuickCwe(''); setQuickCve(''); setQuickScore(''); setQuickCategory('');
+    setQuickVector(''); setQuickSource('manual');
     setQuickCommentType('');
+    setQuickFeatureKind('interface');
+    setQuickFeatureDirection(''); setQuickFeatureOperation(''); setQuickFeatureProtocol('');
+    setQuickFeatureTags([]); setQuickFeatureSource('');
+    setQuickAnchorFile(''); setQuickAnchorStart(''); setQuickAnchorEnd('');
     setQuickConfirmDiscard(false);
   }, [quickTitle, quickText, quickConfirmDiscard]);
 
@@ -1285,7 +1346,7 @@ export function App() {
               <div className="quick-add-confirm-discard">
                 <span>You have unsaved input. Discard?</span>
                 <div className="quick-add-confirm-actions">
-                  <button className="finding-delete-yes" onClick={() => { setQuickAdd(null); setQuickTitle(''); setQuickText(''); setQuickConfirmDiscard(false); }}>Discard</button>
+                  <button className="finding-delete-yes" onClick={() => { setQuickAdd(null); setQuickTitle(''); setQuickText(''); setQuickVector(''); setQuickSource('manual'); setQuickFeatureDirection(''); setQuickFeatureOperation(''); setQuickFeatureProtocol(''); setQuickFeatureTags([]); setQuickFeatureSource(''); setQuickAnchorFile(''); setQuickAnchorStart(''); setQuickAnchorEnd(''); setQuickConfirmDiscard(false); }}>Discard</button>
                   <button className="finding-delete-no" onClick={() => setQuickConfirmDiscard(false)}>Keep editing</button>
                 </div>
               </div>
@@ -1335,6 +1396,33 @@ export function App() {
                     </div>
                     <div className="quick-add-row-pair">
                       <div className="finding-edit-row">
+                        <label className="finding-edit-label">Source</label>
+                        <select
+                          className="finding-edit-select"
+                          value={quickSource}
+                          onChange={(e) => setQuickSource(e.target.value as typeof FINDING_SOURCES[number])}
+                        >
+                          {FINDING_SOURCES.map((s) => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="finding-edit-row">
+                        <label className="finding-edit-label">Category</label>
+                        <select
+                          className="finding-edit-select"
+                          value={quickCategory}
+                          onChange={(e) => setQuickCategory(e.target.value)}
+                        >
+                          <option value="">None</option>
+                          {FINDING_CATEGORIES.map((c) => (
+                            <option key={c} value={c}>{c}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="quick-add-row-pair">
+                      <div className="finding-edit-row">
                         <label className="finding-edit-label">CWE</label>
                         <input
                           className="finding-edit-input finding-edit-input-sm"
@@ -1368,12 +1456,12 @@ export function App() {
                         />
                       </div>
                       <div className="finding-edit-row">
-                        <label className="finding-edit-label">Category</label>
+                        <label className="finding-edit-label">Vector</label>
                         <input
                           className="finding-edit-input finding-edit-input-sm"
-                          placeholder="e.g. injection"
-                          value={quickCategory}
-                          onChange={(e) => setQuickCategory(e.target.value)}
+                          placeholder="CVSS vector"
+                          value={quickVector}
+                          onChange={(e) => setQuickVector(e.target.value)}
                         />
                       </div>
                     </div>
@@ -1406,19 +1494,73 @@ export function App() {
                       onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleQuickAddSubmit(); }}
                       autoFocus
                     />
+                    <div className="quick-add-row-pair">
+                      <div className="finding-edit-row">
+                        <label className="finding-edit-label">Kind</label>
+                        <select
+                          className="finding-edit-select"
+                          value={quickFeatureKind}
+                          onChange={(e) => setQuickFeatureKind(e.target.value as FeatureKind)}
+                        >
+                          <option value="interface">Interface</option>
+                          <option value="source">Source</option>
+                          <option value="sink">Sink</option>
+                          <option value="dependency">Dependency</option>
+                          <option value="externality">Externality</option>
+                        </select>
+                      </div>
+                      <div className="finding-edit-row">
+                        <label className="finding-edit-label">Direction</label>
+                        <select
+                          className="finding-edit-select"
+                          value={quickFeatureDirection}
+                          onChange={(e) => setQuickFeatureDirection(e.target.value)}
+                        >
+                          <option value="">—</option>
+                          <option value="in">in</option>
+                          <option value="out">out</option>
+                        </select>
+                      </div>
+                    </div>
+                    {quickFeatureKind === 'interface' && (
+                      <div className="finding-edit-row">
+                        <label className="finding-edit-label">Operation</label>
+                        <input
+                          className="finding-edit-input finding-edit-input-sm"
+                          placeholder="GET, POST, query, rpc GetUser…"
+                          value={quickFeatureOperation}
+                          onChange={(e) => setQuickFeatureOperation(e.target.value)}
+                        />
+                      </div>
+                    )}
+                    <div className="quick-add-row-pair">
+                      <div className="finding-edit-row">
+                        <label className="finding-edit-label">Protocol</label>
+                        <input
+                          className="finding-edit-input finding-edit-input-sm"
+                          placeholder="rest, grpc, …"
+                          value={quickFeatureProtocol}
+                          onChange={(e) => setQuickFeatureProtocol(e.target.value)}
+                        />
+                      </div>
+                      <div className="finding-edit-row">
+                        <label className="finding-edit-label">Source</label>
+                        <input
+                          className="finding-edit-input finding-edit-input-sm"
+                          placeholder="manual, semgrep, …"
+                          value={quickFeatureSource}
+                          onChange={(e) => setQuickFeatureSource(e.target.value)}
+                        />
+                      </div>
+                    </div>
                     <div className="finding-edit-row">
-                      <label className="finding-edit-label">Kind</label>
-                      <select
-                        className="finding-edit-select"
-                        value={quickFeatureKind}
-                        onChange={(e) => setQuickFeatureKind(e.target.value as FeatureKind)}
-                      >
-                        <option value="interface">Interface</option>
-                        <option value="source">Source</option>
-                        <option value="sink">Sink</option>
-                        <option value="dependency">Dependency</option>
-                        <option value="externality">Externality</option>
-                      </select>
+                      <label className="finding-edit-label">Tags</label>
+                      <TagInput
+                        value={quickFeatureTags}
+                        onChange={setQuickFeatureTags}
+                        suggestions={quickFeatureTagSuggestions}
+                        placeholder="Add tag (Enter, space, or comma)"
+                      />
                     </div>
                   </>
                 )}
@@ -1431,6 +1573,21 @@ export function App() {
                   rows={3}
                   autoFocus={quickAdd.kind === 'comment'}
                 />
+                {quickAdd.scope === 'file' && (
+                  <div className="finding-edit-row finding-edit-row-anchor">
+                    <label className="finding-edit-label">Anchor</label>
+                    <div className="finding-edit-anchor-wrap">
+                      <AnchorField
+                        fileId={quickAnchorFile}
+                        lineStart={quickAnchorStart}
+                        lineEnd={quickAnchorEnd}
+                        onFileIdChange={setQuickAnchorFile}
+                        onLineStartChange={setQuickAnchorStart}
+                        onLineEndChange={setQuickAnchorEnd}
+                      />
+                    </div>
+                  </div>
+                )}
                 <div className="finding-edit-actions">
                   <button className="finding-edit-save" onClick={handleQuickAddSubmit}>
                     {quickAdd.kind === 'finding' ? 'Add Finding' : quickAdd.kind === 'feature' ? 'Add Feature' : 'Add Comment'}

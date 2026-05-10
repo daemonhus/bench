@@ -73,13 +73,14 @@
   width: 100%;
   background: var(--bg-tertiary);
   border: 1px solid var(--border-default);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   color: var(--text-primary);
   font-family: var(--font-sans);
   font-size: var(--font-size-ui);
-  padding: 10px 14px;
+  padding: 8px 12px;
   resize: vertical;
-  min-height: 68px;
+  min-height: 64px;
+  line-height: 1.5;
   outline: none;
   transition: border-color var(--transition-base), box-shadow var(--transition-base), background var(--transition-base);
 }

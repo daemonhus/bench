@@ -91,40 +91,48 @@ export const AnchorField: React.FC<AnchorFieldProps> = ({
   }, [fileId, lineStart, lineEnd, files, resolvedCommit, hidePreview]);
 
   const startNum = parseInt(lineStart, 10) || 0;
+  const endNum = parseInt(lineEnd, 10) || 0;
+  // Both fields filled but end is before start. Don't flag a partially-typed
+  // range (only one field populated) — that's a transient state, not an error.
+  const rangeInvalid = startNum > 0 && endNum > 0 && endNum < startNum;
 
   return (
     <div className="anchor-field">
-      <input
-        type="text"
-        className="anchor-field-file"
-        list={datalistId.current}
-        placeholder="path/to/file"
-        value={fileId}
-        onChange={(e) => onFileIdChange(e.target.value)}
-      />
-      <datalist id={datalistId.current}>
-        {files.slice(0, 500).map((p) => (
-          <option key={p} value={p} />
-        ))}
-      </datalist>
-      <div className="anchor-field-lines">
+      <div className="anchor-field-row">
         <input
-          type="number"
-          className="anchor-field-line"
-          placeholder="start"
-          min={1}
-          value={lineStart}
-          onChange={(e) => onLineStartChange(e.target.value)}
+          type="text"
+          className="anchor-field-file"
+          list={datalistId.current}
+          placeholder="path/to/file"
+          value={fileId}
+          onChange={(e) => onFileIdChange(e.target.value)}
         />
-        <span className="anchor-field-line-sep">–</span>
-        <input
-          type="number"
-          className="anchor-field-line"
-          placeholder="end"
-          min={1}
-          value={lineEnd}
-          onChange={(e) => onLineEndChange(e.target.value)}
-        />
+        <datalist id={datalistId.current}>
+          {files.slice(0, 500).map((p) => (
+            <option key={p} value={p} />
+          ))}
+        </datalist>
+        <div className="anchor-field-lines">
+          <input
+            type="number"
+            className={`anchor-field-line${rangeInvalid ? ' anchor-field-line-invalid' : ''}`}
+            placeholder="start"
+            min={1}
+            value={lineStart}
+            onChange={(e) => onLineStartChange(e.target.value)}
+            aria-invalid={rangeInvalid || undefined}
+          />
+          <span className="anchor-field-line-sep">–</span>
+          <input
+            type="number"
+            className={`anchor-field-line${rangeInvalid ? ' anchor-field-line-invalid' : ''}`}
+            placeholder="end"
+            min={1}
+            value={lineEnd}
+            onChange={(e) => onLineEndChange(e.target.value)}
+            aria-invalid={rangeInvalid || undefined}
+          />
+        </div>
       </div>
       {!hidePreview && preview && preview.length > 0 && (
         <pre className="anchor-field-preview">
@@ -135,6 +143,9 @@ export const AnchorField: React.FC<AnchorFieldProps> = ({
             </div>
           ))}
         </pre>
+      )}
+      {rangeInvalid && (
+        <div className="anchor-field-preview-error">End line must be ≥ start line.</div>
       )}
       {!hidePreview && previewError && (
         <div className="anchor-field-preview-error">Could not load preview: {previewError}</div>
