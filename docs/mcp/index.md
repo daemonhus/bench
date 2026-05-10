@@ -12,7 +12,7 @@ The endpoint is at `http://localhost:8080/mcp`. All tools are scoped to the sing
 
 ## Tool groups
 
-Tools are organized into seven groups matching the CLI categories:
+Tools are organized into eight groups matching the CLI categories:
 
 | Group | Tools |
 |-------|-------|
@@ -23,6 +23,7 @@ Tools are organized into seven groups matching the CLI categories:
 | `baselines` | `set_baseline`, `list_baselines`, `get_delta`, `delete_baseline` |
 | `analytics` | `get_summary`, `get_coverage`, `mark_reviewed` |
 | `reconcile` | `reconcile`, `get_reconciliation_status`, `get_annotation_history` |
+| `refs` | `list_refs`, `get_ref`, `create_ref`, `update_ref`, `delete_ref`, `batch_create_refs` |
 
 ## Tool reference
 
@@ -30,7 +31,7 @@ All tools are scoped to the single repo instance.
 
 ### search_code
 
-Search file contents with a regex pattern. Uses `git grep -E` (extended regex — ERE), so alternation (`foo|bar`), grouping (`(foo)+`), and `+`/`?` quantifiers work without escaping.
+Search file contents with a regex pattern. Uses Go's RE2 syntax, so alternation (`foo|bar`), grouping (`(foo)+`), and `+`/`?` quantifiers work without escaping. Backreferences and lookaheads are not supported.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -426,3 +427,50 @@ Returns finding and comment counts by severity, status, and category. No paramet
 |-----------|------|----------|-------------|
 | `type` | string | yes | `finding` or `comment` |
 | `id` | string | yes | Finding or comment ID |
+
+---
+
+### list_refs
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `entity_type` | string | no | Filter by entity type: `finding` \| `feature` \| `comment` |
+| `entity` | string | no | Filter by entity ID |
+| `provider` | string | no | Filter by provider (e.g. `jira`, `github`, `linear`, `url`) |
+
+### get_ref
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | string | yes | Ref ID |
+
+### create_ref
+
+Create an external reference linking an annotation to a Jira ticket, Slack thread, GitHub issue, Linear issue, or any URL. Provider is inferred from the URL if omitted.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `entity_type` | string | yes | `finding` \| `feature` \| `comment` |
+| `entity` | string | yes | ID of the finding, feature, or comment |
+| `url` | string | yes | Full URL of the external resource |
+| `provider` | string | no | `github` \| `gitlab` \| `jira` \| `confluence` \| `linear` \| `notion` \| `slack` \| `url` — inferred from URL if omitted |
+| `title` | string | no | Optional display label |
+
+### update_ref
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | string | yes | Ref ID |
+| `provider` | string | no | New provider |
+| `url` | string | no | New URL |
+| `title` | string | no | New display label |
+
+### delete_ref
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | string | yes | Ref ID |
+
+### batch_create_refs
+
+Create multiple external references in one operation. Accepts a `refs` array where each item takes the same fields as `create_ref`. `entity_type`, `entity`, and `url` are required per item. `provider` is inferred from the URL if omitted.

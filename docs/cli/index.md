@@ -12,7 +12,7 @@ curl -L https://github.com/daemonhus/bench/releases/latest/download/bench_<versi
 sudo mv bench /usr/local/bin/
 ```
 
-**Build from source** (requires Go 1.22+):
+**Build from source** (requires Go 1.24+):
 
 ```bash
 git clone https://github.com/daemonhus/bench
@@ -69,7 +69,7 @@ The `--url` flag takes precedence over `BENCH_URL`.
 bench [global-flags] <category> <command> [command-flags]
 ```
 
-Six categories, mirroring the MCP tool groups:
+Eight categories, mirroring the MCP tool groups:
 
 | Category | Description |
 |----------|-------------|
@@ -80,6 +80,7 @@ Six categories, mirroring the MCP tool groups:
 | `baselines` | Set state snapshots and view deltas between sessions |
 | `analytics` | Summaries, coverage tracking, finding search |
 | `reconcile` | Reconcile annotation positions across commits |
+| `refs` | Link findings, features, and comments to external tickets and URLs |
 
 ### Discovering commands
 
@@ -97,7 +98,7 @@ bench findings create --help
 ## git
 
 ```bash
-# Regex search across the repo (uses ERE — alternation, +, ? and grouping work without escaping)
+# Regex search across the repo (RE2 syntax — alternation, +, ? and grouping work without escaping)
 bench git search-code --pattern "password.*=.*['\"]" --ignore-case
 
 # Alternation and grouping
@@ -369,6 +370,32 @@ bench reconcile history --id <finding-id> --type finding
 
 # Get the current reconciliation state
 bench reconcile head
+```
+
+## refs
+
+```bash
+# List all refs for a finding
+bench refs list --entity-type finding --entity <finding-id>
+
+# List by provider
+bench refs list --provider jira
+
+# Create a ref (provider inferred from URL)
+bench refs create \
+  --entity-type finding \
+  --entity <finding-id> \
+  --url https://linear.app/team/issue/PROJ-123 \
+  --title "PROJ-123"
+
+# Update a ref
+bench refs update --id <ref-id> --title "Updated label"
+
+# Delete a ref
+bench refs delete --id <ref-id>
+
+# Batch-create refs from JSON
+bench refs batch-create --input refs.json
 ```
 
 ## Relationship to the server

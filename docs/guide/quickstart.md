@@ -38,7 +38,7 @@ See [MCP overview](/mcp/) for the full tool list.
 
 ## Development
 
-**Prerequisites:** Go 1.23+, Node 20+, git
+**Prerequisites:** Go 1.24+, Node 20+, git
 
 ```bash
 cd bench
