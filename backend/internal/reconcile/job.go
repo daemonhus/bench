@@ -94,6 +94,22 @@ func (j *Job) fail(err string) {
 	j.mu.Unlock()
 }
 
+// completeWithWarning records a successful pass that nonetheless had per-file
+// errors. Status is "done" so callers know the work that succeeded is
+// persisted, but Error is populated so the UI and agents can surface the
+// partial failure. Use this when some files were orphaned or skipped but the
+// overall reconciliation produced a usable result.
+func (j *Job) completeWithWarning(result *ReconcileResult, warning string) {
+	now := time.Now()
+	j.mu.Lock()
+	j.Status = "done"
+	j.statusAtomic.Store("done")
+	j.Result = result
+	j.Error = warning
+	j.CompletedAt = &now
+	j.mu.Unlock()
+}
+
 // Snapshot returns a copy safe for serialization.
 func (j *Job) Snapshot() JobSnapshot {
 	j.mu.Lock()

@@ -134,11 +134,11 @@ var commands = []cmdDef{
 		EP: endpoint{"GET", "/api/git/branches"}},
 
 	// ── findings ────────────────────────────────────────────────────────
-	{Cat: "findings", Name: "list", Desc: "List findings, optionally filtered by file.",
+	{Cat: "findings", Name: "list", Desc: "List findings, optionally filtered by file. Pass --commit to enrich each finding with a 'confidence' field (exact|moved|orphaned); orphaned findings have no live anchor and need re-anchoring via `findings update --file ... --start ... --end ... --commit ...`.",
 		EP: endpoint{"GET", "/api/findings"},
 		Flags: []flagDef{
 			{Name: "file", Param: "fileId", Desc: "Filter by file path"},
-			{Name: "commit", Param: "commit", Desc: "Enrich with positions at this commit"},
+			{Name: "commit", Param: "commit", Desc: "Enrich with positions (confidence) at this commit"},
 			{Name: "severity", Param: "severity", Desc: "Filter by severity [critical|high|medium|low|info]"},
 			{Name: "status", Param: "status", Desc: "Filter by status [draft|open|in-progress|false-positive|accepted|closed]"},
 			{Name: "category", Param: "category", Desc: "Filter by category"},
@@ -215,13 +215,13 @@ var commands = []cmdDef{
 		Flags: []flagDef{{Name: "input", Param: "_input", Desc: "JSON file (default: stdin)", Type: "batch"}}},
 
 	// ── comments ────────────────────────────────────────────────────────
-	{Cat: "comments", Name: "list", Desc: "List comments, optionally filtered by file or finding.",
+	{Cat: "comments", Name: "list", Desc: "List comments, optionally filtered by file or finding. Pass --commit to enrich each comment with a 'confidence' field (exact|moved|orphaned); orphaned comments need re-anchoring via `comments update --file ... --start ... --end ... --commit ...`.",
 		EP: endpoint{"GET", "/api/comments"},
 		Flags: []flagDef{
 			{Name: "file", Param: "fileId", Desc: "Filter by file path"},
 			{Name: "finding", Param: "findingId", Desc: "Filter by finding ID"},
 			{Name: "feature", Param: "featureId", Desc: "Filter by feature ID"},
-			{Name: "commit", Param: "commit", Desc: "Enrich with positions at this commit"},
+			{Name: "commit", Param: "commit", Desc: "Enrich with positions (confidence) at this commit"},
 			{Name: "resolved", Param: "include_resolved", Desc: "Include resolved comments", Type: "bool"},
 		}},
 	{Cat: "comments", Name: "get", Desc: "Get a single comment by ID.",

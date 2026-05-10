@@ -318,7 +318,7 @@ get_delta               ← changedFiles shows what moved
 set_baseline            ← checkpoint the updated state
 ```
 
-**After a large refactor or directory restructure:** the reconciler will orphan annotations whose files moved. Check `reconcile status` results for orphaned counts, then manually update each anchor with `findings update --file <new-path>` before setting a baseline.
+**After a large refactor or directory restructure:** the reconciler will orphan annotations whose files moved. Run `bench reconcile start --target HEAD`, check the job result's `orphanedCount`, then re-anchor each one — see the "Un-orphaning Annotations" workflow below.
 
 ## Workflow: Feature Analysis (Attack Surface Mapping)
 
@@ -340,43 +340,58 @@ bench features batch-create --input /tmp/features-deps.json
 bench features batch-create --input /tmp/features-externalities.json
 ```
 
-## Workflow: Un-orphaning Annotations After a Path Restructure
+## Workflow: Un-orphaning Annotations
 
-Reconcile can update line numbers but cannot fix moved file paths — those require manual intervention.
+Annotations become orphaned when reconciliation can no longer locate their original code. The two common causes are (a) the file moved or its contents changed enough that the line-hash fallback misses, and (b) the anchor's commit is no longer in the repo (force push, `git filter-branch`, history GC). The recovery shape is the same either way.
 
-### 1. Identify orphaned annotations
+### 1. Run reconciliation
 
 ```bash
-bench reconcile start --target-commit HEAD
-bench reconcile status --job-id <id>   # check orphanedCount
-bench findings list --status orphaned
+bench reconcile start --target HEAD
+bench reconcile status --job <id>     # check orphanedCount in summary
 ```
 
-### 2. Update anchors
+### 2. Identify orphaned annotations
+
+Filter the list calls by confidence at HEAD. Findings and comments expose their orphan state through the `confidence` field (set by `--commit`); features expose it through `status`.
+
+```bash
+bench findings list --commit HEAD | jq '.[] | select(.confidence == "orphaned")'
+bench comments list --commit HEAD | jq '.[] | select(.confidence == "orphaned")'
+bench features list --status orphaned
+```
+
+From MCP, the equivalent calls are `list_findings(commit: "HEAD", orphaned_only: true)`, `list_comments(commit: "HEAD", orphaned_only: true)`, and `list_features(status: "orphaned")`.
+
+### 3. Re-anchor
+
+Pass the full new anchor (file, start, end, commit). The update handlers recompute `line_hash`, stamp `anchor_updated_at`, and immediately record an `exact` position — so the change takes effect without waiting for the next reconcile.
 
 ```bash
 bench findings update --id <id> --file <new-path> --start <n> --end <n> --commit HEAD
-bench features update --id <id> --file <new-path> --start <n> --commit HEAD
+bench comments update --id <id> --file <new-path> --start <n> --end <n> --commit HEAD
+bench features update --id <id> --file <new-path> --start <n> --end <n> --commit HEAD
 ```
 
-### 3. Force status back to active if reconcile doesn't clear it
+For features, also clear the orphan status after re-anchoring:
 
 ```bash
-bench findings update --id <id> --status open
 bench features update --id <id> --status active
 ```
+
+If the code at the old location was deleted entirely, map the anchor to the nearest representative location and add a comment explaining the remap.
 
 ### 4. Verify and baseline
 
 ```bash
-bench reconcile start --target-commit HEAD         # re-run to confirm zero orphans
-bench baselines set --reviewer <name> --summary "Re-anchored after restructure"
+bench reconcile start --target HEAD                # re-run to confirm zero orphans
+bench baselines set --reviewer <name> --summary "Re-anchored"
 ```
 
 Notes:
-- If the code at the old location was deleted entirely, map the anchor to the nearest representative location and add a comment explaining the remap.
 - Reconciliation confidence can only decrease (`exact` → `moved` → `orphaned`).
-- Check `reconcile history --type finding --id <id>` to see the full reconciliation trail.
+- Check `bench reconcile history --type finding --id <id>` (or `--type comment`) to see the full reconciliation trail.
+- If reconciliation completes with a warning like `N of M files failed`, the job's `result` is still populated — the failures are reported in the job's `error` field. Files whose anchor commits no longer exist are auto-orphaned and the job continues; you'll find them via step 2 above.
 
 ## Interfaces
 
@@ -455,4 +470,6 @@ docker logs $(docker ps -q --filter ancestor=bench) 2>&1 | tail -20
 | `CHECK constraint failed: severity IN (...)` | Use `info` not `informational` |
 | `CHECK constraint failed: source IN (...)` | Use `manual`, `pentest`, `tool`, or `mcp` |
 | `invalid JSON` (CLI, not server) | Wrong field type — `score` must be a number, `tags` must be an array |
-| `ancestry check: invalid git ref: ""` (reconcile) | Annotations have empty `commitId` — patch with `bench findings update --id <id> --commit <sha>`, then re-run reconcile |
+| `ancestry check: invalid git ref: ""` (reconcile) | Annotations have empty `commitId`. The PATCH handlers now reject empty commit strings, so this state can only persist on existing rows — patch with `bench findings update --id <id> --commit <sha>` and re-run reconcile. |
+| `ancestry check: unknown git ref` or `reference not found` (reconcile) | The anchor's commit is no longer in the repo (force push, `git filter-branch`, GC). The reconciler now auto-orphans these annotations and continues — find them via `bench findings list --commit HEAD \| jq '.[] \| select(.confidence == "orphaned")'` and re-anchor with `bench findings update ... --commit HEAD`. |
+| `commitId must be a non-empty string` (PATCH) | Don't pass `commit: ""` to update tools. Omit the field to leave the anchor commit unchanged. |

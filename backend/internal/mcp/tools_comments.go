@@ -29,7 +29,7 @@ func registerCommentTools(deps *toolDeps) []Tool {
 func toolListComments(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "list_comments",
-		Description: "List review comments. Filter by file, finding, or feature to scope results. Set full=true to return complete comment bodies in one call — use this instead of repeated get_comment calls when you need to read a thread.",
+		Description: "List review comments. Filter by file, finding, or feature to scope results. Set full=true to return complete comment bodies in one call — use this instead of repeated get_comment calls when you need to read a thread. Pass commit (or set orphaned_only=true) to enrich each row with a 'confidence' field (exact|moved|orphaned); use this to find comments whose anchor no longer points to live code.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
@@ -37,7 +37,9 @@ func toolListComments(deps *toolDeps) Tool {
 				"finding": {"type": "string", "description": "Filter to comments linked to this finding"},
 				"feature": {"type": "string", "description": "Filter to comments linked to this feature"},
 				"resolved": {"type": "boolean", "description": "Include resolved comments (default: false)"},
-				"full": {"type": "boolean", "description": "Return complete comment body instead of truncated preview (default: false)"}
+				"full": {"type": "boolean", "description": "Return complete comment body instead of truncated preview (default: false)"},
+				"commit": {"type": "string", "description": "Commit (or ref like HEAD) to compute effective positions against. When set, each comment gains a 'confidence' field. Required for orphaned_only."},
+				"orphaned_only": {"type": "boolean", "description": "Return only comments whose effective position at commit is 'orphaned'. Defaults commit to HEAD if omitted."}
 			}
 		}`),
 		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
@@ -47,9 +49,16 @@ func toolListComments(deps *toolDeps) Tool {
 				FeatureID       string `json:"feature"`
 				IncludeResolved bool   `json:"resolved"`
 				FullText        bool   `json:"full"`
+				Commit          string `json:"commit"`
+				OrphanedOnly    bool   `json:"orphaned_only"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {
 				return "", fmt.Errorf("invalid params: %w", err)
+			}
+			if p.OrphanedOnly && p.Commit == "" {
+				if head, err := deps.repo.Head(); err == nil {
+					p.Commit = head
+				}
 			}
 
 			comments, _, err := deps.db.ListComments(p.File, p.FindingID, 0, 0, p.FeatureID)
@@ -62,6 +71,27 @@ func toolListComments(deps *toolDeps) Tool {
 				filtered := comments[:0]
 				for _, c := range comments {
 					if c.ResolvedCommit == nil {
+						filtered = append(filtered, c)
+					}
+				}
+				comments = filtered
+			}
+
+			// Build a confidence map when commit is set
+			confidence := map[string]string{}
+			if p.Commit != "" && deps.reconciler != nil {
+				positions, err := deps.reconciler.GetEffectivePositions(p.File, p.Commit)
+				if err == nil {
+					for id, pos := range positions {
+						confidence[id] = pos.Confidence
+					}
+				}
+			}
+
+			if p.OrphanedOnly {
+				filtered := comments[:0]
+				for _, c := range comments {
+					if confidence[c.ID] == "orphaned" {
 						filtered = append(filtered, c)
 					}
 				}
@@ -85,6 +115,7 @@ func toolListComments(deps *toolDeps) Tool {
 				ThreadID    string  `json:"threadId"`
 				ParentID    *string `json:"parentId,omitempty"`
 				Resolved    bool    `json:"resolved,omitempty"`
+				Confidence  string  `json:"confidence,omitempty"`
 			}
 			summaries := make([]commentSummary, len(comments))
 			for i, c := range comments {
@@ -104,6 +135,7 @@ func toolListComments(deps *toolDeps) Tool {
 					ThreadID:    c.ThreadID,
 					ParentID:    c.ParentID,
 					Resolved:    c.ResolvedCommit != nil,
+					Confidence:  confidence[c.ID],
 				}
 				if c.Anchor.LineRange != nil {
 					s.Lines = fmt.Sprintf("%d-%d", c.Anchor.LineRange.Start, c.Anchor.LineRange.End)
@@ -263,7 +295,7 @@ func toolCreateComment(deps *toolDeps) Tool {
 func toolUpdateComment(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "update_comment",
-		Description: "Update a comment. Only specified fields are changed.",
+		Description: "Update a comment. Only specified fields are changed. Also the canonical way to re-anchor an orphaned comment: pass file, start, end, and commit (use HEAD when the original commit is gone) — line_hash is recomputed, anchor_updated_at is stamped, and a fresh 'exact' position is recorded so the change takes effect immediately. Omit a field to leave it unchanged; passing an empty commit is rejected.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {

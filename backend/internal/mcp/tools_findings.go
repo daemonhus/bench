@@ -29,7 +29,7 @@ func registerFindingTools(deps *toolDeps) []Tool {
 func toolListFindings(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "list_findings",
-		Description: "List security findings (summary view). Returns id, severity, status, title, file, lines, category, and comment count for each finding. Use get_finding for full details including description. Note: resolved defaults to false — set it to true when checking for duplicates before creating new findings. Baseline snapshots include all findings (including resolved), so delta counts may differ from this tool's output unless resolved is true.",
+		Description: "List security findings (summary view). Returns id, severity, status, title, file, lines, category, and comment count for each finding. Use get_finding for full details including description. Note: resolved defaults to false — set it to true when checking for duplicates before creating new findings. Baseline snapshots include all findings (including resolved), so delta counts may differ from this tool's output unless resolved is true. Pass commit (or set orphaned_only=true) to enrich each row with a 'confidence' field (exact|moved|orphaned); use this to find findings that need re-anchoring after a reconcile.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
@@ -37,7 +37,9 @@ func toolListFindings(deps *toolDeps) Tool {
 				"status": {"type": "string", "enum": ["draft", "open", "in-progress", "false-positive", "accepted", "closed"], "description": "Filter by status"},
 				"severity": {"type": "string", "enum": ["critical", "high", "medium", "low", "info"], "description": "Filter by severity"},
 				"resolved": {"type": "boolean", "description": "Include resolved findings (default: false)"},
-				"category": {"type": "string", "description": "Filter by category"}
+				"category": {"type": "string", "description": "Filter by category"},
+				"commit": {"type": "string", "description": "Commit (or ref like HEAD) to compute effective positions against. When set, each finding gains a 'confidence' field. Required for orphaned_only."},
+				"orphaned_only": {"type": "boolean", "description": "Return only findings whose effective position at commit is 'orphaned'. Defaults commit to HEAD if omitted."}
 			}
 		}`),
 		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
@@ -47,14 +49,32 @@ func toolListFindings(deps *toolDeps) Tool {
 				Severity        string `json:"severity"`
 				IncludeResolved bool   `json:"resolved"`
 				Category        string `json:"category"`
+				Commit          string `json:"commit"`
+				OrphanedOnly    bool   `json:"orphaned_only"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {
 				return "", fmt.Errorf("invalid params: %w", err)
+			}
+			if p.OrphanedOnly && p.Commit == "" {
+				if head, err := deps.repo.Head(); err == nil {
+					p.Commit = head
+				}
 			}
 
 			findings, _, err := deps.db.ListFindings(p.File, 0, 0)
 			if err != nil {
 				return "", err
+			}
+
+			// Build a confidence map when commit is set
+			confidence := map[string]string{}
+			if p.Commit != "" && deps.reconciler != nil {
+				positions, err := deps.reconciler.GetEffectivePositions(p.File, p.Commit)
+				if err == nil {
+					for id, pos := range positions {
+						confidence[id] = pos.Confidence
+					}
+				}
 			}
 
 			// Post-filter
@@ -70,6 +90,9 @@ func toolListFindings(deps *toolDeps) Tool {
 					continue
 				}
 				if !p.IncludeResolved && f.ResolvedCommit != nil {
+					continue
+				}
+				if p.OrphanedOnly && confidence[f.ID] != "orphaned" {
 					continue
 				}
 				filtered = append(filtered, f)
@@ -102,6 +125,7 @@ func toolListFindings(deps *toolDeps) Tool {
 				CommentCount int      `json:"commentCount,omitempty"`
 				Resolved     bool     `json:"resolved,omitempty"`
 				FeatureIDs   []string `json:"features,omitempty"`
+				Confidence   string   `json:"confidence,omitempty"`
 			}
 			summaries := make([]findingSummary, len(filtered))
 			for i, f := range filtered {
@@ -116,6 +140,7 @@ func toolListFindings(deps *toolDeps) Tool {
 					CommentCount: counts[f.ID],
 					Resolved:     f.ResolvedCommit != nil,
 					FeatureIDs:   f.FeatureIDs,
+					Confidence:   confidence[f.ID],
 				}
 				if f.Anchor.LineRange != nil {
 					s.Lines = fmt.Sprintf("%d-%d", f.Anchor.LineRange.Start, f.Anchor.LineRange.End)
@@ -291,7 +316,7 @@ func toolCreateFinding(deps *toolDeps) Tool {
 func toolUpdateFinding(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "update_finding",
-		Description: "Update a finding's metadata. Only specified fields are changed. Supports updating start and end to correct anchor positions — line_hash is recomputed automatically when the line range changes.",
+		Description: "Update a finding's metadata. Only specified fields are changed. Also the canonical way to re-anchor an orphaned finding after a refactor or history rewrite: pass file, start, end, and commit (use HEAD when the original commit is gone) — line_hash is recomputed, anchor_updated_at is stamped, and a fresh 'exact' position is recorded so the change takes effect immediately without waiting for the next reconcile. Omit a field to leave it unchanged; passing an empty commit is rejected.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {

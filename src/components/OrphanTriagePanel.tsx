@@ -3,6 +3,7 @@ import { useAnnotationStore } from '../stores/annotation-store';
 import { useRepoStore } from '../stores/repo-store';
 import type { Finding, Comment, Feature } from '../core/types';
 import { isOrphaned } from '../core/orphan';
+import { findingsApi, commentsApi, featuresApi } from '../core/api';
 import { AnchorField } from './AnchorField';
 
 interface Props {
@@ -23,15 +24,50 @@ function shortPath(p: string | undefined): string {
   return parts.length > 2 ? `…/${parts.slice(-2).join('/')}` : p;
 }
 
+type Scope = 'repo' | 'file';
+
 export const OrphanTriagePanel: React.FC<Props> = ({ onClose }) => {
-  const findings = useAnnotationStore((s) => s.findings);
-  const comments = useAnnotationStore((s) => s.comments);
-  const features = useAnnotationStore((s) => s.features);
   const updateFinding = useAnnotationStore((s) => s.updateFinding);
   const updateFeature = useAnnotationStore((s) => s.updateFeature);
   const updateComment = useAnnotationStore((s) => s.updateComment);
   const deleteComment = useAnnotationStore((s) => s.deleteComment);
   const currentCommit = useRepoStore((s) => s.currentCommit);
+  const selectedFilePath = useRepoStore((s) => s.selectedFilePath);
+
+  const [scope, setScope] = useState<Scope>('repo');
+  const [fetchedFindings, setFetchedFindings] = useState<Finding[]>([]);
+  const [fetchedComments, setFetchedComments] = useState<Comment[]>([]);
+  const [fetchedFeatures, setFetchedFeatures] = useState<Feature[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  // Always fetch fresh from the API. The annotation store gets populated by
+  // multiple callers with different fidelity (some pass `commit`, some don't),
+  // so trusting it for orphan detection is unreliable — by the time the modal
+  // opens, `confidence` may have been wiped by a no-commit refresh. The
+  // `commit` param ensures findings/comments come back enriched; features
+  // carry their orphan signal on `status` so a plain list is enough.
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    const commit = currentCommit ?? undefined;
+    const fileArg = scope === 'file' ? (selectedFilePath ?? undefined) : undefined;
+    Promise.all([
+      findingsApi.list(fileArg, commit).catch(() => []),
+      commentsApi.list(fileArg, commit).catch(() => []),
+      featuresApi.list(fileArg, undefined, undefined, commit).catch(() => []),
+    ]).then(([f, c, ft]) => {
+      if (cancelled) return;
+      setFetchedFindings(f as Finding[]);
+      setFetchedComments(c as Comment[]);
+      setFetchedFeatures(ft as Feature[]);
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [scope, currentCommit, selectedFilePath]);
+
+  const findings = fetchedFindings;
+  const comments = fetchedComments;
+  const features = fetchedFeatures;
 
   const orphanedFindings = useMemo(() => findings.filter(isOrphaned), [findings]);
   const orphanedFeatures = useMemo(() => features.filter(isOrphaned), [features]);
@@ -63,6 +99,9 @@ export const OrphanTriagePanel: React.FC<Props> = ({ onClose }) => {
   const toggleAll = () => {
     setSelected(allSelected ? new Set() : new Set(allKeys));
   };
+
+  // Selection set is scope-specific — clear it when the user flips the toggle.
+  useEffect(() => { setSelected(new Set()); }, [scope]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -202,23 +241,47 @@ export const OrphanTriagePanel: React.FC<Props> = ({ onClose }) => {
             </svg>
           </button>
         </div>
-        {total === 0 ? (
-          <div className="orphan-empty">Nothing orphaned. Reconciliation is clean.</div>
+        <div className="orphan-toolbar">
+          <div className="orphan-scope">
+            <button
+              className={`orphan-scope-btn${scope === 'repo' ? ' orphan-scope-btn-active' : ''}`}
+              onClick={() => setScope('repo')}
+              disabled={loading}
+            >
+              All files
+            </button>
+            <button
+              className={`orphan-scope-btn${scope === 'file' ? ' orphan-scope-btn-active' : ''}`}
+              onClick={() => setScope('file')}
+              disabled={!selectedFilePath}
+              title={selectedFilePath ? `Limit to ${selectedFilePath}` : 'No file selected'}
+            >
+              Current file
+            </button>
+          </div>
+          <div className="orphan-toolbar-actions">
+            <label className="orphan-toolbar-check">
+              <input type="checkbox" checked={allSelected} onChange={toggleAll} disabled={total === 0} />
+              Select all
+            </label>
+            <button
+              className="orphan-action orphan-action-danger"
+              disabled={selected.size === 0}
+              onClick={dismissSelected}
+            >
+              Dismiss selected{selected.size > 0 ? ` (${selected.size})` : ''}
+            </button>
+          </div>
+        </div>
+        {loading ? (
+          <div className="orphan-empty">Loading orphaned annotations…</div>
+        ) : total === 0 ? (
+          <div className="orphan-empty">
+            {scope === 'file'
+              ? 'No orphaned annotations on this file.'
+              : 'Nothing orphaned. Reconciliation is clean.'}
+          </div>
         ) : (
-          <>
-            <div className="orphan-toolbar">
-              <label className="orphan-toolbar-check">
-                <input type="checkbox" checked={allSelected} onChange={toggleAll} />
-                Select all
-              </label>
-              <button
-                className="orphan-action orphan-action-danger"
-                disabled={selected.size === 0}
-                onClick={dismissSelected}
-              >
-                Dismiss selected{selected.size > 0 ? ` (${selected.size})` : ''}
-              </button>
-            </div>
           <div className="orphan-body">
             {orphanedFindings.length > 0 && (
               <section className="orphan-section">
@@ -245,7 +308,6 @@ export const OrphanTriagePanel: React.FC<Props> = ({ onClose }) => {
               </section>
             )}
           </div>
-          </>
         )}
       </div>
     </div>

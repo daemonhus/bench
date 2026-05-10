@@ -1786,3 +1786,56 @@ func TestReconcile_Feature_OrphanedThenReAnchored(t *testing.T) {
 		t.Fatalf("expected lineEnd=12, got %v", latest.LineEnd)
 	}
 }
+
+func TestReconcile_UnknownAnchorCommit_OrphansAndContinues(t *testing.T) {
+	// Scenario: two files, both with annotations. The first file's annotation
+	// is anchored to a commit that no longer exists in the repo (e.g. force
+	// push); the second file is healthy. The reconciler should orphan the
+	// first file's annotations rather than failing the whole job, and the
+	// second file should still be reconciled normally.
+	g := &mockGit{
+		headCommit: "B",
+		revLists:   map[string][]string{"A..B": {"B"}},
+		ancestors:  map[string]bool{"A:B": true},
+		ancestorErrors: map[string]error{
+			"GHOST:B": fmt.Errorf("%w: GHOST", git.ErrUnknownRef),
+		},
+		shows: map[string]string{"B:src/healthy.py": "line 1\nline 2\nline 3"},
+	}
+	pos := &mockPositionStore{}
+	rec := &mockReconcileStore{states: map[string]string{}, files: []string{"src/ghost.py", "src/healthy.py"}}
+	ann := &mockAnnotationReader{
+		findings: map[string][]model.Finding{
+			"src/ghost.py": {{
+				ID:     "FIND-GHOST",
+				Anchor: model.Anchor{FileID: "src/ghost.py", CommitID: "GHOST", LineRange: &model.LineRange{Start: 1, End: 2}},
+			}},
+			"src/healthy.py": {{
+				ID:     "FIND-OK",
+				Anchor: model.Anchor{FileID: "src/healthy.py", CommitID: "A", LineRange: &model.LineRange{Start: 1, End: 2}},
+			}},
+		},
+	}
+
+	r := NewReconciler(g, pos, rec, ann)
+	jobID := r.StartJob("B", nil)
+	s := waitForJob(r, jobID)
+
+	if s.Status != "done" {
+		t.Fatalf("expected done despite one bad anchor, got %s: %s", s.Status, s.Error)
+	}
+	if s.Result.Annotations.Orphaned != 1 {
+		t.Fatalf("expected 1 orphaned, got %d", s.Result.Annotations.Orphaned)
+	}
+	ghostPositions, _ := pos.GetPositions("FIND-GHOST", "finding")
+	if len(ghostPositions) != 1 || ghostPositions[0].Confidence != "orphaned" {
+		t.Fatalf("expected ghost finding to be orphaned, got %+v", ghostPositions)
+	}
+	if ghostPositions[0].FileID != nil {
+		t.Fatalf("expected orphaned position FileID=nil, got %v", *ghostPositions[0].FileID)
+	}
+	okPositions, _ := pos.GetPositions("FIND-OK", "finding")
+	if len(okPositions) != 1 || okPositions[0].Confidence == "orphaned" {
+		t.Fatalf("expected healthy finding to be exact, got %+v", okPositions)
+	}
+}

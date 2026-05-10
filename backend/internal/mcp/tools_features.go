@@ -67,7 +67,7 @@ const paramItemSchema = `{
 func toolListFeatures(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "list_features",
-		Description: "List architectural features (API interfaces, data sources/sinks, dependencies, externalities) annotated on the codebase.",
+		Description: "List architectural features (API interfaces, data sources/sinks, dependencies, externalities) annotated on the codebase. To surface features whose anchor no longer points to live code, filter with status='orphaned' — the reconciler marks features that way when their original location is gone, and the recovery path is update_feature with new file/start/end/commit.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
@@ -336,7 +336,7 @@ func toolCreateFeature(deps *toolDeps) Tool {
 func toolUpdateFeature(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "update_feature",
-		Description: "Update a feature annotation. Only specified fields are changed.",
+		Description: "Update a feature annotation. Only specified fields are changed. Also the canonical way to re-anchor an orphaned feature (status='orphaned'): pass file, start, end, and commit (use HEAD when the original commit is gone) — line_hash is recomputed, anchor_updated_at is stamped, and a fresh 'exact' position is recorded. After re-anchoring, also set status='active' to clear the orphaned flag. Omit a field to leave it unchanged; passing an empty commit is rejected.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {

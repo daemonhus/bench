@@ -594,6 +594,51 @@
   background: var(--bg-tertiary);
 }
 
+.orphan-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.orphan-scope {
+  display: inline-flex;
+  align-items: center;
+  background: var(--bg-surface);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+  gap: 2px;
+}
+
+.orphan-scope-btn {
+  padding: 3px 10px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-xs);
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color var(--transition-fast), background var(--transition-fast);
+  white-space: nowrap;
+}
+
+.orphan-scope-btn:hover:not(:disabled):not(.orphan-scope-btn-active) {
+  color: var(--text-primary);
+  background: var(--hover-subtle);
+}
+
+.orphan-scope-btn-active {
+  background: var(--accent-blue-subtle);
+  color: var(--accent-blue);
+  cursor: default;
+}
+
+.orphan-scope-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .orphan-toolbar-check {
   display: flex;
   gap: 6px;

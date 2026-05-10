@@ -353,13 +353,22 @@ func (r *Reconciler) runJob(job *Job) {
 
 	summary := ReconcileSummary{}
 	totalCommits := 0
+	var fileErrors []string
 
 	for i, fileID := range files {
 		commitsWalked, fileSummary, err := r.reconcileFile(job, fileID, job.TargetCommit)
 		if err != nil {
-			log.Printf("[reconcile] job %s: FAILED on file %s: %v", job.ID, fileID, err)
-			job.fail(fmt.Sprintf("reconcile %s: %v", fileID, err))
-			return
+			// One bad file shouldn't kill the whole reconcile pass — log it,
+			// remember it for the job-level summary, and continue.
+			log.Printf("[reconcile] job %s: file %s FAILED: %v", job.ID, fileID, err)
+			fileErrors = append(fileErrors, fmt.Sprintf("%s: %v", fileID, err))
+			job.setProgress(JobProgress{
+				FilesTotal:   len(files),
+				FilesDone:    i + 1,
+				CommitsTotal: totalCommits,
+				CommitsDone:  totalCommits,
+			})
+			continue
 		}
 		log.Printf("[reconcile] job %s: file %d/%d %s — %d commits, %d annotations (exact=%d moved=%d orphaned=%d resolved=%d)",
 			job.ID, i+1, len(files), fileID, commitsWalked,
@@ -380,14 +389,26 @@ func (r *Reconciler) runJob(job *Job) {
 	}
 
 	dur := time.Since(start)
-	log.Printf("[reconcile] job %s: DONE in %s — %d files, %d commits, %d annotations",
-		job.ID, dur, len(files), totalCommits, summary.Total)
-	job.complete(&ReconcileResult{
-		FilesReconciled: len(files),
+	result := &ReconcileResult{
+		FilesReconciled: len(files) - len(fileErrors),
 		CommitsWalked:   totalCommits,
 		Annotations:     summary,
 		DurationMs:      dur.Milliseconds(),
-	})
+	}
+	if len(fileErrors) > 0 {
+		log.Printf("[reconcile] job %s: completed with %d file error(s) in %s — %d files, %d commits, %d annotations",
+			job.ID, len(fileErrors), dur, result.FilesReconciled, totalCommits, summary.Total)
+		// Surface the first few errors so the UI banner has something specific.
+		preview := fileErrors
+		if len(preview) > 3 {
+			preview = preview[:3]
+		}
+		job.completeWithWarning(result, fmt.Sprintf("%d of %d files failed: %s", len(fileErrors), len(files), strings.Join(preview, "; ")))
+		return
+	}
+	log.Printf("[reconcile] job %s: DONE in %s — %d files, %d commits, %d annotations",
+		job.ID, dur, len(files), totalCommits, summary.Total)
+	job.complete(result)
 }
 
 // annotationInfo holds the working state for an annotation during reconciliation.
@@ -553,9 +574,15 @@ func (r *Reconciler) reconcileFile(job *Job, fileID, targetCommit string) (int, 
 		return 0, countSummary(anns), nil
 	}
 
-	// Check ancestry (rebase detection)
+	// Check ancestry (rebase detection). If the source commit no longer exists
+	// in the repo (force-push, history rewrite, branch dropped), we can't walk
+	// any diffs from it — mark all of this file's annotations orphaned and
+	// move on rather than failing the entire job.
 	isAnc, err := r.git.IsAncestor(fromCommit, targetCommit)
 	if err != nil {
+		if errors.Is(err, git.ErrUnknownRef) {
+			return r.orphanAllForFile(anns, fileID, targetCommit, "anchor commit no longer exists")
+		}
 		return 0, ReconcileSummary{}, fmt.Errorf("ancestry check: %w", err)
 	}
 
@@ -563,6 +590,9 @@ func (r *Reconciler) reconcileFile(job *Job, fileID, targetCommit string) (int, 
 		// Rebase detected — find merge base and reset
 		mergeBase, err := r.git.MergeBase(fromCommit, targetCommit)
 		if err != nil {
+			if errors.Is(err, git.ErrUnknownRef) {
+				return r.orphanAllForFile(anns, fileID, targetCommit, "anchor commit no longer exists")
+			}
 			return 0, ReconcileSummary{}, fmt.Errorf("merge-base: %w", err)
 		}
 
@@ -601,6 +631,9 @@ func (r *Reconciler) reconcileFile(job *Job, fileID, targetCommit string) (int, 
 	// Get the commit path
 	commits, err := r.git.RevList(fromCommit, targetCommit)
 	if err != nil {
+		if errors.Is(err, git.ErrUnknownRef) {
+			return r.orphanAllForFile(anns, fileID, targetCommit, "anchor commit no longer exists")
+		}
 		return 0, ReconcileSummary{}, fmt.Errorf("rev-list: %w", err)
 	}
 
@@ -747,6 +780,35 @@ func (r *Reconciler) reconcileFile(job *Job, fileID, targetCommit string) (int, 
 	summary := countSummary(anns)
 	summary.Resolved = resolved
 	return len(commits), summary, nil
+}
+
+// orphanAllForFile marks every annotation for a file as orphaned, persists
+// the position rows, and records reconciliation state so the file isn't
+// re-queued. Used when the source commit can't be located in the repo and
+// no diff walk is possible.
+func (r *Reconciler) orphanAllForFile(anns []annotationInfo, fileID, targetCommit, reason string) (int, ReconcileSummary, error) {
+	log.Printf("[reconcile] orphaning %d annotations for %s: %s", len(anns), fileID, reason)
+	for i := range anns {
+		anns[i].confidence = "orphaned"
+		anns[i].lineStart = 0
+		anns[i].lineEnd = 0
+		err := r.pos.InsertPosition(&model.AnnotationPosition{
+			AnnotationID:   anns[i].id,
+			AnnotationType: anns[i].typ,
+			CommitID:       targetCommit,
+			FileID:         nil,
+			LineStart:      intPtr(0),
+			LineEnd:        intPtr(0),
+			Confidence:     "orphaned",
+		})
+		if err != nil {
+			return 0, ReconcileSummary{}, fmt.Errorf("insert orphan position for %s: %w", anns[i].id, err)
+		}
+	}
+	if err := r.rec.SetReconciliationState(fileID, targetCommit); err != nil {
+		return 0, ReconcileSummary{}, fmt.Errorf("update reconciliation state: %w", err)
+	}
+	return 0, countSummary(anns), nil
 }
 
 // mapAnnotations maps all annotations through a set of diff hunks for a single commit step.
