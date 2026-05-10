@@ -198,6 +198,9 @@ func (h *commentsHandlers) update(w http.ResponseWriter, r *http.Request) {
 	if !decodeBody(w, r, &updates) {
 		return
 	}
+	if !validateAnchorUpdate(w, updates) {
+		return
+	}
 	if err := h.db.UpdateComment(id, updates); err != nil {
 		writeDBError(w, err)
 		return

@@ -104,6 +104,7 @@ export function App() {
   const fetchReconciledHead = useReconcileStore((s) => s.fetchHead);
   const startReconcile = useReconcileStore((s) => s.startReconcile);
   const activeJob = useReconcileStore((s) => s.activeJob);
+  const lastReconciledHead = useReconcileStore((s) => s.lastReconciledHead);
 
   // Navigation history
   const pushFile = useNavigationStore((s) => s.pushFile);
@@ -582,16 +583,16 @@ export function App() {
     return map;
   }, [allFindings]);
 
-  // Trigger background reconciliation when switching commits (once per commit)
-  const reconciledForCommit = useRef<string | null>(null);
+  // Trigger background reconciliation when switching commits (once per commit).
+  // The guard lives in reconcile-store as `lastReconciledHead` so retry() can
+  // clear it and re-arm this effect after a failed run.
   useEffect(() => {
     if (!currentCommit) return;
-    if (reconciledForCommit.current === currentCommit) return;
+    if (lastReconciledHead === currentCommit) return;
     if (reconciledHead && !reconciledHead.isFullyReconciled) {
-      reconciledForCommit.current = currentCommit;
       startReconcile(currentCommit);
     }
-  }, [currentCommit, reconciledHead, startReconcile]);
+  }, [currentCommit, reconciledHead, lastReconciledHead, startReconcile]);
 
   // Re-fetch annotations when reconciliation job completes (live transition)
   useEffect(() => {

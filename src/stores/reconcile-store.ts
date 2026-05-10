@@ -7,9 +7,14 @@ interface ReconcileState {
   activeJob: JobSnapshot | null;
   loading: boolean;
   error: string | null;
+  // Last commit for which we auto-triggered a reconcile. The auto-trigger
+  // effect skips when this matches the current commit. Cleared by retry()
+  // so a failed run can be re-armed without remounting.
+  lastReconciledHead: string | null;
 
   fetchHead: () => Promise<void>;
   startReconcile: (targetCommit: string, filePaths?: string[]) => Promise<void>;
+  retry: (targetCommit: string) => Promise<void>;
   pollJob: (jobId: string) => void;
   stopPolling: () => void;
 }
@@ -21,6 +26,7 @@ export const useReconcileStore = create<ReconcileState>((set, get) => ({
   activeJob: null,
   loading: false,
   error: null,
+  lastReconciledHead: null,
 
   fetchHead: async () => {
     try {
@@ -32,7 +38,7 @@ export const useReconcileStore = create<ReconcileState>((set, get) => ({
   },
 
   startReconcile: async (targetCommit, filePaths) => {
-    set({ loading: true, error: null });
+    set({ loading: true, error: null, lastReconciledHead: targetCommit });
     try {
       const job = await reconcileApi.start(targetCommit, filePaths);
       set({ activeJob: job, loading: false });
@@ -42,6 +48,13 @@ export const useReconcileStore = create<ReconcileState>((set, get) => ({
     } catch (err) {
       set({ loading: false, error: String(err) });
     }
+  },
+
+  retry: async (targetCommit) => {
+    // Clear the auto-trigger guard so the effect re-arms after a failed run,
+    // then kick off a fresh reconcile for the same commit.
+    set({ lastReconciledHead: null, activeJob: null, error: null });
+    await get().startReconcile(targetCommit);
   },
 
   pollJob: (jobId) => {

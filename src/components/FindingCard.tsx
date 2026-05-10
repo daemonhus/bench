@@ -16,6 +16,9 @@ import { highlight, renderToken } from '../core/tokenizer';
 import { RefProviderIcon } from './RefProviderIcon';
 import { RefManageModal } from './RefManageModal';
 import { LinkManageModal } from './LinkManageModal';
+import { CommentEditor } from './CommentEditor';
+import { AnchorField } from './AnchorField';
+import { isOrphaned } from '../core/orphan';
 
 interface FindingCardProps {
   finding: Finding;
@@ -118,7 +121,6 @@ export const FindingCard: React.FC<FindingCardProps> = ({
   const [replyText, setReplyText] = useState(consumedDraft);
   const [submittingReply, setSubmittingReply] = useState(false);
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
-  const [editCommentText, setEditCommentText] = useState('');
   const [showAllComments, setShowAllComments] = useState(false);
 
   // Clear consumed draft once hydrated into local state
@@ -448,38 +450,18 @@ export const FindingCard: React.FC<FindingCardProps> = ({
             />
           </div>
 
-          <div className="finding-edit-row">
-            <label className="finding-edit-label">File</label>
-            <input
-              className="finding-edit-input-sm"
-              value={anchorFileId}
-              onChange={(e) => setAnchorFileId(e.target.value)}
-              placeholder="src/api/auth.go"
-              style={{ flex: 1 }}
-            />
-          </div>
-
-          <div className="finding-edit-row">
-            <label className="finding-edit-label">Lines</label>
-            <input
-              className="finding-edit-input-sm"
-              type="number"
-              min="1"
-              value={anchorLineStart}
-              onChange={(e) => setAnchorLineStart(e.target.value)}
-              placeholder="start"
-              style={{ width: 64 }}
-            />
-            <span style={{ padding: '0 4px', color: 'var(--text-muted)' }}>–</span>
-            <input
-              className="finding-edit-input-sm"
-              type="number"
-              min="1"
-              value={anchorLineEnd}
-              onChange={(e) => setAnchorLineEnd(e.target.value)}
-              placeholder="end"
-              style={{ width: 64 }}
-            />
+          <div className="finding-edit-row finding-edit-row-anchor">
+            <label className="finding-edit-label">Anchor</label>
+            <div className="finding-edit-anchor-wrap">
+              <AnchorField
+                fileId={anchorFileId}
+                lineStart={anchorLineStart}
+                lineEnd={anchorLineEnd}
+                onFileIdChange={setAnchorFileId}
+                onLineStartChange={setAnchorLineStart}
+                onLineEndChange={setAnchorLineEnd}
+              />
+            </div>
           </div>
 
           <div className="finding-edit-actions">
@@ -693,6 +675,11 @@ export const FindingCard: React.FC<FindingCardProps> = ({
               <div key={c.id} className={`finding-comment${editingCommentId === c.id ? ' finding-comment-editing' : ''}`}>
                 <div className="finding-comment-header">
                   <span className="finding-comment-author">{c.author}</span>
+                  {isOrphaned(c) && (
+                    <span className="comment-orphan-badge" title="This comment's anchor no longer points to live code">
+                      Orphaned
+                    </span>
+                  )}
                   <span className="finding-comment-time">
                     {new Date(c.timestamp).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}{' '}{new Date(c.timestamp).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
                   </span>
@@ -709,7 +696,7 @@ export const FindingCard: React.FC<FindingCardProps> = ({
                       </button>
                       <button
                         className="comment-icon-btn"
-                        onClick={() => { setEditingCommentId(c.id); setEditCommentText(c.text); }}
+                        onClick={() => setEditingCommentId(c.id)}
                         title="Edit"
                       >&#x270E;</button>
                       <button
@@ -737,35 +724,21 @@ export const FindingCard: React.FC<FindingCardProps> = ({
                   </div>
                 )}
                 {editingCommentId === c.id ? (
-                  <div>
-                    <textarea
-                      className="comment-textarea"
-                      value={editCommentText}
-                      onChange={(e) => setEditCommentText(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                          updateComment(editingCommentId!, editCommentText.trim());
-                          setEditingCommentId(null);
-                        }
-                        if (e.key === 'Escape') setEditingCommentId(null);
-                      }}
-                      rows={2}
-                      autoFocus
-                    />
-                    <div className="comment-form-actions">
-                      <button className="comment-btn comment-btn-cancel" onClick={() => setEditingCommentId(null)}>Cancel</button>
-                      <button
-                        className="comment-btn comment-btn-submit"
-                        onClick={() => {
-                          if (editCommentText.trim()) {
-                            updateComment(editingCommentId!, editCommentText.trim());
-                            setEditingCommentId(null);
-                          }
-                        }}
-                        disabled={!editCommentText.trim()}
-                      >Save</button>
-                    </div>
-                  </div>
+                  <CommentEditor
+                    initialText={c.text}
+                    showTypeToggle={false}
+                    showAnchor={isOrphaned(c)}
+                    initialAnchor={c.anchor.fileId ? {
+                      fileId: c.anchor.fileId,
+                      lineStart: c.anchor.lineRange?.start ?? 0,
+                      lineEnd: c.anchor.lineRange?.end ?? 0,
+                    } : undefined}
+                    onSave={(text, _type, anchor) => {
+                      updateComment(c.id, text, undefined, anchor);
+                      setEditingCommentId(null);
+                    }}
+                    onCancel={() => setEditingCommentId(null)}
+                  />
                 ) : (
                   <div className="finding-comment-text">
                     <InlineMarkdown text={c.text} />

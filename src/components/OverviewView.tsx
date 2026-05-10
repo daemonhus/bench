@@ -8,6 +8,8 @@ import { useAnnotationStore } from '../stores/annotation-store';
 import { useUIStore } from '../stores/ui-store';
 import { useBaselineStore } from '../stores/baseline-store';
 import { FindingCard } from './FindingCard';
+import { CommentEditor } from './CommentEditor';
+import { isOrphaned } from '../core/orphan';
 import { AnnotationFilters, ALL_SEVERITIES, ALL_STATUSES } from './AnnotationFilters';
 import type { Finding, Comment, GraphCommit, Severity, LineRange, FindingStatus } from '../core/types';
 import { COMMENT_TYPE_ICON, COMMENT_TYPE_LABEL } from '../core/types';
@@ -43,8 +45,6 @@ export const OverviewView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [expandedFindingId, setExpandedFindingId] = useState<string | null>(null);
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
-  const [editCommentText, setEditCommentText] = useState('');
-  const [editCommentType, setEditCommentType] = useState<import('../core/types').CommentType>('');
   const commits = useRepoStore((s) => s.commits);
   const branches = useRepoStore((s) => s.branches);
   const reconciledHead = useReconcileStore((s) => s.head);
@@ -286,26 +286,6 @@ export const OverviewView: React.FC = () => {
     window.location.hash = `#/diff/${parentHash}/${hash}`;
   };
 
-  const handleStartEditComment = (c: Comment) => {
-    setEditingCommentId(c.id);
-    setEditCommentText(c.text);
-    setEditCommentType(c.commentType ?? '');
-  };
-
-  const handleSaveEditComment = () => {
-    if (!editingCommentId || !editCommentText.trim()) return;
-    storeUpdateComment(editingCommentId, editCommentText.trim(), editCommentType || undefined);
-    setEditingCommentId(null);
-    setEditCommentText('');
-    setEditCommentType('');
-  };
-
-  const handleCancelEditComment = () => {
-    setEditingCommentId(null);
-    setEditCommentText('');
-    setEditCommentType('');
-  };
-
   const handleDeleteComment = (id: string) => {
     storeDeleteComment(id);
   };
@@ -362,6 +342,11 @@ export const OverviewView: React.FC = () => {
                   <div className="overview-card-header">
                     <span className="overview-card-header-left">
                       <span className="comment-card-author">{c.author}</span>
+                      {isOrphaned(c) && (
+                        <span className="comment-orphan-badge" title="This comment's anchor no longer points to live code">
+                          Orphaned
+                        </span>
+                      )}
                       <span className="overview-card-date" title={new Date(c.timestamp).toISOString()}>
                         {shortDate(c.timestamp)}
                       </span>
@@ -370,7 +355,7 @@ export const OverviewView: React.FC = () => {
                       <div className="overview-comment-actions">
                         <button
                           className="comment-icon-btn"
-                          onClick={(e) => { e.stopPropagation(); handleStartEditComment(c); }}
+                          onClick={(e) => { e.stopPropagation(); setEditingCommentId(c.id); }}
                           title="Edit"
                         >&#x270E;</button>
                         <button
@@ -382,42 +367,21 @@ export const OverviewView: React.FC = () => {
                     )}
                   </div>
                   {editingCommentId === c.id ? (
-                    <div className="comment-card-edit">
-                      <div className="comment-type-toggle-row">
-                        <div className="comment-type-toggle">
-                          {(['feature', 'improvement', 'question', 'concern'] as const).map((t) => (
-                            <button
-                              key={t}
-                              className={`comment-type-toggle-btn${editCommentType === t ? ' active' : ''}`}
-                              onClick={() => setEditCommentType(editCommentType === t ? '' : t)}
-                              title={t.charAt(0).toUpperCase() + t.slice(1)}
-                            >
-                              {COMMENT_TYPE_ICON[t]}
-                            </button>
-                          ))}
-                        </div>
-                        <textarea
-                          className="comment-textarea"
-                          style={{ flex: 1 }}
-                          value={editCommentText}
-                          onChange={(e) => setEditCommentText(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSaveEditComment();
-                            if (e.key === 'Escape') handleCancelEditComment();
-                          }}
-                          rows={2}
-                          autoFocus
-                        />
-                      </div>
-                      <div className="comment-form-actions">
-                        <button className="comment-btn comment-btn-cancel" onClick={handleCancelEditComment}>Cancel</button>
-                        <button
-                          className="comment-btn comment-btn-submit"
-                          onClick={handleSaveEditComment}
-                          disabled={!editCommentText.trim()}
-                        >Save</button>
-                      </div>
-                    </div>
+                    <CommentEditor
+                      initialText={c.text}
+                      initialType={c.commentType}
+                      showAnchor={isOrphaned(c)}
+                      initialAnchor={c.anchor.fileId ? {
+                        fileId: c.anchor.fileId,
+                        lineStart: c.anchor.lineRange?.start ?? 0,
+                        lineEnd: c.anchor.lineRange?.end ?? 0,
+                      } : undefined}
+                      onSave={(text, type, anchor) => {
+                        storeUpdateComment(c.id, text, type, anchor);
+                        setEditingCommentId(null);
+                      }}
+                      onCancel={() => setEditingCommentId(null)}
+                    />
                   ) : (
                     <div className="comment-card-text">
                       {c.commentType && COMMENT_TYPE_ICON[c.commentType] && (

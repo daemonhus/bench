@@ -9,9 +9,96 @@ import { FeatureCard } from './FeatureCard';
 import type { Finding, Comment, Feature, CommentType, Severity, FindingStatus, FeatureKind, ReconciledHead, JobSnapshot } from '../core/types';
 import { getEffectiveLineRange, COMMENT_TYPE_ICON, COMMENT_TYPE_LABEL, FINDING_CATEGORIES } from '../core/types';
 import { featuresApi } from '../core/api';
+import { explainReconcileError } from '../core/reconcileErrors';
+import { isOrphaned, countOrphaned } from '../core/orphan';
+import { CommentEditor } from './CommentEditor';
+import { OrphanTriagePanel } from './OrphanTriagePanel';
 import { InlineMarkdown } from '../core/markdown';
 import { useBranchMap } from '../core/use-branch-map';
 import { useNavList } from '../core/use-nav-list';
+
+const OrphanCountBadge: React.FC<{ activeJob: JobSnapshot | null; onOpen: () => void }> = ({ activeJob, onOpen }) => {
+  // Prefer the most recent job's orphan count when available; otherwise fall
+  // back to counting orphaned entities already loaded in the store so the
+  // badge stays accurate across reloads when no reconcile has run yet.
+  const storeFindings = useAnnotationStore((s) => s.findings);
+  const storeFeatures = useAnnotationStore((s) => s.features);
+  const storeComments = useAnnotationStore((s) => s.comments);
+
+  const jobOrphans = activeJob?.status === 'done' ? activeJob.result?.annotations.orphaned ?? 0 : 0;
+  const storeOrphans = countOrphaned(storeFindings) + countOrphaned(storeFeatures) + countOrphaned(storeComments);
+  const orphaned = Math.max(jobOrphans, storeOrphans);
+  if (orphaned <= 0) return null;
+  return (
+    <button
+      type="button"
+      className="sidebar-orphan-badge"
+      title={`${orphaned} annotation${orphaned === 1 ? '' : 's'} orphaned — click to triage`}
+      onClick={onOpen}
+    >
+      {orphaned} orphaned
+    </button>
+  );
+};
+
+const ReconcileFailedBanner: React.FC<{ activeJob: JobSnapshot }> = ({ activeJob }) => {
+  const [showRaw, setShowRaw] = useState(false);
+  const retry = useReconcileStore((s) => s.retry);
+  const loading = useReconcileStore((s) => s.loading);
+  const view = explainReconcileError(activeJob.error);
+  return (
+    <div className="sidebar-unreconciled sidebar-reconcile-failed">
+      <div className="sidebar-unreconciled-icon">&#x2716;</div>
+      <div className="sidebar-unreconciled-title">Reconciliation failed</div>
+      <div className="sidebar-unreconciled-text">
+        {showRaw ? view.raw || view.message : view.message}
+      </div>
+      <div className="sidebar-unreconciled-actions">
+        <button
+          className="sidebar-retry-btn"
+          disabled={loading}
+          onClick={() => retry(activeJob.targetCommit)}
+        >
+          {loading ? 'Retrying...' : 'Retry reconciliation'}
+        </button>
+        {view.raw && view.raw !== view.message && (
+          <button className="sidebar-retry-link" onClick={() => setShowRaw((s) => !s)}>
+            {showRaw ? 'Hide details' : 'Show raw error'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const FailedTooltipBody: React.FC<{ activeJob: JobSnapshot }> = ({ activeJob }) => {
+  const [showRaw, setShowRaw] = useState(false);
+  const retry = useReconcileStore((s) => s.retry);
+  const loading = useReconcileStore((s) => s.loading);
+  const view = explainReconcileError(activeJob.error);
+  return (
+    <>
+      <div className="reconcile-tooltip-title reconcile-tooltip-error">Reconciliation failed</div>
+      <div className="reconcile-tooltip-detail reconcile-tooltip-error-detail">
+        {showRaw ? view.raw || view.message : view.message}
+      </div>
+      <div className="reconcile-tooltip-actions">
+        <button
+          className="reconcile-tooltip-btn"
+          disabled={loading}
+          onClick={() => retry(activeJob.targetCommit)}
+        >
+          {loading ? 'Retrying...' : 'Retry'}
+        </button>
+        {view.raw && view.raw !== view.message && (
+          <button className="reconcile-tooltip-btn-link" onClick={() => setShowRaw((s) => !s)}>
+            {showRaw ? 'Hide details' : 'Show raw error'}
+          </button>
+        )}
+      </div>
+    </>
+  );
+};
 
 const ReconcileIndicator: React.FC<{
   reconciledHead: ReconciledHead | null;
@@ -53,6 +140,7 @@ const ReconcileIndicator: React.FC<{
   let cls: string;
   if (isRunning) { icon = '\u21bb'; cls = 'reconcile-status-running'; }
   else if (isOk) { icon = '\u2713'; cls = 'reconcile-status-ok'; }
+  else if (isFailed) { icon = '\u2716'; cls = 'reconcile-status-failed'; }
   else { icon = '\u26A0'; cls = 'reconcile-status-warn'; }
 
   const tooltipContent = open && pos ? ReactDOM.createPortal(
@@ -126,12 +214,7 @@ const ReconcileIndicator: React.FC<{
         </>
       )}
       {isFailed && activeJob && (
-        <>
-          <div className="reconcile-tooltip-title reconcile-tooltip-error">Reconciliation failed</div>
-          <div className="reconcile-tooltip-detail reconcile-tooltip-error-detail">
-            {activeJob.error || 'Unknown error'}
-          </div>
-        </>
+        <FailedTooltipBody activeJob={activeJob} />
       )}
     </div>,
     document.body,
@@ -219,8 +302,7 @@ export const Sidebar: React.FC = () => {
 
   // Editing state
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editText, setEditText] = useState('');
-  const [editCommentType, setEditCommentType] = useState<CommentType>('');
+  const [showOrphanTriage, setShowOrphanTriage] = useState(false);
 
   // Pending focus target after Enter expands a finding card — consumed by effect
   // below once React commits the expanded state and the textarea is in the DOM.
@@ -295,7 +377,6 @@ export const Sidebar: React.FC = () => {
     setShowNewFeature(false);
     setNewFeatureTitle('');
     setEditingId(null);
-    setEditText('');
     setCommentDrag({ isActive: false, startLine: null, endLine: null, side: null });
     setAnnotationAction(null);
     setHighlightRange(null);
@@ -685,27 +766,6 @@ export const Sidebar: React.FC = () => {
     }
   };
 
-  const handleStartEdit = (comment: Comment) => {
-    setEditingId(comment.id);
-    setEditText(comment.text);
-    setEditCommentType(comment.commentType ?? '');
-  };
-
-  const handleSaveEdit = () => {
-    if (editingId && editText.trim()) {
-      updateComment(editingId, editText.trim(), editCommentType);
-    }
-    setEditingId(null);
-    setEditText('');
-    setEditCommentType('');
-  };
-
-  const handleCancelEdit = () => {
-    setEditingId(null);
-    setEditText('');
-    setEditCommentType('');
-  };
-
   const handleDelete = (id: string) => {
     deleteComment(id);
   };
@@ -722,8 +782,11 @@ export const Sidebar: React.FC = () => {
   const contentHeight = topOffset + Math.max(codeViewHeight, cardsBottom + 48);
 
   const hasAnnotations = fileFindings.length > 0 || fileComments.length > 0 || fileFeatures.length > 0;
+  const isReconcileFailed = activeJob?.status === 'failed';
+  const isReconcileRunning = activeJob?.status === 'pending' || activeJob?.status === 'running';
   const isUnreconciled = hasAnnotations && !hasReconciliationData
-    && reconciledHead !== null && !reconciledHead.isFullyReconciled;
+    && reconciledHead !== null && !reconciledHead.isFullyReconciled
+    && !isReconcileFailed;
   const hasItems = activityItems.length > 0 || showNewComment || showNewFinding || showNewFeature;
 
   return (
@@ -775,6 +838,7 @@ export const Sidebar: React.FC = () => {
       <div className="sidebar-header">
         <span className="sidebar-title">Activity</span>
         <span className="sidebar-count">{activityItems.length + fileFeatures.length}</span>
+        <OrphanCountBadge activeJob={activeJob} onOpen={() => setShowOrphanTriage(true)} />
         <ReconcileIndicator reconciledHead={reconciledHead} activeJob={activeJob} />
         <button className="panel-drawer-btn" onClick={toggleSidebar} data-tooltip="Collapse sidebar">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -799,13 +863,15 @@ export const Sidebar: React.FC = () => {
       )}
 
       <div className="sidebar-content" ref={contentRef}>
-        {isUnreconciled && !showNewComment && !showNewFinding && !showNewFeature ? (
+        {isReconcileFailed && activeJob && !showNewComment && !showNewFinding && !showNewFeature ? (
+          <ReconcileFailedBanner activeJob={activeJob} />
+        ) : isUnreconciled && !showNewComment && !showNewFinding && !showNewFeature ? (
           <div className="sidebar-unreconciled">
             <div className="sidebar-unreconciled-icon">&#x26A0;</div>
             <div className="sidebar-unreconciled-text">
               This commit has not been reconciled yet. Annotation positions may not reflect the current code.
             </div>
-            {activeJob && (activeJob.status === 'pending' || activeJob.status === 'running') && (
+            {isReconcileRunning && (
               <div className="sidebar-unreconciled-progress">Reconciliation in progress...</div>
             )}
           </div>
@@ -1188,6 +1254,11 @@ export const Sidebar: React.FC = () => {
                 >
                   <div className="comment-card-header">
                     <span className="comment-card-author">{comment.author}</span>
+                    {isOrphaned(comment) && (
+                      <span className="comment-orphan-badge" title="This comment's anchor no longer points to live code">
+                        Orphaned
+                      </span>
+                    )}
                     {comment.timestamp && (
                       <span className="finding-comment-time">
                         {new Date(comment.timestamp).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}{' '}{new Date(comment.timestamp).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
@@ -1197,7 +1268,7 @@ export const Sidebar: React.FC = () => {
                       <div className="comment-card-header-right">
                         <button
                           className="comment-icon-btn"
-                          onClick={(e) => { e.stopPropagation(); handleStartEdit(comment); }}
+                          onClick={(e) => { e.stopPropagation(); setEditingId(comment.id); }}
                           title="Edit"
                         >
                           &#x270E;
@@ -1213,46 +1284,21 @@ export const Sidebar: React.FC = () => {
                     )}
                   </div>
                   {isEditing ? (
-                    <div className="comment-card-edit">
-                      <div className="comment-type-toggle-row">
-                        <div className="comment-type-toggle">
-                          {(['feature', 'improvement', 'question', 'concern'] as const).map((t) => (
-                            <button
-                              key={t}
-                              className={`comment-type-toggle-btn${editCommentType === t ? ' active' : ''}`}
-                              onClick={() => setEditCommentType(editCommentType === t ? '' : t)}
-                              title={t.charAt(0).toUpperCase() + t.slice(1)}
-                            >
-                              {COMMENT_TYPE_ICON[t]}
-                            </button>
-                          ))}
-                        </div>
-                        <textarea
-                          className="comment-textarea"
-                          style={{ flex: 1 }}
-                          value={editText}
-                          onChange={(e) => setEditText(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSaveEdit();
-                            if (e.key === 'Escape') handleCancelEdit();
-                          }}
-                          rows={2}
-                          autoFocus
-                        />
-                      </div>
-                      <div className="comment-form-actions">
-                        <button className="comment-btn comment-btn-cancel" onClick={handleCancelEdit}>
-                          Cancel
-                        </button>
-                        <button
-                          className="comment-btn comment-btn-submit"
-                          onClick={handleSaveEdit}
-                          disabled={!editText.trim()}
-                        >
-                          Save
-                        </button>
-                      </div>
-                    </div>
+                    <CommentEditor
+                      initialText={comment.text}
+                      initialType={comment.commentType}
+                      showAnchor={isOrphaned(comment)}
+                      initialAnchor={comment.anchor.fileId ? {
+                        fileId: comment.anchor.fileId,
+                        lineStart: comment.anchor.lineRange?.start ?? 0,
+                        lineEnd: comment.anchor.lineRange?.end ?? 0,
+                      } : undefined}
+                      onSave={(text, type, anchor) => {
+                        updateComment(comment.id, text, type, anchor);
+                        setEditingId(null);
+                      }}
+                      onCancel={() => setEditingId(null)}
+                    />
                   ) : (
                     <div className="comment-card-text">
                       {comment.commentType && COMMENT_TYPE_ICON[comment.commentType] && (
@@ -1305,6 +1351,7 @@ export const Sidebar: React.FC = () => {
         )}
       </div>
 
+      {showOrphanTriage && <OrphanTriagePanel onClose={() => setShowOrphanTriage(false)} />}
     </aside>
   );
 };

@@ -129,7 +129,15 @@ export const commentsApi = {
       body: JSON.stringify(comment),
     });
   },
-  update(id: string, updates: { text?: string; commentType?: string; resolvedCommit?: string | null }): Promise<void> {
+  update(id: string, updates: {
+    text?: string;
+    commentType?: string;
+    resolvedCommit?: string | null;
+    file_id?: string;
+    line_start?: number;
+    line_end?: number;
+    anchor_updated_at?: string;
+  }): Promise<void> {
     return fetchJSON(`/api/comments/${encodeURIComponent(id)}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },

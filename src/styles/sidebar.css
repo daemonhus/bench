@@ -245,6 +245,98 @@
   color: var(--accent-blue);
 }
 
+.sidebar-orphan-badge {
+  background: var(--status-in-progress-subtle);
+  color: var(--status-in-progress);
+  border: 1px solid color-mix(in srgb, var(--status-in-progress) 30%, transparent);
+  border-radius: var(--radius-xs);
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background var(--transition-base);
+}
+
+.sidebar-orphan-badge:hover {
+  background: color-mix(in srgb, var(--status-in-progress) 28%, transparent);
+}
+
+.reconcile-status-failed {
+  color: var(--status-open);
+  font-size: var(--font-size-small);
+}
+
+.sidebar-reconcile-failed .sidebar-unreconciled-icon {
+  color: var(--status-open);
+}
+
+.sidebar-unreconciled-title {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: var(--font-size-small);
+  margin-bottom: 6px;
+}
+
+.sidebar-unreconciled-actions,
+.reconcile-tooltip-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+.reconcile-tooltip-actions {
+  justify-content: flex-start;
+  margin-top: 8px;
+}
+
+.sidebar-retry-btn,
+.reconcile-tooltip-btn {
+  background: var(--accent-blue-subtle);
+  color: var(--accent-blue);
+  border: 1px solid color-mix(in srgb, var(--accent-blue) 35%, transparent);
+  border-radius: var(--radius-xs);
+  padding: 4px 10px;
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background var(--transition-base), border-color var(--transition-base);
+}
+
+.sidebar-retry-btn:hover:not(:disabled),
+.reconcile-tooltip-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent-blue) 25%, transparent);
+  border-color: var(--accent-blue);
+}
+
+.sidebar-retry-btn:disabled,
+.reconcile-tooltip-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sidebar-retry-link,
+.reconcile-tooltip-btn-link {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+  padding: 2px 4px;
+  font-family: inherit;
+  transition: color var(--transition-base);
+}
+
+.sidebar-retry-link:hover,
+.reconcile-tooltip-btn-link:hover {
+  color: var(--text-secondary);
+}
+
 /* ----- Sidebar Collapsed ----- */
 .sidebar-collapsed {
   width: 28px;

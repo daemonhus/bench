@@ -236,6 +236,9 @@ func (h *featuresHandlers) update(w http.ResponseWriter, r *http.Request) {
 	if !decodeBody(w, r, &updates) {
 		return
 	}
+	if !validateAnchorUpdate(w, updates) {
+		return
+	}
 
 	// Extract parameters and linked features from the update map — handled separately.
 	replaceParams, newParams := extractParameters(id, updates)

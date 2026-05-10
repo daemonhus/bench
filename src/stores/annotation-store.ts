@@ -16,7 +16,12 @@ interface AnnotationState {
   updateFindingStatus: (id: string, status: FindingStatus) => void;
   deleteFinding: (id: string) => void;
   addComment: (comment: Comment) => void;
-  updateComment: (id: string, text: string, commentType?: CommentType) => void;
+  updateComment: (
+    id: string,
+    text: string,
+    commentType?: CommentType,
+    anchor?: { fileId: string; lineStart: number; lineEnd: number },
+  ) => void;
   resolveComment: (id: string, resolvedCommit: string | null) => void;
   deleteComment: (id: string) => void;
   addFeature: (feature: Feature) => void;
@@ -172,14 +177,30 @@ export const useAnnotationStore = create<AnnotationState>((set, get) => ({
     });
   },
 
-  updateComment: (id, text, commentType?) => {
+  updateComment: (id, text, commentType?, anchor?) => {
     const prev = get().comments;
-    const apiUpdates: Record<string, unknown> = { text };
+    const apiUpdates: Parameters<typeof commentsApi.update>[1] = { text };
     if (commentType !== undefined) apiUpdates.commentType = commentType;
+    if (anchor) {
+      apiUpdates.file_id = anchor.fileId;
+      apiUpdates.line_start = anchor.lineStart;
+      apiUpdates.line_end = anchor.lineEnd;
+      apiUpdates.anchor_updated_at = new Date().toISOString();
+    }
     set((state) => ({
-      comments: state.comments.map((c) =>
-        c.id === id ? { ...c, text, ...(commentType !== undefined ? { commentType } : {}) } : c,
-      ),
+      comments: state.comments.map((c) => {
+        if (c.id !== id) return c;
+        const next: Comment = { ...c, text };
+        if (commentType !== undefined) next.commentType = commentType;
+        if (anchor) {
+          next.anchor = {
+            ...c.anchor,
+            fileId: anchor.fileId,
+            lineRange: { start: anchor.lineStart, end: anchor.lineEnd },
+          };
+        }
+        return next;
+      }),
     }));
     commentsApi.update(id, apiUpdates).catch((err) => {
       console.error('Failed to update comment:', err);

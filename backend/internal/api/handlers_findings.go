@@ -228,6 +228,9 @@ func (h *findingsHandlers) update(w http.ResponseWriter, r *http.Request) {
 	if !decodeBody(w, r, &updates) {
 		return
 	}
+	if !validateAnchorUpdate(w, updates) {
+		return
+	}
 	finding, err := h.db.UpdateFinding(id, updates)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {

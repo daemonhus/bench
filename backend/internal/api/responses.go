@@ -55,6 +55,25 @@ func decodeBody(w http.ResponseWriter, r *http.Request, v any) bool {
 	return true
 }
 
+// validateAnchorUpdate rejects PATCH bodies that set an empty commit id on an
+// anchor. Empty commit ids cause downstream reconciliation failures
+// ("ancestry check: invalid git ref"), so we fail closed at write time.
+// Returns true if the request is OK; writes a 400 and returns false otherwise.
+func validateAnchorUpdate(w http.ResponseWriter, updates map[string]any) bool {
+	for _, key := range []string{"commit", "commit_id", "commitId", "anchor_commit_id"} {
+		v, ok := updates[key]
+		if !ok {
+			continue
+		}
+		s, isStr := v.(string)
+		if !isStr || strings.TrimSpace(s) == "" {
+			writeError(w, http.StatusBadRequest, "commitId must be a non-empty string")
+			return false
+		}
+	}
+	return true
+}
+
 // PaginatedResponse wraps a result set with offset-based pagination metadata.
 type PaginatedResponse struct {
 	Data   any `json:"data"`

@@ -12,6 +12,7 @@ import type { Feature, FeatureKind, FeatureStatus, FeatureParameter } from '../c
 import { RefProviderIcon } from './RefProviderIcon';
 import { RefManageModal } from './RefManageModal';
 import { LinkManageModal } from './LinkManageModal';
+import { AnchorField } from './AnchorField';
 
 interface FeatureCardProps {
   feature: Feature;
@@ -796,31 +797,13 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
                 />
               </div>
               <div className="finding-form-row">
-                <input
-                  className="finding-input"
-                  value={anchorFileId}
-                  onChange={(e) => setAnchorFileId(e.target.value)}
-                  placeholder="Anchor file path"
-                />
-              </div>
-              <div className="finding-form-row" style={{ display: 'flex', gap: 6 }}>
-                <input
-                  className="finding-input"
-                  type="number"
-                  min="1"
-                  value={anchorLineStart}
-                  onChange={(e) => setAnchorLineStart(e.target.value)}
-                  placeholder="Line start"
-                  style={{ flex: 1 }}
-                />
-                <input
-                  className="finding-input"
-                  type="number"
-                  min="1"
-                  value={anchorLineEnd}
-                  onChange={(e) => setAnchorLineEnd(e.target.value)}
-                  placeholder="Line end"
-                  style={{ flex: 1 }}
+                <AnchorField
+                  fileId={anchorFileId}
+                  lineStart={anchorLineStart}
+                  lineEnd={anchorLineEnd}
+                  onFileIdChange={setAnchorFileId}
+                  onLineStartChange={setAnchorLineStart}
+                  onLineEndChange={setAnchorLineEnd}
                 />
               </div>
               <div className="finding-edit-actions">

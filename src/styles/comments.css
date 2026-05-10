@@ -147,3 +147,30 @@
 .comment-add-trigger:hover {
   color: var(--accent-blue);
 }
+
+.comment-orphan-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 5px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--status-open);
+  background: var(--status-open-subtle);
+  border: 1px solid color-mix(in srgb, var(--status-open) 30%, transparent);
+  border-radius: var(--radius-xs);
+  flex-shrink: 0;
+}
+
+.comment-edit-anchor {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border-default);
+}
+
+.comment-edit-anchor-label {
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}

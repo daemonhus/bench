@@ -1451,3 +1451,16 @@
   padding-left: 2px;
 }
 
+
+.finding-edit-row-anchor {
+  align-items: flex-start;
+}
+
+.finding-edit-row-anchor .finding-edit-label {
+  margin-top: 6px;
+}
+
+.finding-edit-anchor-wrap {
+  flex: 1;
+  min-width: 0;
+}
