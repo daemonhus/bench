@@ -193,7 +193,7 @@ export const FindingsView: React.FC = () => {
 
   const listRef = useRef<HTMLDivElement>(null);
   const pendingReplyFocusId = useRef<string | null>(null);
-  const { focusedId: navFocusedId, containerRef: navContainerRef, handleKeyDown: navHandleKeyDown, handleFocus: navHandleFocus } = useNavList({
+  const { focusedId: navFocusedId, containerRef: navContainerRef, handleKeyDown: navHandleKeyDown, handleFocus: navHandleFocus, handlePointerDown: navHandlePointerDown } = useNavList({
     items: displayedFindings,
     getId: f => f.id,
     onSelect: (f) => setCollapsedIds((prev) => {
@@ -348,6 +348,7 @@ export const FindingsView: React.FC = () => {
         data-nav-area="findings-list"
         onKeyDown={navHandleKeyDown}
         onFocus={navHandleFocus}
+        onMouseDown={navHandlePointerDown}
       >
       {renderFindingList(displayedFindings)}
 

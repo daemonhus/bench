@@ -1,5 +1,21 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 
+/**
+ * Walk up from `target` to the nearest `[data-nav-id]` ancestor inside
+ * `container` and return its id. Returns null if no such ancestor exists or
+ * the match is outside the container. Exported for testing — the hook below
+ * uses it on focus and pointer-down to update the current nav anchor.
+ */
+export function resolveNavId(
+  target: EventTarget | null,
+  container: HTMLElement | null,
+): string | null {
+  if (!container || !(target instanceof Element)) return null;
+  const card = target.closest('[data-nav-id]') as HTMLElement | null;
+  if (!card || !container.contains(card)) return null;
+  return card.getAttribute('data-nav-id');
+}
+
 interface UseNavListOptions<T> {
   items: T[];
   getId: (item: T) => string;
@@ -94,17 +110,44 @@ export function useNavList<T>({
     }
   }, [focusedIndex, items, moveFocus, onSelect, onActivate, onShiftActivate, onFocusChange]);
 
-  // When the container receives focus from outside (e.g. via Tab), auto-focus
-  // the first item so keyboard users have an anchor to move from.
+  // Track focus moves inside the list so the "current" card is whichever one
+  // the user last interacted with — clicking a card body, focusing its reply
+  // textarea, or tabbing to a button inside the card all update focusedId so
+  // subsequent arrow-key navigation continues from there.
+  //
+  // If focus arrives from outside the container and lands directly on the
+  // container element (e.g. a Tab from elsewhere), auto-focus the first item
+  // so keyboard users have an anchor to move from.
   const handleFocus = useCallback((e: React.FocusEvent) => {
-    if (focusedId != null) return;
     if (items.length === 0) return;
     const container = containerRef.current;
-    // Only auto-focus when focus comes from outside the container, not from a
-    // child element bubbling up.
-    if (container && e.relatedTarget && container.contains(e.relatedTarget as Node)) return;
+    if (!container) return;
+    const id = resolveNavId(e.target, container);
+    if (id) {
+      if (id !== focusedId) {
+        setFocusedId(id);
+        const item = items.find(it => getId(it) === id);
+        onFocusChange?.(item ?? null);
+      }
+      return;
+    }
+    // Focus landed on the container itself (or a non-card child). Only seed
+    // the first item when we have no anchor yet and focus came from outside.
+    if (focusedId != null) return;
+    if (e.relatedTarget && container.contains(e.relatedTarget as Node)) return;
     moveFocus(0);
-  }, [focusedId, items, moveFocus]);
+  }, [focusedId, items, getId, moveFocus, onFocusChange]);
 
-  return { focusedId, focusedIndex, containerRef, handleKeyDown, handleFocus, setFocusedId };
+  // Clicks on parts of a card that aren't focusable (label spans, snippet
+  // gutters, etc.) wouldn't otherwise update focusedId. Catch them on
+  // mousedown so the update lands before any inner click handler runs.
+  const handlePointerDown = useCallback((e: React.MouseEvent) => {
+    const id = resolveNavId(e.target, containerRef.current);
+    if (!id || id === focusedId) return;
+    setFocusedId(id);
+    const item = items.find(it => getId(it) === id);
+    onFocusChange?.(item ?? null);
+  }, [focusedId, items, getId, onFocusChange]);
+
+  return { focusedId, focusedIndex, containerRef, handleKeyDown, handleFocus, handlePointerDown, setFocusedId };
 }
