@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useBreakpoint } from './hooks/useBreakpoint';
+import { useResizeDrag } from './hooks/useResizeDrag';
 import { useRepoStore } from './stores/repo-store';
 import { useDiffStore } from './stores/diff-store';
 import { useAnnotationStore } from './stores/annotation-store';
@@ -126,7 +127,6 @@ export function App() {
   // Delta sidebar
   const [deltaSidebarOpen, setDeltaSidebarOpen] = useState(true);
   const [deltaSidebarWidth, setDeltaSidebarWidth] = useState(300);
-  const deltaResizingRef = useRef(false);
 
   // Git tree panel
   const [gitTreeOpen, setGitTreeOpen] = useState(false);
@@ -177,84 +177,9 @@ export function App() {
   // so updateRoute uses replaceState instead of pushState (avoids duplicate history entries).
   const isHandlingHashChange = useRef(false);
 
-  // Sidebar resize
-  const resizingRef = useRef(false);
-
-  const handleResizeMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      e.preventDefault();
-      resizingRef.current = true;
-      const onMouseMove = (ev: MouseEvent) => {
-        if (!resizingRef.current) return;
-        const newWidth = Math.max(200, Math.min(800, window.innerWidth - ev.clientX));
-        setSidebarWidth(newWidth);
-      };
-      const onMouseUp = () => {
-        resizingRef.current = false;
-        document.removeEventListener('mousemove', onMouseMove);
-        document.removeEventListener('mouseup', onMouseUp);
-        document.body.style.cursor = '';
-        document.body.style.userSelect = '';
-      };
-      document.addEventListener('mousemove', onMouseMove);
-      document.addEventListener('mouseup', onMouseUp);
-      document.body.style.cursor = 'col-resize';
-      document.body.style.userSelect = 'none';
-    },
-    [setSidebarWidth],
-  );
-
-  // Left panel resize
-  const leftResizingRef = useRef(false);
-
-  const handleLeftPanelResizeMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      e.preventDefault();
-      leftResizingRef.current = true;
-      const onMouseMove = (ev: MouseEvent) => {
-        if (!leftResizingRef.current) return;
-        const newWidth = Math.max(180, Math.min(500, ev.clientX));
-        setLeftPanelWidth(newWidth);
-      };
-      const onMouseUp = () => {
-        leftResizingRef.current = false;
-        document.removeEventListener('mousemove', onMouseMove);
-        document.removeEventListener('mouseup', onMouseUp);
-        document.body.style.cursor = '';
-        document.body.style.userSelect = '';
-      };
-      document.addEventListener('mousemove', onMouseMove);
-      document.addEventListener('mouseup', onMouseUp);
-      document.body.style.cursor = 'col-resize';
-      document.body.style.userSelect = 'none';
-    },
-    [setLeftPanelWidth],
-  );
-
-  // Delta sidebar resize
-  const handleDeltaSidebarResizeMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      e.preventDefault();
-      deltaResizingRef.current = true;
-      const onMouseMove = (ev: MouseEvent) => {
-        if (!deltaResizingRef.current) return;
-        const newWidth = Math.max(200, Math.min(600, window.innerWidth - ev.clientX));
-        setDeltaSidebarWidth(newWidth);
-      };
-      const onMouseUp = () => {
-        deltaResizingRef.current = false;
-        document.removeEventListener('mousemove', onMouseMove);
-        document.removeEventListener('mouseup', onMouseUp);
-        document.body.style.cursor = '';
-        document.body.style.userSelect = '';
-      };
-      document.addEventListener('mousemove', onMouseMove);
-      document.addEventListener('mouseup', onMouseUp);
-      document.body.style.cursor = 'col-resize';
-      document.body.style.userSelect = 'none';
-    },
-    [],
-  );
+  const handleResizeMouseDown = useResizeDrag(setSidebarWidth, { min: 200, max: 800, fromRight: true });
+  const handleLeftPanelResizeMouseDown = useResizeDrag(setLeftPanelWidth, { min: 180, max: 500 });
+  const handleDeltaSidebarResizeMouseDown = useResizeDrag(setDeltaSidebarWidth, { min: 200, max: 600, fromRight: true });
 
   // Auto-close panels when switching to mobile
   useEffect(() => {

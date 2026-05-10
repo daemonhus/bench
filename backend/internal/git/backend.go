@@ -2,11 +2,7 @@ package git
 
 import "bench/internal/model"
 
-// Backend is the pluggable git implementation behind *Repo. Two impls ship:
-// GoGitBackend (in-process via go-git, default) and CLIBackend (shells out to
-// `git`, escape hatch via BENCH_GIT_BACKEND=cli). Every Repo op that hits
-// the repository goes through here.
-//
+// Backend is the git implementation behind *Repo, provided by GoGitBackend.
 // Name() is intentionally not on Backend: it's derived from the path and
 // doesn't touch git state.
 type Backend interface {

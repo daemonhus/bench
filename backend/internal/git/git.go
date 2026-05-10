@@ -2,16 +2,32 @@ package git
 
 import (
 	"errors"
-	"os"
+	"fmt"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	"bench/internal/model"
 )
 
-// shaRe matches a full 40-hex git sha, used by both backends to validate
-// pin/unpin inputs.
+// shaRe matches a full 40-hex git sha, used to validate pin/unpin inputs.
 var shaRe = regexp.MustCompile(`^[0-9a-f]{40}$`)
+
+var validRef = regexp.MustCompile(`^[a-zA-Z0-9_.^~/-]+$`)
+
+func validateRef(ref string) error {
+	if !validRef.MatchString(ref) {
+		return fmt.Errorf("invalid git ref: %q", ref)
+	}
+	return nil
+}
+
+func validatePath(p string) error {
+	if strings.HasPrefix(p, "-") {
+		return fmt.Errorf("invalid path: %q", p)
+	}
+	return nil
+}
 
 // ErrUnknownRef is returned when a commitish cannot be resolved — typically
 // because the commit has been rebased/GC'd or the DB references a sha from a
@@ -24,32 +40,15 @@ var ErrUnknownRef = errors.New("unknown git ref")
 // ancestor chain reachable even after history rewrites.
 const KeepRefPrefix = "refs/bench/keep/"
 
-// Repo is the public handle for git operations. It holds a path and delegates
-// work to a Backend. Two backends are planned: CLI (shells out) and GoGit
-// (in-process). The selection happens in NewRepo based on the
-// BENCH_GIT_BACKEND env var.
+// Repo is the public handle for git operations. It delegates to GoGitBackend.
 type Repo struct {
 	path    string
 	backend Backend
 }
 
-// NewRepo returns a *Repo rooted at path. Backend selection:
-//   - unset (or any unrecognized value) → GoGitBackend (default)
-//   - BENCH_GIT_BACKEND=cli              → CLIBackend (escape hatch, kept
-//     in-tree for one release cycle while gogit bakes in production)
+// NewRepo returns a *Repo rooted at path.
 func NewRepo(path string) *Repo {
-	return &Repo{path: path, backend: selectBackend(path)}
-}
-
-func selectBackend(path string) Backend {
-	// Default is go-git (in-process). BENCH_GIT_BACKEND=cli keeps the shell
-	// backend available as an escape hatch during the deprecation cycle.
-	switch os.Getenv("BENCH_GIT_BACKEND") {
-	case "cli":
-		return NewCLIBackend(path)
-	default:
-		return NewGoGitBackend(path)
-	}
+	return &Repo{path: path, backend: NewGoGitBackend(path)}
 }
 
 // Name returns the repository directory name (last path component). It never

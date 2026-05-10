@@ -206,11 +206,11 @@ export const LinkManageModal: React.FC<LinkManageModalProps> = ({
     if (entityType === 'finding') {
       const next = [...localFeatureIds, featId];
       setLocalFeatureIds(next);
-      updateFinding(entityId, { features: next } as any);
+      updateFinding(entityId, { features: next });
     } else if (entityType === 'feature') {
       const next = [...localLinkedFeatures, { id: featId, description: '' }];
       setLocalLinkedFeatures(next);
-      updateFeature(entityId, { linkedFeatures: next } as any);
+      updateFeature(entityId, { linkedFeatures: next });
     }
     setSelectedIndex(-1);
     searchInputRef.current?.focus();
@@ -220,11 +220,11 @@ export const LinkManageModal: React.FC<LinkManageModalProps> = ({
     if (entityType === 'finding') {
       const next = localFeatureIds.filter((id) => id !== featId);
       setLocalFeatureIds(next);
-      updateFinding(entityId, { features: next } as any);
+      updateFinding(entityId, { features: next });
     } else if (entityType === 'feature') {
       const next = localLinkedFeatures.filter((x) => x.id !== featId);
       setLocalLinkedFeatures(next);
-      updateFeature(entityId, { linkedFeatures: next } as any);
+      updateFeature(entityId, { linkedFeatures: next });
       setExpandedDescIds((prev) => { const s = new Set(prev); s.delete(featId); return s; });
     }
   };
@@ -237,7 +237,7 @@ export const LinkManageModal: React.FC<LinkManageModalProps> = ({
     if (entityType !== 'feature') return;
     // Read current value directly from state at call time
     setLocalLinkedFeatures((prev) => {
-      updateFeature(entityId, { linkedFeatures: prev } as any);
+      updateFeature(entityId, { linkedFeatures: prev });
       return prev;
     });
   };
@@ -490,7 +490,7 @@ export const LinkManageModal: React.FC<LinkManageModalProps> = ({
         <div className="ref-manage-modal-footer">
           <button className="comment-btn comment-btn-submit" onClick={() => {
             if (entityType === 'feature' && expandedDescIds.size > 0) {
-              updateFeature(entityId, { linkedFeatures: localLinkedFeatures } as any);
+              updateFeature(entityId, { linkedFeatures: localLinkedFeatures });
             }
             onClose();
           }}>Done</button>

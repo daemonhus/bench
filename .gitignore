@@ -32,3 +32,18 @@ Thumbs.db
 # VitePress build artifacts
 docs/.vitepress/cache/
 docs/.vitepress/dist/
+
+# Compiled binaries
+bench-server
+
+# Test output
+playwright-report/
+test-results/
+
+# Working files
+PLAN-*.md
+HANDOFF-*.md
+UPDATES.md
+REPO_INDEX.html
+history.py
+*.patch

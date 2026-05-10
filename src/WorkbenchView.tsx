@@ -1,7 +1,6 @@
 import { useLayoutEffect, useMemo } from 'react';
 import { setApiBase } from './core/api';
 import { App } from './App';
-import type { Route } from './core/router';
 
 /** Editor configuration that affects the code viewer. */
 export interface EditorConfig {
@@ -16,8 +15,6 @@ export interface EditorConfig {
 export interface WorkbenchProps {
   /** API base URL. Empty string for standalone, '/api/p/slug' for platform. */
   apiBase: string;
-  /** Optional initial route — overrides hash parsing on mount. */
-  initialRoute?: Route;
   /** Container CSS class. */
   className?: string;
   /** Editor configuration — overrides CSS custom properties for the code viewer. */
