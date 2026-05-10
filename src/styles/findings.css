@@ -140,10 +140,13 @@
 
 .finding-card-meta {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
   margin-top: 8px;
   font-size: var(--font-size-small);
   color: var(--text-muted);
+  min-width: 0;
 }
 
 .finding-cwe {
@@ -378,6 +381,19 @@
 .finding-score::before {
   content: 'CVSS ';
   color: var(--text-muted);
+}
+
+.finding-vector {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  /* CVSS vector strings get long — truncate inline and surface the full
+     value via the title attribute on hover. */
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 /* ----- Finding Detail Rows (expanded body) ----- */

@@ -557,6 +557,7 @@ export const FindingCard: React.FC<FindingCardProps> = ({
       <div className="finding-card-meta">
         {finding.cve && <span className="finding-cve">{finding.cve}</span>}
         {finding.score > 0 && <span className="finding-score">{finding.score.toFixed(1)}</span>}
+        {finding.vector && <span className="finding-vector" title={finding.vector}>{finding.vector}</span>}
         {confidence && confidence !== 'exact' && (
           <span className={`finding-confidence finding-confidence-${confidence}`}>
             {confidence === 'moved' ? 'Moved' : 'Orphaned'}
@@ -567,13 +568,6 @@ export const FindingCard: React.FC<FindingCardProps> = ({
       {isExpanded && (
         <div className="finding-card-body">
           <p className="finding-description"><InlineMarkdown text={finding.description} /></p>
-
-          {finding.vector && (
-            <div className="finding-detail-row">
-              <span className="finding-detail-label">Vector</span>
-              <span className="finding-detail-value finding-vector-value">{finding.vector}</span>
-            </div>
-          )}
 
           {snippet && lineRange && viewMode !== 'browse' && (
             <div className="feature-snippet">
