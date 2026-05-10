@@ -135,6 +135,7 @@ func (m *mockPositionStore) DeletePositions(annotationID, annotationType string,
 type mockAnnotationResolver struct {
 	resolved []struct{ ID, Commit string }
 	comments []model.Comment
+	orphaned []struct{ ID, Commit string }
 }
 
 func (m *mockAnnotationResolver) BatchResolveFindings(items []struct{ ID, Commit string }) (int, error) {
@@ -148,6 +149,9 @@ func (m *mockAnnotationResolver) CreateComment(c *model.Comment) error {
 }
 
 func (m *mockAnnotationResolver) BatchOrphanFeatures(ids []string, orphanCommit string) error {
+	for _, id := range ids {
+		m.orphaned = append(m.orphaned, struct{ ID, Commit string }{id, orphanCommit})
+	}
 	return nil
 }
 
@@ -1570,5 +1574,215 @@ func TestReconcile_OrphanedWithoutReAnchor_StaysOrphaned(t *testing.T) {
 	}
 	if s.Result.Annotations.Orphaned != 1 {
 		t.Fatalf("expected 1 orphaned (no re-anchor), got %d", s.Result.Annotations.Orphaned)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Feature reconciliation
+// ---------------------------------------------------------------------------
+
+func TestReconcile_Feature_Exact(t *testing.T) {
+	// Feature at lines 10-12; diff inserts a line at line 5 (before the feature).
+	// Net shift: +1, so feature should map to lines 11-13 with exact confidence.
+	git := &mockGit{
+		headCommit: "B",
+		revLists:   map[string][]string{"A..B": {"B"}},
+		ancestors:  map[string]bool{"A:B": true},
+		diffs: map[string]string{
+			"A:B:src/api.go": strings.Join([]string{
+				"@@ -5,3 +5,4 @@",
+				" line 5",
+				"+inserted line",
+				" line 6",
+				" line 7",
+			}, "\n"),
+		},
+		shows: map[string]string{
+			"B:src/api.go": "file exists",
+		},
+	}
+	pos := &mockPositionStore{}
+	rec := &mockReconcileStore{states: map[string]string{}, files: []string{"src/api.go"}}
+	ann := &mockAnnotationReader{
+		features: map[string][]model.Feature{
+			"src/api.go": {
+				{
+					ID:     "FEAT-1",
+					Anchor: model.Anchor{FileID: "src/api.go", CommitID: "A", LineRange: &model.LineRange{Start: 10, End: 12}},
+				},
+			},
+		},
+	}
+
+	r := NewReconciler(git, pos, rec, ann)
+	jobID := r.StartJob("B", nil)
+	s := waitForJob(r, jobID)
+
+	if s.Status != "done" {
+		t.Fatalf("expected done, got %s: %s", s.Status, s.Error)
+	}
+	if s.Result.Annotations.Exact != 1 {
+		t.Fatalf("expected 1 exact, got exact=%d orphaned=%d moved=%d",
+			s.Result.Annotations.Exact, s.Result.Annotations.Orphaned, s.Result.Annotations.Moved)
+	}
+
+	positions, _ := pos.GetPositions("FEAT-1", "feature")
+	if len(positions) != 1 {
+		t.Fatalf("expected 1 position, got %d", len(positions))
+	}
+	p := positions[0]
+	if p.Confidence != "exact" {
+		t.Fatalf("expected exact, got %s", p.Confidence)
+	}
+	if *p.LineStart != 11 || *p.LineEnd != 13 {
+		t.Fatalf("expected lines 11-13, got %d-%d", *p.LineStart, *p.LineEnd)
+	}
+}
+
+func TestReconcile_Feature_Orphaned(t *testing.T) {
+	// Feature at lines 5-6; those lines are deleted in commit B with no hash fallback.
+	// Result: confidence=orphaned, BatchOrphanFeatures called with the feature ID.
+	git := &mockGit{
+		headCommit: "B",
+		revLists:   map[string][]string{"A..B": {"B"}},
+		ancestors:  map[string]bool{"A:B": true},
+		diffs: map[string]string{
+			"A:B:src/api.go": strings.Join([]string{
+				"@@ -4,4 +4,2 @@",
+				" line 4",
+				"-handler func()",
+				"-route register()",
+				" line 7",
+			}, "\n"),
+		},
+		shows: map[string]string{
+			"B:src/api.go": "line 1\nline 2\nline 3\nline 4\nline 7\nline 8",
+		},
+	}
+	pos := &mockPositionStore{}
+	rec := &mockReconcileStore{states: map[string]string{}, files: []string{"src/api.go"}}
+	resolver := &mockAnnotationResolver{}
+	ann := &mockAnnotationReader{
+		features: map[string][]model.Feature{
+			"src/api.go": {
+				{
+					ID:     "FEAT-1",
+					Anchor: model.Anchor{FileID: "src/api.go", CommitID: "A", LineRange: &model.LineRange{Start: 5, End: 6}},
+				},
+			},
+		},
+	}
+
+	r := NewReconciler(git, pos, rec, ann, WithResolver(resolver))
+	jobID := r.StartJob("B", nil)
+	s := waitForJob(r, jobID)
+
+	if s.Status != "done" {
+		t.Fatalf("expected done, got %s: %s", s.Status, s.Error)
+	}
+	if s.Result.Annotations.Orphaned != 1 {
+		t.Fatalf("expected 1 orphaned, got %d", s.Result.Annotations.Orphaned)
+	}
+
+	// BatchOrphanFeatures must have been called with the right ID and commit
+	if len(resolver.orphaned) != 1 {
+		t.Fatalf("expected 1 orphaned feature call, got %d", len(resolver.orphaned))
+	}
+	if resolver.orphaned[0].ID != "FEAT-1" {
+		t.Fatalf("expected FEAT-1, got %s", resolver.orphaned[0].ID)
+	}
+	if resolver.orphaned[0].Commit != "B" {
+		t.Fatalf("expected commit B, got %s", resolver.orphaned[0].Commit)
+	}
+
+	// No findings should have been touched
+	if len(resolver.resolved) != 0 {
+		t.Fatalf("expected 0 resolved findings, got %d", len(resolver.resolved))
+	}
+}
+
+func TestReconcile_Feature_OrphanedThenReAnchored(t *testing.T) {
+	// Feature orphaned at commit B; user manually re-anchors it (AnchorUpdatedAt set).
+	// Next reconcile to C should respect the anchor fix, not stay orphaned.
+	anchorUpdated := time.Now().UTC().Format(time.RFC3339)
+
+	git := &mockGit{
+		headCommit: "C",
+		revLists: map[string][]string{
+			"A..B": {"B"},
+			"B..C": {"C"},
+		},
+		ancestors: map[string]bool{
+			"A:B": true,
+			"B:C": true,
+			"A:C": true,
+		},
+		diffs: map[string]string{},
+		shows: map[string]string{
+			"C:src/api.go": "line 1\nline 2\nline 3\nline 4\nline 5\nline 6\nline 7\nline 8\nline 9\nline 10\nrouter.GET(\"/v1/items\")\nhandler.List()\nline 13",
+		},
+	}
+
+	// Pre-populate an orphaned position at commit B
+	pos := &mockPositionStore{
+		positions: []model.AnnotationPosition{
+			{
+				AnnotationID:   "FEAT-1",
+				AnnotationType: "feature",
+				CommitID:       "B",
+				FileID:         nil, // orphaned → nil file
+				LineStart:      nil,
+				LineEnd:        nil,
+				Confidence:     "orphaned",
+				CreatedAt:      time.Now().Add(-10 * time.Minute).UTC().Format(time.RFC3339),
+			},
+		},
+	}
+
+	rec := &mockReconcileStore{
+		states: map[string]string{"src/api.go": "B"},
+		files:  []string{"src/api.go"},
+	}
+
+	// Feature anchor updated to lines 11-12 after the orphaning
+	ann := &mockAnnotationReader{
+		features: map[string][]model.Feature{
+			"src/api.go": {
+				{
+					ID:              "FEAT-1",
+					Anchor:          model.Anchor{FileID: "src/api.go", CommitID: "A", LineRange: &model.LineRange{Start: 11, End: 12}},
+					LineHash:        LineHash([]string{"router.GET(\"/v1/items\")", "handler.List()"}),
+					AnchorUpdatedAt: &anchorUpdated,
+				},
+			},
+		},
+	}
+
+	r := NewReconciler(git, pos, rec, ann)
+	jobID := r.StartJob("C", nil)
+	s := waitForJob(r, jobID)
+
+	if s.Status != "done" {
+		t.Fatalf("expected done, got %s: %s", s.Status, s.Error)
+	}
+
+	// Feature should NOT be orphaned — the manual anchor fix must be respected
+	if s.Result.Annotations.Orphaned != 0 {
+		t.Fatalf("expected 0 orphaned (anchor was re-set), got %d", s.Result.Annotations.Orphaned)
+	}
+
+	positions, _ := pos.GetPositions("FEAT-1", "feature")
+	if len(positions) < 1 {
+		t.Fatalf("expected at least 1 position, got %d", len(positions))
+	}
+	latest := positions[len(positions)-1]
+	if latest.Confidence == "orphaned" {
+		t.Fatalf("expected non-orphaned confidence, got orphaned")
+	}
+	if latest.LineStart == nil || *latest.LineStart != 11 {
+		t.Fatalf("expected lineStart=11, got %v", latest.LineStart)
+	}
+	if latest.LineEnd == nil || *latest.LineEnd != 12 {
+		t.Fatalf("expected lineEnd=12, got %v", latest.LineEnd)
 	}
 }

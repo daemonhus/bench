@@ -78,8 +78,8 @@ func (h *reconcileHandlers) status(w http.ResponseWriter, r *http.Request) {
 func (h *reconcileHandlers) history(w http.ResponseWriter, r *http.Request) {
 	annType := r.PathValue("type")
 	annID := r.PathValue("id")
-	if annType != "finding" && annType != "comment" {
-		writeError(w, http.StatusBadRequest, "type must be 'finding' or 'comment'")
+	if annType != "finding" && annType != "comment" && annType != "feature" {
+		writeError(w, http.StatusBadRequest, "type must be 'finding', 'comment', or 'feature'")
 		return
 	}
 	if annID == "" {
