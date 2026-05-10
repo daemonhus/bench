@@ -170,12 +170,14 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
     if ((expandSnippetsTick ?? 0) > seenExpandTick.current) {
       seenExpandTick.current = expandSnippetsTick ?? 0;
       setSnippetCollapsed(false);
+      setParamsCollapsed(false);
     }
   }, [expandSnippetsTick]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if ((collapseSnippetsTick ?? 0) > seenCollapseTick.current) {
       seenCollapseTick.current = collapseSnippetsTick ?? 0;
       setSnippetCollapsed(true);
+      setParamsCollapsed(true);
     }
   }, [collapseSnippetsTick]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -602,19 +604,23 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
               )}
 
               {snippet && lineRange && viewMode !== 'browse' && (
-                <div className="feature-snippet">
-                  <div className="feature-snippet-bar">
-                    {snippet.canExpandUp && !snippetCollapsed ? (
-                      <button className="feature-snippet-expand feature-snippet-bar-btn" onClick={() => setExtraBefore((n) => n + 5)}>
-                        ▲ 5 more
-                      </button>
-                    ) : <span />}
-                    <button className="feature-snippet-expand feature-snippet-bar-btn feature-snippet-bar-collapse" onClick={() => setSnippetCollapsed((c) => !c)}>
-                      {snippetCollapsed ? '▼ expand' : '▲ collapse'}
-                    </button>
-                  </div>
+                <div className="feature-snippet-section">
+                  <button
+                    type="button"
+                    className="feature-params-heading feature-params-heading-toggle"
+                    onClick={() => setSnippetCollapsed((c) => !c)}
+                    aria-expanded={!snippetCollapsed}
+                  >
+                    <span className="feature-params-heading-caret">{snippetCollapsed ? '▶' : '▼'}</span>
+                    Code
+                  </button>
                   {!snippetCollapsed && (
-                    <>
+                    <div className="feature-snippet">
+                      {snippet.canExpandUp && (
+                        <button className="feature-snippet-expand" onClick={() => setExtraBefore((n) => n + 5)}>
+                          ▲ 5 more
+                        </button>
+                      )}
                       {snippet.lines.map((line, i) => {
                         const lineNum = snippet.startLine + i;
                         const isHighlighted = lineNum >= lineRange.start && lineNum <= lineRange.end;
@@ -631,7 +637,7 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
                           ▼ 5 more
                         </button>
                       )}
-                    </>
+                    </div>
                   )}
                 </div>
               )}

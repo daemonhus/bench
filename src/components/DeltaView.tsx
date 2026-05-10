@@ -939,7 +939,6 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
                           onClick={(e) => { e.stopPropagation(); useUIStore.getState().setScrollToFindingId(f.id); useUIStore.getState().setViewMode('findings'); }}
                           title="Open in Findings"
                         >{f.title}</span>
-                        <span className="activity-finding-ref-severity" style={{ color: sevColor }}>{f.severity}</span>
                       </div>
                       {f.anchor.fileId && (
                         <div className="activity-finding-ref-meta">

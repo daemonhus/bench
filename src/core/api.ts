@@ -71,8 +71,8 @@ export const findingsApi = {
     const params = new URLSearchParams();
     if (fileId) params.set('fileId', fileId);
     if (commit) params.set('commit', commit);
-    const q = params.toString() ? `?${params}` : '';
-    return fetchJSON(`/api/findings${q}`);
+    params.set('include_resolved', 'true');
+    return fetchJSON(`/api/findings?${params}`);
   },
   listPaginated(opts: { fileId?: string; commit?: string; limit: number; offset?: number }): Promise<PaginatedResponse<Finding | FindingWithPosition>> {
     const params = new URLSearchParams();
@@ -80,6 +80,7 @@ export const findingsApi = {
     if (opts.commit) params.set('commit', opts.commit);
     params.set('limit', String(opts.limit));
     if (opts.offset) params.set('offset', String(opts.offset));
+    params.set('include_resolved', 'true');
     return fetchJSON(`/api/findings?${params}`);
   },
   create(finding: Finding): Promise<Finding> {

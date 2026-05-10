@@ -641,14 +641,6 @@
   flex: 1;
 }
 
-.activity-finding-ref-severity {
-  font-size: var(--font-size-xs);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: var(--tracking-wide);
-  flex-shrink: 0;
-}
-
 .activity-finding-ref-meta {
   margin-top: 4px;
 }

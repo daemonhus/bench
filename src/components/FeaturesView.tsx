@@ -613,7 +613,7 @@ export const FeaturesView: React.FC = () => {
         <div className="view-expand-fabs">
           <button
             className={`view-expand-fab-btn${allCardsOpen && collapsedSnippetIds.size > 0 ? ' view-expand-fab-btn--active' : allCardsOpen ? ' view-expand-fab-btn--disabled' : ''}`}
-            title={allCardsOpen && collapsedSnippetIds.size > 0 ? 'Expand code snippets' : 'Expand all'}
+            title={allCardsOpen && collapsedSnippetIds.size > 0 ? 'Expand sections' : 'Expand all'}
             onClick={() => {
               if (!allCardsOpen) { setCollapsedIds(new Set()); }
               else { setExpandSnippetsTick(t => t + 1); }
@@ -628,7 +628,7 @@ export const FeaturesView: React.FC = () => {
           </button>
           <button
             className={`view-expand-fab-btn${anyCardsOpen && anySnippetsVisible ? ' view-expand-fab-btn--active' : !anyCardsOpen ? ' view-expand-fab-btn--disabled' : ''}`}
-            title={anySnippetsVisible ? 'Collapse code snippets' : 'Collapse all'}
+            title={anySnippetsVisible ? 'Collapse sections' : 'Collapse all'}
             onClick={() => {
               if (anyCardsOpen && anySnippetsVisible) { setCollapseSnippetsTick(t => t + 1); }
               else if (anyCardsOpen) { setCollapsedIds(new Set(tabFeatures.map(f => f.id))); }
