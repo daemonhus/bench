@@ -508,7 +508,7 @@ export function App() {
     };
     const immediate = document.querySelector(`[data-nav-area="${area}"]`) as HTMLElement | null;
     if (immediate) {
-      immediate.focus();
+      immediate.focus({ preventScroll: true });
       setPendingNavFocus(null);
       applyPendingLine();
       return;
@@ -518,7 +518,7 @@ export function App() {
       const el = document.querySelector(`[data-nav-area="${area}"]`) as HTMLElement | null;
       if (el) {
         observer.disconnect();
-        el.focus();
+        el.focus({ preventScroll: true });
         setPendingNavFocus(null);
         applyPendingLine();
       }

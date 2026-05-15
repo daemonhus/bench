@@ -227,6 +227,24 @@ func (h *featuresHandlers) get(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+	commit := r.URL.Query().Get("commit")
+	if commit != "" && h.reconciler != nil && feature.Anchor.FileID != "" {
+		positions, posErr := h.reconciler.GetEffectivePositions(feature.Anchor.FileID, commit)
+		if posErr == nil {
+			if pos, ok := positions[id]; ok {
+				fp := model.FeatureWithPosition{Feature: *feature, Confidence: pos.Confidence}
+				if pos.FileID != nil && pos.LineStart != nil && pos.LineEnd != nil {
+					fp.EffectiveAnchor = &model.Anchor{
+						FileID:   *pos.FileID,
+						CommitID: pos.CommitID,
+						LineRange: &model.LineRange{Start: *pos.LineStart, End: *pos.LineEnd},
+					}
+				}
+				writeJSON(w, http.StatusOK, fp)
+				return
+			}
+		}
+	}
 	writeJSON(w, http.StatusOK, feature)
 }
 
