@@ -455,3 +455,33 @@ func featureIDsREST(features []model.Feature) []string {
 	}
 	return ids
 }
+
+// TestFeaturesAPI_GetWithCommit verifies that ?commit= param is accepted and
+// falls back gracefully when no reconciler is wired (test setup has nil reconciler).
+func TestFeaturesAPI_GetWithCommit(t *testing.T) {
+	router, _ := setupEnv(t)
+
+	req := httptest.NewRequest("POST", "/api/features", strings.NewReader(minFeature))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	var created model.Feature
+	json.NewDecoder(w.Body).Decode(&created)
+
+	// With ?commit= and no reconciler the handler falls through and returns the plain feature.
+	req = httptest.NewRequest("GET", "/api/features/"+created.ID+"?commit=HEAD", nil)
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Fatalf("status = %d, want 200; body: %s", w.Code, w.Body.String())
+	}
+	// Response should at minimum decode as a Feature (not FeatureWithPosition, since no reconciler).
+	var got model.Feature
+	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got.ID != created.ID {
+		t.Errorf("id = %q, want %q", got.ID, created.ID)
+	}
+}
