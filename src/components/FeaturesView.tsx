@@ -8,6 +8,7 @@ import { useUIStore } from '../stores/ui-store';
 import { FeatureCard } from './FeatureCard';
 import { SearchBox } from './SearchBox';
 import { useRegexSearch } from '../hooks/useRegexSearch';
+import { parseRoute } from '../core/router';
 import type { Feature, FeatureKind, FeatureStatus, LineRange } from '../core/types';
 
 const ALL_STATUSES: FeatureStatus[] = ['draft', 'active', 'deprecated', 'removed', 'orphaned'];
@@ -263,6 +264,16 @@ export const FeaturesView: React.FC = () => {
 
   const setScrollTargetLine = useUIStore((s) => s.setScrollTargetLine);
   const setHighlightRange = useUIStore((s) => s.setHighlightRange);
+
+  // Deep-link: #/features/{id} — select + scroll to that feature on load.
+  const [deepLinkId] = useState(() => parseRoute(window.location.hash).featureId ?? null);
+  useEffect(() => {
+    if (!deepLinkId || loading) return;
+    const target = features.find((f) => f.id === deepLinkId);
+    if (!target) return;
+    setScrollToFeature({ id: target.id, kind: target.kind as FeatureKind });
+    window.history.replaceState(null, '', '#/features');
+  }, [deepLinkId, features, loading, setScrollToFeature]);
 
   const refreshFeatures = useCallback(() => {
     return featuresApi.list().then((f) => loadFeatures(f as Feature[])).catch(() => {});

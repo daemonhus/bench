@@ -4,6 +4,7 @@ export interface Route {
   to?: string;
   path?: string;
   baselineId?: string;
+  featureId?: string;
 }
 
 /**
@@ -41,7 +42,7 @@ export function parseRoute(hash: string): Route {
   }
 
   if (parts[0] === 'features') {
-    return { mode: 'features' };
+    return { mode: 'features', featureId: parts[1] };
   }
 
   if (parts[0] === 'delta') {
@@ -74,9 +75,10 @@ export function buildRoute(
   from?: string,
   to?: string,
   path?: string,
+  featureId?: string,
 ): string {
   if (mode === 'findings') return '#/findings';
-  if (mode === 'features') return '#/features';
+  if (mode === 'features') return featureId ? `#/features/${featureId}` : '#/features';
   if (mode === 'delta') return '#/delta';
   if (mode === 'diff' && from && to) {
     const base = `#/diff/${from}/${to}`;
