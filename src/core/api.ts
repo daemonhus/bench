@@ -67,17 +67,19 @@ export const gitApi = {
 };
 
 export const findingsApi = {
-  list(fileId?: string, commit?: string): Promise<(Finding | FindingWithPosition)[]> {
+  list(fileId?: string, commit?: string, id?: string): Promise<(Finding | FindingWithPosition)[]> {
     const params = new URLSearchParams();
     if (fileId) params.set('fileId', fileId);
     if (commit) params.set('commit', commit);
+    if (id) params.set('id', id);
     params.set('include_resolved', 'true');
     return fetchJSON(`/api/findings?${params}`);
   },
-  listPaginated(opts: { fileId?: string; commit?: string; limit: number; offset?: number }): Promise<PaginatedResponse<Finding | FindingWithPosition>> {
+  listPaginated(opts: { fileId?: string; commit?: string; id?: string; limit: number; offset?: number }): Promise<PaginatedResponse<Finding | FindingWithPosition>> {
     const params = new URLSearchParams();
     if (opts.fileId) params.set('fileId', opts.fileId);
     if (opts.commit) params.set('commit', opts.commit);
+    if (opts.id) params.set('id', opts.id);
     params.set('limit', String(opts.limit));
     if (opts.offset) params.set('offset', String(opts.offset));
     params.set('include_resolved', 'true');
@@ -153,13 +155,14 @@ export const commentsApi = {
 };
 
 export const featuresApi = {
-  list(fileId?: string, kind?: FeatureKind, status?: FeatureStatus, commit?: string, linkedTo?: string): Promise<(Feature | FeatureWithPosition)[]> {
+  list(fileId?: string, kind?: FeatureKind, status?: FeatureStatus, commit?: string, linkedTo?: string, id?: string): Promise<(Feature | FeatureWithPosition)[]> {
     const params = new URLSearchParams();
     if (fileId) params.set('fileId', fileId);
     if (kind) params.set('kind', kind);
     if (status) params.set('status', status);
     if (commit) params.set('commit', commit);
     if (linkedTo) params.set('linkedTo', linkedTo);
+    if (id) params.set('id', id);
     const q = params.toString() ? `?${params}` : '';
     return fetchJSON(`/api/features${q}`);
   },

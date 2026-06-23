@@ -25,6 +25,7 @@ type findingsHandlers struct {
 func (h *findingsHandlers) list(w http.ResponseWriter, r *http.Request) {
 	fileID := r.URL.Query().Get("fileId")
 	commit := r.URL.Query().Get("commit")
+	id := r.URL.Query().Get("id")
 	severity := r.URL.Query().Get("severity")
 	status := r.URL.Query().Get("status")
 	category := r.URL.Query().Get("category")
@@ -44,10 +45,13 @@ func (h *findingsHandlers) list(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Post-filter by severity/status/category/resolved
-	if severity != "" || status != "" || category != "" || !includeResolved {
+	// Post-filter by id/severity/status/category/resolved
+	if id != "" || severity != "" || status != "" || category != "" || !includeResolved {
 		filtered := findings[:0]
 		for _, f := range findings {
+			if id != "" && !strings.HasPrefix(f.ID, id) {
+				continue
+			}
 			if severity != "" && f.Severity != severity {
 				continue
 			}

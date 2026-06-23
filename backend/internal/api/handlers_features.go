@@ -34,12 +34,16 @@ func (h *featuresHandlers) list(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Filter by kind/status query params
+	// Filter by id/kind/status query params
+	id := r.URL.Query().Get("id")
 	kind := r.URL.Query().Get("kind")
 	status := r.URL.Query().Get("status")
-	if kind != "" || status != "" {
+	if id != "" || kind != "" || status != "" {
 		filtered := features[:0]
 		for _, f := range features {
+			if id != "" && !strings.HasPrefix(f.ID, id) {
+				continue
+			}
 			if kind != "" && f.Kind != kind {
 				continue
 			}

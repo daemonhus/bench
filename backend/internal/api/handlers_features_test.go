@@ -31,6 +31,53 @@ func TestFeaturesAPI_ListEmpty(t *testing.T) {
 	}
 }
 
+func TestFeaturesAPI_ListByIDPrefix(t *testing.T) {
+	router, _ := setupEnv(t)
+
+	for _, id := range []string{"feat-abc123", "feat-abc999", "feat-xyz000"} {
+		body := `{"id":"` + id + `","anchor":{"fileId":"src/api.go","commitId":"abc"},"kind":"interface","title":"POST /login"}`
+		req := httptest.NewRequest("POST", "/api/features", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		if w.Code != 201 {
+			t.Fatalf("create %s: %d %s", id, w.Code, w.Body.String())
+		}
+	}
+
+	cases := []struct {
+		id   string
+		want []string
+	}{
+		{"feat-abc", []string{"feat-abc123", "feat-abc999"}},
+		{"feat-abc123", []string{"feat-abc123"}},
+		{"feat-", []string{"feat-abc123", "feat-abc999", "feat-xyz000"}},
+		{"feat-zzz", nil},
+	}
+	for _, tc := range cases {
+		req := httptest.NewRequest("GET", "/api/features?id="+tc.id, nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		if w.Code != 200 {
+			t.Fatalf("id=%q status = %d, want 200", tc.id, w.Code)
+		}
+		var list []model.Feature
+		json.NewDecoder(w.Body).Decode(&list)
+		got := make(map[string]bool, len(list))
+		for _, f := range list {
+			got[f.ID] = true
+		}
+		if len(list) != len(tc.want) {
+			t.Errorf("id=%q len = %d, want %d (%v)", tc.id, len(list), len(tc.want), tc.want)
+		}
+		for _, id := range tc.want {
+			if !got[id] {
+				t.Errorf("id=%q missing %s", tc.id, id)
+			}
+		}
+	}
+}
+
 func TestFeaturesAPI_CreateAndList(t *testing.T) {
 	router, _ := setupEnv(t)
 

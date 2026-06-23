@@ -71,6 +71,53 @@ func TestFindingsAPI_CreateAndList(t *testing.T) {
 	}
 }
 
+func TestFindingsAPI_ListByIDPrefix(t *testing.T) {
+	router, _ := setupEnv(t)
+
+	for _, id := range []string{"f-abc123", "f-abc999", "f-xyz000"} {
+		body := `{"id":"` + id + `","title":"SQLi","severity":"high","status":"open","source":"mcp","anchor":{"fileId":"a.go","commitId":"abc"}}`
+		req := httptest.NewRequest("POST", "/api/findings", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		if w.Code != 201 {
+			t.Fatalf("create %s: %d %s", id, w.Code, w.Body.String())
+		}
+	}
+
+	cases := []struct {
+		id   string
+		want []string
+	}{
+		{"f-abc", []string{"f-abc123", "f-abc999"}}, // prefix matches two
+		{"f-abc123", []string{"f-abc123"}},          // exact full id
+		{"f-", []string{"f-abc123", "f-abc999", "f-xyz000"}},
+		{"f-zzz", nil}, // no match
+	}
+	for _, tc := range cases {
+		req := httptest.NewRequest("GET", "/api/findings?id="+tc.id, nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		if w.Code != 200 {
+			t.Fatalf("id=%q status = %d, want 200", tc.id, w.Code)
+		}
+		var list []model.Finding
+		json.NewDecoder(w.Body).Decode(&list)
+		got := make(map[string]bool, len(list))
+		for _, f := range list {
+			got[f.ID] = true
+		}
+		if len(list) != len(tc.want) {
+			t.Errorf("id=%q len = %d, want %d (%v)", tc.id, len(list), len(tc.want), tc.want)
+		}
+		for _, id := range tc.want {
+			if !got[id] {
+				t.Errorf("id=%q missing %s", tc.id, id)
+			}
+		}
+	}
+}
+
 func TestFindingsAPI_CreateMissingFields(t *testing.T) {
 	router, _ := setupEnv(t)
 
