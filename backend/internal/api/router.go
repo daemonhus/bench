@@ -55,7 +55,7 @@ func NewRouter(repo *git.Repo, database *db.DB, broker *events.Broker) http.Hand
 	mux.HandleFunc("PATCH /api/features/{id}/parameters/{pid}", fph.update)
 	mux.HandleFunc("DELETE /api/features/{id}/parameters/{pid}", fph.delete)
 
-	rc := &reconcileHandlers{reconciler: reconciler, db: database}
+	rc := &reconcileHandlers{reconciler: reconciler, repo: repo, db: database}
 	mux.HandleFunc("POST /api/reconcile", rc.start)
 	mux.HandleFunc("GET /api/reconcile/head", rc.head)
 	mux.HandleFunc("GET /api/reconcile/status", rc.status)

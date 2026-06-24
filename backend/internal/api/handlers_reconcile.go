@@ -1,17 +1,21 @@
 package api
 
 import (
+	"errors"
+	"fmt"
 	"log"
 	"net/http"
 
 	"bench/internal/db"
+	"bench/internal/git"
 	"bench/internal/model"
 	"bench/internal/reconcile"
 )
 
 type reconcileHandlers struct {
 	reconciler *reconcile.Reconciler
-	db         *db.DB // for annotation history lookups
+	repo       *git.Repo // for validating the target commit exists in this project
+	db         *db.DB    // for annotation history lookups
 }
 
 // POST /api/reconcile → 202 with job ID
@@ -28,9 +32,24 @@ func (h *reconcileHandlers) start(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	jobID := h.reconciler.StartJob(req.TargetCommit, req.FilePaths)
+	// Validate the target commit actually exists in this project's repo before
+	// starting a job. Without this, an unknown or foreign commit (e.g. a SHA
+	// pasted from a different project) silently orphans every annotation in the
+	// project instead of failing loudly. Resolving also canonicalises refs like
+	// "HEAD" to a full SHA so reconciled positions are pinned to a stable commit.
+	resolved, err := h.repo.ResolveRef(req.TargetCommit)
+	if err != nil {
+		if errors.Is(err, git.ErrUnknownRef) {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("targetCommit %q was not found in this project's repository", req.TargetCommit))
+			return
+		}
+		writeInternalError(w, err)
+		return
+	}
+
+	jobID := h.reconciler.StartJob(resolved, req.FilePaths)
 	s := h.reconciler.GetJob(jobID)
-	log.Printf("[reconcile] started job %s target=%s files=%v status=%s", jobID, req.TargetCommit, req.FilePaths, s.Status)
+	log.Printf("[reconcile] started job %s target=%s files=%v status=%s", jobID, resolved, req.FilePaths, s.Status)
 	writeJSON(w, http.StatusAccepted, s)
 }
 
