@@ -8,6 +8,7 @@ import { useSnippetState } from '../core/use-snippet-state';
 import { detectLanguage, ensureLanguageRegistered } from '../core/language-map';
 import { highlight, renderToken } from '../core/tokenizer';
 import { InlineMarkdown } from '../core/markdown';
+import { avatarInitials, avatarColor } from '../core/avatar';
 import type { Feature, FeatureKind, FeatureStatus, FeatureParameter } from '../core/types';
 import { RefProviderIcon } from './RefProviderIcon';
 import { RefManageModal } from './RefManageModal';
@@ -853,6 +854,7 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
               const renderComment = (c: typeof sortedComments[0]) => (
                 <div key={c.id} className={`finding-comment${editingCommentId === c.id ? ' finding-comment-editing' : ''}`}>
                   <div className="finding-comment-header">
+                    <span className="comment-avatar" style={{ backgroundColor: avatarColor(c.author) }} aria-hidden="true">{avatarInitials(c.author)}</span>
                     <span className="finding-comment-author">{c.author}</span>
                     <span className="finding-comment-time">
                       {new Date(c.timestamp).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}{' '}{new Date(c.timestamp).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}

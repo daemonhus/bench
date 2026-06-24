@@ -8,6 +8,7 @@ import type { Finding, Comment, Feature, Severity, FindingStatus } from '../core
 import { FINDING_CATEGORIES, getEffectiveLineRange, getConfidence } from '../core/types';
 import { featuresApi } from '../core/api';
 import { InlineMarkdown } from '../core/markdown';
+import { avatarInitials, avatarColor } from '../core/avatar';
 import { useBranchMap } from '../core/use-branch-map';
 import { useSnippetState } from '../core/use-snippet-state';
 import { gitApi } from '../core/api';
@@ -672,6 +673,7 @@ export const FindingCard: React.FC<FindingCardProps> = ({
             const renderComment = (c: Comment) => (
               <div key={c.id} className={`finding-comment${editingCommentId === c.id ? ' finding-comment-editing' : ''}`}>
                 <div className="finding-comment-header">
+                  <span className="comment-avatar" style={{ backgroundColor: avatarColor(c.author) }} aria-hidden="true">{avatarInitials(c.author)}</span>
                   <span className="finding-comment-author">{c.author}</span>
                   {isOrphaned(c) && (
                     <span className="comment-orphan-badge" title="This comment's anchor no longer points to live code">
