@@ -1,11 +1,19 @@
 # Overview
 
-The Overview panel is the project dashboard: the first tab (shortcut <kbd>0</kbd>), summarising review state at a glance in three columns.
+The Overview panel is the project dashboard: the first tab (shortcut <kbd>0</kbd>). A header band carries the project context, and three columns below it cover findings, the repository, and the annotated attack surface.
 
-**Git state** (first column) shows the last pull (HEAD commit with relative age and subject), the most recent merge commit, where reconciliation has got to (a green chip when annotations are reconciled to HEAD, an amber one naming how many files lag behind), the local branches, and the commit history rendered with the same graph as the Browse panel.
+**Header** names the service, its owner (linked to [Context](./context)), the description, and the profile attributes as chips - the same meta-attributes that contextualise every finding. Three KPIs sit alongside: open findings (of the total, and how many are closed), how far HEAD has drifted from the last baseline (commits and merges since it was set), and the size of the attack surface.
 
-**Findings** (second column) shows the open count broken down by severity, the mean time to resolve, and two weekly charts: findings raised per week, and mean time to resolve per week. Hover a column for exact values.
+**Findings** (first column) opens with the resolution strip - open, in progress, accepted, closed - then **systemic issues**: findings grouped by category, each row showing the total, how many remain open, and a severity swatch per finding, so a category holding three highs reads differently from one holding three lows. Below that, findings raised per week; hover a column for exact values.
 
-**Features** (third column) counts the annotated attack surface by feature kind (interfaces, sources, sinks, dependencies, externalities) and previews the planned feature relationship map: a node graph of how interfaces flow into sources, sinks, and dependencies, built from feature links. The map is currently a static mockup; PLAN-feature-graph.md describes the interactive version.
+**Repository** (second column) leads with the baseline callout: which baseline is the last reviewed state, when it was set, and how far HEAD has moved past it. Then HEAD itself (short hash, subject, relative age, and the branches pointing at it), a reconciliation chip (green when annotations are reconciled to HEAD, amber when they lag), the recent log rendered with the same commit graph as the Browse panel, and the commit activity timeline - commits per period, with the authors who made them. Switch the timeline between day, week, month, and year, and page back through history with the arrows.
 
-Average fix time only counts findings resolved after the `resolved_at` column was introduced; findings closed before that upgrade have no resolution timestamp and are excluded.
+**Attack surface** (third column) counts features by kind - interfaces, sources, sinks, dependencies, externalities - and renders the feature map: a force-directed graph of the annotated surface, drawn from the features and the links between them. Nodes are coloured by kind; hovering one raises its card.
+
+Each panel title links through to the full panel, and the finding and feature references throughout link to their filtered lists - see [Findings](./findings#filtering).
+
+## Notes
+
+The map lays out real features, not a mockup. A feature with no links still appears; it simply sits unconnected.
+
+Findings raised per week counts by creation date, so back-filling a review with historical findings puts them in the week they were *recorded*, not the week the code was written. To capture when a vulnerability was actually introduced, record its [origin](../concepts/annotations#origin).

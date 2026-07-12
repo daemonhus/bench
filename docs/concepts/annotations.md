@@ -91,6 +91,45 @@ The comment `type` field signals intent. Use it consistently so reviewers can fi
 | `feature` | The comment is about a [feature](/concepts/features) annotation (link via `featureId`). |
 | *(empty)* | A general note that doesn't fit the above. |
 
+## Origin
+
+An anchor says *where* an annotation lives. An origin says *how it got there*: the change that introduced it, and the git coordinates of that change. Findings and features can each carry one.
+
+```json
+{
+  "explanation": "Added in the rush to ship SSO; the token check was never wired up.",
+  "introducedCommit": "4f2a1c9e…",
+  "introducedDate": "2026-03-11",
+  "actor": "erin",
+  "branch": "feature-sso -> main",
+  "updatedAt": "2026-03-14T09:12:00Z"
+}
+```
+
+An origin has no anchor and is never reconciled - it records history, which doesn't move when code does. `branch` follows a flow convention, `source -> merge target`. A commit that can be resolved is normalised to its full SHA and pinned; one that can't (rewritten out of history by a force push or a filter-branch) is stored as-is rather than rejected.
+
+### Suggesting an origin
+
+Bench can derive a candidate from the repository. It blames the anchor's lines and walks the first-parent history to find the merge that brought the change into the mainline:
+
+```bash
+bench findings suggest-origin --id <id>
+bench features suggest-origin --id <id>
+```
+
+The suggestion carries `introducedCommit`, `introducedDate` and `actor` from the newest blamed line; `mergeCommit` and `mergeSubject` for the merge that landed it (the merge request message is usually the best explanation source); `branch` pre-composed as the source-to-target flow; and `context`, the recent commits touching the anchor's file. Nothing is written - confirm what matters:
+
+```bash
+bench findings set-origin --id <id> \
+  --commit 4f2a1c9e --date 2026-03-11 --actor erin \
+  --branch "feature-sso -> main" \
+  --explanation "Added in the rush to ship SSO; the token check was never wired up."
+```
+
+`set-origin` merges: only the flags you pass overwrite. `clear-origin` removes the record. The MCP equivalents are `suggest_finding_origin` / `set_finding_origin` and `suggest_feature_origin` / `set_feature_origin`.
+
+**Record the origin when you create the annotation**, not later. The introducing change is one suggest call away while the anchor is fresh, and the explanation is sharpest while the surrounding code is still in front of you. An annotation without an origin answers "what is here" but not "why does this exist" - and the second question is the one that makes systemic patterns visible.
+
 ## Linking findings to features
 
 A finding can be linked to one or more [feature](/concepts/features) annotations via `features`. This connects a vulnerability to the surface it affects. For example, link a SQL injection finding to the `source` feature for the query where it occurs.

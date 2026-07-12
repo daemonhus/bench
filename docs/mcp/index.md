@@ -12,18 +12,27 @@ The endpoint is at `http://localhost:8080/mcp`. All tools are scoped to the sing
 
 ## Tool groups
 
-Tools are organized into eight groups matching the CLI categories:
+Tools are organized into nine groups matching the CLI categories:
 
 | Group | Tools |
 |-------|-------|
 | `git` | `search_code`, `get_blame`, `read_file`, `read_files`, `list_files`, `get_diff`, `list_changed_files`, `list_commits`, `list_branches` |
-| `findings` | `list_findings`, `get_finding`, `create_finding`, `update_finding`, `delete_finding`, `resolve_finding`, `search_findings`, `batch_create_findings` |
+| `findings` | `list_findings`, `get_finding`, `create_finding`, `update_finding`, `delete_finding`, `resolve_finding`, `search_findings`, `batch_create_findings`, `set_finding_origin`, `suggest_finding_origin` |
 | `comments` | `list_comments`, `get_comment`, `create_comment`, `update_comment`, `delete_comment`, `resolve_comment`, `batch_create_comments` |
-| `features` | `list_features`, `get_feature`, `create_feature`, `update_feature`, `delete_feature`, `batch_create_features`, `list_feature_parameters`, `get_feature_parameter`, `create_feature_parameter`, `update_feature_parameter`, `delete_feature_parameter` |
+| `features` | `list_features`, `get_feature`, `create_feature`, `update_feature`, `delete_feature`, `batch_create_features`, `list_feature_parameters`, `get_feature_parameter`, `create_feature_parameter`, `update_feature_parameter`, `delete_feature_parameter`, `set_feature_origin`, `suggest_feature_origin` |
 | `baselines` | `set_baseline`, `list_baselines`, `get_delta`, `delete_baseline` |
 | `analytics` | `get_summary`, `get_coverage`, `mark_reviewed` |
 | `reconcile` | `reconcile`, `get_reconciliation_status`, `get_annotation_history` |
 | `refs` | `list_refs`, `get_ref`, `create_ref`, `update_ref`, `delete_ref`, `batch_create_refs` |
+| `profile` | `get_service_profile`, `update_service_profile` |
+
+## The write gate
+
+Every review-judgment write (findings, comments, features, refs, baselines, `mark_reviewed`) is rejected with a tool error until the [service profile](/panel/context) has been set at least once. `update_service_profile` is the bootstrap path and is always allowed, and an empty update satisfies the gate.
+
+Start a session with `get_service_profile`: it tells you which finding classes are moot (rate limiting at the gateway, auth terminated upstream) and which are amplified (multi-tenant, PII, internet-facing). The profile is embedded in `get_summary` and `get_delta` responses, so a session that opens with either already has it.
+
+Empty fields mean "not configured", never "confirmed absent". Only an explicit `none` in a multi-select may downgrade a finding.
 
 ## Tool reference
 
@@ -183,7 +192,7 @@ No parameters.
 
 ### batch_create_findings
 
-Create multiple findings in a single transaction. Accepts the same fields as `create_finding` in a `findings` array. `title`, `severity`, `file`, `commit`, and `description` are required per item. Optional fields: `start`, `end`, `cwe`, `cve`, `vector`, `score`, `status`, `source`, `category`, `external_id`, `features`. All-or-nothing — rolls back on any error.
+Create multiple findings in a single transaction. Accepts the same fields as `create_finding` in a `findings` array. `title`, `severity`, `file`, `commit`, and `description` are required per item. Optional fields: `start`, `end`, `cwe`, `cve`, `vector`, `score`, `status`, `source`, `category`, `external_id`, `features`. All-or-nothing - rolls back on any error.
 
 ---
 
@@ -279,7 +288,7 @@ Annotate an architectural feature: an API interface, data source/sink, dependenc
 | `status` | string | no | Initial status (default: `active`) |
 | `tags` | string[] | no | Optional tags |
 | `source` | string | no | Tool or scanner that identified the feature |
-| `linked_feature_ids` | array | no | Features to link — each item is an ID string or `{id, description}` object. Self-links return 400; unknown IDs return 404. |
+| `linked_feature_ids` | array | no | Features to link - each item is an ID string or `{id, description}` object. Self-links return 400; unknown IDs return 404. |
 
 ### update_feature
 
@@ -298,7 +307,7 @@ Annotate an architectural feature: an API interface, data source/sink, dependenc
 | `commit` | string | no | New commit (re-anchors; recomputes line hash) |
 | `start` | int | no | New start line (re-anchors; recomputes line hash) |
 | `end` | int | no | New end line (re-anchors; recomputes line hash) |
-| `linked_feature_ids` | array | no | Replace all links — ID strings or `{id, description}` objects; pass `[]` to clear; omit to leave unchanged. Self-links return 400. |
+| `linked_feature_ids` | array | no | Replace all links - ID strings or `{id, description}` objects; pass `[]` to clear; omit to leave unchanged. Self-links return 400. |
 
 ### delete_feature
 
@@ -308,7 +317,7 @@ Annotate an architectural feature: an API interface, data source/sink, dependenc
 
 ### batch_create_features
 
-Create multiple feature annotations in one transaction. All-or-nothing. Accepts a `features` array where each item takes the same fields as `create_feature`. `file`, `commit`, `kind`, and `title` are required per item. Optional fields include `linked_feature_ids` — features within the same batch can reference each other by ID. Max 100 per call.
+Create multiple feature annotations in one transaction. All-or-nothing. Accepts a `features` array where each item takes the same fields as `create_feature`. `file`, `commit`, `kind`, and `title` are required per item. Optional fields include `linked_feature_ids` - features within the same batch can reference each other by ID. Max 100 per call.
 
 ### list_feature_parameters
 
@@ -453,7 +462,7 @@ Create an external reference linking an annotation to a Jira ticket, Slack threa
 | `entity_type` | string | yes | `finding` \| `feature` \| `comment` |
 | `entity` | string | yes | ID of the finding, feature, or comment |
 | `url` | string | yes | Full URL of the external resource |
-| `provider` | string | no | `github` \| `gitlab` \| `jira` \| `confluence` \| `linear` \| `notion` \| `slack` \| `url` — inferred from URL if omitted |
+| `provider` | string | no | `github` \| `gitlab` \| `jira` \| `confluence` \| `linear` \| `notion` \| `slack` \| `url` - inferred from URL if omitted |
 | `title` | string | no | Optional display label |
 
 ### update_ref
@@ -474,3 +483,57 @@ Create an external reference linking an annotation to a Jira ticket, Slack threa
 ### batch_create_refs
 
 Create multiple external references in one operation. Accepts a `refs` array where each item takes the same fields as `create_ref`. `entity_type`, `entity`, and `url` are required per item. `provider` is inferred from the URL if omitted.
+
+### suggest_finding_origin
+
+Derive a candidate [origin](/concepts/annotations#origin) for a finding from git: blame over the anchor's lines, plus the first-parent merge that brought the change into the mainline. Read-only.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | string | yes | Finding ID |
+
+Returns `introducedCommit`, `introducedDate` and `actor` from the newest blamed line; `mergeCommit` and `mergeSubject` for the merge that landed it (the merge message is usually the best explanation source); `branch` pre-composed as the `source -> target` flow; and `context`, the recent commits touching the anchor's file. Nothing is written.
+
+### set_finding_origin
+
+Record how a finding came to be. Merge semantics: only the fields provided overwrite.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | string | yes | Finding ID |
+| `explanation` | string | no | The change or MR that introduced it |
+| `introduced_commit` | string | no | Commit where the flaw landed (resolvable refs are pinned to the full SHA) |
+| `introduced_date` | string | no | ISO date |
+| `actor` | string | no | Author who introduced it |
+| `branch` | string | no | Flow convention: `feature-x -> main` |
+
+`suggest_feature_origin` and `set_feature_origin` take the same shape for features, where the origin records when a route or surface was introduced.
+
+Record the origin when you create the annotation, not later: the introducing change is one suggest call away while the anchor is fresh.
+
+### get_service_profile
+
+Read the [service profile](/panel/context). Do this first: it is the deployment context the code cannot reveal, and it decides which findings matter.
+
+No parameters.
+
+### update_service_profile
+
+Partial update. Arrays replace wholesale; `[]` clears. Always allowed, and the only way to open the write gate.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `description` | string | What the service does |
+| `owner` | string | Owning team or person |
+| `externally_facing` | string | `full`, `partial`, `none` |
+| `compute` | string | `vps`, `kubernetes`, `serverless`, `bare-metal` |
+| `data_sensitivity` | string | `public`, `internal`, `pii`, `payment`, `phi`, `credentials` |
+| `criticality` | string | `low`, `medium`, `high`, `critical` |
+| `tenancy` | string | `single-tenant`, `multi-tenant` |
+| `lifecycle` | string | `active`, `maintenance`, `deprecated`, `decommissioning` |
+| `edge_protections` | string[] | `waf`, `api-gateway`, `rate-limiting`, `ddos-protection`, `none` |
+| `compliance_scope` | string[] | `pci-dss`, `hipaa`, `soc2`, `gdpr`, `none` |
+| `authentication_model` | string[] | `none`, `api-key`, `oauth-oidc`, `mtls`, `session`, `gateway-terminated` |
+| `consumer_type` | string[] | `first-party-frontend`, `internal-services`, `third-party-partners`, `general-public` |
+
+Multi-selects take JSON arrays, not comma-separated strings. `none` is exclusive: it claims a control is confirmed absent and cannot be combined with other values.

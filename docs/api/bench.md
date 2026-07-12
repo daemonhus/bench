@@ -16,8 +16,30 @@ All endpoints return JSON. Error responses use standard HTTP status codes.
 | `GET` | `/api/git/diff-files` | Files changed between two commits |
 | `GET` | `/api/git/branches` | Branch list |
 | `GET` | `/api/git/graph` | Commit graph |
+| `GET` | `/api/git/activity` | Commits bucketed over time, with authors |
+| `GET` | `/api/git/range-stats` | Commit and merge counts between two refs |
 | `GET` | `/api/git/blame` | Git blame for a file |
 | `GET` | `/api/git/search` | Regex search across file contents |
+
+### GET /api/git/activity
+
+Query params:
+- `scale` - bucket size: `day`, `week`, `month`, or `year` (default `week`)
+- `periods` - how many buckets to return (default 52)
+
+Returns `ActivityBucket[]`, each bucket carrying its commit count, insertions and deletions, and the authors who committed in it (by commits descending, then name). Powers the activity timeline on the Overview.
+
+### GET /api/git/range-stats
+
+Query params:
+- `from` - base ref, exclusive (omit for the whole history)
+- `to` - target ref (default `HEAD`)
+
+```json
+{ "commits": 12, "merges": 3 }
+```
+
+The same range semantics as a log walk from `to` back to `from`. Stash entries are skipped. Used by the Overview to say how far HEAD has drifted from the last baseline.
 
 ### GET /api/git/commits
 
@@ -159,6 +181,68 @@ Returns `Comment[]`.
   "featureId": "optional-related-feature-id"
 }
 ```
+
+## Origin
+
+The historical context of a finding or feature: how it came to be, and the git coordinates of its introduction. One per annotation, no anchor, never reconciled. See [Origin](/concepts/annotations#origin) for the concept.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `PUT` | `/api/findings/{id}/origin` | Set a finding's origin (merge semantics) |
+| `DELETE` | `/api/findings/{id}/origin` | Remove a finding's origin |
+| `GET` | `/api/findings/{id}/origin/suggest` | Derive a candidate origin from git |
+| `PUT` | `/api/features/{id}/origin` | Set a feature's origin |
+| `DELETE` | `/api/features/{id}/origin` | Remove a feature's origin |
+| `GET` | `/api/features/{id}/origin/suggest` | Derive a candidate origin from git |
+
+The origin is enriched inline on the parent annotation, so a `GET /api/findings/{id}` already carries it.
+
+### PUT /api/findings/{id}/origin
+
+Only the fields you send are overwritten:
+
+```json
+{
+  "explanation": "Landed with the SSO work; the token check was never wired up.",
+  "introducedCommit": "4f2a1c9e",
+  "introducedDate": "2026-03-11",
+  "actor": "erin",
+  "branch": "feature-sso -> main"
+}
+```
+
+A resolvable `introducedCommit` is normalised to its full SHA and pinned. One that no longer exists (rewritten out by a force push) is stored as-is rather than rejected, since the introducing commit may legitimately be gone.
+
+### GET /api/findings/{id}/origin/suggest
+
+Read-only. Blames the anchor's lines, then walks first-parent history for the merge that brought the change into the mainline:
+
+```json
+{
+  "introducedCommit": "4f2a1c9e…",
+  "introducedDate": "2026-03-11",
+  "actor": "erin",
+  "branch": "feature-sso -> main",
+  "mergeCommit": "9b7d2f1a…",
+  "mergeSubject": "Merge branch 'feature-sso'",
+  "context": [{ "hash": "…", "message": "…", "author": "…", "date": "…" }]
+}
+```
+
+Nothing is written. Confirm what matters with the `PUT`.
+
+## Profile
+
+The service profile: reviewer-configured meta-attributes of the service under review. A singleton. See [Context](/panel/context) for the fields and what they mean.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/profile` | Get the profile |
+| `PATCH` | `/api/profile` | Partial update (arrays replace wholesale; `[]` clears) |
+
+Until the profile has been written at least once, every review-judgment write (findings, comments, features, refs, baselines, mark-reviewed) is rejected with **412 Precondition Failed**. `PATCH /api/profile` is always allowed, and an empty patch satisfies the gate. Disable it with the server flag `-require-profile=false`.
+
+Empty string and empty array mean "not configured", never "confirmed absent". In the multi-select fields, `none` is the explicit claim that a control is absent, and is exclusive.
 
 ## Baselines
 

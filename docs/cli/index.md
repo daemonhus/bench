@@ -98,7 +98,7 @@ bench findings create --help
 ## git
 
 ```bash
-# Regex search across the repo (RE2 syntax — alternation, +, ? and grouping work without escaping)
+# Regex search across the repo (RE2 syntax - alternation, +, ? and grouping work without escaping)
 bench git search-code --pattern "password.*=.*['\"]" --ignore-case
 
 # Alternation and grouping
@@ -198,6 +198,28 @@ bench findings batch-create --help
 #     required: severity, title
 #     optional: category, commit, cve, cwe, description, end, file, score, source, start, status, vector
 ```
+
+### Origin
+
+Record how a finding came to be. `suggest-origin` derives a candidate from git blame and the merge history of the anchor's lines; it writes nothing, so confirm what matters with `set-origin`. The same three commands exist on `features`.
+
+```bash
+# What does git think introduced this?
+bench findings suggest-origin --id <finding-id>
+
+# Confirm it, adding the explanation git can't know
+bench findings set-origin --id <finding-id> \
+  --commit 4f2a1c9e \
+  --date 2026-03-11 \
+  --actor erin \
+  --branch "feature-sso -> main" \
+  --explanation "Landed with the SSO work; the token check was never wired up."
+
+# Remove it
+bench findings clear-origin --id <finding-id>
+```
+
+`set-origin` merges: only the flags you pass overwrite. Record the origin when you create the annotation, while the anchor is fresh and the code is still in front of you.
 
 ## comments
 
@@ -397,6 +419,30 @@ bench refs delete --id <ref-id>
 # Batch-create refs from JSON
 bench refs batch-create --input refs.json
 ```
+
+## profile
+
+The [service profile](/panel/context): what the code can't tell you about where it runs. Every other write is rejected with a 412 until this has been set at least once, so it is the first call of a review.
+
+```bash
+# See the current profile (empty fields mean "not configured")
+bench profile get
+
+# Set it (partial update; list flags replace the whole list)
+bench profile set \
+  --owner platform-team \
+  --externally-facing full \
+  --data-sensitivity pii \
+  --criticality high \
+  --tenancy multi-tenant \
+  --edge-protections waf,rate-limiting \
+  --authentication-model oauth-oidc,gateway-terminated
+
+# Satisfy the write gate with nothing known ("reviewed, nothing to declare")
+bench profile set
+```
+
+In the list flags, `none` is an explicit claim that a control is confirmed absent, and cannot be combined with other values. Leaving a field out means "not configured", which never downgrades a finding.
 
 ## Relationship to the server
 
