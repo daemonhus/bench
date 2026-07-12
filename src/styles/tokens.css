@@ -125,7 +125,7 @@
      before it centres in its gutters. The workbench panes stay full-bleed.
      --page-gutter is the inset from the column edge to the content: every
      document page uses it, so cards line up across pages. */
-  --page-max: 1920px;
+  --page-max: 2000px;
   --page-gutter: 24px;
 
   /* Border radius system */
