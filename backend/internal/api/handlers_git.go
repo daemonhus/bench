@@ -162,6 +162,32 @@ func (h *gitHandlers) graph(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, commits)
 }
 
+func (h *gitHandlers) activity(w http.ResponseWriter, r *http.Request) {
+	scale := r.URL.Query().Get("scale")
+	if scale == "" {
+		scale = "week"
+	}
+	if scale != "day" && scale != "week" && scale != "month" && scale != "year" {
+		writeError(w, http.StatusBadRequest, "scale must be day, week, month, or year")
+		return
+	}
+	periods := 52
+	if s := r.URL.Query().Get("periods"); s != "" {
+		if n, err := strconv.Atoi(s); err == nil && n > 0 {
+			periods = n
+		}
+	}
+	if periods > 400 {
+		periods = 400
+	}
+	activity, err := h.repo.Activity(scale, periods)
+	if err != nil {
+		writeInternalError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, activity)
+}
+
 func (h *gitHandlers) diffFiles(w http.ResponseWriter, r *http.Request) {
 	from := r.URL.Query().Get("from")
 	to := r.URL.Query().Get("to")

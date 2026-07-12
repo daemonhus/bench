@@ -1420,3 +1420,165 @@
   flex: 1;
   min-width: 0;
 }
+
+/* ----- Historical context (origin) ----- */
+
+/* Brain icon + hover card. The card is a child of the wrapper, so hovering
+   either keeps it open; no grace timer needed. */
+.origin-hover {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.origin-hover-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-xs);
+  color: var(--accent-purple);
+  cursor: help;
+}
+
+.origin-hover:hover .origin-hover-icon,
+.origin-hover:focus-within .origin-hover-icon {
+  background: var(--accent-purple-subtle);
+}
+
+.origin-card {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 300px;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-base);
+  box-shadow: var(--shadow-md);
+  z-index: var(--z-tooltip);
+  cursor: auto;
+  text-align: left;
+  white-space: normal;
+}
+
+.origin-hover:hover .origin-card,
+.origin-hover:focus-within .origin-card {
+  display: flex;
+}
+
+.origin-card-title {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.origin-card-explanation {
+  font-size: var(--font-size-small);
+  line-height: var(--leading-normal);
+  color: var(--text-primary);
+}
+
+.origin-card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.origin-card-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-size-small);
+  color: var(--text-secondary);
+}
+
+.origin-card-label {
+  width: 64px;
+  flex-shrink: 0;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.origin-card-actor {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.origin-card-avatar {
+  width: 14px;
+  height: 14px;
+  font-size: 6px;
+}
+
+.origin-card-commit {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+}
+
+/* Edit-mode section */
+.origin-edit-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-muted);
+}
+
+.origin-edit-heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.origin-suggest-btn {
+  margin-left: auto;
+  height: var(--control-h-sm);
+  padding: 0 10px;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  background: none;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-transform: none;
+  letter-spacing: var(--tracking-normal);
+  transition: color var(--transition-base), border-color var(--transition-base);
+}
+
+.origin-suggest-btn:hover:not(:disabled) {
+  color: var(--accent-blue);
+  border-color: var(--accent-blue);
+}
+
+.origin-suggest-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.origin-card-commit-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+.origin-card-commit-link:hover {
+  color: var(--accent-blue);
+  text-decoration: underline;
+}

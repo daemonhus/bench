@@ -43,6 +43,8 @@ func registerFeatureTools(deps *toolDeps) []Tool {
 		toolUpdateFeature(deps),
 		toolDeleteFeature(deps),
 		toolBatchCreateFeatures(deps),
+		toolSetOrigin(deps, "feature"),
+		toolSuggestOrigin(deps, "feature"),
 		toolListFeatureParameters(deps),
 		toolGetFeatureParameter(deps),
 		toolCreateFeatureParameter(deps),
@@ -186,7 +188,7 @@ func toolGetFeature(deps *toolDeps) Tool {
 func toolCreateFeature(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "create_feature",
-		Description: "Annotate an architectural feature: an API interface, data source/sink, dependency injection point, or externality (background worker, side-effect). Use this to map the security-relevant architecture of the codebase.",
+		Description: "Annotate an architectural feature: an API interface, data source/sink, dependency injection point, or externality (background worker, side-effect). Use this to map the security-relevant architecture of the codebase. After creating, record the feature's historical context while the anchor is fresh: suggest_feature_origin derives the introducing commit, date, actor, and branch flow from blame and merge history; confirm with set_feature_origin. When a route or surface was introduced, and on what merge request, is review context in itself.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
@@ -599,7 +601,7 @@ func toolDeleteFeature(deps *toolDeps) Tool {
 func toolBatchCreateFeatures(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "batch_create_features",
-		Description: "Create multiple feature annotations in one transaction. All-or-nothing.",
+		Description: "Create multiple feature annotations in one transaction. All-or-nothing. Afterwards, record each feature's historical context: suggest_feature_origin then set_feature_origin per feature.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {

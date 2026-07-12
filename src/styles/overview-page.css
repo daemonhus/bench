@@ -453,6 +453,103 @@
   color: var(--text-muted);
 }
 
+/* ----- Commit activity timeline ----- */
+
+.ovp-act-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Pan buttons match the scale select's small-control height so the
+   header controls read as one group. */
+.ovp-act-nav .icon-btn {
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
+}
+
+/* Scale dropdown, sized down to sit beside the pan icon buttons. */
+.ovp-act-scale-select {
+  height: var(--control-h-sm);
+  margin-right: 4px;
+  font-size: var(--font-size-xs);
+}
+
+.ovp-act-strip {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  margin-bottom: 6px;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.ovp-act-strip-when {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.ovp-act-strip-authors {
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.ovp-act-add {
+  color: var(--accent-green);
+}
+
+.ovp-act-del {
+  color: var(--severity-high);
+}
+
+.ovp-act-plot {
+  height: 84px;
+}
+
+.ovp-act-slot-focus {
+  background: var(--hover-subtle);
+}
+
+/* Author markers: one slot per week, mirroring the bar slots above. */
+.ovp-act-markers {
+  display: flex;
+  gap: 2px;
+  margin-top: 4px;
+  min-height: 16px;
+}
+
+.ovp-act-marker-slot {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+
+.ovp-act-avatar {
+  position: relative; /* stacking context so zIndex keeps the lead author on top */
+  width: 16px;
+  height: 16px;
+  font-size: 7px;
+  /* A surface ring keeps overlapped avatars legible. */
+  box-shadow: 0 0 0 2px var(--bg-secondary);
+}
+
+.ovp-act-avatar + .ovp-act-avatar {
+  margin-left: -6px;
+}
+
+.ovp-act-avatar-more {
+  margin-left: 2px;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
 /* ----- Features by kind ----- */
 
 .ovp-kinds {

@@ -2,8 +2,10 @@ package model
 
 import (
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // InferProvider returns a provider string inferred from the URL hostname.
@@ -79,6 +81,113 @@ type Finding struct {
 	CommentCount    int      `json:"commentCount,omitempty"`
 	FeatureIDs      []string `json:"features,omitempty"`
 	Refs            []Ref    `json:"refs,omitempty"`
+	Origin          *Origin `json:"origin,omitempty"`
+}
+
+// Origin is the historical context of an annotation (finding or feature):
+// how it came to be and the git coordinates of its introduction. 1:1 with
+// its parent entity, no anchor, never reconciled.
+type Origin struct {
+	Explanation      string `json:"explanation,omitempty"`
+	IntroducedCommit string `json:"introducedCommit,omitempty"`
+	IntroducedDate   string `json:"introducedDate,omitempty"`
+	Actor            string `json:"actor,omitempty"`
+	Branch           string `json:"branch,omitempty"`
+	UpdatedAt        string `json:"updatedAt,omitempty"`
+}
+
+// OriginSuggestion is a blame-derived origin candidate plus the surrounding
+// git context that a stored Origin does not carry: the introducing commit's
+// subject, the merge that brought it to the mainline (usually the better
+// explanation source), and recent commits touching the anchor file.
+type OriginSuggestion struct {
+	Origin
+	CommitSubject string       `json:"commitSubject,omitempty"`
+	MergeCommit   string       `json:"mergeCommit,omitempty"`
+	MergeSubject  string       `json:"mergeSubject,omitempty"`
+	Context       []CommitInfo `json:"context,omitempty"`
+}
+
+var mergeBranchRes = []*regexp.Regexp{
+	// "Merge pull request #12 from owner/feature/x" (GitHub) — branch is the
+	// part after the owner segment.
+	regexp.MustCompile(`^Merge pull request #\d+ (?:in [^ ]+ )?from [^/ ]+/(\S+)`),
+	// "Merge branch 'feature/x'" / "Merge remote-tracking branch 'origin/x'"
+	regexp.MustCompile(`^Merge (?:remote-tracking )?branch '([^']+)'`),
+	regexp.MustCompile(`^Merged in (\S+)`), // Bitbucket
+}
+
+// BranchFromMergeSubject extracts the merged branch name from a merge commit
+// subject, or "" when the subject does not follow a known convention.
+func BranchFromMergeSubject(subject string) string {
+	for _, re := range mergeBranchRes {
+		if m := re.FindStringSubmatch(subject); m != nil {
+			return strings.TrimPrefix(m[1], "origin/")
+		}
+	}
+	return ""
+}
+
+var mergeTargetRe = regexp.MustCompile(` into '?([^' ]+)'?$`)
+
+// MergeTargetFromSubject extracts the target branch from an "into y" clause
+// on a merge subject ("Merge branch 'x' into develop"), or "" when absent.
+func MergeTargetFromSubject(subject string) string {
+	if m := mergeTargetRe.FindStringSubmatch(subject); m != nil {
+		return m[1]
+	}
+	return ""
+}
+
+// BranchFlow renders where a change started and what it merged to, e.g.
+// "feature/x -> main". Falls back to just the source when no target is known.
+func BranchFlow(source, target string) string {
+	if source == "" {
+		return ""
+	}
+	if target == "" || target == source {
+		return source
+	}
+	return source + " -> " + target
+}
+
+// parseBlameTime reads the date formats blame emits: unix epoch seconds
+// (git porcelain) or RFC3339. Zero time when neither parses.
+func parseBlameTime(s string) time.Time {
+	if secs, err := strconv.ParseInt(s, 10, 64); err == nil {
+		return time.Unix(secs, 0).UTC()
+	}
+	if t, err := time.Parse(time.RFC3339, s); err == nil {
+		return t
+	}
+	return time.Time{}
+}
+
+// OriginCandidateFromBlame picks the newest blamed line as the introduction
+// candidate: the last change to the anchored code is the best guess for the
+// change that introduced the flaw. The date is normalised to RFC3339 when it
+// parses; the commit hash is returned as blame gave it (possibly short) and
+// callers should resolve it to a full sha.
+func OriginCandidateFromBlame(lines []BlameLine) Origin {
+	if len(lines) == 0 {
+		return Origin{}
+	}
+	best := lines[0]
+	bestT := parseBlameTime(best.AuthorDate)
+	for _, l := range lines[1:] {
+		if t := parseBlameTime(l.AuthorDate); t.After(bestT) {
+			best, bestT = l, t
+		}
+	}
+	date := best.AuthorDate
+	if !bestT.IsZero() {
+		date = bestT.Format(time.RFC3339)
+	}
+	return Origin{
+		IntroducedCommit: best.CommitHash,
+		IntroducedDate:   date,
+		Actor:            best.Author,
+	}
 }
 
 type Comment struct {
@@ -160,6 +269,7 @@ type Feature struct {
 	LinkedFeatures  []LinkedFeature    `json:"linkedFeatures"`
 	Refs            []Ref              `json:"refs,omitempty"`
 	Parameters      []FeatureParameter `json:"parameters"`
+	Origin          *Origin            `json:"origin,omitempty"`
 }
 
 type FeatureWithPosition struct {
@@ -213,6 +323,25 @@ type GraphCommit struct {
 	Subject   string   `json:"subject"`
 	Parents   []string `json:"parents"`
 	Refs      []string `json:"refs"`
+}
+
+// ActivityAuthor is one contributor's share of a week's activity.
+type ActivityAuthor struct {
+	Name    string `json:"name"`
+	Commits int    `json:"commits"`
+}
+
+// ActivityBucket is one period (day, week, or month) of repository activity
+// across all refs, bucketed in UTC — weeks start Monday, months on the 1st.
+// Additions/Deletions exclude merge commits so merged branch work is not
+// double-counted.
+type ActivityBucket struct {
+	Start     string           `json:"start"` // YYYY-MM-DD (period start, UTC)
+	Commits   int              `json:"commits"`
+	Merges    int              `json:"merges"`
+	Additions int              `json:"additions"`
+	Deletions int              `json:"deletions"`
+	Authors   []ActivityAuthor `json:"authors"` // by commits desc, then name
 }
 
 type FileEntry struct {

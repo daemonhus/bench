@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"regexp"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -352,6 +353,225 @@ func (b *GoGitBackend) Graph(limit int) ([]model.GraphCommit, error) {
 		return nil, err
 	}
 	return commits, nil
+}
+
+// activityCommitCap bounds the log walk for Activity so a huge repo can't
+// stall the endpoint; periods older than the cap's reach simply read as quiet.
+const activityCommitCap = 3000
+
+// periodStartUTC truncates t to the start of its bucket, in UTC: the day
+// itself, the Monday of its week, the 1st of its month, or the 1st of January.
+func periodStartUTC(t time.Time, scale string) time.Time {
+	u := t.UTC()
+	d := time.Date(u.Year(), u.Month(), u.Day(), 0, 0, 0, 0, time.UTC)
+	switch scale {
+	case "day":
+		return d
+	case "month":
+		return time.Date(u.Year(), u.Month(), 1, 0, 0, 0, 0, time.UTC)
+	case "year":
+		return time.Date(u.Year(), 1, 1, 0, 0, 0, 0, time.UTC)
+	default: // week
+		return d.AddDate(0, 0, -int((d.Weekday()+6)%7))
+	}
+}
+
+// periodAdd advances a bucket start by n periods at the given scale.
+func periodAdd(t time.Time, scale string, n int) time.Time {
+	switch scale {
+	case "day":
+		return t.AddDate(0, 0, n)
+	case "month":
+		return t.AddDate(0, n, 0)
+	case "year":
+		return t.AddDate(n, 0, 0)
+	default: // week
+		return t.AddDate(0, 0, 7*n)
+	}
+}
+
+func (b *GoGitBackend) Activity(scale string, periods int) ([]model.ActivityBucket, error) {
+	if scale != "day" && scale != "month" && scale != "year" {
+		scale = "week"
+	}
+	if periods <= 0 {
+		periods = 52
+	}
+	repo, err := b.open()
+	if err != nil {
+		return nil, err
+	}
+	iter, err := repo.Log(&gogit.LogOptions{All: true, Order: gogit.LogOrderCommitterTime})
+	if err != nil {
+		return nil, err
+	}
+	defer iter.Close()
+
+	var commits []*object.Commit
+	err = iter.ForEach(func(c *object.Commit) error {
+		if len(commits) >= activityCommitCap {
+			return storer.ErrStop
+		}
+		// Stash entries are working-state snapshots, not activity.
+		if strings.HasPrefix(c.Message, "WIP on ") || strings.HasPrefix(c.Message, "index on ") {
+			return nil
+		}
+		commits = append(commits, c)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(commits) == 0 {
+		return []model.ActivityBucket{}, nil
+	}
+
+	// Anchor the last bucket to the newest author date rather than the wall
+	// clock, so a repo that went quiet still shows its active period instead
+	// of trailing empty buckets.
+	newest := commits[0].Author.When
+	for _, c := range commits {
+		if c.Author.When.After(newest) {
+			newest = c.Author.When
+		}
+	}
+	anchor := periodStartUTC(newest, scale)
+	cutoff := periodAdd(anchor, scale, -(periods - 1))
+
+	out := make([]model.ActivityBucket, periods)
+	authorsPerBucket := make([]map[string]int, periods)
+	index := map[string]int{}
+	for i := range out {
+		start := periodAdd(cutoff, scale, i).Format("2006-01-02")
+		out[i] = model.ActivityBucket{Start: start, Authors: []model.ActivityAuthor{}}
+		authorsPerBucket[i] = map[string]int{}
+		index[start] = i
+	}
+
+	first := len(out) - 1 // trim leading empty buckets below
+	for _, c := range commits {
+		i, ok := index[periodStartUTC(c.Author.When, scale).Format("2006-01-02")]
+		if !ok {
+			continue // older than the window
+		}
+		if i < first {
+			first = i
+		}
+		w := &out[i]
+		w.Commits++
+		authorsPerBucket[i][c.Author.Name]++
+		if len(c.ParentHashes) > 1 {
+			w.Merges++
+			continue // a merge's diffstat would double-count the branch's work
+		}
+		if stats, err := c.Stats(); err == nil {
+			for _, fs := range stats {
+				w.Additions += fs.Addition
+				w.Deletions += fs.Deletion
+			}
+		}
+	}
+
+	for i := range out {
+		names := make([]string, 0, len(authorsPerBucket[i]))
+		for n := range authorsPerBucket[i] {
+			names = append(names, n)
+		}
+		sort.Slice(names, func(a, b int) bool {
+			ca, cb := authorsPerBucket[i][names[a]], authorsPerBucket[i][names[b]]
+			if ca != cb {
+				return ca > cb
+			}
+			return names[a] < names[b]
+		})
+		for _, n := range names {
+			out[i].Authors = append(out[i].Authors, model.ActivityAuthor{Name: n, Commits: authorsPerBucket[i][n]})
+		}
+	}
+	return out[first:], nil
+}
+
+// originMergeWalkCap bounds the first-parent walk when locating the merge
+// that brought a commit into the mainline.
+const originMergeWalkCap = 500
+
+// OriginSuggestion derives origin context for an anchor: the blame candidate
+// (newest commit touching the anchored lines), the merge that brought it to
+// the mainline (whose subject usually names the branch or MR), and recent
+// commits on the file.
+func (b *GoGitBackend) OriginSuggestion(file, commitish string, lineStart, lineEnd int) (*model.OriginSuggestion, error) {
+	lines, err := b.Blame(commitish, file, lineStart, lineEnd)
+	if err != nil {
+		return nil, err
+	}
+	if len(lines) == 0 {
+		return nil, fmt.Errorf("no blame data for %s", file)
+	}
+	s := &model.OriginSuggestion{Origin: model.OriginCandidateFromBlame(lines)}
+
+	repo, err := b.open()
+	if err != nil {
+		return nil, err
+	}
+	// Blame emits short hashes; resolve to the full commit.
+	var intro *object.Commit
+	if introHash, err := repo.ResolveRevision(plumbing.Revision(s.IntroducedCommit)); err == nil {
+		s.IntroducedCommit = introHash.String()
+		if c, err := repo.CommitObject(*introHash); err == nil {
+			intro = c
+			s.CommitSubject = toCommitInfo(c).Subject
+		}
+	}
+
+	// Walk HEAD's first-parent chain for the merge that brought the
+	// introducing commit in: the last chain commit that contains it whose
+	// mainline parent does not.
+	if intro != nil {
+		if head, err := repo.Head(); err == nil {
+			if cur, err := repo.CommitObject(head.Hash()); err == nil {
+				if reachable, err := intro.IsAncestor(cur); err == nil && reachable {
+					for steps := 0; steps < originMergeWalkCap; steps++ {
+						if cur.Hash == intro.Hash || cur.NumParents() == 0 {
+							break // introduced directly on the mainline
+						}
+						first, err := cur.Parent(0)
+						if err != nil {
+							break
+						}
+						onMainline, err := intro.IsAncestor(first)
+						if err != nil {
+							break
+						}
+						if !onMainline {
+							if cur.NumParents() > 1 {
+								s.MergeCommit = cur.Hash.String()
+								s.MergeSubject = toCommitInfo(cur).Subject
+								if branch := model.BranchFromMergeSubject(s.MergeSubject); branch != "" {
+									// Where it started and what it merged to:
+									// an "into y" clause wins, else the walk's
+									// mainline is the default branch.
+									target := model.MergeTargetFromSubject(s.MergeSubject)
+									if target == "" {
+										target = b.DefaultBranch()
+									}
+									s.Branch = model.BranchFlow(branch, target)
+								}
+							}
+							break
+						}
+						cur = first
+					}
+				}
+			}
+		}
+	}
+
+	// Recent commits touching the file: what the surface looked like around
+	// the time it was annotated.
+	if ctxCommits, err := b.LogRange("", "HEAD", file, 5); err == nil {
+		s.Context = ctxCommits
+	}
+	return s, nil
 }
 
 func (b *GoGitBackend) Tree(commitish string) ([]model.FileEntry, error) {

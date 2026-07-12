@@ -138,6 +138,9 @@ func (d *DB) ListFindings(fileID string, limit, offset int) ([]model.Finding, in
 			findings[i].Refs = refsMap[f.ID]
 		}
 	}
+	if err := d.enrichWithOrigins(findings); err != nil {
+		return nil, 0, err
+	}
 	return findings, total, nil
 }
 
@@ -335,6 +338,9 @@ func (d *DB) GetFinding(id string) (*model.Finding, error) {
 	if refsMap, err := d.enrichWithRefs("finding", []string{f.ID}); err == nil && refsMap != nil {
 		f.Refs = refsMap[f.ID]
 	}
+	if err := d.enrichWithOrigins(slice); err == nil {
+		f.Origin = slice[0].Origin
+	}
 	return &f, nil
 }
 
@@ -450,6 +456,11 @@ func (d *DB) DeleteFinding(id string) error {
 		// Remove refs
 		if _, err := tx.Exec(`DELETE FROM refs WHERE entity_type = 'finding' AND entity_id = ? AND project_id = ?`, id, d.projectID); err != nil {
 			return fmt.Errorf("delete refs: %w", err)
+		}
+
+		// Remove origin
+		if _, err := tx.Exec(`DELETE FROM origins WHERE entity_type = 'finding' AND entity_id = ? AND project_id = ?`, id, d.projectID); err != nil {
+			return fmt.Errorf("delete origin: %w", err)
 		}
 
 		res, err := tx.Exec(`DELETE FROM findings WHERE id = ? AND project_id = ?`, id, d.projectID)

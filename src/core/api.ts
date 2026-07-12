@@ -1,4 +1,4 @@
-import type { Finding, Comment, FindingWithPosition, CommentWithPosition, CommitInfo, FileEntry, BranchInfo, GraphCommit, ReconciledHead, JobSnapshot, ReconcileFileStatus, AnnotationPosition, PaginatedResponse, GrepMatch, Baseline, BaselineDelta, Feature, FeatureWithPosition, FeatureKind, FeatureStatus, Ref, ServiceProfile } from './types';
+import type { Finding, Origin, OriginSuggestion, Comment, FindingWithPosition, CommentWithPosition, CommitInfo, FileEntry, BranchInfo, GraphCommit, ActivityBucket, ActivityScale, ReconciledHead, JobSnapshot, ReconcileFileStatus, AnnotationPosition, PaginatedResponse, GrepMatch, Baseline, BaselineDelta, Feature, FeatureWithPosition, FeatureKind, FeatureStatus, Ref, ServiceProfile } from './types';
 
 interface DiffResult {
   raw: string;
@@ -39,6 +39,12 @@ export const gitApi = {
   listCommits(limit = 50): Promise<CommitInfo[]> {
     return fetchJSON(`/api/git/commits?limit=${limit}`);
   },
+  /** Resolve any commitish (including rev^ suffixes) to a concrete commit. */
+  resolveCommit(ref: string): Promise<CommitInfo | null> {
+    return fetchJSON<CommitInfo[]>(`/api/git/commits?to_commit=${encodeURIComponent(ref)}&limit=1`)
+      .then((list) => list[0] ?? null)
+      .catch(() => null);
+  },
   listFiles(commitish: string): Promise<FileEntry[]> {
     return fetchJSON(`/api/git/tree/${encodeURIComponent(commitish)}`);
   },
@@ -56,6 +62,9 @@ export const gitApi = {
   },
   listGraph(limit = 100): Promise<GraphCommit[]> {
     return fetchJSON(`/api/git/graph?limit=${limit}`);
+  },
+  activity(scale: ActivityScale = 'week', periods = 52): Promise<ActivityBucket[]> {
+    return fetchJSON(`/api/git/activity?scale=${scale}&periods=${periods}`);
   },
   searchCode(pattern: string, commit?: string, opts?: { path?: string; caseInsensitive?: boolean }): Promise<GrepMatch[]> {
     const params = new URLSearchParams({ pattern });
@@ -91,6 +100,19 @@ export const findingsApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(finding),
     });
+  },
+  setOrigin(id: string, origin: Partial<Origin>): Promise<Origin> {
+    return fetchJSON(`/api/findings/${encodeURIComponent(id)}/origin`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(origin),
+    });
+  },
+  clearOrigin(id: string): Promise<void> {
+    return fetchJSON(`/api/findings/${encodeURIComponent(id)}/origin`, { method: 'DELETE' });
+  },
+  suggestOrigin(id: string): Promise<OriginSuggestion> {
+    return fetchJSON(`/api/findings/${encodeURIComponent(id)}/origin/suggest`);
   },
   update(id: string, updates: Partial<Finding>): Promise<Finding> {
     return fetchJSON(`/api/findings/${encodeURIComponent(id)}`, {
@@ -172,6 +194,19 @@ export const featuresApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(feature),
     });
+  },
+  setOrigin(id: string, origin: Partial<Origin>): Promise<Origin> {
+    return fetchJSON(`/api/features/${encodeURIComponent(id)}/origin`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(origin),
+    });
+  },
+  clearOrigin(id: string): Promise<void> {
+    return fetchJSON(`/api/features/${encodeURIComponent(id)}/origin`, { method: 'DELETE' });
+  },
+  suggestOrigin(id: string): Promise<OriginSuggestion> {
+    return fetchJSON(`/api/features/${encodeURIComponent(id)}/origin/suggest`);
   },
   update(id: string, updates: Partial<Feature>): Promise<Feature> {
     return fetchJSON(`/api/features/${encodeURIComponent(id)}`, {

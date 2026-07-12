@@ -98,6 +98,10 @@ func TestMCPToolRequiredFields(t *testing.T) {
 		{"update_finding", map[string]any{"id": "nonexistent", "title": "updated"}},
 		{"delete_finding", map[string]any{"id": "nonexistent"}},
 		{"resolve_finding", map[string]any{"id": "nonexistent", "commit": head}},
+		{"set_finding_origin", map[string]any{"id": "nonexistent", "actor": "mallory"}},
+		{"suggest_finding_origin", map[string]any{"id": "nonexistent"}},
+		{"set_feature_origin", map[string]any{"id": "nonexistent", "actor": "mallory"}},
+		{"suggest_feature_origin", map[string]any{"id": "nonexistent"}},
 		{"batch_create_findings", map[string]any{"findings": []any{map[string]any{
 			"file": "main.go", "commit": head,
 			"severity": "high", "title": "t", "description": "d",

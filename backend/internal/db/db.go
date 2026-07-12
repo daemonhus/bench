@@ -451,6 +451,25 @@ func (d *DB) migrate() error {
 		return fmt.Errorf("create idx_refs_project: %w", err)
 	}
 
+	// Origins: historical context, 1:1 with findings and features
+	if _, err := d.conn.Exec(`CREATE TABLE IF NOT EXISTS origins (
+		entity_type       TEXT NOT NULL CHECK(entity_type IN ('finding','feature')),
+		entity_id         TEXT NOT NULL,
+		project_id        TEXT NOT NULL DEFAULT '_standalone',
+		explanation       TEXT NOT NULL DEFAULT '',
+		introduced_commit TEXT NOT NULL DEFAULT '',
+		introduced_date   TEXT NOT NULL DEFAULT '',
+		actor             TEXT NOT NULL DEFAULT '',
+		branch            TEXT NOT NULL DEFAULT '',
+		updated_at        TEXT NOT NULL DEFAULT (datetime('now')),
+		PRIMARY KEY (entity_type, entity_id)
+	)`); err != nil {
+		return fmt.Errorf("create origins: %w", err)
+	}
+	if _, err := d.conn.Exec(`CREATE INDEX IF NOT EXISTS idx_origins_project ON origins(project_id)`); err != nil {
+		return fmt.Errorf("create idx_origins_project: %w", err)
+	}
+
 	// Add project_id indexes
 	for _, idx := range []string{
 		`CREATE INDEX IF NOT EXISTS idx_findings_project ON findings(project_id)`,

@@ -14,6 +14,7 @@ type Backend interface {
 	Log(limit int) ([]model.CommitInfo, error)
 	LogRange(from, to, path string, limit int) ([]model.CommitInfo, error)
 	Graph(limit int) ([]model.GraphCommit, error)
+	Activity(scale string, periods int) ([]model.ActivityBucket, error)
 
 	Tree(commitish string) ([]model.FileEntry, error)
 	Show(commitish, path string) (string, error)
@@ -33,6 +34,7 @@ type Backend interface {
 
 	Grep(pattern, commit, path string, caseInsensitive, fixed bool, maxResults int) ([]model.GrepMatch, error)
 	Blame(commit, path string, lineStart, lineEnd int) ([]model.BlameLine, error)
+	OriginSuggestion(file, commitish string, lineStart, lineEnd int) (*model.OriginSuggestion, error)
 
 	PinCommit(sha string) error
 	UnpinCommit(sha string) error

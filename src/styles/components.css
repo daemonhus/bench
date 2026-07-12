@@ -91,7 +91,7 @@ button:focus-visible,
 a:focus-visible,
 summary:focus-visible,
 label:has(> input:focus-visible) {
-  outline: 1.5px solid color-mix(in srgb, var(--accent-blue) 65%, transparent);
+  outline: 1.5px solid var(--focus-ring);
   outline-offset: 1px;
 }
 
@@ -318,14 +318,14 @@ label:has(> input:focus-visible) {
 }
 
 [data-nav-area]:focus-visible {
-  outline: 1px solid color-mix(in srgb, var(--accent-blue) 35%, transparent);
+  outline: 1px solid var(--focus-ring-area);
   outline-offset: 5px;
   border-radius: var(--radius-base);
 }
 
 /* Codeview: use inset outline so overflow:hidden doesn't clip it */
 [data-nav-area="codeview"]:focus-visible {
-  outline: 1.5px solid color-mix(in srgb, var(--accent-blue) 55%, transparent);
+  outline: 1.5px solid var(--focus-ring-area);
   outline-offset: -2px;
 }
 
@@ -333,7 +333,7 @@ label:has(> input:focus-visible) {
    outset ring so only the top edge (around the header) was visible. Use inset
    + brighter so the whole panel reads as the focus target. */
 [data-nav-area="sidebar"]:focus-visible {
-  outline: 1.5px solid color-mix(in srgb, var(--accent-blue) 55%, transparent);
+  outline: 1.5px solid var(--focus-ring-area);
   outline-offset: -2px;
 }
 
@@ -345,7 +345,7 @@ label:has(> input:focus-visible) {
 /* Codeview line-by-line focus highlight */
 .codeview-focused-line {
   background: color-mix(in srgb, var(--accent-blue) 25%, transparent) !important;
-  outline: 1.5px solid color-mix(in srgb, var(--accent-blue) 65%, transparent);
+  outline: 1.5px solid var(--focus-ring);
   outline-offset: -1px;
   border-radius: 2px;
 }

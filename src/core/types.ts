@@ -92,6 +92,26 @@ export interface Finding {
   commentCount?: number;
   features?: string[];
   refs?: Ref[];
+  origin?: Origin;
+}
+
+/** Historical context of a finding or feature: how it came to be and the
+ *  git coordinates of its introduction. */
+export interface Origin {
+  explanation?: string;
+  introducedCommit?: string;
+  introducedDate?: string;
+  actor?: string;
+  branch?: string;
+  updatedAt?: string;
+}
+
+/** Blame-derived origin candidate plus surrounding git context. */
+export interface OriginSuggestion extends Origin {
+  commitSubject?: string;
+  mergeCommit?: string;
+  mergeSubject?: string;
+  context?: CommitInfo[];
 }
 
 export interface FindingWithPosition extends Finding {
@@ -188,6 +208,24 @@ export interface GraphCommit {
   subject: string;
   parents: string[];
   refs: string[];
+}
+
+export interface ActivityAuthor {
+  name: string;
+  commits: number;
+}
+
+export type ActivityScale = 'day' | 'week' | 'month' | 'year';
+
+/** One period of repository activity, oldest first. Weeks start Monday,
+ *  months and years on the 1st, all in UTC. */
+export interface ActivityBucket {
+  start: string; // YYYY-MM-DD
+  commits: number;
+  merges: number;
+  additions: number;
+  deletions: number;
+  authors: ActivityAuthor[];
 }
 
 // Reconciliation types
@@ -294,6 +332,7 @@ export interface Feature {
   linkedFeatures?: LinkedFeature[];
   refs?: Ref[];
   parameters?: FeatureParameter[];
+  origin?: Origin;
 }
 
 export interface FeatureWithPosition extends Feature {

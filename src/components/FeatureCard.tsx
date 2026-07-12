@@ -3,18 +3,19 @@ import { createPortal } from 'react-dom';
 import { useAnnotationStore } from '../stores/annotation-store';
 import { useRepoStore } from '../stores/repo-store';
 import { useUIStore } from '../stores/ui-store';
-import { gitApi } from '../core/api';
+import { gitApi, featuresApi } from '../core/api';
 import { useSnippetState } from '../core/use-snippet-state';
 import { detectLanguage, ensureLanguageRegistered } from '../core/language-map';
 import { highlight, renderToken } from '../core/tokenizer';
 import { InlineMarkdown } from '../core/markdown';
 import { avatarInitials, avatarColor } from '../core/avatar';
-import type { Feature, FeatureKind, FeatureStatus, FeatureParameter } from '../core/types';
+import type { Feature, FeatureKind, FeatureStatus, FeatureParameter, Origin } from '../core/types';
 import { RefProviderIcon } from './RefProviderIcon';
 import { RefManageModal } from './RefManageModal';
 import { LinkManageModal } from './LinkManageModal';
 import { AnchorField } from './AnchorField';
 import { TagInput } from './TagInput';
+import { OriginHover, OriginIcon, originHasContent } from './origin';
 
 interface FeatureCardProps {
   feature: Feature;
@@ -151,6 +152,14 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
     (feature.linkedFeatures ?? []).map((lf) => ({ id: lf.id, description: lf.description ?? '' })),
   );
 
+  // Historical context (origin) form state
+  const [originExplanation, setOriginExplanation] = useState(feature.origin?.explanation ?? '');
+  const [originCommit, setOriginCommit] = useState(feature.origin?.introducedCommit ?? '');
+  const [originDate, setOriginDate] = useState(feature.origin?.introducedDate ?? '');
+  const [originActor, setOriginActor] = useState(feature.origin?.actor ?? '');
+  const [originBranch, setOriginBranch] = useState(feature.origin?.branch ?? '');
+  const [suggestingOrigin, setSuggestingOrigin] = useState(false);
+
   // Suggest every tag already in use across the project so users converge on
   // a small shared vocabulary instead of spelling "auth" five ways.
   const tagSuggestions = useMemo(() => {
@@ -255,6 +264,49 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
     setSubmittingReply(false);
   };
 
+  const handleSuggestOrigin = async () => {
+    setSuggestingOrigin(true);
+    try {
+      const sug = await featuresApi.suggestOrigin(feature.id);
+      // Fill only the blanks; typed values win over the suggestion.
+      if (!originCommit && sug.introducedCommit) setOriginCommit(sug.introducedCommit);
+      if (!originDate && sug.introducedDate) setOriginDate(sug.introducedDate);
+      if (!originActor && sug.actor) setOriginActor(sug.actor);
+      if (!originBranch && sug.branch) setOriginBranch(sug.branch);
+      // The merge subject usually says more than the commit; seed the
+      // explanation with it so there is something concrete to refine.
+      if (!originExplanation && sug.mergeSubject) setOriginExplanation(sug.mergeSubject);
+    } catch {
+      // No blame data (orphaned anchor, deleted file): leave the form as-is.
+    } finally {
+      setSuggestingOrigin(false);
+    }
+  };
+
+  const saveOrigin = () => {
+    const next: Origin = {
+      explanation: originExplanation.trim(),
+      introducedCommit: originCommit.trim(),
+      introducedDate: originDate.trim(),
+      actor: originActor.trim(),
+      branch: originBranch.trim(),
+    };
+    const cur = feature.origin;
+    const hasContent = Object.values(next).some((v) => v !== '');
+    const changed =
+      next.explanation !== (cur?.explanation ?? '') ||
+      next.introducedCommit !== (cur?.introducedCommit ?? '') ||
+      next.introducedDate !== (cur?.introducedDate ?? '') ||
+      next.actor !== (cur?.actor ?? '') ||
+      next.branch !== (cur?.branch ?? '');
+    if (!changed) return;
+    if (!hasContent && cur) {
+      featuresApi.clearOrigin(feature.id).catch(() => {});
+    } else if (hasContent) {
+      featuresApi.setOrigin(feature.id, next).catch(() => {});
+    }
+  };
+
   const handleSave = () => {
     const tags = editTags;
     const startNum = parseInt(anchorLineStart, 10);
@@ -275,6 +327,7 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
     if (anchorFileId.trim()) updates['file_id'] = anchorFileId.trim();
     if (startNum > 0 && endNum > 0) { updates['line_start'] = startNum; updates['line_end'] = endNum; }
     updateFeature(feature.id, updates as unknown as Partial<Feature>);
+    saveOrigin();
     setEditing(false);
   };
 
@@ -293,6 +346,11 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
     setAnchorLineEnd(feature.anchor.lineRange?.end?.toString() ?? '');
     setEditParams((feature.parameters ?? []).map((p) => ({ id: p.id, name: p.name, type: p.type ?? '', required: p.required, description: p.description ?? '', pattern: p.pattern ?? '' })));
     setEditLinkedFeatures((feature.linkedFeatures ?? []).map((lf) => ({ id: lf.id, description: lf.description ?? '' })));
+    setOriginExplanation(feature.origin?.explanation ?? '');
+    setOriginCommit(feature.origin?.introducedCommit ?? '');
+    setOriginDate(feature.origin?.introducedDate ?? '');
+    setOriginActor(feature.origin?.actor ?? '');
+    setOriginBranch(feature.origin?.branch ?? '');
     setEditing(false);
   };
 
@@ -406,6 +464,7 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
             <span className="feature-expand-chevron">&#9658;</span>
             {kindBadge}
             {titleEl}
+            {originHasContent(feature.origin) && <OriginHover origin={feature.origin} />}
             {!compact && feature.protocol && <span className="feature-chip">{feature.protocol}</span>}
             {!compact && feature.kind === 'interface' && feature.parameters && feature.parameters.length > 0 && (
               <span className="feature-params-badge">{feature.parameters.length} params</span>
@@ -481,6 +540,7 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
             <span className="feature-expand-chevron feature-expand-chevron--open">&#9658;</span>
             {kindBadge}
             {titleEl}
+            {originHasContent(feature.origin) && <OriginHover origin={feature.origin} />}
             {!compact && feature.protocol && <span className="feature-chip">{feature.protocol}</span>}
             {headerRight}
           </div>
@@ -850,6 +910,45 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
                   onLineEndChange={setAnchorLineEnd}
                 />
               </div>
+              <div className="origin-edit-section">
+                <div className="origin-edit-heading">
+                  <OriginIcon />
+                  Historical context
+                  <button
+                    type="button"
+                    className="origin-suggest-btn"
+                    onClick={handleSuggestOrigin}
+                    disabled={suggestingOrigin}
+                    title="Fill commit, date, actor, and branch from git blame and merge history on the anchor"
+                  >
+                    {suggestingOrigin ? 'Deriving…' : 'Suggest from git'}
+                  </button>
+                </div>
+                <textarea
+                  className="finding-edit-textarea"
+                  value={originExplanation}
+                  onChange={(e) => setOriginExplanation(e.target.value)}
+                  placeholder="How did this surface come to be? The change or merge request that introduced it."
+                  rows={2}
+                />
+                <div className="finding-edit-row">
+                  <label className="finding-edit-label">Actor</label>
+                  <input className="finding-edit-input-sm" value={originActor} onChange={(e) => setOriginActor(e.target.value)} placeholder="Author who introduced it" />
+                </div>
+                <div className="finding-edit-row">
+                  <label className="finding-edit-label">Branch</label>
+                  <input className="finding-edit-input-sm" value={originBranch} onChange={(e) => setOriginBranch(e.target.value)} placeholder="Where it started and merged to, e.g. feature-x -> main" />
+                </div>
+                <div className="finding-edit-row">
+                  <label className="finding-edit-label">Commit</label>
+                  <input className="finding-edit-input-sm" value={originCommit} onChange={(e) => setOriginCommit(e.target.value)} placeholder="Introducing commit sha" />
+                </div>
+                <div className="finding-edit-row">
+                  <label className="finding-edit-label">Date</label>
+                  <input className="finding-edit-input-sm" value={originDate} onChange={(e) => setOriginDate(e.target.value)} placeholder="ISO date, e.g. 2026-03-16" />
+                </div>
+              </div>
+
               <div className="finding-edit-actions">
                 <button className="finding-edit-save" onClick={handleSave}>Save</button>
                 <button className="finding-edit-cancel" onClick={handleCancelEdit}>Cancel</button>

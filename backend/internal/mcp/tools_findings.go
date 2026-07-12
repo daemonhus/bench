@@ -23,6 +23,8 @@ func registerFindingTools(deps *toolDeps) []Tool {
 		toolDeleteFinding(deps),
 		toolResolveFinding(deps),
 		toolBatchCreateFindings(deps),
+		toolSetOrigin(deps, "finding"),
+		toolSuggestOrigin(deps, "finding"),
 	}
 }
 
@@ -201,7 +203,7 @@ func toolGetFinding(deps *toolDeps) Tool {
 func toolCreateFinding(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "create_finding",
-		Description: "Create a new security finding anchored to a file location. The finding is tagged with source 'mcp' automatically. Always set start and end to anchor the finding to specific code. Descriptions should reference concrete code: function names, line numbers, variable names. Before creating a finding, call list_findings (with resolved=true) and check for existing findings on the same file. If a finding already exists that covers the same conceptual vulnerability (even with different line ranges, CWEs, or wording), update it instead of creating a duplicate.",
+		Description: "Create a new security finding anchored to a file location. The finding is tagged with source 'mcp' automatically. Always set start and end to anchor the finding to specific code. Descriptions should reference concrete code: function names, line numbers, variable names. Before creating a finding, call list_findings (with resolved=true) and check for existing findings on the same file. If a finding already exists that covers the same conceptual vulnerability (even with different line ranges, CWEs, or wording), update it instead of creating a duplicate. After creating, record the finding's historical context while the code is in front of you: suggest_finding_origin derives the introducing commit, date, actor, and branch flow from blame and merge history (the merge subject is usually the best explanation source); confirm with set_finding_origin plus a free-text explanation of how the vulnerability came to be.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
@@ -550,7 +552,7 @@ func toolResolveFinding(deps *toolDeps) Tool {
 func toolBatchCreateFindings(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "batch_create_findings",
-		Description: "Create multiple security findings in one operation. All findings are inserted in a single transaction. Returns the list of created finding IDs. Use this instead of repeated create_finding calls. Always set start and end to anchor findings to specific code. Descriptions should reference concrete code: function names, line numbers, variable names. Before creating findings, call list_findings (with resolved=true) and check for existing findings on the same files. If a finding already exists that covers the same conceptual vulnerability (even with different line ranges, CWEs, or wording), update it instead of creating a duplicate.",
+		Description: "Create multiple security findings in one operation. All findings are inserted in a single transaction. Returns the list of created finding IDs. Use this instead of repeated create_finding calls. Always set start and end to anchor findings to specific code. Descriptions should reference concrete code: function names, line numbers, variable names. Before creating findings, call list_findings (with resolved=true) and check for existing findings on the same files. If a finding already exists that covers the same conceptual vulnerability (even with different line ranges, CWEs, or wording), update it instead of creating a duplicate. Afterwards, record each finding's historical context: suggest_finding_origin then set_finding_origin per finding.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {

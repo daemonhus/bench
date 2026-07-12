@@ -4,14 +4,18 @@ test.describe('Overview page', () => {
   test('renders via #/overview with all three columns', async ({ page }) => {
     await page.goto('/#/overview');
 
-    // Column 1: repository context + git state + history graph
+    // Column 1: repository context + git state + log graph + activity
     await expect(page.locator('.ovp-project-title')).toBeVisible();
     await expect(page.locator('.ovp-context-link[href="#/config"]')).toBeVisible();
     await expect(page.locator('.ovp-panel-title', { hasText: 'Git state' })).toBeVisible();
     await expect(page.locator('.ovp-stat-label', { hasText: 'Last pull (HEAD)' })).toBeVisible();
-    await expect(page.locator('.ovp-panel-title', { hasText: 'History' })).toBeVisible();
+    await expect(page.locator('.ovp-panel-title', { hasText: 'Log' })).toBeVisible();
     await expect(page.locator('.ovp-git-tree .git-tree-row').first()).toBeVisible();
     await expect(page.locator('.ovp-branch-row').first()).toBeVisible();
+    await expect(page.locator('.ovp-panel-title', { hasText: 'Activity' })).toBeVisible();
+    await expect(page.locator('.ovp-act-plot .ovp-chart-bar').first()).toBeVisible();
+    await expect(page.locator('.ovp-act-avatar').first()).toBeVisible();
+    await expect(page.locator('.ovp-act-nav .icon-btn').first()).toBeVisible();
 
     // Column 2: findings stats + systemic issues + RRD + MTTR panels
     await expect(page.locator('.ovp-stat-label', { hasText: 'Open findings' })).toBeVisible();

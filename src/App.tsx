@@ -133,6 +133,21 @@ export function App() {
   const [compareTo, setCompareTo] = useState<string>('');
   const [diffLoading, setDiffLoading] = useState(false);
 
+  // Apply a #/diff route. A rev^ suffix (origin links use them) is resolved
+  // to the concrete parent hash so the compare selectors can match it; a
+  // root commit has no parent and leaves FROM for the user to pick.
+  const applyCompareRoute = useCallback((from: string, to: string) => {
+    setCompareTo(to);
+    if (!from.endsWith('^')) {
+      setCompareFrom(from);
+      return;
+    }
+    setCompareFrom('');
+    gitApi.resolveCommit(from).then((c) => {
+      if (c) setCompareFrom(c.hash);
+    });
+  }, []);
+
   // Delta view: optional specific baseline ID
   const [routeBaselineId, setRouteBaselineId] = useState<string | undefined>(undefined);
 
@@ -551,8 +566,7 @@ export function App() {
     const route = parseRoute(window.location.hash);
     setViewMode(route.mode);
     if (route.mode === 'diff' && route.from && route.to) {
-      setCompareFrom(route.from);
-      setCompareTo(route.to);
+      applyCompareRoute(route.from, route.to);
     }
     if (route.mode === 'delta') {
       setRouteBaselineId(route.baselineId);
@@ -560,7 +574,7 @@ export function App() {
     if (route.path) {
       handleSelectFile(route.path);
     }
-  }, [commits, setViewMode, handleSelectFile]);
+  }, [commits, setViewMode, handleSelectFile, applyCompareRoute]);
 
   // Listen for hash changes
   useEffect(() => {
@@ -568,8 +582,7 @@ export function App() {
       isHandlingHashChange.current = true;
       setViewMode(route.mode);
       if (route.mode === 'diff' && route.from && route.to) {
-        setCompareFrom(route.from);
-        setCompareTo(route.to);
+        applyCompareRoute(route.from, route.to);
       }
       if (route.mode === 'delta') {
         setRouteBaselineId(route.baselineId);
@@ -580,7 +593,7 @@ export function App() {
         handleSelectFile(route.path);
       }
     });
-  }, [setViewMode, handleSelectFile]);
+  }, [setViewMode, handleSelectFile, applyCompareRoute]);
 
   // Update hash when user changes mode/file
   const updateRoute = useCallback(

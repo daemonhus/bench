@@ -15,14 +15,14 @@
   --bg-tertiary: #111829;
   --bg-surface: #192035;
 
-  /* Text */
-  --text-primary: #e4eaf4;
-  --text-secondary: #9ba5b8;
-  --text-muted: #55606f;
+  /* Text — tuned against bg-secondary/tertiary: 16:1 / 9:1 / 5.3:1 (AA) */
+  --text-primary: #eaeffa;
+  --text-secondary: #a9b4c9;
+  --text-muted: #7d8a9e;
 
   /* Borders — translucent; rely on shadows for depth, not hard lines */
-  --border-default: rgba(148, 163, 184, 0.14);
-  --border-muted: rgba(148, 163, 184, 0.06);
+  --border-default: rgba(148, 163, 184, 0.22);
+  --border-muted: rgba(148, 163, 184, 0.1);
 
   /* Diff (bench-specific but harmless for platform to inherit) */
   --diff-insert-bg: rgba(63, 185, 80, 0.15);
@@ -41,12 +41,13 @@
   --accent-purple: #c084fc;  /* Purple 400 — merge commits, special */
   --accent-green: #34d399;   /* Emerald 400 — success, HEAD badge */
 
-  /* Severity */
-  --severity-critical: #dc2626;
-  --severity-high: #ea580c;
-  --severity-medium: #ca8a04;
-  --severity-low: #2563eb;
-  --severity-info: #6b7280;
+  /* Severity — 400-range shades for dark surfaces (all ≥ 5.9:1); the
+     light theme overrides these back down to the 600 range */
+  --severity-critical: #f16a6a;
+  --severity-high: #fb923c;
+  --severity-medium: #eab308;
+  --severity-low: #60a5fa;
+  --severity-info: #94a3b8;
 
   /* Status */
   --status-open: #f85149;
@@ -133,8 +134,13 @@
   --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.44), 0 1px 4px rgba(0, 0, 0, 0.2);
   --shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.28);
   --shadow-popup: 0 12px 40px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.28);
-  --shadow-focus-blue: 0 0 0 3px rgba(129, 140, 248, 0.3);
+  --shadow-focus-blue: 0 0 0 3px rgba(129, 140, 248, 0.45);
   --shadow-focus-orange: 0 0 0 3px rgba(234, 88, 12, 0.2);
+
+  /* Keyboard focus rings — brighter in the dark theme so focus reads
+     at a glance; the light theme dials both back down */
+  --focus-ring: color-mix(in srgb, var(--accent-blue) 90%, transparent);
+  --focus-ring-area: color-mix(in srgb, var(--accent-blue) 55%, transparent);
 
   /* Overlays */
   --overlay-dark: rgba(0, 0, 0, 0.5);
@@ -149,8 +155,8 @@
   --seg-active-shadow: 0 1px 3px rgba(0, 0, 0, 0.35), 0 0 0 1px var(--border-default);
 
   /* Hover tints — cool blue-grey */
-  --hover-subtle: rgba(148, 163, 184, 0.05);
-  --hover-muted: rgba(148, 163, 184, 0.09);
+  --hover-subtle: rgba(148, 163, 184, 0.07);
+  --hover-muted: rgba(148, 163, 184, 0.13);
 
   /* Search highlights */
   --search-match: rgba(255, 200, 0, 0.3);
@@ -176,30 +182,30 @@
   --accent-green-subtle: color-mix(in srgb, var(--accent-green) 15%, transparent);
   --accent-purple-subtle: color-mix(in srgb, var(--accent-purple) 15%, transparent);
 
-  /* Feature kind colors */
-  --kind-interface: #2563eb;
-  --kind-source: #16a34a;
-  --kind-sink: #ea580c;
-  --kind-dependency: #7c3aed;
-  --kind-externality: #6b7280;
+  /* Feature kind colors — 400-range for dark; light overrides below */
+  --kind-interface: #60a5fa;
+  --kind-source: #34d399;
+  --kind-sink: #fb923c;
+  --kind-dependency: #a78bfa;
+  --kind-externality: #94a3b8;
 
-  /* Finding category colors */
-  --category-auth:             #dc2626;
-  --category-authz:            #ea580c;
-  --category-session:          #f97316;
-  --category-injection:        #b91c1c;
-  --category-ssrf:             #e11d48;
-  --category-crypto:           #7c3aed;
-  --category-data-exposure:    #2563eb;
-  --category-input-validation: #0891b2;
-  --category-path-traversal:   #0d9488;
-  --category-deserialization:  #059669;
-  --category-race-condition:   #ca8a04;
-  --category-config:           #d97706;
-  --category-error-handling:   #64748b;
-  --category-logging:          #8b5cf6;
-  --category-business-logic:   #6366f1;
-  --category-dependencies:     #78716c;
+  /* Finding category colors — 400-range for dark; light overrides below */
+  --category-auth:             #f87171;
+  --category-authz:            #fb923c;
+  --category-session:          #f59e0b;
+  --category-injection:        #ef4444;
+  --category-ssrf:             #fb7185;
+  --category-crypto:           #a78bfa;
+  --category-data-exposure:    #60a5fa;
+  --category-input-validation: #22d3ee;
+  --category-path-traversal:   #2dd4bf;
+  --category-deserialization:  #34d399;
+  --category-race-condition:   #facc15;
+  --category-config:           #fbbf24;
+  --category-error-handling:   #94a3b8;
+  --category-logging:          #c084fc;
+  --category-business-logic:   #818cf8;
+  --category-dependencies:     #a8a29e;
 }
 
 /* ============================================================
@@ -248,13 +254,44 @@
   --search-match: rgba(200, 150, 0, 0.25);
   --search-match-active: rgba(200, 150, 0, 0.5);
 
-  /* Semantic colors: improved contrast on light backgrounds */
+  /* Semantic colors: the dark base uses 400-range shades, so light pulls
+     everything back down to 600/700-range for contrast on white */
+  --severity-critical: #dc2626;
+  --severity-high: #ea580c;
   --severity-medium: #b45309;      /* amber-700, ~4.7:1 on white */
+  --severity-low: #2563eb;
   --severity-info: #4b5563;        /* gray-600,  ~5.9:1 on white */
   --status-in-progress: #a16207;   /* yellow-700, ~3.5:1 on white */
   --status-accepted: #7c3aed;      /* violet-700, ~4.8:1 on white */
   --status-draft: #64748b;         /* slate-500,  ~4.6:1 on white */
   --status-false-positive: #64748b;
+
+  --kind-interface: #2563eb;
+  --kind-source: #16a34a;
+  --kind-sink: #ea580c;
+  --kind-dependency: #7c3aed;
+  --kind-externality: #6b7280;
+
+  --category-auth:             #dc2626;
+  --category-authz:            #ea580c;
+  --category-session:          #f97316;
+  --category-injection:        #b91c1c;
+  --category-ssrf:             #e11d48;
+  --category-crypto:           #7c3aed;
+  --category-data-exposure:    #2563eb;
+  --category-input-validation: #0891b2;
+  --category-path-traversal:   #0d9488;
+  --category-deserialization:  #059669;
+  --category-race-condition:   #ca8a04;
+  --category-config:           #d97706;
+  --category-error-handling:   #64748b;
+  --category-logging:          #8b5cf6;
+  --category-business-logic:   #6366f1;
+  --category-dependencies:     #78716c;
+
+  /* Focus rings — the light accent carries enough contrast at lower mix */
+  --focus-ring: color-mix(in srgb, var(--accent-blue) 65%, transparent);
+  --focus-ring-area: color-mix(in srgb, var(--accent-blue) 35%, transparent);
 
   /* Segmented controls / active pill shadow — matches light accent */
   --seg-active-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(79, 70, 229, 0.2);

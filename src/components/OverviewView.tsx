@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { BranchInfo, Feature, FeatureKind, Finding, GraphCommit, ReconciledHead, ServiceProfile, Severity } from '../core/types';
+import type { ActivityBucket, BranchInfo, Feature, FeatureKind, Finding, GraphCommit, ReconciledHead, ServiceProfile, Severity } from '../core/types';
 import { findingsApi, featuresApi, gitApi, reconcileApi } from '../core/api';
 import { useEvents } from '../core/use-events';
 import { useProfileStore } from '../stores/profile-store';
 import { useRepoStore } from '../stores/repo-store';
 import { computeGraphLayout, attributeBranches, parseMergedBranch, LANE_WIDTH, ROW_HEIGHT, NODE_RADIUS, laneColor, laneX, rowY, edgePath } from '../core/graph-layout';
 import { KIND_COLORS } from './FeatureCard';
+import { avatarInitials, avatarColor } from '../core/avatar';
 import { FeatureMiniCard, FindingMiniCard, useHoverCard } from './mini-cards';
 import { categoryMeta, SEVERITY_RANK } from '../core/finding-categories';
 import { buildFeatureMap } from '../core/feature-map-layout';
@@ -168,6 +169,226 @@ function WeekColumns({ buckets, values, tooltips, labelMax }: {
       <div className="ovp-chart-x">
         <span>{buckets[0].label}</span>
         <span>{buckets[buckets.length - 1].label}</span>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Commit activity timeline
+// ---------------------------------------------------------------------------
+
+const ACT_VISIBLE = 12;
+const ACT_SCALES = ['day', 'week', 'month', 'year'] as const;
+type ActScale = (typeof ACT_SCALES)[number];
+const ACT_PERIODS: Record<ActScale, number> = { day: 120, week: 52, month: 36, year: 10 };
+
+function actLabel(start: string, scale: ActScale): string {
+  const d = new Date(`${start}T00:00:00Z`);
+  if (scale === 'year') return String(d.getUTCFullYear());
+  if (scale === 'month') return d.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+}
+
+/** Commit activity timeline: bars for commits, author avatars as markers.
+ *  The visible window pans with the wheel while hovered, or the arrows;
+ *  the dropdown switches the scale between day, week, month, and year. */
+function ActivityTimeline() {
+  const [scale, setScale] = useState<ActScale>('week');
+  const [buckets, setBuckets] = useState<ActivityBucket[] | null>(null);
+  const [end, setEnd] = useState(0);
+  const [focus, setFocus] = useState<number | null>(null);
+  const chartRef = useRef<HTMLDivElement>(null);
+  const endRef = useRef(end);
+  const lenRef = useRef(0);
+  endRef.current = end;
+  lenRef.current = buckets?.length ?? 0;
+
+  const load = (sc: ActScale) => {
+    gitApi.activity(sc, ACT_PERIODS[sc])
+      .then((b) => {
+        setBuckets(b);
+        setEnd(b.length);
+        setFocus(null);
+      })
+      .catch(() => setBuckets([]));
+  };
+  useEffect(() => { load(scale); }, [scale]);
+  useEvents('git', () => load(scale));
+
+  const weeks = buckets ?? [];
+  const minEnd = Math.min(ACT_VISIBLE, weeks.length);
+  const canBack = end > minEnd;
+  const canForward = end < weeks.length;
+
+  // Wheel pans the window. React registers wheel listeners passively, so a
+  // native non-passive listener is needed to keep the page from scrolling
+  // while the pointer drives the timeline; at either boundary the event is
+  // left alone and the page scrolls as normal.
+  useEffect(() => {
+    const el = chartRef.current;
+    if (!el) return;
+    let acc = 0;
+    const onWheel = (e: WheelEvent) => {
+      const lo = Math.min(ACT_VISIBLE, lenRef.current);
+      // Scroll down walks back in time, scroll up walks forward. Capture the
+      // event only while the window can still move that way.
+      const movable = e.deltaY > 0 ? endRef.current > lo : endRef.current < lenRef.current;
+      if (!movable) {
+        acc = 0;
+        return;
+      }
+      e.preventDefault();
+      acc += e.deltaY;
+      const step = Math.trunc(acc / 40);
+      if (step === 0) return;
+      acc -= step * 40;
+      const next = Math.max(lo, Math.min(lenRef.current, endRef.current - step));
+      if (next !== endRef.current) {
+        endRef.current = next;
+        setEnd(next);
+        setFocus(null);
+      }
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+    // The chart div only exists once data has arrived, so re-attach then.
+  }, [(buckets?.length ?? 0) > 0]);
+
+  const header = (
+    <div className="ovp-repo-header">
+      <PanelTitle>Activity</PanelTitle>
+      <div className="ovp-act-nav">
+        <select
+          className="finding-edit-select ovp-act-scale-select"
+          value={scale}
+          onChange={(e) => setScale(e.target.value as ActScale)}
+          aria-label="Timeline scale"
+        >
+          {ACT_SCALES.map((s) => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
+        <button
+          type="button"
+          className="icon-btn"
+          onClick={() => { setEnd((v) => Math.max(minEnd, v - 1)); setFocus(null); }}
+          disabled={!canBack}
+          aria-label="Earlier"
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M7.5 2.5L4 6l3.5 3.5" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          className="icon-btn"
+          onClick={() => { setEnd((v) => Math.min(weeks.length, v + 1)); setFocus(null); }}
+          disabled={!canForward}
+          aria-label="Later"
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M4.5 2.5L8 6l-3.5 3.5" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+
+  if (weeks.length === 0) {
+    return (
+      <>
+        {header}
+        <div className="ovp-empty">{buckets === null ? 'Loading activity…' : 'No commit activity.'}</div>
+      </>
+    );
+  }
+
+  const win = weeks.slice(Math.max(0, end - ACT_VISIBLE), end);
+  const maxVal = Math.max(...win.map((w) => w.commits));
+  const maxIdx = win.findIndex((w) => w.commits === maxVal);
+  const focused = focus != null ? win[focus] : null;
+
+  const totals = win.reduce(
+    (t, w) => ({
+      commits: t.commits + w.commits,
+      merges: t.merges + w.merges,
+      additions: t.additions + w.additions,
+      deletions: t.deletions + w.deletions,
+    }),
+    { commits: 0, merges: 0, additions: 0, deletions: 0 },
+  );
+  const shown = focused ?? totals;
+  const firstLabel = actLabel(win[0].start, scale);
+  const lastLabel = actLabel(win[win.length - 1].start, scale);
+  const stripWhen = focused
+    ? `${scale === 'week' ? 'w/c ' : ''}${actLabel(focused.start, scale)}`
+    : firstLabel === lastLabel ? firstLabel : `${firstLabel} to ${lastLabel}`;
+
+  return (
+    <div className="ovp-act">
+      {header}
+      <div className="ovp-act-window" ref={chartRef}>
+      <div className="ovp-act-strip">
+        <span className="ovp-act-strip-when">{stripWhen}</span>
+        <span>{shown.commits} commit{shown.commits === 1 ? '' : 's'}</span>
+        <span>{shown.merges} merge{shown.merges === 1 ? '' : 's'}</span>
+        <span className="ovp-act-add">+{shown.additions.toLocaleString()}</span>
+        <span className="ovp-act-del">−{shown.deletions.toLocaleString()}</span>
+        {focused && focused.authors.length > 0 && (
+          <span className="ovp-act-strip-authors">
+            {focused.authors.map((a) => a.name).join(', ')}
+          </span>
+        )}
+      </div>
+      <div className="ovp-chart-plot ovp-act-plot">
+        {win.map((w, i) => {
+          const pct = maxVal > 0 ? Math.max(w.commits > 0 ? 4 : 0, (w.commits / maxVal) * 100) : 0;
+          return (
+            <div
+              key={w.start}
+              className={`ovp-chart-slot${focus === i ? ' ovp-act-slot-focus' : ''}`}
+              onMouseEnter={() => setFocus(i)}
+              onMouseLeave={() => setFocus(null)}
+            >
+              {i === maxIdx && maxVal > 0 && focus == null && (
+                <span className="ovp-chart-value" style={{ bottom: `calc(${pct}% + 3px)` }}>{maxVal}</span>
+              )}
+              <div className="ovp-chart-bar" style={{ height: `${pct}%` }} />
+            </div>
+          );
+        })}
+      </div>
+      <div className="ovp-act-markers">
+        {win.map((w, i) => (
+          <div
+            key={w.start}
+            className="ovp-act-marker-slot"
+            onMouseEnter={() => setFocus(i)}
+            onMouseLeave={() => setFocus(null)}
+          >
+            {/* Facepile: most prominent author first and on top of the stack. */}
+            {w.authors.slice(0, 3).map((a, j) => (
+              <span
+                key={a.name}
+                className="comment-avatar ovp-act-avatar"
+                style={{ backgroundColor: avatarColor(a.name), zIndex: 3 - j }}
+                data-tooltip={`${a.name}: ${a.commits} commit${a.commits === 1 ? '' : 's'}`}
+                aria-label={a.name}
+              >
+                {avatarInitials(a.name)}
+              </span>
+            ))}
+            {w.authors.length > 3 && (
+              <span className="ovp-act-avatar-more">+{w.authors.length - 3}</span>
+            )}
+          </div>
+        ))}
+      </div>
+      <div className="ovp-chart-x">
+        <span>{firstLabel}</span>
+        {lastLabel !== firstLabel && <span>{lastLabel}</span>}
+      </div>
       </div>
     </div>
   );
@@ -804,9 +1025,9 @@ export function OverviewView() {
             </div>
           </div>
 
-          {/* History graph — same rendering as the Browse git tree */}
+          {/* Log graph — same rendering as the Browse git tree */}
           <div className="ovp-panel">
-            <PanelTitle href="#/browse">History</PanelTitle>
+            <PanelTitle href="#/browse">Log</PanelTitle>
             <div className="ovp-git-tree">
               <div className="git-tree-graph" style={{ position: 'relative' }}>
                 <svg
@@ -868,6 +1089,11 @@ export function OverviewView() {
                 {graph.length === 0 && <div className="ovp-empty">No commits.</div>}
               </div>
             </div>
+          </div>
+
+          {/* Commit activity timeline */}
+          <div className="ovp-panel">
+            <ActivityTimeline />
           </div>
         </div>
 

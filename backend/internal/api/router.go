@@ -42,6 +42,7 @@ func NewRouter(repo *git.Repo, database *db.DB, broker *events.Broker, opts ...R
 	mux.HandleFunc("GET /api/git/diff-files", gh.diffFiles)
 	mux.HandleFunc("GET /api/git/branches", gh.listBranches)
 	mux.HandleFunc("GET /api/git/graph", gh.graph)
+	mux.HandleFunc("GET /api/git/activity", gh.activity)
 	mux.HandleFunc("GET /api/git/blame", gh.blame)
 	mux.HandleFunc("GET /api/git/search", gh.search)
 
@@ -51,6 +52,9 @@ func NewRouter(repo *git.Repo, database *db.DB, broker *events.Broker, opts ...R
 	mux.HandleFunc("POST /api/findings", fh.create)
 	mux.HandleFunc("PATCH /api/findings/{id}", fh.update)
 	mux.HandleFunc("DELETE /api/findings/{id}", fh.delete)
+	mux.HandleFunc("PUT /api/findings/{id}/origin", fh.putOrigin)
+	mux.HandleFunc("DELETE /api/findings/{id}/origin", fh.deleteOrigin)
+	mux.HandleFunc("GET /api/findings/{id}/origin/suggest", fh.suggestOrigin)
 
 	ch := &commentsHandlers{db: database, repo: repo, reconciler: reconciler, broker: broker}
 	mux.HandleFunc("GET /api/comments", ch.list)
@@ -65,6 +69,9 @@ func NewRouter(repo *git.Repo, database *db.DB, broker *events.Broker, opts ...R
 	mux.HandleFunc("POST /api/features", featureh.create)
 	mux.HandleFunc("PATCH /api/features/{id}", featureh.update)
 	mux.HandleFunc("DELETE /api/features/{id}", featureh.delete)
+	mux.HandleFunc("PUT /api/features/{id}/origin", featureh.putOrigin)
+	mux.HandleFunc("DELETE /api/features/{id}/origin", featureh.deleteOrigin)
+	mux.HandleFunc("GET /api/features/{id}/origin/suggest", featureh.suggestOrigin)
 
 	fph := &featureParamsHandlers{db: database, broker: broker}
 	mux.HandleFunc("GET /api/features/{id}/parameters", fph.list)

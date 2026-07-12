@@ -77,6 +77,10 @@ func (r *Repo) LogRange(from, to, path string, limit int) ([]model.CommitInfo, e
 
 func (r *Repo) Graph(limit int) ([]model.GraphCommit, error) { return r.backend.Graph(limit) }
 
+func (r *Repo) Activity(scale string, periods int) ([]model.ActivityBucket, error) {
+	return r.backend.Activity(scale, periods)
+}
+
 func (r *Repo) Tree(commitish string) ([]model.FileEntry, error) { return r.backend.Tree(commitish) }
 
 func (r *Repo) Show(commitish, path string) (string, error) { return r.backend.Show(commitish, path) }
@@ -119,6 +123,10 @@ func (r *Repo) Grep(pattern, commit, path string, caseInsensitive, fixed bool, m
 
 func (r *Repo) Blame(commit, path string, lineStart, lineEnd int) ([]model.BlameLine, error) {
 	return r.backend.Blame(commit, path, lineStart, lineEnd)
+}
+
+func (r *Repo) OriginSuggestion(file, commitish string, lineStart, lineEnd int) (*model.OriginSuggestion, error) {
+	return r.backend.OriginSuggestion(file, commitish, lineStart, lineEnd)
 }
 
 func (r *Repo) PinCommit(sha string) error { return r.backend.PinCommit(sha) }

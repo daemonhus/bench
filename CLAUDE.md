@@ -56,10 +56,51 @@ A discovered vulnerability or security issue.
   category?: string
   featureIds?: string[]  // associated Feature IDs (join table — referential integrity)
   refs?: Ref[]           // external references (enriched inline)
+  origin?: FindingOrigin // historical context (enriched inline)
   createdAt: string
   resolvedCommit?: string
 }
 ```
+
+### Origin (findings and features)
+
+Historical context of a finding or feature: how it came to be and the git
+coordinates of its introduction. 1:1 with its parent entity, no anchor, never
+reconciled. For features this records when a route or surface was introduced.
+
+```typescript
+{
+  explanation?: string        // free text: the change or MR that introduced it
+  introducedCommit?: string   // resolvable refs are normalised to the full sha and pinned
+  introducedDate?: string     // ISO date
+  actor?: string              // author who introduced it
+  branch?: string             // flow convention: "feature-x -> main" (source -> merge target)
+  updatedAt: string
+}
+```
+
+Access (same shape for both entities): `PUT /api/findings/{id}/origin` and
+`PUT /api/features/{id}/origin` (merge semantics: only provided fields
+overwrite), `DELETE .../origin`, `GET .../origin/suggest`. CLI:
+`bench findings|features set-origin / clear-origin / suggest-origin`. MCP:
+`set_finding_origin` / `suggest_finding_origin` / `set_feature_origin` /
+`suggest_feature_origin`. An unresolvable `introducedCommit` is stored as-is
+without a pin, since the introducing commit may have been rewritten out of
+history. Writes are gated by the service profile like all review-judgment
+writes.
+
+The suggest endpoint derives more than blame: `introducedCommit/date/actor`
+from the newest blamed anchor line, `mergeCommit` and `mergeSubject` from the
+first-parent merge that brought the change into the mainline (the merge
+request message is usually the best explanation source), `branch` pre-composed
+as the "source -> target" flow, and `context` listing recent commits touching
+the anchor file. Nothing is written; confirm what matters with a set call.
+
+**Record the origin when you create a finding or feature**, not later: the
+introducing change is one suggest call away while the anchor is fresh, and
+the explanation is sharpest while the surrounding code is still in context.
+An annotation without an origin answers "what is here" but not "why does this
+exist", and the second question is what makes systemic patterns visible.
 
 ### Comment
 
@@ -362,8 +403,14 @@ Deleting a feature or finding automatically removes the join-table rows — no m
 1. set_baseline             ← checkpoint before starting (captures current state as reference)
 2. search code, read files  ← use bench git tools to explore
 3. create_finding (×N)      ← record vulnerabilities as you find them
+   └─ then record how each came to be: suggest_finding_origin derives the
+      introducing commit/date/actor from blame; confirm with set_finding_origin
+      and add the free-text explanation and branch. Origin context is cheapest
+      to capture while the code is in front of you.
 4. create_feature (×N)      ← record new endpoints, data sources/sinks, or long-lived annotations
    └─ for interface features: add parameters to capture the contract (auth headers, path vars, query params, body fields)
+   └─ then suggest_feature_origin → set_feature_origin: when the surface was
+      introduced, by whom, and on what branch is review context in itself
 5. get_delta                ← check progress: how many new findings since baseline?
 6. set_baseline             ← checkpoint at milestones (e.g. "auth module complete")
 7. get_delta(baseline_id)   ← what did this round produce?

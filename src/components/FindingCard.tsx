@@ -4,9 +4,9 @@ import { useAnnotationStore } from '../stores/annotation-store';
 import { useRepoStore } from '../stores/repo-store';
 import { useUIStore } from '../stores/ui-store';
 import { useReconcileStore } from '../stores/reconcile-store';
-import type { Finding, Comment, Feature, Severity, FindingStatus } from '../core/types';
+import type { Finding, Origin, Comment, Feature, Severity, FindingStatus } from '../core/types';
 import { FINDING_CATEGORIES, getEffectiveLineRange, getConfidence } from '../core/types';
-import { featuresApi } from '../core/api';
+import { featuresApi, findingsApi } from '../core/api';
 import { InlineMarkdown } from '../core/markdown';
 import { avatarInitials, avatarColor } from '../core/avatar';
 import { useBranchMap } from '../core/use-branch-map';
@@ -20,6 +20,7 @@ import { LinkManageModal } from './LinkManageModal';
 import { CommentEditor } from './CommentEditor';
 import { AnchorField } from './AnchorField';
 import { isOrphaned } from '../core/orphan';
+import { OriginHover, OriginIcon, originHasContent } from './origin';
 
 interface FindingCardProps {
   finding: Finding;
@@ -34,11 +35,11 @@ interface FindingCardProps {
 }
 
 const KIND_COLORS: Record<string, string> = {
-  interface:   '#2563eb',
-  source:      '#16a34a',
-  sink:        '#ea580c',
-  dependency:  '#7c3aed',
-  externality: '#6b7280',
+  interface:   'var(--kind-interface)',
+  source:      'var(--kind-source)',
+  sink:        'var(--kind-sink)',
+  dependency:  'var(--kind-dependency)',
+  externality: 'var(--kind-externality)',
 };
 
 const KIND_LABELS: Record<string, string> = {
@@ -50,21 +51,21 @@ const KIND_LABELS: Record<string, string> = {
 };
 
 const METHOD_COLORS: Record<string, string> = {
-  GET: '#16a34a',
-  POST: '#2563eb',
-  PUT: '#d97706',
-  PATCH: '#7c3aed',
-  DELETE: '#dc2626',
-  HEAD: '#6b7280',
-  OPTIONS: '#6b7280',
+  GET: 'var(--kind-source)',
+  POST: 'var(--kind-interface)',
+  PUT: 'var(--category-config)',
+  PATCH: 'var(--kind-dependency)',
+  DELETE: 'var(--severity-critical)',
+  HEAD: 'var(--severity-info)',
+  OPTIONS: 'var(--severity-info)',
 };
 
 const SEVERITY_COLORS: Record<string, string> = {
-  critical: '#dc2626',
-  high: '#ea580c',
-  medium: '#ca8a04',
-  low: '#2563eb',
-  info: '#6b7280',
+  critical: 'var(--severity-critical)',
+  high: 'var(--severity-high)',
+  medium: 'var(--severity-medium)',
+  low: 'var(--severity-low)',
+  info: 'var(--severity-info)',
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -157,6 +158,14 @@ export const FindingCard: React.FC<FindingCardProps> = ({
   const [anchorFileId, setAnchorFileId] = useState(finding.anchor.fileId ?? '');
   const [anchorLineStart, setAnchorLineStart] = useState(finding.anchor.lineRange?.start?.toString() ?? '');
   const [anchorLineEnd, setAnchorLineEnd] = useState(finding.anchor.lineRange?.end?.toString() ?? '');
+
+  // Historical context (origin) form state
+  const [originExplanation, setOriginExplanation] = useState(finding.origin?.explanation ?? '');
+  const [originCommit, setOriginCommit] = useState(finding.origin?.introducedCommit ?? '');
+  const [originDate, setOriginDate] = useState(finding.origin?.introducedDate ?? '');
+  const [originActor, setOriginActor] = useState(finding.origin?.actor ?? '');
+  const [originBranch, setOriginBranch] = useState(finding.origin?.branch ?? '');
+  const [suggestingOrigin, setSuggestingOrigin] = useState(false);
 
   const lineRange = getEffectiveLineRange(finding);
   const confidence = getConfidence(finding);
@@ -257,7 +266,55 @@ export const FindingCard: React.FC<FindingCardProps> = ({
     setAnchorFileId(finding.anchor.fileId ?? '');
     setAnchorLineStart(finding.anchor.lineRange?.start?.toString() ?? '');
     setAnchorLineEnd(finding.anchor.lineRange?.end?.toString() ?? '');
+    setOriginExplanation(finding.origin?.explanation ?? '');
+    setOriginCommit(finding.origin?.introducedCommit ?? '');
+    setOriginDate(finding.origin?.introducedDate ?? '');
+    setOriginActor(finding.origin?.actor ?? '');
+    setOriginBranch(finding.origin?.branch ?? '');
     setEditing(true);
+  };
+
+  const handleSuggestOrigin = async () => {
+    setSuggestingOrigin(true);
+    try {
+      const s = await findingsApi.suggestOrigin(finding.id);
+      // Fill only the blanks; typed values win over the blame suggestion.
+      if (!originCommit && s.introducedCommit) setOriginCommit(s.introducedCommit);
+      if (!originDate && s.introducedDate) setOriginDate(s.introducedDate);
+      if (!originActor && s.actor) setOriginActor(s.actor);
+      if (!originBranch && s.branch) setOriginBranch(s.branch);
+      // The merge subject usually says more than the commit; seed the
+      // explanation with it so there is something concrete to refine.
+      if (!originExplanation && s.mergeSubject) setOriginExplanation(s.mergeSubject);
+    } catch {
+      // No blame data (orphaned anchor, deleted file): leave the form as-is.
+    } finally {
+      setSuggestingOrigin(false);
+    }
+  };
+
+  const saveOrigin = () => {
+    const next: Origin = {
+      explanation: originExplanation.trim(),
+      introducedCommit: originCommit.trim(),
+      introducedDate: originDate.trim(),
+      actor: originActor.trim(),
+      branch: originBranch.trim(),
+    };
+    const cur = finding.origin;
+    const hasContent = Object.values(next).some((v) => v !== '');
+    const changed =
+      next.explanation !== (cur?.explanation ?? '') ||
+      next.introducedCommit !== (cur?.introducedCommit ?? '') ||
+      next.introducedDate !== (cur?.introducedDate ?? '') ||
+      next.actor !== (cur?.actor ?? '') ||
+      next.branch !== (cur?.branch ?? '');
+    if (!changed) return;
+    if (!hasContent && cur) {
+      findingsApi.clearOrigin(finding.id).catch(() => {});
+    } else if (hasContent) {
+      findingsApi.setOrigin(finding.id, next).catch(() => {});
+    }
   };
 
   const handleSave = (e: React.MouseEvent) => {
@@ -281,6 +338,7 @@ export const FindingCard: React.FC<FindingCardProps> = ({
     if (anchorFileId.trim()) updates['file_id'] = anchorFileId.trim();
     if (startNum > 0 && endNum > 0) { updates['line_start'] = startNum; updates['line_end'] = endNum; }
     updateFinding(finding.id, updates);
+    saveOrigin();
     setEditing(false);
   };
 
@@ -465,6 +523,65 @@ export const FindingCard: React.FC<FindingCardProps> = ({
             </div>
           </div>
 
+          <div className="origin-edit-section">
+            <div className="origin-edit-heading">
+              <OriginIcon />
+              Historical context
+              <button
+                type="button"
+                className="origin-suggest-btn"
+                onClick={handleSuggestOrigin}
+                disabled={suggestingOrigin}
+                title="Fill commit, date, actor, and branch from git blame and merge history on the anchor"
+              >
+                {suggestingOrigin ? 'Deriving…' : 'Suggest from git'}
+              </button>
+            </div>
+            <textarea
+              className="finding-edit-textarea"
+              value={originExplanation}
+              onChange={(e) => setOriginExplanation(e.target.value)}
+              placeholder="How did this vulnerability come to be? The change, refactor, or decision that introduced it."
+              rows={2}
+            />
+            <div className="finding-edit-row">
+              <label className="finding-edit-label">Actor</label>
+              <input
+                className="finding-edit-input-sm"
+                value={originActor}
+                onChange={(e) => setOriginActor(e.target.value)}
+                placeholder="Author who introduced it"
+              />
+            </div>
+            <div className="finding-edit-row">
+              <label className="finding-edit-label">Branch</label>
+              <input
+                className="finding-edit-input-sm"
+                value={originBranch}
+                onChange={(e) => setOriginBranch(e.target.value)}
+                placeholder="Where it started and merged to, e.g. feature-x -> main"
+              />
+            </div>
+            <div className="finding-edit-row">
+              <label className="finding-edit-label">Commit</label>
+              <input
+                className="finding-edit-input-sm"
+                value={originCommit}
+                onChange={(e) => setOriginCommit(e.target.value)}
+                placeholder="Introducing commit sha"
+              />
+            </div>
+            <div className="finding-edit-row">
+              <label className="finding-edit-label">Date</label>
+              <input
+                className="finding-edit-input-sm"
+                value={originDate}
+                onChange={(e) => setOriginDate(e.target.value)}
+                placeholder="ISO date, e.g. 2026-03-16"
+              />
+            </div>
+          </div>
+
           <div className="finding-edit-actions">
             <button className="finding-edit-save" onClick={handleSave}>Save</button>
             <button className="finding-edit-cancel" onClick={handleCancel}>Cancel</button>
@@ -549,6 +666,7 @@ export const FindingCard: React.FC<FindingCardProps> = ({
             }}
             title="Open in Findings"
           >{finding.title}</span>
+          {originHasContent(finding.origin) && <OriginHover origin={finding.origin} />}
         </div>
         {!isExpanded && finding.description && (
           <p className="finding-description feature-description-collapsed">{finding.description}</p>

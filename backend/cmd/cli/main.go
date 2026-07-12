@@ -149,7 +149,7 @@ var commands = []cmdDef{
 		Flags: []flagDef{
 			{Name: "id", Param: "id", Desc: "Finding ID", Required: true},
 		}},
-	{Cat: "findings", Name: "create", Desc: "Create a new finding.",
+	{Cat: "findings", Name: "create", Desc: "Create a new finding. Afterwards, record its historical context while the code is fresh: `findings suggest-origin` derives the introducing commit/date/actor from blame; confirm with `findings set-origin` plus an explanation.",
 		EP: endpoint{"POST", "/api/findings"},
 		Flags: []flagDef{
 			{Name: "id", Param: "id", Desc: "Finding ID (auto-generated if omitted)"},
@@ -203,6 +203,26 @@ var commands = []cmdDef{
 			{Name: "commit", Param: "resolvedCommit", Desc: "Commit at which the finding was resolved", Required: true},
 			{Name: "status", Param: "status", Desc: "Status to set (default: closed)"},
 		}},
+	{Cat: "findings", Name: "set-origin", Desc: "Record a finding's historical context: how the vulnerability came to be and the git coordinates of its introduction. Merge semantics: only provided flags overwrite.",
+		EP: endpoint{"PUT", "/api/findings/{id}/origin"},
+		Flags: []flagDef{
+			{Name: "id", Param: "id", Desc: "Finding ID", Required: true},
+			{Name: "explanation", Param: "explanation", Desc: "How the vulnerability came to be"},
+			{Name: "commit", Param: "introducedCommit", Desc: "Commit where the flaw landed (resolvable refs are normalised and pinned)"},
+			{Name: "date", Param: "introducedDate", Desc: "When it was introduced (ISO date)"},
+			{Name: "actor", Param: "actor", Desc: "Author who introduced it"},
+			{Name: "branch", Param: "branch", Desc: "Branch or merge request it arrived on"},
+		}},
+	{Cat: "findings", Name: "clear-origin", Desc: "Remove a finding's historical context.",
+		EP: endpoint{"DELETE", "/api/findings/{id}/origin"},
+		Flags: []flagDef{
+			{Name: "id", Param: "id", Desc: "Finding ID", Required: true},
+		}},
+	{Cat: "findings", Name: "suggest-origin", Desc: "Derive a candidate origin from git blame and merge history on the finding's anchor lines. Read-only; confirm with set-origin.",
+		EP: endpoint{"GET", "/api/findings/{id}/origin/suggest"},
+		Flags: []flagDef{
+			{Name: "id", Param: "id", Desc: "Finding ID", Required: true},
+		}},
 	{Cat: "findings", Name: "search", Desc: "Search findings by title or description text.",
 		EP: endpoint{"GET", "/api/findings/search"},
 		Flags: []flagDef{
@@ -210,7 +230,7 @@ var commands = []cmdDef{
 			{Name: "status", Param: "status", Desc: "Filter by status"},
 			{Name: "severity", Param: "severity", Desc: "Filter by severity"},
 		}},
-	{Cat: "findings", Name: "batch-create", Desc: "Create multiple findings from JSON input. Required per item: file, commit, title, severity [critical|high|medium|low|info]. Optional: status [draft|open|in-progress|false-positive|accepted|closed] (default: open), source [pentest|tool|manual|mcp] (default: manual), score (float), cwe, cve, category.",
+	{Cat: "findings", Name: "batch-create", Desc: "Create multiple findings from JSON input. Required per item: file, commit, title, severity [critical|high|medium|low|info]. Optional: status [draft|open|in-progress|false-positive|accepted|closed] (default: open), source [pentest|tool|manual|mcp] (default: manual), score (float), cwe, cve, category. Afterwards, record each finding's historical context via `findings suggest-origin` and `findings set-origin`.",
 		EP:    endpoint{"POST", "/api/findings"},
 		Flags: []flagDef{{Name: "input", Param: "_input", Desc: "JSON file (default: stdin)", Type: "batch"}}},
 
@@ -373,7 +393,7 @@ var commands = []cmdDef{
 		Flags: []flagDef{
 			{Name: "id", Param: "id", Desc: "Feature ID", Required: true},
 		}},
-	{Cat: "features", Name: "create", Desc: "Create a new feature annotation.",
+	{Cat: "features", Name: "create", Desc: "Create a new feature annotation. Afterwards, record its historical context while the anchor is fresh: `features suggest-origin` derives the introducing commit/date/actor/branch from blame and merge history; confirm with `features set-origin`.",
 		EP: endpoint{"POST", "/api/features"},
 		Flags: []flagDef{
 			{Name: "file", Param: "fileId", Desc: "Anchor file path", Required: true},
@@ -415,7 +435,27 @@ var commands = []cmdDef{
 		Flags: []flagDef{
 			{Name: "id", Param: "id", Desc: "Feature ID", Required: true},
 		}},
-	{Cat: "features", Name: "batch-create", Desc: "Create multiple features from JSON input.",
+	{Cat: "features", Name: "set-origin", Desc: "Record a feature's historical context: how the surface came to be and the git coordinates of its introduction. Merge semantics: only provided flags overwrite.",
+		EP: endpoint{"PUT", "/api/features/{id}/origin"},
+		Flags: []flagDef{
+			{Name: "id", Param: "id", Desc: "Feature ID", Required: true},
+			{Name: "explanation", Param: "explanation", Desc: "How the surface came to be"},
+			{Name: "commit", Param: "introducedCommit", Desc: "Commit where it landed (resolvable refs are normalised and pinned)"},
+			{Name: "date", Param: "introducedDate", Desc: "When it was introduced (ISO date)"},
+			{Name: "actor", Param: "actor", Desc: "Author who introduced it"},
+			{Name: "branch", Param: "branch", Desc: "Branch or merge request it arrived on"},
+		}},
+	{Cat: "features", Name: "clear-origin", Desc: "Remove a feature's historical context.",
+		EP: endpoint{"DELETE", "/api/features/{id}/origin"},
+		Flags: []flagDef{
+			{Name: "id", Param: "id", Desc: "Feature ID", Required: true},
+		}},
+	{Cat: "features", Name: "suggest-origin", Desc: "Derive a candidate origin from git blame and merge history on the feature's anchor. Read-only; confirm with set-origin.",
+		EP: endpoint{"GET", "/api/features/{id}/origin/suggest"},
+		Flags: []flagDef{
+			{Name: "id", Param: "id", Desc: "Feature ID", Required: true},
+		}},
+	{Cat: "features", Name: "batch-create", Desc: "Create multiple features from JSON input. Afterwards, record each feature's historical context via `features suggest-origin` and `features set-origin`.",
 		EP:    endpoint{"POST", "/api/features"},
 		Flags: []flagDef{{Name: "input", Param: "_input", Desc: "JSON file (default: stdin)", Type: "batch"}}},
 

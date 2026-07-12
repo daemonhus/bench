@@ -80,6 +80,9 @@ func (d *DB) ListFeatures(fileID string, linkedTo string, limit, offset int) ([]
 		}
 	}
 	_ = d.enrichWithLinkedFeatures(features)
+	if err := d.enrichFeaturesWithOrigins(features); err != nil {
+		return nil, 0, err
+	}
 	return features, total, nil
 }
 
@@ -113,6 +116,9 @@ func (d *DB) GetFeature(id string) (*model.Feature, error) {
 	slice := []model.Feature{*f}
 	_ = d.enrichWithLinkedFeatures(slice)
 	f.LinkedFeatures = slice[0].LinkedFeatures
+	if err := d.enrichFeaturesWithOrigins(slice); err == nil {
+		f.Origin = slice[0].Origin
+	}
 	return f, nil
 }
 
@@ -335,6 +341,9 @@ func (d *DB) DeleteFeature(id string) error {
 			return fmt.Errorf("delete finding_features: %w", err)
 		}
 
+		if _, err := tx.Exec(`DELETE FROM origins WHERE entity_type = 'feature' AND entity_id = ? AND project_id = ?`, id, d.projectID); err != nil {
+			return fmt.Errorf("delete origin: %w", err)
+		}
 		if _, err := tx.Exec(`DELETE FROM refs WHERE entity_type = 'feature' AND entity_id = ? AND project_id = ?`, id, d.projectID); err != nil {
 			return fmt.Errorf("delete refs: %w", err)
 		}
