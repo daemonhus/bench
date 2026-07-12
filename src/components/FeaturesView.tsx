@@ -246,13 +246,22 @@ export const FeaturesView: React.FC = () => {
   const [allFindings, setAllFindings] = useState<FindingLite[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<FeaturesTab>('interfaces');
+  // Sort by title unless the reviewer has chosen otherwise. The choice lives in
+  // localStorage, so it survives the session that made it; an unrecognised
+  // stored value falls back to the default rather than sorting by nothing.
   const [sortOrder, setSortOrder] = useState<FeatureSort>(() => {
-    try { return (sessionStorage.getItem('bench-features-sort-order') as FeatureSort) ?? 'file'; } catch { return 'file'; }
+    try {
+      const stored = localStorage.getItem('bench-features-sort-order');
+      return SORT_OPTIONS.some((o) => o.id === stored) ? (stored as FeatureSort) : 'title';
+    } catch { return 'title'; }
   });
   const { query: searchQuery, setQuery: setSearchQuery, matcher: searchMatcher, isRegexValid } =
     useRegexSearch('bench-features-search');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>(() => {
-    try { return (sessionStorage.getItem('bench-features-sort-dir') as 'asc' | 'desc') ?? 'asc'; } catch { return 'asc'; }
+    try {
+      const stored = localStorage.getItem('bench-features-sort-dir');
+      return stored === 'desc' ? 'desc' : 'asc';
+    } catch { return 'asc'; }
   });
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => {
     try {
@@ -311,11 +320,11 @@ export const FeaturesView: React.FC = () => {
   }, [collapsedIds]);
 
   useEffect(() => {
-    try { sessionStorage.setItem('bench-features-sort-order', sortOrder); } catch {}
+    try { localStorage.setItem('bench-features-sort-order', sortOrder); } catch {}
   }, [sortOrder]);
 
   useEffect(() => {
-    try { sessionStorage.setItem('bench-features-sort-dir', sortDir); } catch {}
+    try { localStorage.setItem('bench-features-sort-dir', sortDir); } catch {}
   }, [sortDir]);
 
   useEffect(() => {
