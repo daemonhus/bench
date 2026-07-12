@@ -421,6 +421,29 @@ func TestUpdateFinding_ResolvedAtLifecycle(t *testing.T) {
 		t.Errorf("reopen did not clear resolvedAt: %v", *got.ResolvedAt)
 	}
 
+	// Every terminal status is a departure from the open set, so each one is
+	// dated - the overview charts removals by this timestamp.
+	for _, status := range []string{"accepted", "false-positive"} {
+		got, err = d.UpdateFinding("f-ra", map[string]any{"status": status})
+		if err != nil {
+			t.Fatalf("set %s: %v", status, err)
+		}
+		if got.ResolvedAt == nil {
+			t.Errorf("status %q did not stamp resolvedAt", status)
+		}
+		// Back to open for the next round, clearing the stamp.
+		got, _ = d.UpdateFinding("f-ra", map[string]any{"status": "open"})
+		if got.ResolvedAt != nil {
+			t.Errorf("reopen after %s did not clear resolvedAt: %v", status, *got.ResolvedAt)
+		}
+	}
+
+	// A non-terminal status does not date the finding.
+	got, _ = d.UpdateFinding("f-ra", map[string]any{"status": "in-progress"})
+	if got.ResolvedAt != nil {
+		t.Errorf("in-progress stamped resolvedAt: %v", *got.ResolvedAt)
+	}
+
 	// Setting a resolvedCommit alone (CLI resolve path) stamps it.
 	got, err = d.UpdateFinding("f-ra", map[string]any{"resolvedCommit": "def456"})
 	if err != nil {

@@ -181,6 +181,16 @@ func (d *DB) CreateFinding(f *model.Finding) error {
 	})
 }
 
+// isTerminalStatus reports whether a status takes a finding out of the open
+// set: fixed, knowingly accepted, or dismissed as a false positive.
+func isTerminalStatus(status string) bool {
+	switch status {
+	case "closed", "accepted", "false-positive":
+		return true
+	}
+	return false
+}
+
 func (d *DB) UpdateFinding(id string, updates map[string]any) (*model.Finding, error) {
 	id, err := d.resolveID("findings", id)
 	if err != nil {
@@ -241,11 +251,13 @@ func (d *DB) UpdateFinding(id string, updates map[string]any) (*model.Finding, e
 			args = append(args, v)
 		}
 	}
-	// Fix-time tracking: stamp resolved_at the first time a finding becomes
-	// resolved (status set to closed, or a resolvedCommit recorded - the CLI
-	// resolve path sends only the latter), and clear it on explicit reopen.
+	// Fix-time tracking: stamp resolved_at the first time a finding leaves the
+	// open set - any terminal status, or a resolvedCommit recorded (the CLI
+	// resolve path sends only the latter) - and clear it on explicit reopen.
+	// The date is what lets the overview chart the removal, so accepting or
+	// dismissing a finding has to be dated too, not just closing it.
 	if st, ok := updates["status"].(string); ok {
-		if st == "closed" {
+		if isTerminalStatus(st) {
 			setClauses = append(setClauses, "resolved_at = COALESCE(resolved_at, datetime('now'))")
 		} else {
 			setClauses = append(setClauses, "resolved_at = NULL")
