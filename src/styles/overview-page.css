@@ -585,6 +585,102 @@
   background: var(--bg-tertiary);
 }
 
+/* ----- Findings timeline: diverging bars + backlog line ----- */
+
+.ovp-ft-plot {
+  position: relative;
+  display: flex;
+  gap: 2px;
+  height: 148px;
+}
+
+.ovp-ft-slot {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  cursor: default;
+}
+
+.ovp-ft-slot-focus {
+  background: var(--bg-hover);
+  border-radius: 3px;
+}
+
+/* Two halves meeting at the zero axis: raised grows up, removed grows down. */
+.ovp-ft-half {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  min-height: 0;
+}
+
+.ovp-ft-half-up {
+  align-items: flex-end;
+}
+
+.ovp-ft-half-down {
+  align-items: flex-start;
+  border-top: 1px solid var(--border-default); /* the zero axis, hairline */
+}
+
+.ovp-ft-bar {
+  width: 100%;
+  max-width: 18px;
+}
+
+.ovp-ft-bar-added {
+  background: var(--status-open);
+  border-radius: 3px 3px 0 0;
+}
+
+.ovp-ft-bar-removed {
+  background: var(--status-closed);
+  border-radius: 0 0 3px 3px;
+}
+
+/* The backlog line runs on its own scale across the full plot height, so it
+   is read against the strip's count rather than the bars' axis. */
+.ovp-ft-line {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.ovp-ft-line polyline {
+  fill: none;
+  stroke: var(--accent-blue);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  opacity: 0.85;
+}
+
+.ovp-ft-dot {
+  position: absolute;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  margin-left: -3px;
+  margin-bottom: -3px;
+  border-radius: 50%;
+  background: var(--accent-blue);
+  pointer-events: none;
+}
+
+.ovp-ft-added { color: var(--status-open); }
+.ovp-ft-removed { color: var(--status-closed); }
+.ovp-ft-open { color: var(--accent-blue); }
+
+.ovp-ft-note {
+  margin-top: 6px;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
 /* ----- Commit activity timeline ----- */
 
 .ovp-act-nav {

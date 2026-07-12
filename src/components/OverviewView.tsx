@@ -13,6 +13,8 @@ import { ResolutionStrip } from './FindingsMetrics';
 import { categoryMeta, SEVERITY_RANK } from '../core/finding-categories';
 import { buildFeatureMap } from '../core/feature-map-layout';
 import type { FeatureMapNode } from '../core/feature-map-layout';
+import { buildFindingsTimeline, TIMELINE_SCALES } from '../core/findings-timeline';
+import type { TimelineScale } from '../core/findings-timeline';
 
 // ---------------------------------------------------------------------------
 // Project Overview, three columns:
@@ -78,82 +80,210 @@ function PanelTitle({ children, href }: { children: ReactNode; href?: string }) 
 }
 
 // ---------------------------------------------------------------------------
-// Weekly buckets (findings raised)
+// Findings timeline
 // ---------------------------------------------------------------------------
 
-interface WeekBucket {
-  start: Date;
-  label: string;
-  /** New findings created this week (RRD). */
-  raised: number;
-}
+const FT_VISIBLE = 12;
 
-/** Bucket findings into creation weeks, ending at the current week. */
-function bucketByWeek(findings: Finding[], maxWeeks = 16): WeekBucket[] {
-  const weekMs = 7 * 24 * 3_600_000;
-  // Anchor to the start of the current week (Monday).
-  const anchor = new Date();
-  anchor.setHours(0, 0, 0, 0);
-  anchor.setDate(anchor.getDate() - ((anchor.getDay() + 6) % 7));
+/** Findings over time: diverging bars for findings raised (up) and removed
+ *  from the open set (down), with the open backlog as a line across the top.
+ *  Pans with the wheel or the arrows; the dropdown switches the bucket scale. */
+function FindingsTimeline({ findings }: { findings: Finding[] }) {
+  const [scale, setScale] = useState<TimelineScale>('week');
+  const [focus, setFocus] = useState<number | null>(null);
+  const chartRef = useRef<HTMLDivElement>(null);
 
-  const created = findings.map((f) => parseDate(f.createdAt)).filter((d): d is Date => !!d);
-  let weeks = 8;
-  if (created.length > 0) {
-    const oldest = Math.min(...created.map((d) => d.getTime()));
-    weeks = Math.ceil((anchor.getTime() + weekMs - oldest) / weekMs);
-    weeks = Math.min(maxWeeks, Math.max(8, weeks));
-  }
+  const { buckets, undated } = useMemo(
+    () => buildFindingsTimeline(findings, scale),
+    [findings, scale],
+  );
 
-  const buckets: WeekBucket[] = [];
-  for (let i = weeks - 1; i >= 0; i--) {
-    const start = new Date(anchor.getTime() - i * weekMs);
-    buckets.push({
-      start,
-      label: start.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }),
-      raised: 0,
-    });
-  }
-  const first = buckets[0].start.getTime();
-  const bucketIdx = (d: Date) => Math.floor((d.getTime() - first) / weekMs);
+  // Open on the activity, not on the calendar: a review that ran months ago
+  // would otherwise show an empty window of recent, quiet buckets. The window
+  // ends just past the last bucket that saw a finding raised or removed.
+  const initialEnd = useMemo(() => {
+    let last = -1;
+    buckets.forEach((b, i) => { if (b.added > 0 || b.removed > 0) last = i; });
+    if (last < 0) return buckets.length;
+    return Math.max(Math.min(FT_VISIBLE, buckets.length), last + 1);
+  }, [buckets]);
 
-  for (const f of findings) {
-    const c = parseDate(f.createdAt);
-    if (c) {
-      const i = bucketIdx(c);
-      if (i >= 0 && i < buckets.length) buckets[i].raised++;
-    }
-  }
-  return buckets;
-}
+  const [end, setEnd] = useState(initialEnd);
+  useEffect(() => { setEnd(initialEnd); setFocus(null); }, [initialEnd, scale]);
 
-/** Compact weekly column chart. */
-function WeekColumns({ buckets, values, tooltips, labelMax }: {
-  buckets: WeekBucket[];
-  values: number[];
-  tooltips: string[];
-  labelMax?: string;
-}) {
-  const max = Math.max(1e-9, ...values);
-  const maxIdx = values.indexOf(Math.max(...values));
-  return (
-    <div className="ovp-chart">
-      <div className="ovp-chart-plot">
-        {buckets.map((b, i) => {
-          const pct = Math.max(values[i] > 0 ? 4 : 0, (values[i] / max) * 100);
-          return (
-            <div key={i} className="ovp-chart-slot" data-tooltip={tooltips[i]}>
-              {i === maxIdx && values[i] > 0 && labelMax && (
-                // Absolutely positioned so the label never compresses its bar.
-                <span className="ovp-chart-value" style={{ bottom: `calc(${pct}% + 3px)` }}>{labelMax}</span>
-              )}
-              <div className="ovp-chart-bar" style={{ height: `${pct}%` }} />
-            </div>
-          );
-        })}
+  const endRef = useRef(end);
+  const lenRef = useRef(buckets.length);
+  endRef.current = end;
+  lenRef.current = buckets.length;
+
+  const minEnd = Math.min(FT_VISIBLE, buckets.length);
+  const canBack = end > minEnd;
+  const canForward = end < buckets.length;
+
+  // Wheel pans the window. React's wheel listener is passive, so a native
+  // non-passive one is needed to stop the page scrolling under the pointer;
+  // at either boundary the event is left alone and the page scrolls normally.
+  useEffect(() => {
+    const el = chartRef.current;
+    if (!el) return;
+    let acc = 0;
+    const onWheel = (e: WheelEvent) => {
+      const lo = Math.min(FT_VISIBLE, lenRef.current);
+      const movable = e.deltaY > 0 ? endRef.current > lo : endRef.current < lenRef.current;
+      if (!movable) {
+        acc = 0;
+        return;
+      }
+      e.preventDefault();
+      acc += e.deltaY;
+      const step = Math.trunc(acc / 40);
+      if (step === 0) return;
+      acc -= step * 40;
+      const next = Math.max(lo, Math.min(lenRef.current, endRef.current - step));
+      if (next !== endRef.current) {
+        endRef.current = next;
+        setEnd(next);
+        setFocus(null);
+      }
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [buckets.length > 0]);
+
+  const header = (
+    <div className="ovp-repo-header">
+      <h4 className="ovp-subtitle ovp-subtitle-flat">Findings over time</h4>
+      <div className="ovp-act-nav">
+        <select
+          className="finding-edit-select ovp-act-scale-select"
+          value={scale}
+          onChange={(e) => setScale(e.target.value as TimelineScale)}
+          aria-label="Timeline scale"
+        >
+          {TIMELINE_SCALES.map((s) => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
+        <button
+          type="button"
+          className="icon-btn"
+          onClick={() => { setEnd((v) => Math.max(minEnd, v - 1)); setFocus(null); }}
+          disabled={!canBack}
+          aria-label="Earlier"
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M7.5 2.5L4 6l3.5 3.5" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          className="icon-btn"
+          onClick={() => { setEnd((v) => Math.min(buckets.length, v + 1)); setFocus(null); }}
+          disabled={!canForward}
+          aria-label="Later"
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M4.5 2.5L8 6l-3.5 3.5" />
+          </svg>
+        </button>
       </div>
-      <div className="ovp-chart-x">
-        <span>{buckets[0].label}</span>
-        <span>{buckets[buckets.length - 1].label}</span>
+    </div>
+  );
+
+  if (buckets.length === 0) {
+    return (
+      <>
+        {header}
+        <div className="ovp-empty">No findings recorded yet.</div>
+      </>
+    );
+  }
+
+  const win = buckets.slice(Math.max(0, end - FT_VISIBLE), end);
+  // Bars share one scale so added and removed are directly comparable; the
+  // backlog line gets its own, since it is a different quantity entirely.
+  const maxBar = Math.max(1, ...win.map((b) => Math.max(b.added, b.removed)));
+  const maxOpen = Math.max(1, ...win.map((b) => b.open));
+  const focused = focus != null ? win[focus] : null;
+
+  const totals = win.reduce(
+    (t, b) => ({ added: t.added + b.added, removed: t.removed + b.removed }),
+    { added: 0, removed: 0 },
+  );
+  const firstLabel = win[0].label;
+  const lastLabel = win[win.length - 1].label;
+  const stripWhen = focused
+    ? `${scale === 'week' ? 'w/c ' : ''}${focused.label}`
+    : firstLabel === lastLabel ? firstLabel : `${firstLabel} to ${lastLabel}`;
+  // Focused shows that bucket; otherwise the window's totals, and the backlog
+  // as it stood at the end of the window.
+  const shownAdded = focused ? focused.added : totals.added;
+  const shownRemoved = focused ? focused.removed : totals.removed;
+  const shownOpen = focused ? focused.open : win[win.length - 1].open;
+
+  // Backlog polyline across the slot centres, in percent of the plot box.
+  const linePoints = win
+    .map((b, i) => {
+      const x = ((i + 0.5) / win.length) * 100;
+      const y = 100 - (b.open / maxOpen) * 100;
+      return `${x.toFixed(2)},${y.toFixed(2)}`;
+    })
+    .join(' ');
+
+  return (
+    <div className="ovp-ft">
+      {header}
+      <div className="ovp-ft-window" ref={chartRef}>
+        <div className="ovp-act-strip">
+          <span className="ovp-act-strip-when">{stripWhen}</span>
+          <span className="ovp-ft-added">+{shownAdded} raised</span>
+          <span className="ovp-ft-removed">−{shownRemoved} removed</span>
+          <span className="ovp-ft-open">{shownOpen} open</span>
+        </div>
+
+        <div className="ovp-ft-plot">
+          {/* Backlog line, drawn under the bars' hover targets. */}
+          <svg className="ovp-ft-line" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            <polyline points={linePoints} vectorEffect="non-scaling-stroke" />
+          </svg>
+          {win.map((b, i) => {
+            const up = b.added > 0 ? Math.max(4, (b.added / maxBar) * 100) : 0;
+            const down = b.removed > 0 ? Math.max(4, (b.removed / maxBar) * 100) : 0;
+            return (
+              <div
+                key={b.start}
+                className={`ovp-ft-slot${focus === i ? ' ovp-ft-slot-focus' : ''}`}
+                onMouseEnter={() => setFocus(i)}
+                onMouseLeave={() => setFocus(null)}
+              >
+                <div className="ovp-ft-half ovp-ft-half-up">
+                  <div className="ovp-ft-bar ovp-ft-bar-added" style={{ height: `${up}%` }} />
+                </div>
+                <div className="ovp-ft-half ovp-ft-half-down">
+                  <div className="ovp-ft-bar ovp-ft-bar-removed" style={{ height: `${down}%` }} />
+                </div>
+                {/* Backlog marker for the focused bucket, on the line's scale. */}
+                {focus === i && (
+                  <span
+                    className="ovp-ft-dot"
+                    style={{ bottom: `${(b.open / maxOpen) * 100}%` }}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="ovp-chart-x">
+          <span>{firstLabel}</span>
+          {lastLabel !== firstLabel && <span>{lastLabel}</span>}
+        </div>
+        {undated > 0 && (
+          <div className="ovp-ft-note">
+            {undated} removed finding{undated === 1 ? '' : 's'} predate{undated === 1 ? 's' : ''} resolution
+            dates and {undated === 1 ? 'is' : 'are'} not charted.
+          </div>
+        )}
       </div>
     </div>
   );
@@ -943,13 +1073,12 @@ export function OverviewView() {
       }
     }
 
-    const buckets = bucketByWeek(findings);
     const layout = computeGraphLayout(graph);
     const branchOf = attributeBranches(graph);
 
     return {
       head, open, statusTotals, systemic, findingsByCategory, isOpen, openByFeature, worstByFeature,
-      buckets, layout, branchOf,
+      layout, branchOf,
     };
   }, [data]);
 
@@ -963,7 +1092,7 @@ export function OverviewView() {
   const { branches, reconciled, graph, findings } = data;
   const {
     head, open, statusTotals, systemic, findingsByCategory, isOpen, openByFeature, worstByFeature,
-    buckets, layout, branchOf,
+    layout, branchOf,
   } = derived;
 
   const headDate = head ? parseDate(head.date) : null;
@@ -1085,13 +1214,7 @@ export function OverviewView() {
                     <CategoryHeatmap systemic={systemic} findingsByCategory={findingsByCategory} isOpen={isOpen} />
                   </div>
                   <div className="ovp-section">
-                    <h4 className="ovp-subtitle">Raised per week</h4>
-                    <WeekColumns
-                      buckets={buckets}
-                      values={buckets.map((b) => b.raised)}
-                      tooltips={buckets.map((b) => `Week of ${b.label}: ${b.raised} raised`)}
-                      labelMax={String(Math.max(...buckets.map((b) => b.raised)))}
-                    />
+                    <FindingsTimeline findings={findings} />
                   </div>
                 </>
               )}

@@ -9,11 +9,12 @@ test.describe('Overview page', () => {
     await expect(page.locator('.ovp-header-owner[href="#/profile"]')).toBeVisible();
     await expect(page.locator('.ovp-kpi')).toHaveCount(3);
 
-    // Column 1: findings (status strip + systemic + weekly chart)
+    // Column 1: findings (status strip + systemic + findings timeline)
     await expect(page.locator('.ovp-panel-title', { hasText: 'Findings' })).toBeVisible();
     await expect(page.locator('.fmetrics-res-strip-cell')).toHaveCount(4);
     await expect(page.locator('.ovp-subtitle', { hasText: 'Systemic issues' })).toBeVisible();
-    await expect(page.locator('.ovp-subtitle', { hasText: 'Raised per week' })).toBeVisible();
+    await expect(page.locator('.ovp-subtitle', { hasText: 'Findings over time' })).toBeVisible();
+    await expect(page.locator('.ovp-ft-plot')).toBeVisible();
 
     // Column 2: repository (baseline callout, head, log, activity)
     await expect(page.locator('.ovp-panel-title', { hasText: 'Repository' })).toBeVisible();
