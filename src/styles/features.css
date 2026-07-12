@@ -5,10 +5,13 @@
   overflow-y: auto;
   flex: 1;
   padding-bottom: 60vh;
+  max-inline-size: var(--page-max);
+  margin-inline: auto;
+  inline-size: 100%;
 }
 
 .features-view .overview-section {
-  padding: 28px 40px;
+  padding: 28px var(--page-gutter);
 }
 
 @media (max-width: 639px) {
@@ -28,7 +31,6 @@
   position: relative;
   background: #1c2540;
   border: 1px solid var(--border-muted);
-  border-left: 3px solid #ffffff;
   border-radius: 0;
   padding: 18px 20px;
   cursor: pointer;
@@ -41,7 +43,6 @@
 [data-nav-focused="true"] .feature-card {
   background: #252f4c;
   border-color: rgba(148, 163, 184, 0.16);
-  border-left-color: #ffffff;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.24), 0 0 0 1px rgba(148, 163, 184, 0.08);
 }
 
@@ -52,12 +53,10 @@
 .feature-card-expanded:hover {
   background: #252f4c;
   border-color: var(--border-muted);
-  border-left-color: #ffffff;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
 }
 
 .feature-card-orphaned {
-  border-left-color: #b45309 !important;
   background: color-mix(in srgb, #b45309 4%, var(--bg-surface));
 }
 
@@ -756,20 +755,17 @@ button.feature-params-heading-toggle:hover {
 /* Feature cards are white, floating on cloud canvas */
 [data-theme="light"] .feature-card {
   background: #f8fafc;
-  border-left-color: var(--border-default);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.06);
 }
 
 [data-theme="light"] .feature-card:hover,
 [data-theme="light"] [data-nav-focused="true"] .feature-card {
   background: #ffffff;
-  border-left-color: var(--border-default);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.09), 0 0 0 1px rgba(0, 0, 0, 0.08);
 }
 
 [data-theme="light"] .feature-card-expanded:hover {
   background: #ffffff;
-  border-left-color: var(--border-default);
 }
 
 /* Sort toggle active pill: use light-mode indigo ring instead of dark-mode indigo */
@@ -970,7 +966,6 @@ button.feature-params-heading-toggle:hover {
 .link-manage-linked-item {
   background: var(--bg-tertiary);
   border: 1px solid var(--border-subtle);
-  border-left: 3px solid var(--border-muted);
   border-radius: var(--radius-sm);
   padding: 8px 12px;
   display: flex;
@@ -1163,7 +1158,6 @@ button.feature-params-heading-toggle:hover {
 .link-manage-result-card {
   background: var(--bg-tertiary);
   border: 1px solid var(--border-subtle);
-  border-left: 3px solid var(--result-kind-color, var(--border-muted));
   border-radius: var(--radius-sm);
   padding: 12px 14px;
   cursor: pointer;
@@ -1183,7 +1177,6 @@ button.feature-params-heading-toggle:hover {
 
 .link-manage-result-card--linked {
   background: color-mix(in srgb, #16a34a 7%, var(--bg-tertiary));
-  border-left-color: #16a34a !important;
 }
 
 .link-manage-result-card--linked:hover {

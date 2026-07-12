@@ -66,6 +66,10 @@ export const gitApi = {
   activity(scale: ActivityScale = 'week', periods = 52): Promise<ActivityBucket[]> {
     return fetchJSON(`/api/git/activity?scale=${scale}&periods=${periods}`);
   },
+  /** Commits and merges in from..to (from exclusive). */
+  rangeStats(from: string, to = 'HEAD'): Promise<{ commits: number; merges: number }> {
+    return fetchJSON(`/api/git/range-stats?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+  },
   searchCode(pattern: string, commit?: string, opts?: { path?: string; caseInsensitive?: boolean }): Promise<GrepMatch[]> {
     const params = new URLSearchParams({ pattern });
     if (commit) params.set('commit', commit);

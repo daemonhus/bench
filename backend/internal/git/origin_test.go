@@ -106,3 +106,40 @@ func TestOriginSuggestion_MainlineCommitHasNoMerge(t *testing.T) {
 		t.Errorf("mainline commit got merge context: %+v", s)
 	}
 }
+
+func TestRangeStats(t *testing.T) {
+	repo := buildOriginRepo(t)
+
+	// Full history from the root: scaffold + feature commit + merge.
+	all, err := repo.RangeStats("", "HEAD")
+	if err != nil {
+		t.Fatalf("RangeStats: %v", err)
+	}
+	if all.Commits != 3 || all.Merges != 1 {
+		t.Errorf("full range = %+v, want 3 commits 1 merge", all)
+	}
+
+	// From the root commit (exclusive): feature commit + merge.
+	head, _ := repo.Head()
+	log, err := repo.Log(10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := log[len(log)-1].Hash
+	since, err := repo.RangeStats(root, head)
+	if err != nil {
+		t.Fatalf("RangeStats since root: %v", err)
+	}
+	if since.Commits != 2 || since.Merges != 1 {
+		t.Errorf("since root = %+v, want 2 commits 1 merge", since)
+	}
+
+	// Same ref both ends: nothing since.
+	none, err := repo.RangeStats(head, head)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if none.Commits != 0 || none.Merges != 0 {
+		t.Errorf("empty range = %+v", none)
+	}
+}

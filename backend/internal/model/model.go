@@ -344,6 +344,12 @@ type ActivityBucket struct {
 	Authors   []ActivityAuthor `json:"authors"` // by commits desc, then name
 }
 
+// RangeStats summarises the commits between two refs (from exclusive).
+type RangeStats struct {
+	Commits int `json:"commits"`
+	Merges  int `json:"merges"`
+}
+
 type FileEntry struct {
 	Path string `json:"path"`
 	Type string `json:"type"`

@@ -1,10 +1,13 @@
 /* ----- Tab Bar (top-of-main-panel navigation) ----- */
+/* The bar itself stays full-bleed (its background and bottom rule reach both
+   edges), but its contents sit in the same --page-max column as the page
+   below, so the nav lines up with the content instead of hugging the glass. */
 .tab-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 16px;
-  height: 40px;
+  padding-inline: max(var(--page-gutter), calc((100% - var(--page-max)) / 2 + var(--page-gutter)));
+  height: 52px;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-default);
   flex-shrink: 0;

@@ -53,6 +53,20 @@ describe('delta/browse navigation', () => {
       const route = parseRoute('#/config');
       expect(route.mode).toBe('config');
     });
+
+    // Deep sub-routes carry state that must survive a refresh; the app's
+    // route sync leaves these URLs alone rather than rewriting them shallow.
+    it('parses #/features/{id} with the feature deep link', () => {
+      const route = parseRoute('#/features/feat-9');
+      expect(route.mode).toBe('features');
+      expect(route.featureId).toBe('feat-9');
+    });
+
+    it('parses #/delta/{id} with the baseline selection', () => {
+      const route = parseRoute('#/delta/bl-3');
+      expect(route.mode).toBe('delta');
+      expect(route.baselineId).toBe('bl-3');
+    });
   });
 
   describe('route building', () => {

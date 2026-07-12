@@ -15,6 +15,7 @@ type Backend interface {
 	LogRange(from, to, path string, limit int) ([]model.CommitInfo, error)
 	Graph(limit int) ([]model.GraphCommit, error)
 	Activity(scale string, periods int) ([]model.ActivityBucket, error)
+	RangeStats(from, to string) (model.RangeStats, error)
 
 	Tree(commitish string) ([]model.FileEntry, error)
 	Show(commitish, path string) (string, error)

@@ -188,6 +188,17 @@ func (h *gitHandlers) activity(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, activity)
 }
 
+func (h *gitHandlers) rangeStats(w http.ResponseWriter, r *http.Request) {
+	from := r.URL.Query().Get("from")
+	to := r.URL.Query().Get("to")
+	stats, err := h.repo.RangeStats(from, to)
+	if err != nil {
+		writeRefError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, stats)
+}
+
 func (h *gitHandlers) diffFiles(w http.ResponseWriter, r *http.Request) {
 	from := r.URL.Query().Get("from")
 	to := r.URL.Query().Get("to")

@@ -361,7 +361,6 @@
 .overview-col-activity .finding-card-expanded:hover,
 .overview-col-findings .finding-card-expanded:hover {
   border-color: var(--border-default);
-  border-left-color: var(--card-severity, var(--severity-high));
 }
 
 .overview-col-findings .finding-comments {
@@ -590,7 +589,6 @@
 .activity-finding-ref {
   margin-top: 10px;
   border: 1px solid var(--border-default);
-  border-left: 3px solid var(--card-severity, var(--severity-high));
   border-radius: var(--radius-xs);
   background: var(--bg-tertiary);
   padding: 15px;
@@ -601,7 +599,6 @@
 .activity-finding-ref:hover {
   background: var(--bg-surface);
   border-color: rgba(148, 163, 184, 0.22);
-  border-left-color: var(--card-severity, var(--severity-high));
 }
 
 .activity-finding-ref-header {
@@ -648,9 +645,9 @@
   margin-top: 3px;
   font-size: var(--font-size-small);
   color: var(--text-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: var(--leading-normal);
 }
 
 /* ----- Embedded feature reference (comment-on-feature card) ----- */
@@ -874,9 +871,12 @@
 
 /* ----- Findings View (standalone tab) ----- */
 .findings-view {
-  padding: 28px 40px 60vh;
+  padding: 28px var(--page-gutter) 60vh;
   overflow-y: auto;
   flex: 1;
+  max-inline-size: var(--page-max);
+  margin-inline: auto;
+  inline-size: 100%;
 }
 
 @media (max-width: 639px) {
@@ -1209,6 +1209,9 @@
 }
 
 .fmetrics-res-tile-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-size: 9px;
   font-weight: 700;
   letter-spacing: var(--tracking-wider);
@@ -1225,6 +1228,55 @@
 
 .fmetrics-res-tile-accent {
   color: var(--accent-blue);
+}
+
+/* ── Resolution strip (Overview's inline rendering) ───────────────── */
+
+.fmetrics-res-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fmetrics-res-strip-row {
+  display: flex;
+  gap: 8px;
+}
+
+.fmetrics-res-strip-cell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.fmetrics-res-strip-count {
+  font-size: var(--font-size-xl);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: var(--tracking-tight);
+  color: var(--text-primary);
+}
+
+.fmetrics-res-strip-zero .fmetrics-res-strip-count {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.fmetrics-res-strip-bar {
+  display: flex;
+  gap: 8px; /* matches the column gap so segments align with their counts */
+  height: 5px;
+}
+
+.fmetrics-res-strip-bar span {
+  flex: 1;
+  border-radius: 3px;
+}
+
+.fmetrics-res-strip-bar-empty {
+  background: var(--hover-muted);
 }
 
 /* ── Source donut + legend ────────────────────────────────────────── */
@@ -1530,6 +1582,65 @@
   align-items: center;
   gap: 8px;
   margin-left: auto;
+}
+
+/* Applied feature filter: accent-tinted pill (the "filter applied" voice),
+   sized to sit beside the search box and filter pills. */
+.findings-feature-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: var(--control-h-sm);
+  padding: 0 5px 0 11px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent-blue) 40%, transparent);
+  background: var(--accent-blue-subtle);
+  white-space: nowrap;
+}
+
+.findings-feature-chip::before {
+  content: 'Feature';
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--accent-blue) 70%, var(--text-muted));
+  margin-right: 2px;
+}
+
+.findings-feature-chip-title {
+  font-size: var(--font-size-small);
+  font-weight: 600;
+  color: var(--accent-blue);
+  text-decoration: none;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.findings-feature-chip-title:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.findings-feature-chip-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--accent-blue);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background var(--transition-base);
+}
+
+.findings-feature-chip-clear:hover {
+  background: color-mix(in srgb, var(--accent-blue) 18%, transparent);
 }
 
 .findings-filter-group .activity-filters {

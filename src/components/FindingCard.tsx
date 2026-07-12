@@ -594,7 +594,6 @@ export const FindingCard: React.FC<FindingCardProps> = ({
   return (
     <div
       className={`finding-card ${isExpanded ? 'finding-card-expanded' : ''} ${isFocused ? 'finding-card-focused' : ''}`}
-      style={{ '--card-severity': `var(--severity-${finding.severity})` } as React.CSSProperties}
     >
       <div className="finding-card-header" onClick={onToggle}>
         <div className="finding-card-header-top">

@@ -928,7 +928,6 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
                     </div>
                     <div
                       className="activity-finding-ref"
-                      style={{ '--card-severity': sevColor } as React.CSSProperties}
                       onClick={() => navigateToFile(f.anchor.fileId, f.anchor.lineRange ?? undefined, f.anchor.commitId)}
                     >
                       <div className="activity-finding-ref-header">

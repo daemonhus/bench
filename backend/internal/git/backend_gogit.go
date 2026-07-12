@@ -491,6 +491,66 @@ func (b *GoGitBackend) Activity(scale string, periods int) ([]model.ActivityBuck
 	return out[first:], nil
 }
 
+// RangeStats counts commits and merges in from..to (from exclusive), the
+// same range semantics as LogRange. Stash entries are skipped.
+func (b *GoGitBackend) RangeStats(from, to string) (model.RangeStats, error) {
+	var stats model.RangeStats
+	if to == "" {
+		to = "HEAD"
+	}
+	if err := validateRef(to); err != nil {
+		return stats, err
+	}
+	if from != "" {
+		if err := validateRef(from); err != nil {
+			return stats, err
+		}
+	}
+	repo, err := b.open()
+	if err != nil {
+		return stats, err
+	}
+	toHash, err := repo.ResolveRevision(plumbing.Revision(to))
+	if err != nil {
+		return stats, classifyGoGitErr(err)
+	}
+	var fromHash plumbing.Hash
+	if from != "" {
+		h, err := repo.ResolveRevision(plumbing.Revision(from))
+		if err != nil {
+			return stats, classifyGoGitErr(err)
+		}
+		fromHash = *h
+	}
+
+	iter, err := repo.Log(&gogit.LogOptions{From: *toHash})
+	if err != nil {
+		return stats, err
+	}
+	defer iter.Close()
+	const rangeStatsCap = 5000
+	err = iter.ForEach(func(c *object.Commit) error {
+		if from != "" && c.Hash == fromHash {
+			return storer.ErrStop
+		}
+		if stats.Commits >= rangeStatsCap {
+			return storer.ErrStop
+		}
+		if strings.HasPrefix(c.Message, "WIP on ") || strings.HasPrefix(c.Message, "index on ") {
+			return nil
+		}
+		stats.Commits++
+		if len(c.ParentHashes) > 1 {
+			stats.Merges++
+		}
+		return nil
+	})
+	if err != nil {
+		return stats, err
+	}
+	return stats, nil
+}
+
 // originMergeWalkCap bounds the first-parent walk when locating the merge
 // that brought a commit into the mainline.
 const originMergeWalkCap = 500

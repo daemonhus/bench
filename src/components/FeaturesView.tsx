@@ -273,14 +273,23 @@ export const FeaturesView: React.FC = () => {
   const setScrollTargetLine = useUIStore((s) => s.setScrollTargetLine);
   const setHighlightRange = useUIStore((s) => s.setHighlightRange);
 
-  // Deep-link: #/features/{id} — select + scroll to that feature on load.
-  const [deepLinkId] = useState(() => parseRoute(window.location.hash).featureId ?? null);
+  // Deep-link: #/features/{id} — select + scroll to that feature. The URL
+  // keeps the id (anchor semantics: a refresh re-anchors) and route changes
+  // while mounted re-target the scroll.
+  const [deepLinkId, setDeepLinkId] = useState(() => parseRoute(window.location.hash).featureId ?? null);
+  useEffect(() => {
+    const onHash = () => {
+      const route = parseRoute(window.location.hash);
+      if (route.mode === 'features') setDeepLinkId(route.featureId ?? null);
+    };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
   useEffect(() => {
     if (!deepLinkId || loading) return;
     const target = features.find((f) => f.id === deepLinkId);
     if (!target) return;
     setScrollToFeature({ id: target.id, kind: target.kind as FeatureKind });
-    window.history.replaceState(null, '', '#/features');
   }, [deepLinkId, features, loading, setScrollToFeature]);
 
   const refreshFeatures = useCallback(() => {

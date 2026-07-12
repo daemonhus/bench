@@ -70,12 +70,32 @@ export const FindingsView: React.FC = () => {
 
   // #/findings/{id} deep link: once findings load, reuse the scroll/expand
   // mechanism (same pattern as the features deep link).
-  const [deepLinkId] = useState(() => parseRoute(window.location.hash).findingId ?? null);
+  const [deepLinkId, setDeepLinkId] = useState(() => parseRoute(window.location.hash).findingId ?? null);
 
   // #/findings/feature/{id}: filter the list to findings linked to a feature.
   const [filterFeatureId, setFilterFeatureId] = useState<string | null>(
     () => parseRoute(window.location.hash).featureFilterId ?? null,
   );
+  // Follow route changes while mounted (e.g. a second feature link is
+  // clicked from a card), not just the hash at mount time.
+  useEffect(() => {
+    const onHash = () => {
+      const route = parseRoute(window.location.hash);
+      if (route.mode === 'findings') {
+        setFilterFeatureId(route.featureFilterId ?? null);
+        setDeepLinkId(route.findingId ?? null);
+      }
+    };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+  // Clearing the filter also normalises the route so a reload stays clear.
+  const clearFeatureFilter = () => {
+    setFilterFeatureId(null);
+    if (window.location.hash.startsWith('#/findings/feature/')) {
+      window.location.hash = '#/findings';
+    }
+  };
   const storeFeatures = useAnnotationStore((s) => s.features);
   const filterFeatureTitle = filterFeatureId
     ? storeFeatures.find((f) => f.id === filterFeatureId)?.title ?? filterFeatureId
@@ -327,7 +347,7 @@ export const FindingsView: React.FC = () => {
                 <button
                   className="findings-feature-chip-clear"
                   aria-label="Clear feature filter"
-                  onClick={() => setFilterFeatureId(null)}
+                  onClick={clearFeatureFilter}
                 >
                   ×
                 </button>
@@ -341,7 +361,7 @@ export const FindingsView: React.FC = () => {
               selectedActors={filterActors}
               onActorsChange={setFilterActors}
               hasActiveFilter={hasActiveFilter}
-              onReset={() => { setFilterSeverities(new Set(ALL_SEVERITIES)); setFilterActors(null); setSearchQuery(''); setFilterFeatureId(null); }}
+              onReset={() => { setFilterSeverities(new Set(ALL_SEVERITIES)); setFilterActors(null); setSearchQuery(''); clearFeatureFilter(); }}
             />
           </div>
         </div>

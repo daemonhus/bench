@@ -1,9 +1,9 @@
 import { test, expect } from '@playwright/test';
 
 /**
- * Config tab (service profile) end-to-end:
+ * Context tab (service profile) end-to-end:
  * - #/config deep link renders the form
- * - unconfigured banner shows on other tabs and links to Config
+ * - unconfigured banner shows on other tabs and links to Context
  * - setting fields + Save persists across reload
  * - write gate: unconfigured profile blocks finding creation with 412
  *
@@ -11,7 +11,7 @@ import { test, expect } from '@playwright/test';
  * when the profile is already configured (e.g. reusing a dev DB).
  */
 
-test.describe('Config tab — service profile', () => {
+test.describe('Context tab — service profile', () => {
   test('config tab renders form via #/config and nav tab', async ({ page }) => {
     await page.goto('/#/config');
     await expect(page.locator('.config-title')).toHaveText('Service Profile');
@@ -21,7 +21,7 @@ test.describe('Config tab — service profile', () => {
     await expect(page.locator('.config-choices-radio')).toHaveCount(6);
 
     // Tab bar has the Config tab, marked active
-    const tab = page.locator('.tab-bar-tab', { hasText: 'Config' });
+    const tab = page.locator('.tab-bar-tab', { hasText: 'Context' });
     await expect(tab).toHaveClass(/tab-bar-tab-active/);
   });
 

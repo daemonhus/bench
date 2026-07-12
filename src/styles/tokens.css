@@ -121,6 +121,12 @@
   --file-tree-width: 260px;
   --gutter-width: 28px;
   --line-num-width: 48px;
+  /* Widest a document-like page (overview, delta, findings, features) grows
+     before it centres in its gutters. The workbench panes stay full-bleed.
+     --page-gutter is the inset from the column edge to the content: every
+     document page uses it, so cards line up across pages. */
+  --page-max: 1920px;
+  --page-gutter: 24px;
 
   /* Border radius system */
   --radius-xs: 4px;

@@ -66,34 +66,123 @@ function SeverityBars({ totals }: { totals: Record<string, number> }) {
 
 // ── 2. Resolution Status — 2×2 tiles ─────────────────────────────────────────
 
-const RES_TILES: { label: string; statuses: FindingStatus[]; accent?: boolean }[] = [
-  { label: 'Open',        statuses: ['open', 'draft'] },
-  { label: 'In Progress', statuses: ['in-progress'], accent: true },
-  { label: 'Accepted',    statuses: ['accepted', 'false-positive'] },
-  { label: 'Closed',      statuses: ['closed'] },
+// Bar colours grade by how much attention the bucket demands: open is the
+// full-intensity alarm, in progress is a pale blue (being handled), accepted
+// and closed wash out further (no issue).
+const RES_TILES: { label: string; icon: ResStatusIcon; statuses: FindingStatus[]; color: string; accent?: boolean }[] = [
+  { label: 'Open',        icon: 'open',        statuses: ['open', 'draft'],              color: 'var(--status-open)' },
+  { label: 'In Progress', icon: 'in-progress', statuses: ['in-progress'],                color: 'color-mix(in srgb, var(--accent-blue) 45%, transparent)', accent: true },
+  { label: 'Accepted',    icon: 'accepted',    statuses: ['accepted', 'false-positive'], color: 'color-mix(in srgb, var(--status-accepted) 40%, transparent)' },
+  { label: 'Closed',      icon: 'closed',      statuses: ['closed'],                     color: 'color-mix(in srgb, var(--status-closed) 55%, transparent)' },
 ];
 
-function ResolutionTiles({ totals }: { totals: Record<string, number> }) {
+type ResStatusIcon = 'open' | 'in-progress' | 'accepted' | 'closed';
+
+/** Status glyphs: open = hollow circle, in progress = play, accepted = tick
+ *  in circle, closed = stop sign. Monochrome: they inherit the label's ink. */
+function ResStatusGlyph({ icon }: { icon: ResStatusIcon }) {
+  const common = {
+    width: 11, height: 11, viewBox: '0 0 12 12',
+    'aria-hidden': true as const,
+  };
+  switch (icon) {
+    case 'open':
+      return (
+        <svg {...common} fill="none" stroke="currentColor" strokeWidth="1.5">
+          <circle cx="6" cy="6" r="4.5" />
+        </svg>
+      );
+    case 'in-progress':
+      return (
+        <svg {...common} fill="currentColor" stroke="none">
+          <path d="M3.5 2.2v7.6L10 6z" />
+        </svg>
+      );
+    case 'accepted':
+      return (
+        <svg {...common} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="6" cy="6" r="4.5" />
+          <path d="M4 6.2l1.4 1.4L8 4.9" />
+        </svg>
+      );
+    case 'closed':
+      return (
+        <svg {...common} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round">
+          <path d="M4.1 1.5h3.8l2.6 2.6v3.8l-2.6 2.6H4.1L1.5 7.9V4.1z" />
+        </svg>
+      );
+  }
+}
+
+/** Status tile grid, shared by the Findings metrics row and the Overview.
+ *  `bare` renders just the grid so the caller provides the panel chrome. */
+export function ResolutionTiles({ totals, bare }: { totals: Record<string, number>; bare?: boolean }) {
   const tiles = RES_TILES.map(t => ({
     ...t,
     count: t.statuses.reduce((s, st) => s + (totals[st] ?? 0), 0),
   }));
 
+  const grid = (
+    <div className="fmetrics-res-grid">
+      {tiles.map(t => (
+        <div key={t.label} className="fmetrics-res-tile">
+          <span className="fmetrics-res-tile-label">
+            <ResStatusGlyph icon={t.icon} />
+            {t.label.toUpperCase()}
+          </span>
+          <span className={`fmetrics-res-tile-count${t.accent ? ' fmetrics-res-tile-accent' : ''}`}>
+            {t.count}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+
+  if (bare) return grid;
   return (
     <div className="fmetrics-chart-panel">
       <div className="fmetrics-panel-header">
         <span className="fmetrics-panel-title">Resolution Status</span>
       </div>
-      <div className="fmetrics-res-grid">
+      {grid}
+    </div>
+  );
+}
+
+/** Inline status summary: counts with labels over a segment bar aligned
+ *  to the columns (zero counts show a faint track). The Overview's compact
+ *  rendering of the same resolution data. */
+export function ResolutionStrip({ totals }: { totals: Record<string, number> }) {
+  const tiles = RES_TILES.map(t => ({
+    ...t,
+    count: t.statuses.reduce((s, st) => s + (totals[st] ?? 0), 0),
+  }));
+  const total = tiles.reduce((s, t) => s + t.count, 0);
+
+  return (
+    <div className="fmetrics-res-strip">
+      <div className="fmetrics-res-strip-row">
         {tiles.map(t => (
-          <div key={t.label} className="fmetrics-res-tile">
-            <span className="fmetrics-res-tile-label">{t.label.toUpperCase()}</span>
-            <span className={`fmetrics-res-tile-count${t.accent ? ' fmetrics-res-tile-accent' : ''}`}>
-              {t.count}
+          <div key={t.label} className={`fmetrics-res-strip-cell${t.count === 0 ? ' fmetrics-res-strip-zero' : ''}`}>
+            <span className="fmetrics-res-strip-count">{t.count}</span>
+            <span className="fmetrics-res-tile-label">
+              <ResStatusGlyph icon={t.icon} />
+              {t.label.toUpperCase()}
             </span>
           </div>
         ))}
       </div>
+      {total > 0 && (
+        <div className="fmetrics-res-strip-bar" aria-hidden="true">
+          {tiles.map(t => (
+            <span
+              key={t.label}
+              className={t.count === 0 ? 'fmetrics-res-strip-bar-empty' : undefined}
+              style={t.count > 0 ? { background: t.color } : undefined}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -43,6 +43,7 @@ func NewRouter(repo *git.Repo, database *db.DB, broker *events.Broker, opts ...R
 	mux.HandleFunc("GET /api/git/branches", gh.listBranches)
 	mux.HandleFunc("GET /api/git/graph", gh.graph)
 	mux.HandleFunc("GET /api/git/activity", gh.activity)
+	mux.HandleFunc("GET /api/git/range-stats", gh.rangeStats)
 	mux.HandleFunc("GET /api/git/blame", gh.blame)
 	mux.HandleFunc("GET /api/git/search", gh.search)
 

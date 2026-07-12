@@ -400,13 +400,37 @@
   overflow: hidden;
 }
 
+/* Header and body share the page column, anchored to the viewport-centred
+   --page-max measure (not centred inside the main grid track) so they line
+   up with the tab bar above. The changed-files sidebar deliberately stays
+   out of this: it keeps its own grid track at the right edge of the screen,
+   living in the column's right-hand gutter on wide displays. */
+.delta-header,
+.delta-body {
+  inline-size: 100%;
+  max-inline-size: var(--page-max);
+  margin-inline-start: max(0px, calc((100vw - var(--page-max)) / 2));
+  margin-inline-end: auto;
+}
+
+/* Floats as a panel rather than a band welded to the top of the view: it
+   drops in from the tab bar and insets to the body's 40px page margin, so
+   its edges line up with the cards below it. Same surface as .ovp-panel on
+   the overview — flat, no shadow — so the two pages read as one system. */
 .delta-header {
   display: flex;
   align-items: center;
   gap: 20px;
-  padding: 33px 40px;
-  border-bottom: 1px solid var(--border-default);
+  padding: 16px 18px;
   flex-shrink: 0;
+  inline-size: auto;
+  margin-block-start: 20px;
+  margin-inline-start: max(var(--page-gutter), calc((100vw - var(--page-max)) / 2 + var(--page-gutter)));
+  margin-inline-end: var(--page-gutter);
+  max-inline-size: calc(var(--page-max) - 2 * var(--page-gutter));
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-muted);
+  border-radius: var(--radius-md);
 }
 
 .delta-header-left {
@@ -572,7 +596,7 @@
 .delta-body {
   flex: 1;
   overflow-y: auto;
-  padding: 28px 40px;
+  padding: 28px var(--page-gutter);
 }
 
 /* ----- History drawer (inside delta-body-wrap) ----- */

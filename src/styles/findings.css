@@ -52,7 +52,6 @@
 .finding-card {
   background: #1c2540;
   border: 1px solid var(--border-muted);
-  border-left: 3px solid var(--card-severity, var(--severity-high));
   border-radius: 0;
   padding: 20px;
   cursor: pointer;
@@ -65,7 +64,6 @@
 [data-nav-focused="true"] .finding-card {
   background: #252f4c;
   border-color: rgba(148, 163, 184, 0.16);
-  border-left-color: var(--card-severity, var(--severity-high));
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.24), 0 0 0 1px rgba(148, 163, 184, 0.08);
 }
 
@@ -76,19 +74,16 @@
 .finding-card-expanded:hover {
   background: #252f4c;
   border-color: var(--border-muted);
-  border-left-color: var(--card-severity, var(--severity-high));
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(148, 163, 184, 0.05);
 }
 
 .finding-card-focused {
   border-color: rgba(129, 140, 248, 0.3);
-  border-left-color: var(--card-severity, var(--severity-high));
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(129, 140, 248, 0.2);
 }
 
 .finding-card-focused:hover {
   border-color: rgba(129, 140, 248, 0.3);
-  border-left-color: var(--card-severity, var(--severity-high));
 }
 
 .finding-card-header {
@@ -810,7 +805,6 @@
 /* Comment draft — accent blue, same provisional frame as the others */
 .comment-card-new {
   border: 1px dashed color-mix(in srgb, var(--accent-blue) 50%, transparent);
-  border-left: 3px solid var(--accent-blue);
 }
 
 .comment-card-header {
@@ -1010,7 +1004,6 @@
 .finding-card-new {
   background: var(--bg-secondary);
   border: 1px dashed color-mix(in srgb, var(--severity-high) 50%, transparent);
-  border-left: 3px solid var(--severity-high);
 }
 
 /* Feature draft — accent purple (the old pure-white frame vanished in
@@ -1018,14 +1011,12 @@
 .feature-card-new {
   background: var(--bg-secondary);
   border: 1px dashed color-mix(in srgb, var(--accent-purple) 50%, transparent);
-  border-left: 3px solid var(--accent-purple);
 }
 
 /* ----- Mobile: sharp-edged cards ----- */
 @media (max-width: 799px) {
   .finding-card {
     border-radius: 0;
-    border-left-width: 3px;
     border-right: none;
   }
 }
@@ -1038,7 +1029,6 @@
   font-family: var(--font-sans);
   font-size: var(--font-size-body);
   background: var(--bg-secondary);
-  border-left: 4px solid transparent;
   border-top: 1px solid var(--border-default);
   border-bottom: 1px solid var(--border-default);
   margin: 4px 0 4px 0;

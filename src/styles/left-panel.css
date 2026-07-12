@@ -860,7 +860,6 @@
 .tree-selected {
   background: color-mix(in srgb, var(--accent-blue) 12%, transparent);
   color: var(--accent-blue);
-  border-left: 2px solid var(--accent-blue);
 }
 
 .tree-focused {

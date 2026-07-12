@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { ActivityBucket, BranchInfo, Feature, FeatureKind, Finding, GraphCommit, ReconciledHead, ServiceProfile, Severity } from '../core/types';
-import { findingsApi, featuresApi, gitApi, reconcileApi } from '../core/api';
+import type { ActivityBucket, Baseline, BranchInfo, Feature, FeatureKind, Finding, GraphCommit, ReconciledHead, ServiceProfile, Severity } from '../core/types';
+import { baselinesApi, findingsApi, featuresApi, gitApi, reconcileApi } from '../core/api';
 import { useEvents } from '../core/use-events';
 import { useProfileStore } from '../stores/profile-store';
 import { useRepoStore } from '../stores/repo-store';
@@ -9,6 +9,7 @@ import { computeGraphLayout, attributeBranches, parseMergedBranch, LANE_WIDTH, R
 import { KIND_COLORS } from './FeatureCard';
 import { avatarInitials, avatarColor } from '../core/avatar';
 import { FeatureMiniCard, FindingMiniCard, useHoverCard } from './mini-cards';
+import { ResolutionStrip } from './FindingsMetrics';
 import { categoryMeta, SEVERITY_RANK } from '../core/finding-categories';
 import { buildFeatureMap } from '../core/feature-map-layout';
 import type { FeatureMapNode } from '../core/feature-map-layout';
@@ -16,11 +17,10 @@ import type { FeatureMapNode } from '../core/feature-map-layout';
 // ---------------------------------------------------------------------------
 // Project Overview, three columns:
 //   1. Repository context (profile badges), git state, history graph
-//   2. Findings: open counts, systemic issues, RRD and MTTR charts
+//   2. Findings: open counts, systemic issues, findings-raised chart
 //   3. Features: counts by kind, feature relationship map
 // ---------------------------------------------------------------------------
 
-const SEVERITY_ORDER: Severity[] = ['critical', 'high', 'medium', 'low', 'info'];
 const KIND_ORDER: FeatureKind[] = ['interface', 'source', 'sink', 'dependency', 'externality'];
 const KIND_LABELS: Record<FeatureKind, string> = {
   interface: 'Interfaces',
@@ -47,13 +47,6 @@ function relativeTime(d: Date): string {
   const days = h / 24;
   if (days < 45) return `${Math.round(days)}d ago`;
   return d.toLocaleDateString();
-}
-
-function humanizeDuration(ms: number): string {
-  const hours = ms / 3_600_000;
-  if (hours < 1) return `${Math.max(1, Math.round(ms / 60_000))} min`;
-  if (hours < 48) return `${hours.toFixed(1)} hrs`;
-  return `${(hours / 24).toFixed(1)} days`;
 }
 
 function titleCase(s: string): string {
@@ -85,7 +78,7 @@ function PanelTitle({ children, href }: { children: ReactNode; href?: string }) 
 }
 
 // ---------------------------------------------------------------------------
-// Weekly buckets (RRD + MTTR)
+// Weekly buckets (findings raised)
 // ---------------------------------------------------------------------------
 
 interface WeekBucket {
@@ -93,11 +86,9 @@ interface WeekBucket {
   label: string;
   /** New findings created this week (RRD). */
   raised: number;
-  /** Fix durations (ms) of findings resolved this week (MTTR). */
-  fixTimes: number[];
 }
 
-/** Bucket findings into creation/resolution weeks, ending at the current week. */
+/** Bucket findings into creation weeks, ending at the current week. */
 function bucketByWeek(findings: Finding[], maxWeeks = 16): WeekBucket[] {
   const weekMs = 7 * 24 * 3_600_000;
   // Anchor to the start of the current week (Monday).
@@ -120,7 +111,6 @@ function bucketByWeek(findings: Finding[], maxWeeks = 16): WeekBucket[] {
       start,
       label: start.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }),
       raised: 0,
-      fixTimes: [],
     });
   }
   const first = buckets[0].start.getTime();
@@ -131,11 +121,6 @@ function bucketByWeek(findings: Finding[], maxWeeks = 16): WeekBucket[] {
     if (c) {
       const i = bucketIdx(c);
       if (i >= 0 && i < buckets.length) buckets[i].raised++;
-    }
-    const r = parseDate(f.resolvedAt);
-    if (c && r && r.getTime() >= c.getTime()) {
-      const i = bucketIdx(r);
-      if (i >= 0 && i < buckets.length) buckets[i].fixTimes.push(r.getTime() - c.getTime());
     }
   }
   return buckets;
@@ -257,7 +242,7 @@ function ActivityTimeline() {
 
   const header = (
     <div className="ovp-repo-header">
-      <PanelTitle>Activity</PanelTitle>
+      <h4 className="ovp-subtitle ovp-subtitle-flat">Activity</h4>
       <div className="ovp-act-nav">
         <select
           className="finding-edit-select ovp-act-scale-select"
@@ -390,6 +375,62 @@ function ActivityTimeline() {
         {lastLabel !== firstLabel && <span>{lastLabel}</span>}
       </div>
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Baseline indicator
+// ---------------------------------------------------------------------------
+
+function daysAgo(d: Date): string {
+  const days = Math.floor((Date.now() - d.getTime()) / 86_400_000);
+  if (days <= 0) return 'today';
+  if (days === 1) return 'yesterday';
+  return `${days}d ago`;
+}
+
+/** Baseline callout inside the Repository card: the last reviewed state
+ *  and how far HEAD has drifted from it. */
+function BaselineCallout({ baseline, loaded, drift }: {
+  baseline: Baseline | null;
+  loaded: boolean;
+  drift: { commits: number; merges: number } | null;
+}) {
+  const created = baseline ? parseDate(baseline.createdAt) : null;
+  return (
+    <div className="ovp-baseline-callout">
+      <a className="ovp-baseline-callout-link" href="#/delta" aria-label="Open the delta view" data-tooltip="Review the delta">
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M3.5 8.5l5-5M4 3.5h4.5V8" />
+        </svg>
+      </a>
+      <span className="ovp-baseline-callout-label">Baseline · last reviewed state</span>
+      {!loaded ? (
+        <div className="ovp-empty">Loading baseline…</div>
+      ) : !baseline ? (
+        <div className="ovp-baseline-callout-line">No baselines set yet</div>
+      ) : (
+        <>
+          <div className="ovp-baseline-callout-line" title={baseline.summary || undefined}>
+            <span className="ovp-baseline-seq">#{baseline.seq}</span>
+            {baseline.commitId && <span className="ovp-mono ovp-baseline-commit">{baseline.commitId.slice(0, 7)}</span>}
+            {created && (
+              <span className="ovp-baseline-when">
+                {created.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })} · {daysAgo(created)}
+              </span>
+            )}
+            {baseline.reviewer && <span className="ovp-baseline-when">by {baseline.reviewer}</span>}
+          </div>
+          <div className={`ovp-baseline-drift${drift && drift.commits > 0 ? ' ovp-baseline-drift-behind' : ''}`}>
+            {drift == null
+              ? 'Drift unknown: baseline commit not found in the repo'
+              : drift.commits === 0
+                ? 'HEAD matches the reviewed state'
+                : `HEAD is ${drift.commits} commit${drift.commits === 1 ? '' : 's'} and ${drift.merges} merge${drift.merges === 1 ? '' : 's'} ahead of review`}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -729,7 +770,7 @@ function FeatureMap({ features, openByFeature, worstByFeature }: {
       <div className="ovp-map-legend">
         {KIND_ORDER.map((kind) => (
           <span key={kind} className="ovp-map-legend-item">
-            <span className="ovp-severity-dot" style={{ background: KIND_COLORS[kind] }} />
+            <span className="ovp-map-legend-dot" style={{ background: KIND_COLORS[kind] }} />
             {KIND_LABELS[kind]}
           </span>
         ))}
@@ -842,19 +883,37 @@ export function OverviewView() {
   useEffect(() => { loadAll(); loadProfile(); }, []);
   useEvents(['annotations', 'git', 'profile'], () => { loadAll(); loadProfile(); });
 
+  // Latest baseline plus how far HEAD has drifted from it; feeds both the
+  // header KPI and the Repository card's callout.
+  const [baseline, setBaseline] = useState<Baseline | null>(null);
+  const [baselineLoaded, setBaselineLoaded] = useState(false);
+  const [drift, setDrift] = useState<{ commits: number; merges: number } | null>(null);
+  const loadBaseline = () => {
+    baselinesApi.latest().then((b) => {
+      setBaseline(b);
+      setBaselineLoaded(true);
+      if (b?.commitId) {
+        gitApi.rangeStats(b.commitId).then(setDrift).catch(() => setDrift(null));
+      } else {
+        setDrift(null);
+      }
+    });
+  };
+  useEffect(loadBaseline, []);
+  useEvents(['baselines', 'git'], loadBaseline);
+
   const derived = useMemo(() => {
     if (!data) return null;
     const { graph, findings, features } = data;
 
     const head = graph[0] ?? null;
-    // Stash entries also have multiple parents; they are not merges.
-    const isStash = (c: GraphCommit) => /^(WIP on|index on) /.test(c.subject);
-    const lastMerge = graph.find((c) => c.parents && c.parents.length > 1 && !isStash(c)) ?? null;
 
     const isOpen = (f: Finding) => f.status !== 'closed' && !f.resolvedCommit;
     const open = findings.filter(isOpen);
-    const bySeverity = new Map<Severity, number>();
-    for (const f of open) bySeverity.set(f.severity, (bySeverity.get(f.severity) ?? 0) + 1);
+
+    // Status counts for the resolution tiles (shared with the Findings page).
+    const statusTotals: Record<string, number> = {};
+    for (const f of findings) statusTotals[f.status] = (statusTotals[f.status] ?? 0) + 1;
 
     // Systemic issues: categories ranked by open findings, then total.
     const byCategory = new Map<string, { open: number; total: number }>();
@@ -884,21 +943,13 @@ export function OverviewView() {
       }
     }
 
-    const allFixTimes: number[] = [];
-    for (const f of findings) {
-      const c = parseDate(f.createdAt);
-      const r = parseDate(f.resolvedAt);
-      if (c && r && r.getTime() >= c.getTime()) allFixTimes.push(r.getTime() - c.getTime());
-    }
-    const avgFixMs = allFixTimes.length > 0 ? allFixTimes.reduce((a, b) => a + b, 0) / allFixTimes.length : null;
-
     const buckets = bucketByWeek(findings);
     const layout = computeGraphLayout(graph);
     const branchOf = attributeBranches(graph);
 
     return {
-      head, lastMerge, open, bySeverity, systemic, findingsByCategory, isOpen, openByFeature, worstByFeature,
-      avgFixMs, fixedCount: allFixTimes.length, buckets, layout, branchOf,
+      head, open, statusTotals, systemic, findingsByCategory, isOpen, openByFeature, worstByFeature,
+      buckets, layout, branchOf,
     };
   }, [data]);
 
@@ -911,35 +962,44 @@ export function OverviewView() {
 
   const { branches, reconciled, graph, findings } = data;
   const {
-    head, lastMerge, open, bySeverity, systemic, findingsByCategory, isOpen, openByFeature, worstByFeature,
-    avgFixMs, fixedCount, buckets, layout, branchOf,
+    head, open, statusTotals, systemic, findingsByCategory, isOpen, openByFeature, worstByFeature,
+    buckets, layout, branchOf,
   } = derived;
 
   const headDate = head ? parseDate(head.date) : null;
-  const mergeDate = lastMerge ? parseDate(lastMerge.date) : null;
   const reconciledShort = reconciled?.reconciledHead ? reconciled.reconciledHead.slice(0, 7) : null;
   const localBranches = branches.filter((b) => !b.isRemote);
 
   const graphWidth = (layout.maxLanes + 1) * LANE_WIDTH;
   const svgHeight = graph.length * ROW_HEIGHT;
 
-  const mttrValues = buckets.map((b) =>
-    b.fixTimes.length > 0 ? b.fixTimes.reduce((a, v) => a + v, 0) / b.fixTimes.length : 0);
-
   const ctxBadges = profileBadges(profile);
+
+  // Header KPIs
+  const closedCount = statusTotals['closed'] ?? 0;
+  const kindCounts = KIND_ORDER
+    .map((k) => ({ kind: k, count: data.features.filter((f) => f.kind === k).length }))
+    .filter((k) => k.count > 0)
+    .sort((a, b) => b.count - a.count);
+  const surfaceSub = kindCounts.slice(0, 2)
+    .map((k) => `${k.count} ${KIND_LABELS[k.kind].toLowerCase()}`)
+    .join(' · ');
+  const baselineCreated = baseline ? parseDate(baseline.createdAt) : null;
 
   return (
     <div className="ovp">
-      <div className="ovp-columns">
+      <div className="ovp-page">
 
-        {/* ── Column 1: context + git state ───────────────────────── */}
-        <div className="ovp-col">
-          <div className="ovp-panel">
-            <div className="ovp-repo-header ovp-project-header">
+        {/* ── Header band: project context + KPIs ─────────────────── */}
+        <div className="ovp-panel ovp-header">
+          <div className="ovp-header-info">
+            <div className="ovp-header-title-row">
               <h3 className="ovp-project-title">{repoName || 'Project'}</h3>
-              <a className="ovp-context-link" href="#/config">
-                Context
-                <span className="ovp-context-link-arrow" aria-hidden="true">→</span>
+              <a className="ovp-header-owner" href="#/config">
+                {profile.owner ? `Owner · ${profile.owner}` : 'Context'}
+                <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M3.5 8.5l5-5M4 3.5h4.5V8" />
+                </svg>
               </a>
             </div>
             {!profileConfigured ? (
@@ -952,12 +1012,9 @@ export function OverviewView() {
               </div>
             ) : (
               <>
-                {profile.description && <blockquote className="ovp-ctx-desc">{profile.description}</blockquote>}
-                {(profile.owner || ctxBadges.length > 0) && (
+                {profile.description && <p className="ovp-header-desc">{profile.description}</p>}
+                {ctxBadges.length > 0 && (
                   <div className="ovp-ctx-badges">
-                    {profile.owner && (
-                      <span className="ovp-ctx-badge" data-tooltip="Owner">Owner: {profile.owner}</span>
-                    )}
                     {ctxBadges.map((b, i) => (
                       <span
                         key={i}
@@ -972,217 +1029,213 @@ export function OverviewView() {
               </>
             )}
           </div>
+          <div className="ovp-kpis">
+            <a className="ovp-kpi" href="#/findings">
+              <span className="ovp-kpi-label">
+                <span className="ovp-kpi-dot" style={{ background: 'var(--status-open)' }} />
+                Open findings
+              </span>
+              <span className="ovp-kpi-value">{open.length}</span>
+              <span className="ovp-kpi-sub">
+                {findings.length > 0 ? `of ${findings.length} · ${closedCount} closed` : 'none recorded yet'}
+              </span>
+            </a>
+            <a className="ovp-kpi" href="#/delta">
+              <span className="ovp-kpi-label">
+                <span className="ovp-kpi-dot" style={{ background: 'var(--accent-blue)' }} />
+                Behind baseline
+              </span>
+              <span className="ovp-kpi-value">
+                {baseline && drift ? drift.commits : '—'}
+                {baseline && drift && <span className="ovp-kpi-unit">commit{drift.commits === 1 ? '' : 's'}</span>}
+              </span>
+              <span className="ovp-kpi-sub">
+                {baseline
+                  ? `#${baseline.seq}${baselineCreated ? ` · ${daysAgo(baselineCreated)}` : ''}`
+                  : 'no baseline yet'}
+              </span>
+            </a>
+            <a className="ovp-kpi" href="#/features">
+              <span className="ovp-kpi-label">
+                <span className="ovp-kpi-dot" style={{ background: 'var(--accent-green)' }} />
+                Attack surface
+              </span>
+              <span className="ovp-kpi-value">
+                {data.features.length}
+                <span className="ovp-kpi-unit">feature{data.features.length === 1 ? '' : 's'}</span>
+              </span>
+              <span className="ovp-kpi-sub">{surfaceSub || 'none annotated yet'}</span>
+            </a>
+          </div>
+        </div>
 
-          <div className="ovp-panel">
-            <div className="ovp-repo-header">
-              <PanelTitle href="#/browse">Git state</PanelTitle>
-              {reconciled && (
-                reconciled.isFullyReconciled ? (
-                  <span className="ovp-recon-chip ovp-recon-ok">
-                    Reconciled to {reconciledShort ?? reconciled.gitHead.slice(0, 7)}
-                  </span>
-                ) : (
-                  <span className="ovp-recon-chip ovp-recon-behind">
-                    {reconciled.unreconciled?.length ?? 0} file{(reconciled.unreconciled?.length ?? 0) === 1 ? '' : 's'} not reconciled
-                    {reconciledShort ? ` (at ${reconciledShort})` : ''}
-                  </span>
-                )
+        <div className="ovp-columns">
+
+          {/* ── Column 1: security findings ─────────────────────────── */}
+          <div className="ovp-col">
+            <div className="ovp-panel">
+              <PanelTitle href="#/findings">Findings</PanelTitle>
+              {findings.length === 0 ? (
+                <div className="ovp-empty">No findings recorded yet.</div>
+              ) : (
+                <>
+                  <ResolutionStrip totals={statusTotals} />
+                  <div className="ovp-section">
+                    <h4 className="ovp-subtitle">Systemic issues</h4>
+                    <CategoryHeatmap systemic={systemic} findingsByCategory={findingsByCategory} isOpen={isOpen} />
+                  </div>
+                  <div className="ovp-section">
+                    <h4 className="ovp-subtitle">Raised per week</h4>
+                    <WeekColumns
+                      buckets={buckets}
+                      values={buckets.map((b) => b.raised)}
+                      tooltips={buckets.map((b) => `Week of ${b.label}: ${b.raised} raised`)}
+                      labelMax={String(Math.max(...buckets.map((b) => b.raised)))}
+                    />
+                  </div>
+                </>
               )}
             </div>
+          </div>
 
-            <div className="ovp-git-stats">
-              <div className="ovp-stat-inline">
-                <div className="ovp-stat-label">Last pull (HEAD)</div>
-                <div className="ovp-stat-value">
-                  {head ? <span className="ovp-mono">{head.shortHash}</span> : '—'}
+          {/* ── Column 2: repository ────────────────────────────────── */}
+          <div className="ovp-col">
+            <div className="ovp-panel">
+              <div className="ovp-repo-header">
+                <PanelTitle href="#/browse">Repository</PanelTitle>
+                {reconciled && (
+                  reconciled.isFullyReconciled ? (
+                    <span className="ovp-recon-chip ovp-recon-ok">
+                      Reconciled to {reconciledShort ?? reconciled.gitHead.slice(0, 7)}
+                    </span>
+                  ) : (
+                    <span className="ovp-recon-chip ovp-recon-behind">
+                      {reconciled.unreconciled?.length ?? 0} file{(reconciled.unreconciled?.length ?? 0) === 1 ? '' : 's'} not reconciled
+                      {reconciledShort ? ` (at ${reconciledShort})` : ''}
+                    </span>
+                  )
+                )}
+              </div>
+
+              <BaselineCallout baseline={baseline} loaded={baselineLoaded} drift={drift} />
+
+              <div className="ovp-section">
+                <div className="ovp-section-head">
+                  <h4 className="ovp-subtitle ovp-subtitle-flat">Head</h4>
                   {headDate && <span className="ovp-stat-when">{relativeTime(headDate)}</span>}
                 </div>
+                <div className="ovp-head-hash ovp-mono">{head ? head.shortHash : '—'}</div>
                 <div className="ovp-stat-sub" title={head?.subject}>{head?.subject ?? 'No commits'}</div>
+                {localBranches.length > 0 && (
+                  <div className="ovp-branches-inline">
+                    {localBranches.slice(0, 4).map((b) => (
+                      <span key={b.name} className="ovp-branch-inline">
+                        <span className="ovp-branch-name" title={b.name}>{b.name}</span>
+                        <span className="ovp-mono ovp-branch-hash">{b.head.slice(0, 7)}</span>
+                        {b.isCurrent && <span className="ovp-badge ovp-badge-current">current</span>}
+                      </span>
+                    ))}
+                    {localBranches.length > 4 && <span className="ovp-branch-more">+{localBranches.length - 4} more</span>}
+                  </div>
+                )}
               </div>
-              <div className="ovp-stat-inline">
-                <div className="ovp-stat-label">Last merge</div>
-                <div className="ovp-stat-value">
-                  {lastMerge ? <span className="ovp-mono">{lastMerge.shortHash}</span> : '—'}
-                  {mergeDate && <span className="ovp-stat-when">{relativeTime(mergeDate)}</span>}
-                </div>
-                <div className="ovp-stat-sub" title={lastMerge?.subject}>
-                  {lastMerge?.subject ?? 'No merge commits in recent history'}
-                </div>
-              </div>
-            </div>
 
-            <h4 className="ovp-subtitle">Branches</h4>
-            <div className="ovp-branches">
-              {localBranches.length === 0 && <div className="ovp-empty">No local branches.</div>}
-              {localBranches.slice(0, 6).map((b) => (
-                <div key={b.name} className="ovp-branch-row">
-                  <span className="ovp-branch-name" title={b.name}>{b.name}</span>
-                  <span className="ovp-mono ovp-branch-hash">{b.head.slice(0, 7)}</span>
-                  {b.isCurrent && <span className="ovp-badge ovp-badge-current">current</span>}
-                </div>
-              ))}
-              {localBranches.length > 6 && <div className="ovp-empty">+{localBranches.length - 6} more</div>}
-            </div>
-          </div>
-
-          {/* Log graph — same rendering as the Browse git tree */}
-          <div className="ovp-panel">
-            <PanelTitle href="#/browse">Log</PanelTitle>
-            <div className="ovp-git-tree">
-              <div className="git-tree-graph" style={{ position: 'relative' }}>
-                <svg
-                  className="git-tree-svg"
-                  width={graphWidth}
-                  height={svgHeight}
-                  style={{ position: 'absolute', left: 0, top: 0, pointerEvents: 'none' }}
-                >
-                  {layout.edges.map((edge, i) => (
-                    <path
-                      key={i}
-                      d={edgePath(edge.fromRow, edge.fromLane, edge.toRow, edge.toLane)}
-                      stroke={laneColor(edge.toLane)}
-                      strokeWidth={2}
-                      fill="none"
-                      opacity={0.7}
-                    />
-                  ))}
-                  {layout.nodes.map((node, i) => (
-                    <circle
-                      key={node.commit.hash}
-                      cx={laneX(node.lane)}
-                      cy={rowY(i)}
-                      r={NODE_RADIUS}
-                      fill={laneColor(node.lane)}
-                    />
-                  ))}
-                </svg>
-                {layout.nodes.map((node) => {
-                  const refs = node.commit.refs ?? [];
-                  const branch = branchOf.get(node.commit.hash);
-                  const isMerge = (node.commit.parents ?? []).length > 1;
-                  const mergedFrom = isMerge ? parseMergedBranch(node.commit.subject) : null;
-                  const branchPart = mergedFrom && branch
-                    ? `${mergedFrom} → ${branch}`
-                    : branch ?? 'branch unknown';
-                  const tooltip = `${node.commit.hash.slice(0, 12)} · ${branchPart} · ${node.commit.author}`;
-                  return (
-                    <div
-                      key={node.commit.hash}
-                      className="git-tree-row"
-                      style={{ height: ROW_HEIGHT, paddingLeft: graphWidth + 4 }}
-                      data-tooltip={tooltip}
+              {/* Recent log — same rendering as the Browse git tree */}
+              <div className="ovp-section">
+                <h4 className="ovp-subtitle">Recent log</h4>
+                <div className="ovp-git-tree">
+                  <div className="git-tree-graph" style={{ position: 'relative' }}>
+                    <svg
+                      className="git-tree-svg"
+                      width={graphWidth}
+                      height={svgHeight}
+                      style={{ position: 'absolute', left: 0, top: 0, pointerEvents: 'none' }}
                     >
-                      <span className="git-tree-hash">{node.commit.shortHash}</span>
-                      {reconciled?.gitHead === node.commit.hash && (
-                        <span className="commit-head-badge">HEAD</span>
-                      )}
-                      {refs.map((ref) => (
-                        <span key={ref} className="git-tree-ref-badge">{ref}</span>
+                      {layout.edges.map((edge, i) => (
+                        <path
+                          key={i}
+                          d={edgePath(edge.fromRow, edge.fromLane, edge.toRow, edge.toLane)}
+                          stroke={laneColor(edge.toLane)}
+                          strokeWidth={2}
+                          fill="none"
+                          opacity={0.7}
+                        />
                       ))}
-                      {reconciled?.reconciledHead === node.commit.hash && (
-                        <span className="git-tree-diff-badge git-tree-reconciled">RECONCILED</span>
-                      )}
-                      <span className="git-tree-subject">{node.commit.subject}</span>
-                    </div>
-                  );
-                })}
-                {graph.length === 0 && <div className="ovp-empty">No commits.</div>}
+                      {layout.nodes.map((node, i) => (
+                        <circle
+                          key={node.commit.hash}
+                          cx={laneX(node.lane)}
+                          cy={rowY(i)}
+                          r={NODE_RADIUS}
+                          fill={laneColor(node.lane)}
+                        />
+                      ))}
+                    </svg>
+                    {layout.nodes.map((node) => {
+                      const refs = node.commit.refs ?? [];
+                      const branch = branchOf.get(node.commit.hash);
+                      const isMerge = (node.commit.parents ?? []).length > 1;
+                      const mergedFrom = isMerge ? parseMergedBranch(node.commit.subject) : null;
+                      const branchPart = mergedFrom && branch
+                        ? `${mergedFrom} → ${branch}`
+                        : branch ?? 'branch unknown';
+                      const tooltip = `${node.commit.hash.slice(0, 12)} · ${branchPart} · ${node.commit.author}`;
+                      return (
+                        <div
+                          key={node.commit.hash}
+                          className="git-tree-row"
+                          style={{ height: ROW_HEIGHT, paddingLeft: graphWidth + 4 }}
+                          data-tooltip={tooltip}
+                        >
+                          <span className="git-tree-hash">{node.commit.shortHash}</span>
+                          {reconciled?.gitHead === node.commit.hash && (
+                            <span className="commit-head-badge">HEAD</span>
+                          )}
+                          {refs.map((ref) => (
+                            <span key={ref} className="git-tree-ref-badge">{ref}</span>
+                          ))}
+                          {baseline?.commitId === node.commit.hash && (
+                            <span className="git-tree-ref-badge ovp-baseline-badge">BASELINE #{baseline.seq}</span>
+                          )}
+                          {reconciled?.reconciledHead === node.commit.hash && (
+                            <span className="git-tree-diff-badge git-tree-reconciled">RECONCILED</span>
+                          )}
+                          <span className="git-tree-subject">{node.commit.subject}</span>
+                        </div>
+                      );
+                    })}
+                    {graph.length === 0 && <div className="ovp-empty">No commits.</div>}
+                  </div>
+                </div>
+              </div>
+
+              {/* Commit activity timeline */}
+              <div className="ovp-section">
+                <ActivityTimeline />
               </div>
             </div>
           </div>
 
-          {/* Commit activity timeline */}
-          <div className="ovp-panel">
-            <ActivityTimeline />
-          </div>
-        </div>
-
-        {/* ── Column 2: findings ──────────────────────────────────── */}
-        <div className="ovp-col">
-          <div className="ovp-stat-row-2">
-            <div className="ovp-stat">
-              <div className="ovp-stat-label">Open findings</div>
-              <div className="ovp-stat-value">{open.length}</div>
-              <div className="ovp-stat-sub ovp-severity-chips">
-                {SEVERITY_ORDER.map((sev) => {
-                  const n = bySeverity.get(sev) ?? 0;
-                  if (n === 0) return null;
-                  return (
-                    <span key={sev} className="ovp-severity-chip" data-severity={sev}>
-                      <span className="ovp-severity-dot" />{n} {sev}
-                    </span>
-                  );
-                })}
-                {open.length === 0 && <span>{findings.length > 0 ? 'All resolved' : 'None recorded yet'}</span>}
+          {/* ── Column 3: attack surface ────────────────────────────── */}
+          <div className="ovp-col ovp-col-wide">
+            <div className="ovp-panel">
+              <PanelTitle href="#/features">Attack surface</PanelTitle>
+              <div>
+                <h4 className="ovp-subtitle">Features by kind</h4>
+                {data.features.length === 0 ? (
+                  <div className="ovp-empty">No features annotated yet.</div>
+                ) : (
+                  <KindSquares features={data.features} openByFeature={openByFeature} />
+                )}
               </div>
-            </div>
-            <div className="ovp-stat">
-              <div className="ovp-stat-label">Mean time to resolve</div>
-              <div className="ovp-stat-value">{avgFixMs != null ? humanizeDuration(avgFixMs) : '—'}</div>
-              <div className="ovp-stat-sub">
-                {avgFixMs != null ? `across ${fixedCount} resolved finding${fixedCount === 1 ? '' : 's'}` : 'No resolved findings yet'}
+              <div className="ovp-section">
+                <h4 className="ovp-subtitle">Feature map</h4>
+                <FeatureMap features={data.features} openByFeature={openByFeature} worstByFeature={worstByFeature} />
               </div>
             </div>
           </div>
 
-          <div className="ovp-panel">
-            <PanelTitle href="#/findings">Systemic issues</PanelTitle>
-            {findings.length === 0 ? (
-              <div className="ovp-empty">No findings recorded yet.</div>
-            ) : (
-              <CategoryHeatmap systemic={systemic} findingsByCategory={findingsByCategory} isOpen={isOpen} />
-            )}
-          </div>
-
-          <div className="ovp-panel">
-            <PanelTitle href="#/findings">Findings raised per week</PanelTitle>
-            {findings.length === 0 ? (
-              <div className="ovp-empty">No findings recorded yet.</div>
-            ) : (
-              <WeekColumns
-                buckets={buckets}
-                values={buckets.map((b) => b.raised)}
-                tooltips={buckets.map((b) => `Week of ${b.label}: ${b.raised} raised`)}
-                labelMax={String(Math.max(...buckets.map((b) => b.raised)))}
-              />
-            )}
-          </div>
-
-          <div className="ovp-panel">
-            <PanelTitle href="#/findings">Mean time to resolve per week</PanelTitle>
-            {fixedCount === 0 ? (
-              <div className="ovp-empty">No resolved findings yet.</div>
-            ) : (
-              <WeekColumns
-                buckets={buckets}
-                values={mttrValues}
-                tooltips={buckets.map((b, i) =>
-                  b.fixTimes.length > 0
-                    ? `Week of ${b.label}: ${humanizeDuration(mttrValues[i])} across ${b.fixTimes.length} resolved`
-                    : `Week of ${b.label}: nothing resolved`)}
-                labelMax={humanizeDuration(Math.max(...mttrValues))}
-              />
-            )}
-          </div>
         </div>
-
-        {/* ── Column 3: features ──────────────────────────────────── */}
-        <div className="ovp-col ovp-col-wide">
-          <div className="ovp-panel">
-            <PanelTitle href="#/features">Features by kind</PanelTitle>
-            {data.features.length === 0 ? (
-              <div className="ovp-empty">No features annotated yet.</div>
-            ) : (
-              <KindSquares features={data.features} openByFeature={openByFeature} />
-            )}
-          </div>
-
-          <div className="ovp-panel">
-            <PanelTitle href="#/features">Feature map</PanelTitle>
-            <FeatureMap features={data.features} openByFeature={openByFeature} worstByFeature={worstByFeature} />
-          </div>
-        </div>
-
       </div>
     </div>
   );

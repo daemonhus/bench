@@ -614,6 +614,27 @@ export function App() {
   // Sync route when viewMode, file, or compare commits change
   useEffect(() => {
     if (!initialRouteApplied.current) return;
+    const current = parseRoute(window.location.hash);
+    // The hash can carry sub-route state App does not own: finding deep
+    // links, feature filters and deep links, baseline selection. When the
+    // mode already matches, leave those URLs alone rather than rewriting
+    // them shallow (which made a refresh lose the state).
+    if (current.mode === viewMode) {
+      const deep =
+        (viewMode === 'findings' && (current.findingId || current.featureFilterId)) ||
+        (viewMode === 'features' && current.featureId) ||
+        (viewMode === 'delta' && current.baselineId);
+      if (deep) {
+        isHandlingHashChange.current = false;
+        return;
+      }
+    }
+    // While a rev^ compare ref is still resolving, from is empty and
+    // buildRoute would degrade the diff URL to a browse one: hold off.
+    if (viewMode === 'diff' && (!compareFrom || !compareTo)) {
+      isHandlingHashChange.current = false;
+      return;
+    }
     updateRoute(
       viewMode,
       viewMode === 'diff' ? compareFrom : undefined,
@@ -828,6 +849,29 @@ export function App() {
           {repoName && (
             <span className="tab-bar-project-name">{repoName}</span>
           )}
+          {([
+            { mode: 'overview' as ViewMode, label: 'Overview', shortcut: '0', icon: <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1" /><rect x="9" y="1.5" width="5.5" height="5.5" rx="1" /><rect x="1.5" y="9" width="5.5" height="5.5" rx="1" /><rect x="9" y="9" width="5.5" height="5.5" rx="1" /></svg> },
+            { mode: 'browse' as ViewMode, label: 'Browse', shortcut: '1', icon: <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 2h5l1 2h6v9H2V2z" /></svg> },
+            { mode: 'delta' as ViewMode, label: 'Changes', shortcut: '2', icon: <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 8H3M8 3v10M3 5l5-4 5 4" /></svg> },
+            { mode: 'findings' as ViewMode, label: 'Findings', shortcut: '3', icon: <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 1L1 14h14L8 1z" /><line x1="8" y1="6" x2="8" y2="9" /><circle cx="8" cy="11.5" r="0.5" fill="currentColor" /></svg> },
+            { mode: 'features' as ViewMode, label: 'Features', shortcut: '4', icon: <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="8" r="3" /><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.1 3.1l1.4 1.4M11.5 11.5l1.4 1.4M3.1 12.9l1.4-1.4M11.5 4.5l1.4-1.4" /></svg> },
+            { mode: 'config' as ViewMode, label: 'Context', shortcut: '5', icon: <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 4.5h8M12.5 4.5H14M2 11.5h3M7.5 11.5H14" /><circle cx="10.5" cy="4.5" r="1.8" /><circle cx="5.5" cy="11.5" r="1.8" /></svg> },
+          ]).map(({ mode, label, shortcut, icon }) => {
+            const isActive = mode === 'browse'
+              ? viewMode === 'browse' || viewMode === 'diff'
+              : viewMode === mode;
+            return (
+              <button
+                key={mode}
+                className={`tab-bar-tab${isActive ? ' tab-bar-tab-active' : ''}`}
+                onClick={() => { setViewMode(mode); setPendingNavFocus(NAV_AREA[mode] ?? null); }}
+              >
+                {icon}{label}<kbd className="tab-bar-kbd">{shortcut}</kbd>
+              </button>
+            );
+          })}
+        </div>
+        <div className="tab-bar-actions">
           <div className="quick-add-buttons">
             <button
               className="quick-add-btn quick-add-comment"
@@ -869,29 +913,6 @@ export function App() {
               </svg>
             </button>
           </div>
-          {([
-            { mode: 'overview' as ViewMode, label: 'Overview', shortcut: '0', icon: <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1" /><rect x="9" y="1.5" width="5.5" height="5.5" rx="1" /><rect x="1.5" y="9" width="5.5" height="5.5" rx="1" /><rect x="9" y="9" width="5.5" height="5.5" rx="1" /></svg> },
-            { mode: 'browse' as ViewMode, label: 'Browse', shortcut: '1', icon: <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 2h5l1 2h6v9H2V2z" /></svg> },
-            { mode: 'delta' as ViewMode, label: 'Changes', shortcut: '2', icon: <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 8H3M8 3v10M3 5l5-4 5 4" /></svg> },
-            { mode: 'findings' as ViewMode, label: 'Findings', shortcut: '3', icon: <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 1L1 14h14L8 1z" /><line x1="8" y1="6" x2="8" y2="9" /><circle cx="8" cy="11.5" r="0.5" fill="currentColor" /></svg> },
-            { mode: 'features' as ViewMode, label: 'Features', shortcut: '4', icon: <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="8" r="3" /><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.1 3.1l1.4 1.4M11.5 11.5l1.4 1.4M3.1 12.9l1.4-1.4M11.5 4.5l1.4-1.4" /></svg> },
-            { mode: 'config' as ViewMode, label: 'Config', shortcut: '5', icon: <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 4.5h8M12.5 4.5H14M2 11.5h3M7.5 11.5H14" /><circle cx="10.5" cy="4.5" r="1.8" /><circle cx="5.5" cy="11.5" r="1.8" /></svg> },
-          ]).map(({ mode, label, shortcut, icon }) => {
-            const isActive = mode === 'browse'
-              ? viewMode === 'browse' || viewMode === 'diff'
-              : viewMode === mode;
-            return (
-              <button
-                key={mode}
-                className={`tab-bar-tab${isActive ? ' tab-bar-tab-active' : ''}`}
-                onClick={() => { setViewMode(mode); setPendingNavFocus(NAV_AREA[mode] ?? null); }}
-              >
-                {icon}{label}<kbd className="tab-bar-kbd">{shortcut}</kbd>
-              </button>
-            );
-          })}
-        </div>
-        <div className="tab-bar-actions">
           <button
             className="theme-toggle-slider"
             onClick={toggleTheme}
@@ -927,7 +948,7 @@ export function App() {
             blocked until it is.
           </span>
           <button className="baseline-action-btn baseline-action-btn-primary profile-banner-link" onClick={() => setViewMode('config')}>
-            Open Config
+            Open Context
             <span className="profile-banner-link-arrow" aria-hidden="true">→</span>
           </button>
           <button

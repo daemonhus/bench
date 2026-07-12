@@ -81,6 +81,10 @@ func (r *Repo) Activity(scale string, periods int) ([]model.ActivityBucket, erro
 	return r.backend.Activity(scale, periods)
 }
 
+func (r *Repo) RangeStats(from, to string) (model.RangeStats, error) {
+	return r.backend.RangeStats(from, to)
+}
+
 func (r *Repo) Tree(commitish string) ([]model.FileEntry, error) { return r.backend.Tree(commitish) }
 
 func (r *Repo) Show(commitish, path string) (string, error) { return r.backend.Show(commitish, path) }

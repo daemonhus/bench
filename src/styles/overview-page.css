@@ -19,9 +19,17 @@
   background: var(--bg-primary);
 }
 
-/* Full-width, roughly three columns: git | findings | features (wider). */
+.ovp-page {
+  padding: 20px var(--page-gutter) 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-inline-size: var(--page-max);
+  margin-inline: auto;
+}
+
+/* Full-width, roughly three columns: findings | repository | surface (wider). */
 .ovp-columns {
-  padding: 20px 24px 60px;
   display: grid;
   grid-template-columns: minmax(300px, 1.1fr) minmax(280px, 1fr) minmax(340px, 1.3fr);
   gap: 16px;
@@ -66,41 +74,6 @@
 
 /* ----- Stat tiles ----- */
 
-.ovp-stat-row-2 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
-
-/* Inline stat blocks inside the git panel */
-.ovp-git-stats {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  margin-bottom: 16px;
-}
-
-.ovp-stat-inline {
-  min-width: 0;
-}
-
-.ovp-stat {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-muted);
-  border-radius: var(--radius-md);
-  padding: 14px 16px;
-  min-width: 0;
-}
-
-.ovp-stat-label {
-  font-size: var(--font-size-xs);
-  font-weight: 600;
-  letter-spacing: var(--tracking-wide);
-  text-transform: uppercase;
-  color: var(--text-muted);
-  margin-bottom: 8px;
-}
-
 .ovp-stat-value {
   font-size: var(--font-size-lg);
   font-weight: 600;
@@ -128,32 +101,6 @@
 
 /* Severity chips under the open-findings stat */
 
-.ovp-severity-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 10px;
-  white-space: normal;
-}
-
-.ovp-severity-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--text-secondary);
-}
-
-.ovp-severity-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.ovp-severity-chip[data-severity='critical'] .ovp-severity-dot { background: var(--severity-critical); }
-.ovp-severity-chip[data-severity='high'] .ovp-severity-dot { background: var(--severity-high); }
-.ovp-severity-chip[data-severity='medium'] .ovp-severity-dot { background: var(--severity-medium); }
-.ovp-severity-chip[data-severity='low'] .ovp-severity-dot { background: var(--severity-low); }
-.ovp-severity-chip[data-severity='info'] .ovp-severity-dot { background: var(--severity-info); }
 
 /* ----- Panels ----- */
 
@@ -212,12 +159,225 @@
   margin: 0 0 8px;
 }
 
-/* ----- Repository context badges ----- */
+/* ----- Header band: project context + KPIs ----- */
 
-/* Project header: repo name + Context link */
-.ovp-project-header {
-  margin-bottom: 12px;
+.ovp-header {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
 }
+
+.ovp-header-info {
+  flex: 1;
+  min-width: 280px;
+}
+
+.ovp-header-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.ovp-header-owner {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+.ovp-header-owner:hover {
+  color: var(--accent-blue);
+}
+
+.ovp-header-desc {
+  margin: 0 0 10px;
+  max-width: 72ch;
+  font-size: var(--font-size-small);
+  line-height: var(--leading-normal);
+  color: var(--text-secondary);
+}
+
+.ovp-kpis {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ovp-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 148px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  transition: border-color var(--transition-base);
+}
+
+.ovp-kpi:hover {
+  border-color: color-mix(in srgb, var(--accent-blue) 45%, transparent);
+}
+
+.ovp-kpi-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.ovp-kpi-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.ovp-kpi-value {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  letter-spacing: var(--tracking-tight);
+  line-height: 1;
+  color: var(--text-primary);
+}
+
+.ovp-kpi-unit {
+  font-size: var(--font-size-small);
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+.ovp-kpi-sub {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* ----- Sections within cards ----- */
+
+.ovp-section {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-muted);
+}
+
+.ovp-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.ovp-subtitle-flat {
+  margin: 0;
+}
+
+/* ----- Baseline callout (Repository card) ----- */
+
+.ovp-baseline-callout {
+  position: relative;
+  padding: 10px 34px 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent-blue) 28%, transparent);
+  border-radius: var(--radius-base);
+  background: color-mix(in srgb, var(--accent-blue) 7%, transparent);
+}
+
+.ovp-baseline-callout-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.ovp-baseline-callout-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: var(--font-size-small);
+  color: var(--text-primary);
+}
+
+.ovp-baseline-seq {
+  font-size: var(--font-size-ui);
+  font-weight: 700;
+}
+
+.ovp-baseline-when {
+  color: var(--text-secondary);
+}
+
+.ovp-baseline-callout-link {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-xs);
+  color: var(--text-muted);
+}
+
+.ovp-baseline-callout-link:hover {
+  color: var(--accent-blue);
+  background: var(--accent-blue-subtle);
+}
+
+/* ----- Head section (Repository card) ----- */
+
+.ovp-head-hash {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.ovp-branches-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-top: 8px;
+}
+
+.ovp-branch-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ovp-branch-more {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.ovp-baseline-badge {
+  color: var(--accent-blue);
+  border-color: color-mix(in srgb, var(--accent-blue) 45%, transparent);
+  background: var(--accent-blue-subtle);
+}
+
+/* ----- Repository context badges ----- */
 
 .ovp-project-title {
   font-size: var(--font-size-md);
@@ -228,39 +388,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.ovp-context-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  flex-shrink: 0;
-  font-size: var(--font-size-xs);
-  font-weight: 600;
-  letter-spacing: var(--tracking-wide);
-  text-transform: uppercase;
-  color: var(--accent-blue);
-  text-decoration: none;
-}
-
-.ovp-context-link-arrow {
-  display: inline-block;
-  transition: transform var(--transition-fast);
-}
-
-.ovp-context-link:hover .ovp-context-link-arrow {
-  transform: translateX(2px);
-}
-
-/* User-supplied free text, set off as a quote */
-.ovp-ctx-desc {
-  margin: 0 0 12px;
-  padding: 2px 0 2px 12px;
-  border-left: 3px solid color-mix(in srgb, var(--accent-blue) 45%, transparent);
-  font-size: var(--font-size-small);
-  line-height: var(--leading-normal);
-  color: var(--text-secondary);
-  font-style: italic;
 }
 
 .ovp-ctx-badges {
@@ -451,6 +578,12 @@
   margin-top: 5px;
   font-size: var(--font-size-xs);
   color: var(--text-muted);
+}
+
+/* Resolution tiles reused from the Findings metrics row: inside an
+   overview panel the tiles inset one surface step for definition. */
+.ovp-panel .fmetrics-res-tile {
+  background: var(--bg-tertiary);
 }
 
 /* ----- Commit activity timeline ----- */
@@ -818,6 +951,13 @@ a.ovp-map-node-el:hover .ovp-map-node-label {
   color: var(--text-secondary);
 }
 
+.ovp-map-legend-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
 /* Hover mini-card for map nodes */
 .ovp-map-card {
   position: absolute;
@@ -955,4 +1095,23 @@ a.ovp-map-card-open-link:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
+}
+
+/* ----- Baseline indicator ----- */
+
+.ovp-baseline-commit {
+  font-size: var(--font-size-small);
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+.ovp-baseline-drift {
+  margin-top: 8px;
+  font-size: var(--font-size-small);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.ovp-baseline-drift-behind {
+  color: var(--severity-medium);
 }

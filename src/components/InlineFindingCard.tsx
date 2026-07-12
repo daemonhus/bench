@@ -66,7 +66,7 @@ export const InlineFindingCard: React.FC<InlineFindingCardProps> = ({ finding })
   return (
     <div
       className={`inline-finding-card${expanded ? ' inline-finding-card-expanded' : ''}`}
-      style={{ borderLeftColor: color, background: `color-mix(in srgb, ${color} 5%, var(--bg-secondary))` }}
+      style={{ background: `color-mix(in srgb, ${color} 5%, var(--bg-secondary))` }}
     >
       <div className="inline-finding-header" onClick={handleToggle}>
         <span className="inline-finding-bar" style={{ background: color }} />
