@@ -15,6 +15,7 @@ import { buildFeatureMap } from '../core/feature-map-layout';
 import type { FeatureMapNode } from '../core/feature-map-layout';
 import { buildFindingsTimeline, TIMELINE_SCALES } from '../core/findings-timeline';
 import type { TimelineScale } from '../core/findings-timeline';
+import { InlineMarkdown } from '../core/markdown';
 
 // ---------------------------------------------------------------------------
 // Project Overview, three columns:
@@ -1141,7 +1142,7 @@ export function OverviewView() {
               </div>
             ) : (
               <>
-                {profile.description && <p className="ovp-header-desc">{profile.description}</p>}
+                {profile.description && <p className="ovp-header-desc"><InlineMarkdown text={profile.description} /></p>}
                 {ctxBadges.length > 0 && (
                   <div className="ovp-ctx-badges">
                     {ctxBadges.map((b, i) => (

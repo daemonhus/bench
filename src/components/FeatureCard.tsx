@@ -472,7 +472,7 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
             {headerRight}
           </div>
           {feature.description && (
-            <p className="feature-description feature-description-collapsed">{feature.description}</p>
+            <p className="feature-description feature-description-collapsed"><InlineMarkdown text={feature.description} /></p>
           )}
           {!compact && (() => {
             const linked = (feature.linkedFeatures ?? [])
@@ -561,7 +561,7 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
             <>
               {feature.description && (
                 <div className="feature-description">
-                  {feature.description}
+                  <InlineMarkdown text={feature.description} />
                 </div>
               )}
 
@@ -665,7 +665,7 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
                         </span>
                         <span className="feature-param-field feature-param-field--desc">
                           <span className="feature-param-label">Description</span>
-                          {p.description ? <span className="feature-param-desc">{p.description}</span> : <span className="feature-param-empty">-</span>}
+                          {p.description ? <span className="feature-param-desc"><InlineMarkdown text={p.description} /></span> : <span className="feature-param-empty">-</span>}
                         </span>
                         <span className="feature-param-field">
                           <span className="feature-param-label">Pattern</span>

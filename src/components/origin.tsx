@@ -1,5 +1,6 @@
 import type { Origin } from '../core/types';
 import { avatarInitials, avatarColor } from '../core/avatar';
+import { InlineMarkdown } from '../core/markdown';
 
 // ---------------------------------------------------------------------------
 // Historical context (origin) display, shared by finding and feature cards:
@@ -37,7 +38,7 @@ export function OriginHover({ origin }: { origin: Origin }) {
       </span>
       <span className="origin-card" role="tooltip">
         <span className="origin-card-title">Historical context</span>
-        {origin.explanation && <span className="origin-card-explanation">{origin.explanation}</span>}
+        {origin.explanation && <span className="origin-card-explanation"><InlineMarkdown text={origin.explanation} /></span>}
         {(origin.introducedDate || origin.actor || origin.branch || origin.introducedCommit) && (
           <span className="origin-card-meta">
             {origin.introducedDate && (

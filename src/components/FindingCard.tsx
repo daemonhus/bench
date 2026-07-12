@@ -667,7 +667,7 @@ export const FindingCard: React.FC<FindingCardProps> = ({
           {originHasContent(finding.origin) && <OriginHover origin={finding.origin} />}
         </div>
         {!isExpanded && finding.description && (
-          <p className="finding-description feature-description-collapsed">{finding.description}</p>
+          <p className="finding-description feature-description-collapsed"><InlineMarkdown text={finding.description} /></p>
         )}
       </div>
 

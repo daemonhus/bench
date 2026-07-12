@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Feature, Finding } from '../core/types';
 import { KIND_COLORS } from './FeatureCard';
+import { InlineMarkdown } from '../core/markdown';
 
 // ---------------------------------------------------------------------------
 // Shared hover mini-cards (feature and finding) plus the hover lifecycle:
@@ -79,7 +80,7 @@ export function FeatureMiniCard({ feature, openCount, links, titleById, classNam
         {feature.protocol && <span>{feature.protocol}</span>}
       </div>
       {feature.description && (
-        <p className="ovp-map-card-desc">{feature.description}</p>
+        <p className="ovp-map-card-desc"><InlineMarkdown text={feature.description} /></p>
       )}
       {links.length > 0 && (
         <div className="ovp-map-card-links">
@@ -140,7 +141,7 @@ export function FindingMiniCard({ finding, isOpen, className, style, onMouseEnte
         {finding.cwe && <span className="ovp-mono">{finding.cwe}</span>}
       </div>
       {finding.description && (
-        <p className="ovp-map-card-desc">{finding.description}</p>
+        <p className="ovp-map-card-desc"><InlineMarkdown text={finding.description} /></p>
       )}
       <div className="ovp-map-card-foot">
         <span className="ovp-mono ovp-map-card-file">

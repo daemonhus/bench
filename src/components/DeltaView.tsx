@@ -771,7 +771,7 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
                     <span>{bl.commentsTotal} comments</span>
                   </div>
                   {bl.summary && (
-                    <div className="past-baseline-card-summary">{bl.summary}</div>
+                    <div className="past-baseline-card-summary"><InlineMarkdown text={bl.summary} /></div>
                   )}
                 </div>
               );
@@ -947,7 +947,7 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
                         </div>
                       )}
                       {f.description && (
-                        <div className="activity-finding-ref-desc">{f.description}</div>
+                        <div className="activity-finding-ref-desc"><InlineMarkdown text={f.description} /></div>
                       )}
                     </div>
                     </div>
@@ -992,7 +992,7 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
                           </div>
                         )}
                         {feat.description && (
-                          <div className="activity-finding-ref-desc">{feat.description}</div>
+                          <div className="activity-finding-ref-desc"><InlineMarkdown text={feat.description} /></div>
                         )}
                       </div>
                     </div>
@@ -1172,7 +1172,7 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
                         </div>
                       )}
                       {feat.description && (
-                        <div className="activity-finding-ref-desc">{feat.description}</div>
+                        <div className="activity-finding-ref-desc"><InlineMarkdown text={feat.description} /></div>
                       )}
                     </div>
                   </div>
