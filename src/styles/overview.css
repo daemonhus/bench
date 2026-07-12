@@ -1608,6 +1608,12 @@
   margin-right: 2px;
 }
 
+/* Same chip, naming the other thing the list can be filtered to. Must follow
+   the base rule: equal specificity, so source order decides. */
+.findings-feature-chip--finding::before {
+  content: 'Finding';
+}
+
 .findings-feature-chip-title {
   font-size: var(--font-size-small);
   font-weight: 600;
@@ -1619,6 +1625,22 @@
 }
 
 .findings-feature-chip-title:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* The id prefix, same shape as the code the cards show in their header; the
+   full title lives in the chip's tooltip. */
+.findings-feature-chip-code {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-small);
+  font-weight: 600;
+  color: var(--accent-blue);
+  text-decoration: none;
+  letter-spacing: var(--tracking-snug);
+}
+
+a.findings-feature-chip-code:hover {
   text-decoration: underline;
   text-underline-offset: 2px;
 }

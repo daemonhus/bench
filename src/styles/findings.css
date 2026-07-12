@@ -906,6 +906,20 @@
   opacity: 0.7;
 }
 
+/* Comments rendered inside a finding/feature card use their own header class,
+   which the reveal rules above never matched — their actions stayed at
+   opacity 0 until hovered directly. Same reveal-on-card-hover contract. */
+.finding-comment:hover .finding-comment-header .comment-icon-btn {
+  opacity: 0.7;
+}
+
+/* In the link manager the actions ARE the content: nothing to reveal, so they
+   stay visible (the reveal-on-hover contract only makes sense on cards, where
+   the actions are chrome over something else). */
+.ref-manage-row .comment-icon-btn {
+  opacity: 0.7;
+}
+
 .comment-icon-btn:hover {
   opacity: 1 !important;
   color: var(--text-primary);

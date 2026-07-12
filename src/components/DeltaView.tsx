@@ -7,9 +7,10 @@ import { useUIStore } from '../stores/ui-store';
 import { useReconcileStore } from '../stores/reconcile-store';
 import { useBaselineStore } from '../stores/baseline-store';
 import { FindingCard } from './FindingCard';
+import { KIND_COLORS } from './FeatureCard';
 import { SetBaselineModal } from './SetBaselineModal';
 import { MultiSelectDropdown } from './MultiSelectDropdown';
-import type { Finding, Comment, Feature, GraphCommit, Severity, LineRange, BaselineDelta } from '../core/types';
+import type { Finding, Comment, Feature, FeatureKind, GraphCommit, Severity, LineRange, BaselineDelta } from '../core/types';
 import { COMMENT_TYPE_ICON, COMMENT_TYPE_LABEL } from '../core/types';
 import { InlineMarkdown } from '../core/markdown';
 import { useNavList } from '../core/use-nav-list';
@@ -358,15 +359,14 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
     onActivate: (item) => {
       if (item.kind === 'finding-opened') {
         const f = item.data as Finding;
-        useUIStore.getState().setScrollToFindingId(f.id);
-        useUIStore.getState().setViewMode('findings');
+        window.location.hash = `#/findings/${f.id}`;
       } else if (item.kind === 'feature-created') {
         const feat = item.data as Feature;
         useUIStore.getState().setScrollToFeature({ id: feat.id, kind: feat.kind });
         useUIStore.getState().setViewMode('features');
       } else if (item.kind === 'comment-on-finding') {
         const c = item.data as Comment;
-        if (c.findingId) { useUIStore.getState().setScrollToFindingId(c.findingId); useUIStore.getState().setViewMode('findings'); }
+        if (c.findingId) { window.location.hash = `#/findings/${c.findingId}`; }
         else navigateToFile(c.anchor.fileId, c.anchor.lineRange ?? undefined, c.anchor.commitId);
       } else if (item.kind === 'comment-on-feature') {
         const c = item.data as Comment;
@@ -935,7 +935,7 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
                         <span className="activity-finding-ref-label">Finding:</span>
                         <span
                           className="activity-finding-ref-title finding-title-link"
-                          onClick={(e) => { e.stopPropagation(); useUIStore.getState().setScrollToFindingId(f.id); useUIStore.getState().setViewMode('findings'); }}
+                          onClick={(e) => { e.stopPropagation(); window.location.hash = `#/findings/${f.id}`; }}
                           title="Open in Findings"
                         >{f.title}</span>
                       </div>
@@ -1154,7 +1154,10 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
                       onClick={() => navigateToFile(feat.anchor.fileId, feat.anchor.lineRange ?? undefined, feat.anchor.commitId)}
                     >
                       <div className="activity-feature-ref-header">
-                        <span className="activity-feature-ref-kind">{feat.kind}</span>
+                        <span
+                          className="feature-kind-badge"
+                          style={{ background: KIND_COLORS[feat.kind as FeatureKind] ?? 'var(--kind-externality)' }}
+                        >{feat.kind}</span>
                         <span
                           className="activity-feature-ref-title feature-title-link"
                           onClick={(e) => { e.stopPropagation(); useUIStore.getState().setScrollToFeature({ id: feat.id, kind: feat.kind }); useUIStore.getState().setViewMode('features'); }}

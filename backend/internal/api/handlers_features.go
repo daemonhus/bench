@@ -235,8 +235,8 @@ func (h *featuresHandlers) get(w http.ResponseWriter, r *http.Request) {
 				fp := model.FeatureWithPosition{Feature: *feature, Confidence: pos.Confidence}
 				if pos.FileID != nil && pos.LineStart != nil && pos.LineEnd != nil {
 					fp.EffectiveAnchor = &model.Anchor{
-						FileID:   *pos.FileID,
-						CommitID: pos.CommitID,
+						FileID:    *pos.FileID,
+						CommitID:  pos.CommitID,
 						LineRange: &model.LineRange{Start: *pos.LineStart, End: *pos.LineEnd},
 					}
 				}

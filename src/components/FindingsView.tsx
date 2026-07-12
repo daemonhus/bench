@@ -27,6 +27,9 @@ type FindingsKind = 'open' | 'closed';
 const ALL_FINDING_KINDS: FindingsKind[] = ['open', 'closed'];
 const KIND_LABELS: Record<FindingsKind, string> = { open: 'Open', closed: 'Closed' };
 
+/** The 8-char id prefix cards show in their header. */
+const shortCode = (id: string) => id.slice(0, 8);
+
 
 export const FindingsView: React.FC = () => {
   const findings = useAnnotationStore((s) => s.findings);
@@ -65,12 +68,13 @@ export const FindingsView: React.FC = () => {
 
   const setScrollTargetLine = useUIStore((s) => s.setScrollTargetLine);
   const setHighlightRange = useUIStore((s) => s.setHighlightRange);
-  const scrollToFindingId = useUIStore((s) => s.scrollToFindingId);
-  const setScrollToFindingId = useUIStore((s) => s.setScrollToFindingId);
 
-  // #/findings/{id} deep link: once findings load, reuse the scroll/expand
-  // mechanism (same pattern as the features deep link).
-  const [deepLinkId, setDeepLinkId] = useState(() => parseRoute(window.location.hash).findingId ?? null);
+  // #/findings/{id}: filter the list down to that one finding. Landing in a
+  // long list scrolled to a card leaves everything else around it; a filter
+  // states plainly what is being shown, and the chip clears it.
+  const [filterFindingId, setFilterFindingId] = useState<string | null>(
+    () => parseRoute(window.location.hash).findingId ?? null,
+  );
 
   // #/findings/feature/{id}: filter the list to findings linked to a feature.
   const [filterFeatureId, setFilterFeatureId] = useState<string | null>(
@@ -83,16 +87,17 @@ export const FindingsView: React.FC = () => {
       const route = parseRoute(window.location.hash);
       if (route.mode === 'findings') {
         setFilterFeatureId(route.featureFilterId ?? null);
-        setDeepLinkId(route.findingId ?? null);
+        setFilterFindingId(route.findingId ?? null);
       }
     };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
-  // Clearing the filter also normalises the route so a reload stays clear.
-  const clearFeatureFilter = () => {
+  // Clearing a filter also normalises the route so a reload stays clear.
+  const clearRouteFilters = () => {
     setFilterFeatureId(null);
-    if (window.location.hash.startsWith('#/findings/feature/')) {
+    setFilterFindingId(null);
+    if (window.location.hash.startsWith('#/findings/')) {
       window.location.hash = '#/findings';
     }
   };
@@ -100,39 +105,20 @@ export const FindingsView: React.FC = () => {
   const filterFeatureTitle = filterFeatureId
     ? storeFeatures.find((f) => f.id === filterFeatureId)?.title ?? filterFeatureId
     : null;
+  const filterFindingTitle = filterFindingId
+    ? findings.find((f) => f.id === filterFindingId)?.title ?? filterFindingId
+    : null;
+  // The single filtered finding opens expanded — collapsed is pointless when
+  // it is the only card on screen.
   useEffect(() => {
-    if (!deepLinkId || loading) return;
-    if (findings.some((f) => f.id === deepLinkId)) {
-      setScrollToFindingId(deepLinkId);
-    }
-  }, [deepLinkId, loading, findings, setScrollToFindingId]);
-
-  useEffect(() => {
-    if (!scrollToFindingId) return;
-    setCollapsedIds((prev) => { if (!prev.has(scrollToFindingId)) return prev; const next = new Set(prev); next.delete(scrollToFindingId); return next; });
-    let cancelled = false;
-    const tryScroll = (attempts = 0) => {
-      if (cancelled) return;
-      const el = document.querySelector(`[data-finding-id="${scrollToFindingId}"]`);
-      if (el) {
-        const container = el.closest('.findings-view') as HTMLElement | null;
-        if (container) {
-          const targetTop = container.scrollTop + el.getBoundingClientRect().top - container.getBoundingClientRect().top;
-          container.scrollTo({ top: targetTop, behavior: 'smooth' });
-        } else {
-          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-        const card = (el.querySelector('.finding-card') ?? el) as HTMLElement;
-        card.classList.add('scroll-target-highlight');
-        card.addEventListener('animationend', () => card.classList.remove('scroll-target-highlight'), { once: true });
-        setScrollToFindingId(null);
-      } else if (attempts < 30) {
-        requestAnimationFrame(() => tryScroll(attempts + 1));
-      }
-    };
-    requestAnimationFrame(() => tryScroll());
-    return () => { cancelled = true; };
-  }, [scrollToFindingId, setScrollToFindingId]);
+    if (!filterFindingId) return;
+    setCollapsedIds((prev) => {
+      if (!prev.has(filterFindingId)) return prev;
+      const next = new Set(prev);
+      next.delete(filterFindingId);
+      return next;
+    });
+  }, [filterFindingId]);
 
   // Filters
   const [filterSeverities, setFilterSeverities] = useState<Set<Severity>>(new Set(ALL_SEVERITIES));
@@ -193,15 +179,21 @@ export const FindingsView: React.FC = () => {
     if (filterFeatureId) {
       list = list.filter((f) => f.features?.includes(filterFeatureId));
     }
+    if (filterFindingId) {
+      list = list.filter((f) => f.id === filterFindingId);
+    }
     return list;
-  }, [findings, filterSeverities, filterActors, searchMatcher, filterFeatureId]);
+  }, [findings, filterSeverities, filterActors, searchMatcher, filterFeatureId, filterFindingId]);
 
   const displayedFindings = useMemo(() => {
     const isOpen = (f: Finding) => f.status === 'draft' || f.status === 'open' || f.status === 'in-progress';
-    return filtered
-      .filter((f) => filterKinds.has(isOpen(f) ? 'open' : 'closed'))
-      .sort(sortBySeverity);
-  }, [filtered, filterKinds]);
+    // A link to one finding must show it whatever its status: the open/closed
+    // toggles would otherwise silently filter the linked card away.
+    const byKind = filterFindingId
+      ? filtered
+      : filtered.filter((f) => filterKinds.has(isOpen(f) ? 'open' : 'closed'));
+    return [...byKind].sort(sortBySeverity);
+  }, [filtered, filterKinds, filterFindingId]);
 
   // Metrics data
   const severityTotals = useMemo(() => {
@@ -223,7 +215,7 @@ export const FindingsView: React.FC = () => {
     return m;
   }, [findings]);
 
-  const hasActiveFilter = filterSeverities.size < ALL_SEVERITIES.length || filterActors !== null || filterKinds.size < ALL_FINDING_KINDS.length || searchQuery !== '' || filterFeatureId !== null;
+  const hasActiveFilter = filterSeverities.size < ALL_SEVERITIES.length || filterActors !== null || filterKinds.size < ALL_FINDING_KINDS.length || searchQuery !== '' || filterFeatureId !== null || filterFindingId !== null;
 
   const listRef = useRef<HTMLDivElement>(null);
   const pendingReplyFocusId = useRef<string | null>(null);
@@ -342,12 +334,24 @@ export const FindingsView: React.FC = () => {
           </div>
           <div className="findings-filter-group">
             {filterFeatureId && (
-              <span className="findings-feature-chip" data-tooltip="Showing findings linked to this feature">
-                <a className="findings-feature-chip-title" href={`#/features/${filterFeatureId}`}>{filterFeatureTitle}</a>
+              <span className="findings-feature-chip" data-tooltip={filterFeatureTitle ?? 'Showing findings linked to this feature'}>
+                <a className="findings-feature-chip-code" href={`#/features/${filterFeatureId}`}>{shortCode(filterFeatureId)}</a>
                 <button
                   className="findings-feature-chip-clear"
                   aria-label="Clear feature filter"
-                  onClick={clearFeatureFilter}
+                  onClick={clearRouteFilters}
+                >
+                  ×
+                </button>
+              </span>
+            )}
+            {filterFindingId && (
+              <span className="findings-feature-chip findings-feature-chip--finding" data-tooltip={filterFindingTitle ?? 'Showing a single finding'}>
+                <span className="findings-feature-chip-code">{shortCode(filterFindingId)}</span>
+                <button
+                  className="findings-feature-chip-clear"
+                  aria-label="Clear finding filter"
+                  onClick={clearRouteFilters}
                 >
                   ×
                 </button>
@@ -361,7 +365,7 @@ export const FindingsView: React.FC = () => {
               selectedActors={filterActors}
               onActorsChange={setFilterActors}
               hasActiveFilter={hasActiveFilter}
-              onReset={() => { setFilterSeverities(new Set(ALL_SEVERITIES)); setFilterActors(null); setSearchQuery(''); clearFeatureFilter(); }}
+              onReset={() => { setFilterSeverities(new Set(ALL_SEVERITIES)); setFilterActors(null); setSearchQuery(''); clearRouteFilters(); }}
             />
           </div>
         </div>

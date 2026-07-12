@@ -139,6 +139,7 @@
 }
 
 .config-choice {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -182,8 +183,13 @@
   cursor: not-allowed;
 }
 
+/* Contained by the label (which is position: relative): without that, these
+   anchor to .main-panel instead — outside the scroll container — so focusing
+   one scrolls .main-panel itself, which has overflow:hidden and no way to
+   scroll back, stranding the page mid-scroll. */
 .config-choice input[type='checkbox'] {
   position: absolute;
+  inset: 0;
   opacity: 0;
   pointer-events: none;
 }

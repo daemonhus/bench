@@ -660,8 +660,7 @@ export const FindingCard: React.FC<FindingCardProps> = ({
             className="finding-title finding-title-link"
             onClick={(e) => {
               e.stopPropagation();
-              useUIStore.getState().setScrollToFindingId(finding.id);
-              useUIStore.getState().setViewMode('findings');
+              window.location.hash = `#/findings/${finding.id}`;
             }}
             title="Open in Findings"
           >{finding.title}</span>

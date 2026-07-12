@@ -8,6 +8,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "verify": "scripts/pre-push.sh",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "dev:backend": "cd backend && go run ./cmd/server -repo .",

@@ -81,7 +81,7 @@ type Finding struct {
 	CommentCount    int      `json:"commentCount,omitempty"`
 	FeatureIDs      []string `json:"features,omitempty"`
 	Refs            []Ref    `json:"refs,omitempty"`
-	Origin          *Origin `json:"origin,omitempty"`
+	Origin          *Origin  `json:"origin,omitempty"`
 }
 
 // Origin is the historical context of an annotation (finding or feature):
