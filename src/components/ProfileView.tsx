@@ -270,7 +270,7 @@ export function ProfileView() {
       <div className="profile-column">
         <div className="profile-header">
           <div>
-            <h2 className="profile-title">Service Profile</h2>
+            <h2 className="profile-title">Profile</h2>
           </div>
           <div className="profile-header-actions">
             <span

@@ -11,10 +11,12 @@
   background: var(--bg-primary);
 }
 
+/* Same column measure as the other full-page views (overview, features,
+   baselines): --page-max with the standard gutter. */
 .profile-column {
-  max-width: 860px;
-  margin: 0 auto;
-  padding: 28px 32px 80px;
+  max-inline-size: var(--page-max);
+  margin-inline: auto;
+  padding: 28px var(--page-gutter) 80px;
 }
 
 .profile-loading {
