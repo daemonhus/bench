@@ -200,7 +200,6 @@
 
 .ovp-header-desc {
   margin: 0 0 10px;
-  max-width: 72ch;
   font-size: var(--font-size-small);
   line-height: var(--leading-normal);
   color: var(--text-secondary);
