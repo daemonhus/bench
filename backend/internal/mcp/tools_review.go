@@ -19,7 +19,7 @@ func registerAnalyticsTools(deps *toolDeps) []Tool {
 func toolGetSummary(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "get_summary",
-		Description: "Get a summary of the current state: total findings by severity and status, total comments, unresolved items, reconciliation coverage.",
+		Description: "Get a summary of the current state: total findings by severity and status, total comments, unresolved items, reconciliation coverage. The response embeds the service profile (deployment context that determines which finding classes are moot or amplified).",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
@@ -111,6 +111,8 @@ func toolGetSummary(deps *toolDeps) Tool {
 					fmt.Fprintf(&sb, "Unreconciled files: %d (%s)\n", len(files), strings.Join(files, ", "))
 				}
 			}
+
+			sb.WriteString(profileSection(deps))
 
 			return sb.String(), nil
 		},

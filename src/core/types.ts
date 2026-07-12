@@ -87,6 +87,7 @@ export interface Finding {
   category?: string;
   createdAt?: string;
   resolvedCommit?: string;
+  resolvedAt?: string;
   lineHash?: string;
   commentCount?: number;
   features?: string[];
@@ -146,7 +147,7 @@ export interface BrowseLine {
 }
 
 // UI state types
-export type ViewMode = 'browse' | 'diff' | 'delta' | 'findings' | 'features';
+export type ViewMode = 'overview' | 'browse' | 'diff' | 'delta' | 'findings' | 'features' | 'config';
 // SidebarTab removed — sidebar is now a unified activity stream
 
 // API response types (match Go backend model)
@@ -349,6 +350,40 @@ export interface BaselineDelta {
     byKind?: Record<string, number>;
   };
 }
+
+// Service profile — singleton per-project meta-attributes (Config tab).
+// Empty string / empty array = "not configured"; in multi-selects, 'none' is
+// an explicit positive claim and cannot be combined with other values.
+export interface ServiceProfile {
+  description: string;
+  owner: string;
+  externallyFacing: '' | 'full' | 'partial' | 'none';
+  compute: '' | 'vps' | 'kubernetes' | 'serverless' | 'bare-metal';
+  dataSensitivity: '' | 'public' | 'internal' | 'pii' | 'payment' | 'phi' | 'credentials';
+  criticality: '' | 'low' | 'medium' | 'high' | 'critical';
+  tenancy: '' | 'single-tenant' | 'multi-tenant';
+  lifecycle: '' | 'active' | 'maintenance' | 'deprecated' | 'decommissioning';
+  edgeProtections: string[];
+  complianceScope: string[];
+  authenticationModel: string[];
+  consumerType: string[];
+  updatedAt?: string;
+}
+
+export const EMPTY_SERVICE_PROFILE: ServiceProfile = {
+  description: '',
+  owner: '',
+  externallyFacing: '',
+  compute: '',
+  dataSensitivity: '',
+  criticality: '',
+  tenancy: '',
+  lifecycle: '',
+  edgeProtections: [],
+  complianceScope: [],
+  authenticationModel: [],
+  consumerType: [],
+};
 
 // Git grep search result
 export interface GrepMatch {

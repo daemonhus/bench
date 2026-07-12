@@ -6,7 +6,7 @@
 
 import { getApiBase } from './api';
 
-type Topic = 'annotations' | 'baselines' | 'git';
+type Topic = 'annotations' | 'baselines' | 'git' | 'profile';
 type Listener = () => void;
 
 const listeners = new Map<Topic, Set<Listener>>();
@@ -24,7 +24,7 @@ function connect() {
   const es = new EventSource(url);
   eventSource = es;
 
-  const topics: Topic[] = ['annotations', 'baselines', 'git'];
+  const topics: Topic[] = ['annotations', 'baselines', 'git', 'profile'];
   for (const topic of topics) {
     es.addEventListener(topic, () => {
       const delay = jitter(50);

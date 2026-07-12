@@ -9,7 +9,25 @@ import (
 	"bench/internal/reconcile"
 )
 
-func NewRouter(repo *git.Repo, database *db.DB, broker *events.Broker) http.Handler {
+// RouterOption customises NewRouter behaviour.
+type RouterOption func(*routerOptions)
+
+type routerOptions struct {
+	requireProfile bool
+}
+
+// WithRequireProfile controls the service-profile write gate (default true):
+// review-judgment writes return 412 until the profile is configured.
+func WithRequireProfile(v bool) RouterOption {
+	return func(o *routerOptions) { o.requireProfile = v }
+}
+
+func NewRouter(repo *git.Repo, database *db.DB, broker *events.Broker, opts ...RouterOption) http.Handler {
+	o := routerOptions{requireProfile: true}
+	for _, opt := range opts {
+		opt(&o)
+	}
+
 	mux := http.NewServeMux()
 
 	// Create reconciler (shared across handlers)
@@ -87,6 +105,10 @@ func NewRouter(repo *git.Repo, database *db.DB, broker *events.Broker) http.Hand
 	mux.HandleFunc("GET /api/settings", sh.get)
 	mux.HandleFunc("PUT /api/settings", sh.put)
 
+	ph := &profileHandlers{db: database, broker: broker}
+	mux.HandleFunc("GET /api/profile", ph.get)
+	mux.HandleFunc("PATCH /api/profile", ph.update)
+
 	eh := &eventsHandler{broker: broker}
 	mux.HandleFunc("GET /api/events", eh.stream)
 
@@ -94,5 +116,8 @@ func NewRouter(repo *git.Repo, database *db.DB, broker *events.Broker) http.Hand
 		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 	})
 
+	if o.requireProfile {
+		return requireProfile(database, mux)
+	}
 	return mux
 }

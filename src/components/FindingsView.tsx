@@ -11,6 +11,7 @@ import { AnnotationFilters, ALL_SEVERITIES } from './AnnotationFilters';
 import { SearchBox } from './SearchBox';
 import { useRegexSearch } from '../hooks/useRegexSearch';
 import type { Feature, Finding, Severity, LineRange } from '../core/types';
+import { parseRoute } from '../core/router';
 
 const SEVERITY_ORDER: Record<Severity, number> = {
   critical: 0, high: 1, medium: 2, low: 3, info: 4,
@@ -66,6 +67,25 @@ export const FindingsView: React.FC = () => {
   const setHighlightRange = useUIStore((s) => s.setHighlightRange);
   const scrollToFindingId = useUIStore((s) => s.scrollToFindingId);
   const setScrollToFindingId = useUIStore((s) => s.setScrollToFindingId);
+
+  // #/findings/{id} deep link: once findings load, reuse the scroll/expand
+  // mechanism (same pattern as the features deep link).
+  const [deepLinkId] = useState(() => parseRoute(window.location.hash).findingId ?? null);
+
+  // #/findings/feature/{id}: filter the list to findings linked to a feature.
+  const [filterFeatureId, setFilterFeatureId] = useState<string | null>(
+    () => parseRoute(window.location.hash).featureFilterId ?? null,
+  );
+  const storeFeatures = useAnnotationStore((s) => s.features);
+  const filterFeatureTitle = filterFeatureId
+    ? storeFeatures.find((f) => f.id === filterFeatureId)?.title ?? filterFeatureId
+    : null;
+  useEffect(() => {
+    if (!deepLinkId || loading) return;
+    if (findings.some((f) => f.id === deepLinkId)) {
+      setScrollToFindingId(deepLinkId);
+    }
+  }, [deepLinkId, loading, findings, setScrollToFindingId]);
 
   useEffect(() => {
     if (!scrollToFindingId) return;
@@ -150,8 +170,11 @@ export const FindingsView: React.FC = () => {
     if (searchMatcher) {
       list = list.filter(f => searchMatcher(f.title) || searchMatcher(f.description ?? ''));
     }
+    if (filterFeatureId) {
+      list = list.filter((f) => f.features?.includes(filterFeatureId));
+    }
     return list;
-  }, [findings, filterSeverities, filterActors, searchMatcher]);
+  }, [findings, filterSeverities, filterActors, searchMatcher, filterFeatureId]);
 
   const displayedFindings = useMemo(() => {
     const isOpen = (f: Finding) => f.status === 'draft' || f.status === 'open' || f.status === 'in-progress';
@@ -174,22 +197,13 @@ export const FindingsView: React.FC = () => {
     return Object.entries(m).sort((a, b) => b[1] - a[1]);
   }, [findings]);
 
-  const categoryTotals = useMemo(() => {
-    const m: Record<string, number> = {};
-    for (const f of findings) {
-      const cat = f.category || 'uncategorized';
-      m[cat] = (m[cat] ?? 0) + 1;
-    }
-    return Object.entries(m).sort((a, b) => b[1] - a[1]);
-  }, [findings]);
-
   const statusTotals = useMemo(() => {
     const m: Record<string, number> = {};
     for (const f of findings) m[f.status] = (m[f.status] ?? 0) + 1;
     return m;
   }, [findings]);
 
-  const hasActiveFilter = filterSeverities.size < ALL_SEVERITIES.length || filterActors !== null || filterKinds.size < ALL_FINDING_KINDS.length || searchQuery !== '';
+  const hasActiveFilter = filterSeverities.size < ALL_SEVERITIES.length || filterActors !== null || filterKinds.size < ALL_FINDING_KINDS.length || searchQuery !== '' || filterFeatureId !== null;
 
   const listRef = useRef<HTMLDivElement>(null);
   const pendingReplyFocusId = useRef<string | null>(null);
@@ -307,6 +321,18 @@ export const FindingsView: React.FC = () => {
             ))}
           </div>
           <div className="findings-filter-group">
+            {filterFeatureId && (
+              <span className="findings-feature-chip" data-tooltip="Showing findings linked to this feature">
+                <a className="findings-feature-chip-title" href={`#/features/${filterFeatureId}`}>{filterFeatureTitle}</a>
+                <button
+                  className="findings-feature-chip-clear"
+                  aria-label="Clear feature filter"
+                  onClick={() => setFilterFeatureId(null)}
+                >
+                  ×
+                </button>
+              </span>
+            )}
             <SearchBox value={searchQuery} onChange={setSearchQuery} invalid={!isRegexValid} shortcut={['/']} />
             <AnnotationFilters
               severities={filterSeverities}
@@ -315,7 +341,7 @@ export const FindingsView: React.FC = () => {
               selectedActors={filterActors}
               onActorsChange={setFilterActors}
               hasActiveFilter={hasActiveFilter}
-              onReset={() => { setFilterSeverities(new Set(ALL_SEVERITIES)); setFilterActors(null); setSearchQuery(''); }}
+              onReset={() => { setFilterSeverities(new Set(ALL_SEVERITIES)); setFilterActors(null); setSearchQuery(''); setFilterFeatureId(null); }}
             />
           </div>
         </div>
@@ -334,7 +360,7 @@ export const FindingsView: React.FC = () => {
             <FindingsMetrics
               severityTotals={severityTotals}
               statusTotals={statusTotals}
-              categoryTotals={categoryTotals}
+              findings={findings}
               sourceTotals={sourceTotals}
               total={findings.length}
             />

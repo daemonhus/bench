@@ -81,6 +81,20 @@
   background: color-mix(in srgb, var(--status-open) 8%, transparent);
 }
 
+/* ----- Unified keyboard focus ring ---------------------------------
+   One treatment for every button-like control (keyboard focus only).
+   Text inputs keep their border+shadow :focus styling as the editing
+   affordance; [data-nav-area] keeps its own area-navigation outline.
+   ------------------------------------------------------------------ */
+
+button:focus-visible,
+a:focus-visible,
+summary:focus-visible,
+label:has(> input:focus-visible) {
+  outline: 1.5px solid color-mix(in srgb, var(--accent-blue) 65%, transparent);
+  outline-offset: 1px;
+}
+
 /* ----- Segmented Control ----- */
 /* Pill container with a floating active pill. No borders or dividers. */
 
@@ -97,15 +111,15 @@
 
 .seg-btn,
 .activity-kind-toggle {
-  padding: 10px 16px;
+  padding: 8px 14px;
   background: transparent;
   border: none;
   border-radius: var(--radius-base);
   color: var(--text-muted);
   font-size: var(--font-size-small);
   font-family: var(--font-sans);
-  font-weight: 450;
-  letter-spacing: var(--tracking-wide);
+  font-weight: 500;
+  letter-spacing: var(--tracking-normal);
   cursor: pointer;
   transition: background var(--transition-fast), color var(--transition-fast);
   white-space: nowrap;
@@ -113,30 +127,30 @@
   user-select: none;
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-}
-
-.seg-btn:focus-visible,
-.activity-kind-toggle:focus-visible {
-  outline: 1.5px solid color-mix(in srgb, var(--accent-blue) 65%, transparent);
-  outline-offset: -1px;
+  gap: 8px;
 }
 
 .seg-btn:hover,
 .activity-kind-toggle:hover {
-  color: var(--text-primary);
-  background: var(--hover-muted);
+  color: var(--text-secondary);
+  background: var(--hover-subtle);
 }
 
+/* Selection is a tone shift on the surface ramp (track = --bg-surface,
+   active pill = --bg-secondary card surface + elevation token), not an
+   accent tint — accent tinting is the "filter applied" voice elsewhere.
+   The check glyph alone carries the accent. */
 .seg-btn-active,
 .activity-kind-toggle-active {
-  background: var(--accent-blue-subtle);
-  color: var(--accent-blue);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
   font-weight: 500;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.28), 0 0 0 1px rgba(129, 140, 248, 0.18);
+  box-shadow: var(--seg-active-shadow);
   cursor: default;
 }
 
+/* Glyphs are CSS masks painted with the current theme's colours, so they
+   stay correct in both modes (the old data-URLs baked in dark-theme hexes). */
 .seg-btn::before,
 .activity-kind-toggle::before {
   content: '';
@@ -146,56 +160,22 @@
   margin-right: 5px;
   vertical-align: -2px;
   flex-shrink: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 14 14' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M4 7h6' stroke='%2355606f' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-size: 14px 14px;
+  background-color: color-mix(in srgb, currentColor 75%, transparent);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg viewBox='0 0 14 14' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M4 7h6' stroke='black' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat center / 14px 14px;
+  mask: url("data:image/svg+xml,%3Csvg viewBox='0 0 14 14' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M4 7h6' stroke='black' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat center / 14px 14px;
 }
 
 .seg-btn-active::before,
 .activity-kind-toggle-active::before {
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 14 14' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='7' cy='7' r='6' stroke='%23818cf8' stroke-width='1.5'/%3E%3Cpath d='M4.5 7l2 2 3-3.5' stroke='%23818cf8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-color: var(--accent-blue);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg viewBox='0 0 14 14' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='7' cy='7' r='6' stroke='black' stroke-width='1.5'/%3E%3Cpath d='M4.5 7l2 2 3-3.5' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat center / 14px 14px;
+  mask: url("data:image/svg+xml,%3Csvg viewBox='0 0 14 14' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='7' cy='7' r='6' stroke='black' stroke-width='1.5'/%3E%3Cpath d='M4.5 7l2 2 3-3.5' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat center / 14px 14px;
 }
 
 .seg-btn-active:hover,
 .activity-kind-toggle-active:hover {
-  background: var(--accent-blue-subtle);
-  color: var(--accent-blue);
-}
-
-/* ----- Ghost Toggle Button ----- */
-/* For binary toggles — no border at rest, fills on active.          */
-
-.toggle-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 10px 14px;
-  background: transparent;
-  border: none;
-  border-radius: 6px;
-  color: var(--text-muted);
-  font-size: var(--font-size-small);
-  font-family: var(--font-sans);
-  cursor: pointer;
-  transition: background var(--transition-fast), color var(--transition-fast);
-  white-space: nowrap;
-  user-select: none;
-}
-
-.toggle-btn:hover {
-  background: var(--hover-muted);
+  background: var(--bg-secondary);
   color: var(--text-primary);
-}
-
-.toggle-btn-active {
-  background: var(--accent-blue-subtle);
-  color: var(--accent-blue);
-  cursor: default;
-}
-
-.toggle-btn-active:hover {
-  background: var(--accent-blue-subtle);
-  color: var(--accent-blue);
 }
 
 /* ----- Select base ----- */
@@ -209,7 +189,7 @@
   background-repeat: no-repeat;
   background-position: right 10px center;
   border: 1px solid var(--border-default);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   color: var(--text-primary);
   font-family: var(--font-sans);
   font-size: var(--font-size-ui);
@@ -269,7 +249,7 @@
   letter-spacing: var(--tracking-wide);
   color: var(--sev-color);
   padding: 1px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: color-mix(in srgb, var(--sev-color) 12%, transparent);
   white-space: nowrap;
 }
@@ -278,7 +258,7 @@
 .status-badge {
   font-size: var(--font-size-xs);
   padding: 2px 7px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   text-transform: uppercase;
   font-weight: 700;
   letter-spacing: var(--tracking-wide);
@@ -852,16 +832,16 @@
 .tag-input-chip {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 1px 6px;
+  gap: 3px;
+  padding: 1px 7px;
   background: var(--accent-blue-subtle);
   color: var(--accent-blue);
-  border: 1px solid color-mix(in srgb, var(--accent-blue) 30%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-blue) 25%, transparent);
   border-radius: var(--radius-xs);
-  font-size: 10px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 400;
   font-family: var(--font-mono);
-  line-height: 1.4;
+  line-height: 1.5;
 }
 
 .tag-input-chip-remove {
@@ -869,18 +849,16 @@
   border: none;
   color: inherit;
   cursor: pointer;
-  padding: 0 2px;
-  font-size: 12px;
+  padding: 0 1px;
+  font-size: 11px;
   line-height: 1;
-  opacity: 0.7;
+  opacity: 0.55;
   transition: opacity var(--transition-fast);
 }
 
 .tag-input-chip-remove:hover,
 .tag-input-chip-remove:focus-visible {
   opacity: 1;
-  outline: 2px solid var(--accent-blue);
-  outline-offset: 1px;
   border-radius: var(--radius-xs);
 }
 
@@ -929,7 +907,6 @@
 .tag-input-suggestion:focus-visible {
   background: var(--hover-subtle);
   color: var(--text-primary);
-  outline: none;
 }
 
 .tag-input-suggestion-create {

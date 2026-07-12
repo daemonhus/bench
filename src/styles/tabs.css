@@ -33,9 +33,9 @@
   background: none;
   border: none;
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: var(--font-size-control);
   font-family: var(--font-sans);
-  font-weight: 450;
+  font-weight: 500;
   letter-spacing: var(--tracking-normal);
   cursor: pointer;
   transition: color var(--transition-base);
@@ -79,11 +79,6 @@
   padding: 1px 4px;
   line-height: 1.4;
   margin-left: 2px;
-  transition: opacity var(--transition-base);
-}
-
-.tab-bar-tab-active .tab-bar-kbd {
-  opacity: 0;
 }
 
 .tab-bar-tab-active::after {

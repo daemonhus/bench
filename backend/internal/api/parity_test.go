@@ -82,6 +82,10 @@ func TestCLIAPIRouteParity(t *testing.T) {
 		{"GET", "/api/reconcile/head", ""},
 		{"GET", "/api/reconcile/status", ""},
 		{"GET", "/api/annotations/finding/test-id/history", ""},
+
+		// profile
+		{"GET", "/api/profile", ""},
+		{"PATCH", "/api/profile", `{}`},
 	}
 
 	for _, r := range routes {

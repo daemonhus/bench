@@ -15,9 +15,11 @@ func main() {
 	repoPath := flag.String("repo", ".", "Path to git repository")
 	dbPath := flag.String("db", "bench.db", "SQLite database path")
 	addr := flag.String("addr", ":8081", "Listen address")
+	requireProfile := flag.Bool("require-profile", true,
+		"Reject review-judgment writes (findings, comments, features, refs, baselines) until the service profile is configured")
 	flag.Parse()
 
-	wb, err := workbench.Open(*repoPath, *dbPath)
+	wb, err := workbench.Open(*repoPath, *dbPath, workbench.WithRequireProfile(*requireProfile))
 	if err != nil {
 		log.Fatalf("failed to open workbench: %v", err)
 	}

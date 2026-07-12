@@ -182,7 +182,7 @@
 .finding-confidence {
   font-size: 10px;
   padding: 1px 5px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   font-weight: 500;
 }
 
@@ -263,7 +263,7 @@
   text-transform: capitalize;
   background: var(--bg-surface);
   border: 1px solid var(--border-default);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   padding: 1px 6px;
   margin-left: auto;
   flex-shrink: 0;
@@ -274,7 +274,7 @@
   color: var(--accent-blue);
   background: none;
   border: 1px solid var(--accent-blue);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   padding: 2px 8px;
   cursor: pointer;
   transition: background var(--transition-base);
@@ -288,7 +288,7 @@
 .status-select {
   font-size: var(--font-size-small);
   padding: 2px 20px 2px 7px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   font-weight: 600;
   letter-spacing: 0.3px;
   flex-shrink: 0;
@@ -327,8 +327,8 @@
 }
 .finding-status-toggle-btn {
   font-size: var(--font-size-small);
-  padding: 4px 10px;
-  border-radius: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
   border: 1px solid transparent;
   background: color-mix(in srgb, var(--status-draft) 8%, transparent);
   color: var(--status-draft);
@@ -350,10 +350,12 @@
   flex-wrap: wrap;
   gap: 4px;
 }
+/* Single-choice chips: pill shape marks radio semantics (pick one),
+   matching the Config choice grammar. Colour carries the value. */
 .finding-severity-toggle-btn {
   font-size: var(--font-size-small);
-  padding: 4px 10px;
-  border-radius: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
   border: 1px solid transparent;
   background: color-mix(in srgb, var(--status-draft) 8%, transparent);
   color: var(--status-draft);
@@ -462,7 +464,7 @@
   color: var(--status-open);
   background: var(--status-open-subtle);
   border: 1px solid var(--status-open);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   padding: 2px 6px;
   cursor: pointer;
 }
@@ -476,7 +478,7 @@
   color: var(--text-muted);
   background: none;
   border: 1px solid var(--border-default);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   padding: 2px 6px;
   cursor: pointer;
 }
@@ -610,7 +612,7 @@
   color: #fff;
   background: var(--accent-blue);
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   padding: 6px 14px;
   cursor: pointer;
   font-weight: 600;
@@ -625,7 +627,7 @@
   color: var(--text-muted);
   background: none;
   border: 1px solid var(--border-default);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   padding: 6px 14px;
   cursor: pointer;
 }
@@ -641,7 +643,7 @@
   color: var(--text-muted);
   background: var(--bg-surface);
   border: 1px solid var(--border-default);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   padding: 1px 6px;
   flex-shrink: 0;
   font-family: var(--font-mono);
@@ -744,7 +746,7 @@
   flex: 1;
   background: var(--bg-tertiary);
   border: 1px solid var(--border-default);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   color: var(--text-primary);
   font-family: var(--font-sans);
   font-size: var(--font-size-ui);
@@ -763,10 +765,10 @@
 }
 
 .finding-comment-compose button {
-  background: var(--btn-success);
+  background: var(--accent-blue);
   color: #fff;
   border: 1px solid rgba(240, 246, 252, 0.1);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   padding: 6px 10px;
   font-size: var(--font-size-small);
   font-family: var(--font-sans);
@@ -776,7 +778,7 @@
 }
 
 .finding-comment-compose button:hover {
-  background: var(--btn-success-hover);
+  background: color-mix(in srgb, var(--accent-blue) 88%, white);
 }
 
 .finding-comment-compose button:disabled {
@@ -805,9 +807,10 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.24), 0 0 0 1px rgba(148, 163, 184, 0.08);
 }
 
+/* Comment draft — accent blue, same provisional frame as the others */
 .comment-card-new {
-  border-color: rgba(129, 140, 248, 0.3);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(129, 140, 248, 0.2);
+  border: 1px dashed color-mix(in srgb, var(--accent-blue) 50%, transparent);
+  border-left: 3px solid var(--accent-blue);
 }
 
 .comment-card-header {
@@ -869,7 +872,7 @@
   line-height: 1.5;
   background: var(--bg-secondary);
   border: 1px solid var(--border-default);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   padding: 8px 10px;
   margin: 6px 0;
   overflow-x: auto;
@@ -931,7 +934,7 @@
   gap: 2px;
   background: var(--bg-surface);
   border: 1px solid var(--border-default);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   padding: 3px;
   box-shadow: var(--shadow-md);
 }
@@ -941,14 +944,15 @@
   align-items: center;
   justify-content: center;
   gap: 5px;
-  height: 28px;
-  padding: 0 8px;
+  height: var(--control-h-sm);
+  padding: 0 10px;
   background: none;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-base);
   color: var(--text-secondary);
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--font-size-small);
+  font-weight: 500;
   transition: background var(--transition-fast), color var(--transition-fast);
 }
 
@@ -973,11 +977,7 @@
 }
 
 /* ----- Finding Form (new finding in sidebar) ----- */
-.finding-card-new {
-  background: color-mix(in srgb, var(--severity-high) 6%, transparent);
-  border-color: color-mix(in srgb, var(--severity-high) 30%, transparent);
-  border-left: 3px solid var(--severity-high);
-}
+
 
 .finding-form-fields {
   display: flex;
@@ -1000,70 +1000,25 @@
 /* ============================================================
    Draft-card themes
    ----------------------------------------------------------------
-   The card stripe + accent colour telegraphs what the user is
-   creating. Descendant selectors retint the (otherwise neutral)
-   inputs to match, so every form looks of-a-piece.
+   A draft is provisional, so the card frame says so: a dashed
+   hairline in the entity's colour plus the solid left spine.
+   Inputs inside stay canonical (neutral border, blue focus) —
+   the frame carries the identity, not a wash over every field.
    ============================================================ */
 
 /* Finding draft — severity-high orange */
-.finding-card-new .finding-input,
-.finding-card-new .finding-severity-select,
-.finding-card-new .finding-status-select,
-.finding-card-new .comment-textarea {
-  border-color: color-mix(in srgb, var(--severity-high) 22%, var(--border-default));
+.finding-card-new {
+  background: var(--bg-secondary);
+  border: 1px dashed color-mix(in srgb, var(--severity-high) 50%, transparent);
+  border-left: 3px solid var(--severity-high);
 }
 
-.finding-card-new .finding-input:focus,
-.finding-card-new .finding-severity-select:focus,
-.finding-card-new .finding-status-select:focus,
-.finding-card-new .comment-textarea:focus {
-  border-color: var(--severity-high);
-  box-shadow: var(--shadow-focus-orange);
-}
-
-.finding-card-new .comment-btn-submit {
-  background: var(--severity-high);
-  border-color: color-mix(in srgb, var(--severity-high) 30%, transparent);
-}
-
-.finding-card-new .comment-btn-submit:hover {
-  background: color-mix(in srgb, var(--severity-high) 80%, black);
-}
-
-/* Feature draft — pure white */
+/* Feature draft — accent purple (the old pure-white frame vanished in
+   light theme) */
 .feature-card-new {
-  background: var(--bg-surface);
-  border-color: color-mix(in srgb, #ffffff 20%, transparent);
-  border-left: 3px solid #ffffff;
-}
-
-.feature-card-new .finding-input,
-.feature-card-new .finding-edit-select,
-.feature-card-new .finding-severity-select,
-.feature-card-new .finding-status-select,
-.feature-card-new .tag-input-chip-row,
-.feature-card-new .comment-textarea {
-  border-color: rgba(255, 255, 255, 0.18);
-}
-
-.feature-card-new .finding-input:focus,
-.feature-card-new .finding-edit-select:focus,
-.feature-card-new .finding-severity-select:focus,
-.feature-card-new .finding-status-select:focus,
-.feature-card-new .tag-input-chip-row:focus-within,
-.feature-card-new .comment-textarea:focus {
-  border-color: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.12);
-}
-
-.feature-card-new .comment-btn-submit {
-  background: #ffffff;
-  color: #0f172a;
-  border-color: rgba(255, 255, 255, 0.3);
-}
-
-.feature-card-new .comment-btn-submit:hover {
-  background: rgba(255, 255, 255, 0.85);
+  background: var(--bg-secondary);
+  border: 1px dashed color-mix(in srgb, var(--accent-purple) 50%, transparent);
+  border-left: 3px solid var(--accent-purple);
 }
 
 /* ----- Mobile: sharp-edged cards ----- */
@@ -1081,7 +1036,7 @@
 
 .inline-finding-card {
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: var(--font-size-body);
   background: var(--bg-secondary);
   border-left: 4px solid transparent;
   border-top: 1px solid var(--border-default);
@@ -1131,14 +1086,14 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: var(--font-size-body);
   font-weight: 500;
 }
 
 .inline-finding-status {
   font-size: 11px;
   padding: 2px 7px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   flex-shrink: 0;
   background: var(--bg-surface);
   color: var(--text-muted);
@@ -1165,7 +1120,7 @@
 }
 
 .inline-finding-description {
-  font-size: 13px;
+  font-size: var(--font-size-body);
   line-height: 1.6;
   color: var(--text-secondary);
 }
@@ -1180,7 +1135,7 @@
   font-size: 11px;
   font-family: var(--font-mono);
   padding: 2px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: var(--bg-surface);
   color: var(--text-muted);
   border: 1px solid var(--border-default);
@@ -1222,7 +1177,7 @@
 }
 
 .inline-finding-comment-text {
-  font-size: 13px;
+  font-size: var(--font-size-body);
   color: var(--text-secondary);
   line-height: 1.4;
 }
@@ -1234,7 +1189,7 @@
 }
 
 .inline-finding-textarea {
-  font-size: 13px;
+  font-size: var(--font-size-control);
   min-height: 56px;
   resize: none;
 }

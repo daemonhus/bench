@@ -1,10 +1,12 @@
 export interface Route {
-  mode: 'browse' | 'diff' | 'delta' | 'findings' | 'features';
+  mode: 'overview' | 'browse' | 'diff' | 'delta' | 'findings' | 'features' | 'config';
   from?: string;
   to?: string;
   path?: string;
   baselineId?: string;
   featureId?: string;
+  findingId?: string;
+  featureFilterId?: string;
 }
 
 /**
@@ -31,14 +33,21 @@ export function parseRoute(hash: string): Route {
     return { mode: 'diff', from, to, path };
   }
 
-  // Redirect legacy overview URLs to delta
   if (parts[0] === 'overview') {
-    window.location.hash = '#/delta';
-    return { mode: 'delta' };
+    return { mode: 'overview' };
   }
 
   if (parts[0] === 'findings') {
-    return { mode: 'findings' };
+    // #/findings/feature/{id} → findings filtered to one feature;
+    // #/findings/{id}         → scroll to a specific finding.
+    if (parts[1] === 'feature' && parts[2]) {
+      return { mode: 'findings', featureFilterId: parts[2] };
+    }
+    return { mode: 'findings', findingId: parts[1] };
+  }
+
+  if (parts[0] === 'config') {
+    return { mode: 'config' };
   }
 
   if (parts[0] === 'features') {
@@ -71,13 +80,15 @@ export function parseRoute(hash: string): Route {
  * Build a hash string from route parameters.
  */
 export function buildRoute(
-  mode: 'browse' | 'diff' | 'delta' | 'findings' | 'features',
+  mode: 'overview' | 'browse' | 'diff' | 'delta' | 'findings' | 'features' | 'config',
   from?: string,
   to?: string,
   path?: string,
   featureId?: string,
 ): string {
+  if (mode === 'overview') return '#/overview';
   if (mode === 'findings') return '#/findings';
+  if (mode === 'config') return '#/config';
   if (mode === 'features') return featureId ? `#/features/${featureId}` : '#/features';
   if (mode === 'delta') return '#/delta';
   if (mode === 'diff' && from && to) {

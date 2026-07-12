@@ -25,7 +25,7 @@ func registerBaselineTools(deps *toolDeps) []Tool {
 func toolSetBaseline(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "set_baseline",
-		Description: "Set a baseline — snapshot the current state of all findings and comments. Creates an atomic checkpoint that can be compared against future state to see what changed. Defaults to the tip of the default branch (e.g. main) if no commit specified.",
+		Description: "Set a baseline — snapshot the current state of all findings and comments. Creates an atomic checkpoint that can be compared against future state to see what changed. Defaults to the tip of the default branch (e.g. main) if no commit specified. Configure the service profile (update_service_profile) before a project's first baseline.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
@@ -191,7 +191,7 @@ func toolDeleteBaseline(deps *toolDeps) Tool {
 func toolGetDelta(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "get_delta",
-		Description: "Get changes since the last baseline: new findings, removed findings, and changed files. Without baseline, compares the latest baseline against the current state. With baseline, compares that baseline against its predecessor (what that baseline introduced).",
+		Description: "Get changes since the last baseline: new findings, removed findings, and changed files. Without baseline, compares the latest baseline against the current state. With baseline, compares that baseline against its predecessor (what that baseline introduced). The response embeds the service profile.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
@@ -278,6 +278,8 @@ func deltaSinceLatest(deps *toolDeps) (string, error) {
 	for _, f := range changedFiles {
 		fmt.Fprintf(&sb, "- %s (+%d/-%d)\n", f.Path, f.Added, f.Deleted)
 	}
+
+	sb.WriteString(profileSection(deps))
 
 	return sb.String(), nil
 }
@@ -376,6 +378,8 @@ func deltaForBaseline(deps *toolDeps, baselineID string) (string, error) {
 	for _, f := range changedFiles {
 		fmt.Fprintf(&sb, "- %s (+%d/-%d)\n", f.Path, f.Added, f.Deleted)
 	}
+
+	sb.WriteString(profileSection(deps))
 
 	return sb.String(), nil
 }

@@ -386,7 +386,13 @@ func (h *baselineHandlers) computeDelta(baseline *model.Baseline) (*model.Baseli
 		removedFeatureIDs = []string{}
 	}
 
+	profile, err := serviceProfileIfConfigured(h.db)
+	if err != nil {
+		return nil, err
+	}
+
 	return &model.BaselineDelta{
+		ServiceProfile:    profile,
 		SinceBaseline:     baseline,
 		HeadCommit:        headCommit,
 		NewFindings:       newFindings,
@@ -502,7 +508,13 @@ func (h *baselineHandlers) computeDeltaBetween(current, prev *model.Baseline) (*
 		return nil, err
 	}
 
+	profile, err := serviceProfileIfConfigured(h.db)
+	if err != nil {
+		return nil, err
+	}
+
 	return &model.BaselineDelta{
+		ServiceProfile:    profile,
 		SinceBaseline:     current,
 		HeadCommit:        current.CommitID,
 		NewFindings:       newFindings,

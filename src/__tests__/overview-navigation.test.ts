@@ -3,9 +3,14 @@ import { parseRoute, buildRoute } from '../core/router';
 
 describe('delta/browse navigation', () => {
   describe('route parsing', () => {
-    it('redirects #/overview to delta mode', () => {
+    it('parses #/overview as overview mode', () => {
       const route = parseRoute('#/overview');
-      expect(route.mode).toBe('delta');
+      expect(route.mode).toBe('overview');
+    });
+
+    it('round-trips overview through buildRoute', () => {
+      expect(buildRoute('overview')).toBe('#/overview');
+      expect(parseRoute(buildRoute('overview')).mode).toBe('overview');
     });
 
     it('parses empty hash as delta mode (default)', () => {
@@ -30,6 +35,24 @@ describe('delta/browse navigation', () => {
       expect(route.mode).toBe('browse');
       expect(route.path).toBeUndefined();
     });
+
+    it('parses #/findings/{id} as findings mode with findingId', () => {
+      const route = parseRoute('#/findings/f-abc123');
+      expect(route.mode).toBe('findings');
+      expect(route.findingId).toBe('f-abc123');
+    });
+
+    it('parses #/findings/feature/{id} as a feature-filtered findings view', () => {
+      const route = parseRoute('#/findings/feature/feat-1');
+      expect(route.mode).toBe('findings');
+      expect(route.featureFilterId).toBe('feat-1');
+      expect(route.findingId).toBeUndefined();
+    });
+
+    it('parses #/config as config mode', () => {
+      const route = parseRoute('#/config');
+      expect(route.mode).toBe('config');
+    });
   });
 
   describe('route building', () => {
@@ -41,6 +64,16 @@ describe('delta/browse navigation', () => {
     it('builds browse route without file', () => {
       const hash = buildRoute('browse');
       expect(hash).toBe('#/browse');
+    });
+  });
+
+  describe('config route building', () => {
+    it('builds config route', () => {
+      expect(buildRoute('config')).toBe('#/config');
+    });
+
+    it('round-trips config through parse', () => {
+      expect(parseRoute(buildRoute('config')).mode).toBe('config');
     });
   });
 

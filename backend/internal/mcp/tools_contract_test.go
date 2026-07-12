@@ -146,6 +146,9 @@ func TestMCPToolRequiredFields(t *testing.T) {
 		{"batch_create_refs", map[string]any{"refs": []any{map[string]any{
 			"entity_type": "finding", "entity": "f-1", "provider": "url", "url": "https://example.com",
 		}}}},
+		// profile (no required fields — entries exercise the valid-args path)
+		{"get_service_profile", map[string]any{}},
+		{"update_service_profile", map[string]any{}},
 	}
 
 	// Coverage check: every registered tool with declared required fields must have a case.

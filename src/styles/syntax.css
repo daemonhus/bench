@@ -64,7 +64,7 @@ span.tok-punctuation {
 .diff-view::-webkit-scrollbar-thumb,
 .sidebar-content::-webkit-scrollbar-thumb {
   background: var(--bg-surface);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 
 .diff-view::-webkit-scrollbar-thumb:hover,

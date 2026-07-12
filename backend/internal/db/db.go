@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+	"sync/atomic"
 
 	_ "modernc.org/sqlite"
 )
@@ -13,6 +14,9 @@ type DB struct {
 	projectID string
 	ownsConn  bool
 	wq        *writeQueue
+	// profileConfigured caches a positive ProfileConfigured answer — the
+	// profile can never become unconfigured, so one true answer is final.
+	profileConfigured atomic.Bool
 }
 
 func Open(path, projectID string) (*DB, error) {
@@ -499,6 +503,39 @@ func (d *DB) migrate() error {
 		if _, err := d.conn.Exec(`ALTER TABLE feature_links ADD COLUMN description TEXT NOT NULL DEFAULT ''`); err != nil {
 			return fmt.Errorf("alter feature_links add description: %w", err)
 		}
+	}
+
+	// Add resolved_at column to findings if missing (stamped when a finding's
+	// status transitions to closed; cleared on reopen). Powers fix-time metrics.
+	var resolvedAtCount int
+	if err := d.conn.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('findings') WHERE name='resolved_at'`).Scan(&resolvedAtCount); err != nil {
+		return fmt.Errorf("check findings schema: %w", err)
+	}
+	if resolvedAtCount == 0 {
+		if _, err := d.conn.Exec(`ALTER TABLE findings ADD COLUMN resolved_at TEXT`); err != nil {
+			return fmt.Errorf("alter findings add resolved_at: %w", err)
+		}
+	}
+
+	// Add service_profile singleton table. Multi-select member values are
+	// validated in the model layer; single-selects mirror model value sets.
+	if _, err := d.conn.Exec(`CREATE TABLE IF NOT EXISTS service_profile (
+		id                   INTEGER PRIMARY KEY CHECK (id = 1),
+		description          TEXT NOT NULL DEFAULT '',
+		owner                TEXT NOT NULL DEFAULT '',
+		externally_facing    TEXT NOT NULL DEFAULT '' CHECK (externally_facing IN ('', 'full', 'partial', 'none')),
+		compute              TEXT NOT NULL DEFAULT '' CHECK (compute IN ('', 'vps', 'kubernetes', 'serverless', 'bare-metal')),
+		data_sensitivity     TEXT NOT NULL DEFAULT '' CHECK (data_sensitivity IN ('', 'public', 'internal', 'pii', 'payment', 'phi', 'credentials')),
+		criticality          TEXT NOT NULL DEFAULT '' CHECK (criticality IN ('', 'low', 'medium', 'high', 'critical')),
+		tenancy              TEXT NOT NULL DEFAULT '' CHECK (tenancy IN ('', 'single-tenant', 'multi-tenant')),
+		lifecycle            TEXT NOT NULL DEFAULT '' CHECK (lifecycle IN ('', 'active', 'maintenance', 'deprecated', 'decommissioning')),
+		edge_protections     TEXT NOT NULL DEFAULT '[]',
+		compliance_scope     TEXT NOT NULL DEFAULT '[]',
+		authentication_model TEXT NOT NULL DEFAULT '[]',
+		consumer_type        TEXT NOT NULL DEFAULT '[]',
+		updated_at           TEXT NOT NULL DEFAULT (datetime('now'))
+	)`); err != nil {
+		return fmt.Errorf("create service_profile: %w", err)
 	}
 
 	return nil

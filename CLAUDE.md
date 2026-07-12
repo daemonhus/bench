@@ -184,6 +184,60 @@ What changed since a baseline.
 }
 ```
 
+### ServiceProfile
+
+A singleton per-project record of reviewer-configured meta-attributes: deployment
+context that application code cannot reveal, used to contextualise findings and
+risk scores.
+
+```typescript
+{
+  description: string
+  owner: string
+  externallyFacing: '' | 'full' | 'partial' | 'none'   // internet reachability
+  compute: '' | 'vps' | 'kubernetes' | 'serverless' | 'bare-metal'
+  dataSensitivity: '' | 'public' | 'internal' | 'pii' | 'payment' | 'phi' | 'credentials'
+  criticality: '' | 'low' | 'medium' | 'high' | 'critical'
+  tenancy: '' | 'single-tenant' | 'multi-tenant'
+  lifecycle: '' | 'active' | 'maintenance' | 'deprecated' | 'decommissioning'
+  edgeProtections: string[]       // waf | api-gateway | rate-limiting | ddos-protection | none
+  complianceScope: string[]       // pci-dss | hipaa | soc2 | gdpr | none
+  authenticationModel: string[]   // none | api-key | oauth-oidc | mtls | session | gateway-terminated
+  consumerType: string[]          // first-party-frontend | internal-services | third-party-partners | general-public
+  updatedAt: string
+}
+```
+
+Semantics:
+
+- **Unset ≠ none.** Empty string / empty array means "not configured". In the
+  multi-selects, `none` is an explicit positive claim (control confirmed absent)
+  and cannot be combined with other values. Only an explicit `none` may downgrade
+  a finding — never absence of data.
+- **Write gate.** All review-judgment writes (findings, comments, features, refs,
+  baselines, mark-reviewed) are rejected — HTTP 412 / MCP tool error — until the
+  profile has been set at least once. `bench profile set` / `update_service_profile`
+  is the bootstrap path and is always allowed. Server flag `-require-profile=false`
+  disables the gate.
+- **Embedded for free.** `get_summary` and `get_delta` responses include the
+  profile, so a session that starts with either has the context without an
+  extra call.
+- **Factor it into severity.** A missing-rate-limit finding on a service with
+  `edgeProtections: [rate-limiting]` is likely moot; any authz finding on
+  `tenancy: multi-tenant` is amplified; `authenticationModel: [gateway-terminated]`
+  makes missing-auth-in-code findings a question, not a critical.
+
+Access: `GET /api/profile`, `PATCH /api/profile` (partial update; arrays replace
+wholesale, `[]` clears); `bench profile get` / `bench profile set`; MCP
+`get_service_profile` / `update_service_profile`.
+
+```bash
+bench profile set --owner platform-team --externally-facing full \
+    --data-sensitivity pii --criticality high --tenancy multi-tenant \
+    --edge-protections waf,rate-limiting \
+    --authentication-model oauth-oidc,gateway-terminated
+```
+
 ## Classification Guide
 
 ### Feature kinds
@@ -292,10 +346,19 @@ Deleting a feature or finding automatically removes the join-table rows — no m
 ## Typical Review Workflow
 
 ```
-0. list_baselines           ← ALWAYS do this first — check whether a meaningful baseline
-                               already exists. If seq=1 is empty, set a baseline before
-                               importing anything. An empty predecessor makes every delta
-                               useless — all findings appear "new".
+0. get_service_profile      ← ALWAYS do this first — load the service's deployment context
+                               before reading any code. The profile tells you which finding
+                               classes are moot (e.g. rate limiting at the gateway, auth
+                               terminated upstream) and which are amplified (multi-tenant,
+                               PII, internet-facing). Empty fields mean "not configured" —
+                               never treat absence as evidence a control is missing.
+                               If unconfigured: update_service_profile with what you know
+                               (or ask the user) — ALL create/update/delete calls are
+                               rejected until the profile has been set at least once.
+   list_baselines           ← check whether a meaningful baseline already exists. If seq=1
+                               is empty, set a baseline before importing anything. An empty
+                               predecessor makes every delta useless — all findings appear
+                               "new".
 1. set_baseline             ← checkpoint before starting (captures current state as reference)
 2. search code, read files  ← use bench git tools to explore
 3. create_finding (×N)      ← record vulnerabilities as you find them
@@ -401,7 +464,7 @@ Bench exposes MCP tools and a CLI. Tool schemas and CLI `--help` are the source 
 - All `commit` parameters accept a hash, ref, or `HEAD`
 - For CLI `batch-create`, provide `--input <file>` (not piped stdin)
 
-**Tool groups:** git, findings, comments, features, refs, baselines, analytics, reconcile.
+**Tool groups:** git, findings, comments, features, refs, baselines, analytics, reconcile, profile.
 
 **Always use `bench git` for code access** — do not reach around the CLI to the filesystem (`cat`, `grep`, `git -C`, etc.). Use:
 - `bench git commits` — HEAD commit and recent history
@@ -428,6 +491,8 @@ Bench exposes MCP tools and a CLI. Tool schemas and CLI `--help` are the source 
 | `commit` | omitted | always set — empty `commitId` breaks reconciliation |
 | `id` (updates) | truncated prefix | always use the **full UUID** — short prefixes return "not found" |
 | `provider` (refs) | any string | `github`, `gitlab`, `jira`, `confluence`, `linear`, `notion`, `slack`, or `url` — inferred from URL hostname if omitted |
+| profile multi-selects (MCP) | `"waf,rate-limiting"` | `["waf", "rate-limiting"]` (JSON array); CLI uses `--edge-protections waf,rate-limiting` |
+| profile `none` (multi-selects) | `["none", "waf"]` | `none` is exclusive — it means "control confirmed absent" and cannot be combined |
 
 **Default differences by interface:**
 
@@ -473,3 +538,4 @@ docker logs $(docker ps -q --filter ancestor=bench) 2>&1 | tail -20
 | `ancestry check: invalid git ref: ""` (reconcile) | Annotations have empty `commitId`. The PATCH handlers now reject empty commit strings, so this state can only persist on existing rows — patch with `bench findings update --id <id> --commit <sha>` and re-run reconcile. |
 | `ancestry check: unknown git ref` or `reference not found` (reconcile) | The anchor's commit is no longer in the repo (force push, `git filter-branch`, GC). The reconciler now auto-orphans these annotations and continues — find them via `bench findings list --commit HEAD \| jq '.[] \| select(.confidence == "orphaned")'` and re-anchor with `bench findings update ... --commit HEAD`. |
 | `commitId must be a non-empty string` (PATCH) | Don't pass `commit: ""` to update tools. Omit the field to leave the anchor commit unchanged. |
+| `service profile not configured` (412 / MCP tool error) | The write gate: no annotations can be recorded until the service profile is set. Run `bench profile get` to see fields, then `bench profile set` (or `update_service_profile`) with what you know — an empty set call also satisfies the gate ("reviewed, nothing known"). |

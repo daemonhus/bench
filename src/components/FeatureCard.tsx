@@ -18,6 +18,8 @@ import { TagInput } from './TagInput';
 
 interface FeatureCardProps {
   feature: Feature;
+  /** Open findings linked to this feature (renders a filtered-findings link). */
+  openFindingsCount?: number;
   isExpanded: boolean;
   isNavFocused?: boolean;
   expandSnippetsTick?: number;
@@ -39,12 +41,14 @@ const PARAM_TYPE_COLORS: Record<string, string> = {
   file:    '#db2777',
 };
 
-const KIND_COLORS: Record<FeatureKind, string> = {
-  interface:   '#2563eb',
-  source:      '#16a34a',
-  sink:        '#ea580c',
-  dependency:  '#7c3aed',
-  externality: '#6b7280',
+// Values resolve from tokens.css so theme retunes propagate; safe anywhere
+// CSS is parsed (inline style, SVG presentation attributes).
+export const KIND_COLORS: Record<FeatureKind, string> = {
+  interface:   'var(--kind-interface)',
+  source:      'var(--kind-source)',
+  sink:        'var(--kind-sink)',
+  dependency:  'var(--kind-dependency)',
+  externality: 'var(--kind-externality)',
 };
 
 const KIND_LABELS: Record<FeatureKind, string> = {
@@ -89,6 +93,7 @@ function extractMethod(title: string): { method: string; path: string } | null {
 
 export const FeatureCard: React.FC<FeatureCardProps> = ({
   feature,
+  openFindingsCount,
   isExpanded,
   isNavFocused,
   expandSnippetsTick,
@@ -316,10 +321,19 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
     if (feature.anchor.fileId) useRepoStore.getState().selectFile(feature.anchor.fileId);
   };
 
-  const kindColor = KIND_COLORS[feature.kind] ?? '#6b7280';
+  const kindColor = KIND_COLORS[feature.kind] ?? 'var(--kind-externality)';
 
   const headerRight = (
     <div className="comment-card-header-right feature-header-right" onClick={(e) => e.stopPropagation()}>
+      {(openFindingsCount ?? 0) > 0 && (
+        <a
+          className="feature-open-findings-link"
+          href={`#/findings/feature/${feature.id}`}
+          data-tooltip="View these findings"
+        >
+          {openFindingsCount} open finding{openFindingsCount === 1 ? '' : 's'}
+        </a>
+      )}
       {!compact && feature.direction && (
         <span className={`feature-direction-badge feature-direction-badge--${feature.direction}`}>
           {feature.direction === 'in' ? '← IN' : '→ OUT'}
@@ -423,7 +437,7 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
                   </a>
                 ))}
                 {linked.map(({ lf, feat: f }) => {
-                  const fKindColor = KIND_COLORS[f.kind] ?? '#6b7280';
+                  const fKindColor = KIND_COLORS[f.kind] ?? 'var(--kind-externality)';
                   const isInterface = f.kind === 'interface';
                   const method = f.operation?.toUpperCase();
                   const displayDesc = lf.description || f.description;
@@ -521,7 +535,7 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
                         </a>
                       ))}
                       {linked.map(({ lf, feat: f }) => {
-                        const fKindColor = KIND_COLORS[f.kind] ?? '#6b7280';
+                        const fKindColor = KIND_COLORS[f.kind] ?? 'var(--kind-externality)';
                         const isInterface = f.kind === 'interface';
                         const method = f.operation?.toUpperCase();
                         const displayDesc = lf.description || f.description;

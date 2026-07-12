@@ -34,7 +34,9 @@ func (d *DB) ListFeatures(fileID string, linkedTo string, limit, offset int) ([]
 
 	query := `SELECT id, anchor_file_id, anchor_commit_id, anchor_line_start, anchor_line_end,
 		kind, title, description, operation, direction, protocol, status, tags, source, created_at, resolved_commit, line_hash, anchor_updated_at FROM features` + baseWhere
-	query += ` ORDER BY created_at DESC`
+	// rowid tiebreak: created_at has second precision, so batch-created rows
+	// tie; rowid preserves insertion order deterministically.
+	query += ` ORDER BY created_at DESC, rowid`
 	args := append([]any{}, whereArgs...)
 	if limit > 0 {
 		query += ` LIMIT ? OFFSET ?`

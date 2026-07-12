@@ -35,27 +35,46 @@ type Workbench struct {
 	api        http.Handler
 }
 
+// Option customises workbench behaviour.
+type Option func(*options)
+
+type options struct {
+	requireProfile bool
+}
+
+// WithRequireProfile controls the service-profile write gate (default true):
+// review-judgment writes (findings, comments, features, refs, baselines,
+// coverage) are rejected across REST and MCP until the service profile has
+// been configured.
+func WithRequireProfile(v bool) Option {
+	return func(o *options) { o.requireProfile = v }
+}
+
 // Open creates a standalone workbench with its own SQLite file.
 // The project ID is derived from the repo directory name, so two containers
 // pointing at different repos can safely share the same database file.
-func Open(repoPath, dbPath string) (*Workbench, error) {
+func Open(repoPath, dbPath string, opts ...Option) (*Workbench, error) {
 	repo := git.NewRepo(repoPath)
 	database, err := db.Open(dbPath, repo.Name())
 	if err != nil {
 		return nil, err
 	}
-	return newWorkbench(repo, database), nil
+	return newWorkbench(repo, database, opts...), nil
 }
 
 // OpenScoped creates a workbench using a shared database connection,
 // scoped to the given project ID. Used by the platform.
-func OpenScoped(repoPath string, conn *sql.DB, projectID string) *Workbench {
+func OpenScoped(repoPath string, conn *sql.DB, projectID string, opts ...Option) *Workbench {
 	repo := git.NewRepo(repoPath)
 	database := db.OpenScoped(conn, projectID)
-	return newWorkbench(repo, database)
+	return newWorkbench(repo, database, opts...)
 }
 
-func newWorkbench(repo *git.Repo, database *db.DB) *Workbench {
+func newWorkbench(repo *git.Repo, database *db.DB, opts ...Option) *Workbench {
+	o := options{requireProfile: true}
+	for _, opt := range opts {
+		opt(&o)
+	}
 	reconciler := reconcile.NewReconciler(repo, database, database, database, reconcile.WithResolver(database))
 	broker := events.NewBroker()
 	return &Workbench{
@@ -63,8 +82,8 @@ func newWorkbench(repo *git.Repo, database *db.DB) *Workbench {
 		Repo:       repo,
 		Reconciler: reconciler,
 		Broker:     broker,
-		mcp:        mcp.NewHandler(database, repo, reconciler, broker),
-		api:        api.NewRouter(repo, database, broker),
+		mcp:        mcp.NewHandler(database, repo, reconciler, broker, mcp.WithRequireProfile(o.requireProfile)),
+		api:        api.NewRouter(repo, database, broker, api.WithRequireProfile(o.requireProfile)),
 	}
 }
 

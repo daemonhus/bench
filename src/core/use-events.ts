@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { subscribe } from './event-bus';
 
-type Topic = 'annotations' | 'baselines' | 'git';
+type Topic = 'annotations' | 'baselines' | 'git' | 'profile';
 
 /**
  * Subscribe to one or more SSE topics. Calls `callback` when any of

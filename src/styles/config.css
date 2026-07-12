@@ -1,0 +1,291 @@
+/* ============================================================
+   Config view — service profile form
+   Follows the canonical form-input system (see PLAN-form-unification.md):
+   inputs reuse the finding-edit-* family; single-selects reuse .seg-control;
+   multi-select checkboxes mirror .multi-select-option / .multi-select-check.
+   ============================================================ */
+
+.config-view {
+  flex: 1;
+  overflow-y: auto;
+  background: var(--bg-primary);
+}
+
+.config-column {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 28px 32px 80px;
+}
+
+.config-loading {
+  padding: 48px;
+  color: var(--text-muted);
+  font-size: var(--font-size-ui);
+  text-align: center;
+}
+
+/* ----- Header ----- */
+
+.config-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 20px;
+}
+
+.config-title {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  letter-spacing: var(--tracking-snug);
+  color: var(--text-primary);
+  margin: 0 0 6px;
+}
+
+.config-header-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.config-updated-at {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* Auto-save indicator — replaces the old explicit Save button */
+.config-save-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 20px;
+  font-size: var(--font-size-small);
+  font-weight: 500;
+  color: var(--accent-green);
+  white-space: nowrap;
+}
+
+.config-save-status-pending {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+/* ----- Notices ----- */
+
+.config-error {
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  border: 1px solid color-mix(in srgb, var(--status-open) 40%, transparent);
+  background: var(--status-open-subtle);
+  border-radius: var(--radius-base);
+  color: var(--text-primary);
+  font-size: var(--font-size-small);
+  word-break: break-word;
+}
+
+/* ----- Sections & fields ----- */
+
+.config-section {
+  margin-bottom: 28px;
+  padding: 20px 22px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-muted);
+  border-radius: var(--radius-md);
+}
+
+.config-section-title {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0 0 16px;
+}
+
+.config-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+
+.config-field:last-child {
+  margin-bottom: 0;
+}
+
+/* Sits between the field label and its control */
+.config-hint {
+  font-size: var(--font-size-xs);
+  line-height: var(--leading-normal);
+  color: var(--text-muted);
+  margin: -2px 0 4px;
+  max-width: 640px;
+}
+
+/* ----- Choice chips ------------------------------------------------
+   Single-selects and multi-selects share one bordered chip so wrapped
+   rows still read as controls; the shape tells them apart:
+     radio    → pill chip, circular ring-and-dot indicator (pick one)
+     checkbox → squared chip, square tick indicator (pick any)
+   ------------------------------------------------------------------ */
+
+.config-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.config-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: var(--font-size-small);
+  font-family: var(--font-sans);
+  font-weight: 500;
+  letter-spacing: var(--tracking-normal);
+  line-height: 1.4;
+  cursor: pointer;
+  user-select: none;
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.config-choice-radio {
+  border-radius: 999px;
+}
+
+.config-choice-check {
+  border-radius: var(--radius-base);
+}
+
+.config-choice:hover {
+  background: var(--hover-muted);
+  color: var(--text-primary);
+  border-color: color-mix(in srgb, var(--text-muted) 40%, var(--border-default));
+}
+
+.config-choice-active,
+.config-choice-active:hover {
+  background: var(--accent-blue-subtle);
+  border-color: color-mix(in srgb, var(--accent-blue) 45%, transparent);
+  color: var(--accent-blue);
+}
+
+.config-choice-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.config-choice input[type='checkbox'] {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Indicators: the unchecked state borrows the label colour at reduced
+   strength; the active state fills with the accent. */
+
+.config-choice-ind {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid color-mix(in srgb, currentColor 55%, transparent);
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+  position: relative;
+}
+
+.config-choice-ind-radio {
+  border-radius: 50%;
+}
+
+.config-choice-active .config-choice-ind-radio {
+  border-color: var(--accent-blue);
+}
+
+.config-choice-active .config-choice-ind-radio::after {
+  content: '';
+  position: absolute;
+  inset: 2.5px;
+  border-radius: 50%;
+  background: var(--accent-blue);
+}
+
+.config-choice-ind-check {
+  border-radius: var(--radius-xs);
+}
+
+.config-choice-active .config-choice-ind-check {
+  background: var(--accent-blue);
+  border-color: var(--accent-blue);
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 14 14' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M3.5 7l2.5 2.5 4.5-5' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 10px 10px;
+}
+
+/* ----- Unconfigured-profile banner (rendered in App shell) ----- */
+
+.profile-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 24px;
+  background: var(--status-open-subtle);
+  border-bottom: 1px solid color-mix(in srgb, var(--status-open) 25%, transparent);
+  color: var(--text-primary);
+  font-size: var(--font-size-small);
+}
+
+.profile-banner-icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--status-open);
+  flex-shrink: 0;
+}
+
+/* Base look comes from .baseline-action-btn.baseline-action-btn-primary —
+   the canonical primary button (same as Set Baseline / Save Profile). */
+.profile-banner-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: 10px;
+  white-space: nowrap;
+}
+
+.profile-banner-link-arrow {
+  display: inline-block;
+  transition: transform var(--transition-fast);
+}
+
+.profile-banner-link:hover .profile-banner-link-arrow {
+  transform: translateX(2px);
+}
+
+.profile-banner-dismiss {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: var(--font-size-md);
+  line-height: 1;
+  cursor: pointer;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-base);
+}
+
+.profile-banner-dismiss:hover {
+  color: var(--text-primary);
+  background: var(--hover-muted);
+}

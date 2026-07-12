@@ -8,6 +8,7 @@ import { useUIStore } from './stores/ui-store';
 import { useNavigationStore } from './stores/navigation-store';
 import { useReconcileStore } from './stores/reconcile-store';
 import { useBaselineStore } from './stores/baseline-store';
+import { useProfileStore } from './stores/profile-store';
 import { findingsApi, commentsApi, gitApi, reconcileApi, featuresApi } from './core/api';
 import { useEvents } from './core/use-events';
 import { useBranchMap } from './core/use-branch-map';
@@ -26,6 +27,8 @@ import { DeltaView } from './components/DeltaView';
 import { DeltaSidebar } from './components/DeltaSidebar';
 import { FindingsView } from './components/FindingsView';
 import { FeaturesView } from './components/FeaturesView';
+import { ConfigView } from './components/ConfigView';
+import { OverviewView } from './components/OverviewView';
 import { FolderView } from './components/FolderView';
 import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
 import { AnchorField } from './components/AnchorField';
@@ -86,6 +89,9 @@ export function App() {
   const theme = useUIStore((s) => s.theme);
   const toggleTheme = useUIStore((s) => s.toggleTheme);
   const viewMode = useUIStore((s) => s.viewMode);
+  const profileLoaded = useProfileStore((s) => s.loaded);
+  const profileConfigured = useProfileStore((s) => s.configured);
+  const profileBannerDismissed = useProfileStore((s) => s.bannerDismissed);
   const setViewMode = useUIStore((s) => s.setViewMode);
   const sidebarOpen = useUIStore((s) => s.sidebarOpen);
   const sidebarWidth = useUIStore((s) => s.sidebarWidth);
@@ -421,10 +427,12 @@ export function App() {
         e.preventDefault();
         setGotoLineOpen(true);
       } else if (!inEditable && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
-        if (e.key === '1') { e.preventDefault(); setViewMode('browse'); setPendingNavFocus(NAV_AREA['browse'] ?? null); }
+        if (e.key === '0') { e.preventDefault(); setViewMode('overview'); setPendingNavFocus(null); }
+        else if (e.key === '1') { e.preventDefault(); setViewMode('browse'); setPendingNavFocus(NAV_AREA['browse'] ?? null); }
         else if (e.key === '2') { e.preventDefault(); setViewMode('delta'); setPendingNavFocus(NAV_AREA['delta'] ?? null); }
         else if (e.key === '3') { e.preventDefault(); setViewMode('findings'); setPendingNavFocus(NAV_AREA['findings'] ?? null); }
         else if (e.key === '4') { e.preventDefault(); setViewMode('features'); setPendingNavFocus(NAV_AREA['features'] ?? null); }
+        else if (e.key === '5') { e.preventDefault(); setViewMode('config'); setPendingNavFocus(null); }
       }
     };
     window.addEventListener('keydown', handler);
@@ -532,6 +540,7 @@ export function App() {
     loadCommits();
     fetchReconciledHead();
     useBaselineStore.getState().refreshAll();
+    useProfileStore.getState().load();
   }, [loadCommits, fetchReconciledHead]);
 
   // Apply initial route after commits are loaded
@@ -848,10 +857,12 @@ export function App() {
             </button>
           </div>
           {([
+            { mode: 'overview' as ViewMode, label: 'Overview', shortcut: '0', icon: <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1" /><rect x="9" y="1.5" width="5.5" height="5.5" rx="1" /><rect x="1.5" y="9" width="5.5" height="5.5" rx="1" /><rect x="9" y="9" width="5.5" height="5.5" rx="1" /></svg> },
             { mode: 'browse' as ViewMode, label: 'Browse', shortcut: '1', icon: <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 2h5l1 2h6v9H2V2z" /></svg> },
             { mode: 'delta' as ViewMode, label: 'Changes', shortcut: '2', icon: <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 8H3M8 3v10M3 5l5-4 5 4" /></svg> },
             { mode: 'findings' as ViewMode, label: 'Findings', shortcut: '3', icon: <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 1L1 14h14L8 1z" /><line x1="8" y1="6" x2="8" y2="9" /><circle cx="8" cy="11.5" r="0.5" fill="currentColor" /></svg> },
             { mode: 'features' as ViewMode, label: 'Features', shortcut: '4', icon: <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="8" r="3" /><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.1 3.1l1.4 1.4M11.5 11.5l1.4 1.4M3.1 12.9l1.4-1.4M11.5 4.5l1.4-1.4" /></svg> },
+            { mode: 'config' as ViewMode, label: 'Config', shortcut: '5', icon: <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 4.5h8M12.5 4.5H14M2 11.5h3M7.5 11.5H14" /><circle cx="10.5" cy="4.5" r="1.8" /><circle cx="5.5" cy="11.5" r="1.8" /></svg> },
           ]).map(({ mode, label, shortcut, icon }) => {
             const isActive = mode === 'browse'
               ? viewMode === 'browse' || viewMode === 'diff'
@@ -888,6 +899,33 @@ export function App() {
           </button>
         </div>
       </div>
+
+      {profileLoaded && !profileConfigured && !profileBannerDismissed && viewMode !== 'config' && (
+        <div className="profile-banner" role="status">
+          <span className="profile-banner-icon" aria-hidden="true">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M8 1L1 14h14L8 1z" />
+              <line x1="8" y1="6" x2="8" y2="9" />
+              <circle cx="8" cy="11.5" r="0.5" fill="currentColor" />
+            </svg>
+          </span>
+          <span>
+            Service profile not configured. Findings, comments, features, and baselines are
+            blocked until it is.
+          </span>
+          <button className="baseline-action-btn baseline-action-btn-primary profile-banner-link" onClick={() => setViewMode('config')}>
+            Open Config
+            <span className="profile-banner-link-arrow" aria-hidden="true">→</span>
+          </button>
+          <button
+            className="profile-banner-dismiss"
+            aria-label="Dismiss"
+            onClick={() => useProfileStore.getState().dismissBanner()}
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       <div className="app-layout" style={{ gridTemplateColumns: gridColumns }}>
       {/* Mobile backdrops for drawers */}
@@ -1225,6 +1263,8 @@ export function App() {
         {!isLoading && viewMode === 'findings' && <FindingsView />}
         {!isLoading && viewMode === 'delta' && <DeltaView baselineId={routeBaselineId} />}
         {!isLoading && viewMode === 'features' && <FeaturesView />}
+        {!isLoading && viewMode === 'config' && <ConfigView />}
+        {!isLoading && viewMode === 'overview' && <OverviewView />}
         {!isLoading && viewMode === 'browse' && browseDir !== null && (
           <FolderView
             files={files}
@@ -1366,17 +1406,23 @@ export function App() {
                     <div className="quick-add-row-pair">
                       <div className="finding-edit-row">
                         <label className="finding-edit-label">Severity</label>
-                        <select
-                          className="finding-edit-select"
-                          value={quickSeverity}
-                          onChange={(e) => setQuickSeverity(e.target.value as Severity)}
-                        >
-                          <option value="critical">Critical</option>
-                          <option value="high">High</option>
-                          <option value="medium">Medium</option>
-                          <option value="low">Low</option>
-                          <option value="info">Info</option>
-                        </select>
+                        {/* Spacious context: severity is a radio, not a dropdown
+                            (the compact select survives only in the Browse
+                            side-panel draft, where there is no room). */}
+                        <div className="finding-severity-toggle" role="radiogroup" aria-label="Severity">
+                          {(['critical', 'high', 'medium', 'low', 'info'] as Severity[]).map((s) => (
+                            <button
+                              key={s}
+                              type="button"
+                              role="radio"
+                              aria-checked={quickSeverity === s}
+                              className={`finding-severity-toggle-btn severity-${s}${quickSeverity === s ? ' active' : ''}`}
+                              onClick={() => setQuickSeverity(s)}
+                            >
+                              {s}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                       <div className="finding-edit-row">
                         <label className="finding-edit-label">Status</label>

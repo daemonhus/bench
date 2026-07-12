@@ -377,3 +377,79 @@ func TestBatchResolveFindings(t *testing.T) {
 		t.Errorf("f1 resolvedCommit = %v, want 'def'", got.ResolvedCommit)
 	}
 }
+
+func TestUpdateFinding_ResolvedAtLifecycle(t *testing.T) {
+	d := openTestDB(t)
+
+	f := &model.Finding{
+		ID:       "f-ra",
+		Anchor:   model.Anchor{FileID: "src/a.go", CommitID: "abc123"},
+		Severity: "high",
+		Title:    "resolved-at lifecycle",
+		Status:   "open",
+		Source:   "manual",
+	}
+	if err := d.CreateFinding(f); err != nil {
+		t.Fatalf("CreateFinding: %v", err)
+	}
+
+	// Open finding has no resolvedAt.
+	got, _ := d.GetFinding("f-ra")
+	if got.ResolvedAt != nil {
+		t.Errorf("open finding has resolvedAt: %v", *got.ResolvedAt)
+	}
+
+	// Closing stamps it.
+	got, err := d.UpdateFinding("f-ra", map[string]any{"status": "closed"})
+	if err != nil {
+		t.Fatalf("close: %v", err)
+	}
+	if got.ResolvedAt == nil {
+		t.Fatal("closing did not stamp resolvedAt")
+	}
+	first := *got.ResolvedAt
+
+	// Closing again does not re-stamp.
+	got, _ = d.UpdateFinding("f-ra", map[string]any{"status": "closed"})
+	if got.ResolvedAt == nil || *got.ResolvedAt != first {
+		t.Errorf("re-close changed resolvedAt: %v -> %v", first, got.ResolvedAt)
+	}
+
+	// Reopening clears it.
+	got, _ = d.UpdateFinding("f-ra", map[string]any{"status": "open"})
+	if got.ResolvedAt != nil {
+		t.Errorf("reopen did not clear resolvedAt: %v", *got.ResolvedAt)
+	}
+
+	// Setting a resolvedCommit alone (CLI resolve path) stamps it.
+	got, err = d.UpdateFinding("f-ra", map[string]any{"resolvedCommit": "def456"})
+	if err != nil {
+		t.Fatalf("resolve via commit: %v", err)
+	}
+	if got.ResolvedAt == nil {
+		t.Error("resolvedCommit did not stamp resolvedAt")
+	}
+}
+
+func TestBatchResolveFindings_StampsResolvedAt(t *testing.T) {
+	d := openTestDB(t)
+
+	f := &model.Finding{
+		ID:       "f-br",
+		Anchor:   model.Anchor{FileID: "src/a.go", CommitID: "abc123"},
+		Severity: "low",
+		Title:    "batch resolve",
+		Status:   "open",
+		Source:   "manual",
+	}
+	if err := d.CreateFinding(f); err != nil {
+		t.Fatalf("CreateFinding: %v", err)
+	}
+	if _, err := d.BatchResolveFindings([]struct{ ID, Commit string }{{ID: "f-br", Commit: "def456"}}); err != nil {
+		t.Fatalf("BatchResolveFindings: %v", err)
+	}
+	got, _ := d.GetFinding("f-br")
+	if got.Status != "closed" || got.ResolvedAt == nil {
+		t.Errorf("batch resolve: status=%s resolvedAt=%v, want closed + stamped", got.Status, got.ResolvedAt)
+	}
+}

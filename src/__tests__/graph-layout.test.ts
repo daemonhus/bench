@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeGraphLayout } from '../core/graph-layout';
+import { computeGraphLayout, attributeBranches, parseMergedBranch } from '../core/graph-layout';
 import type { GraphCommit } from '../core/types';
 
 function makeCommit(
@@ -207,5 +207,85 @@ describe('computeGraphLayout', () => {
     const lanes = layout.nodes.map((n) => n.lane);
     // All should be in lane 0 (linear first-parent chain)
     expect(lanes).toEqual([0, 0, 0, 0]);
+  });
+});
+
+describe('attributeBranches', () => {
+  function commit(hash: string, parents: string[], opts: { refs?: string[]; subject?: string } = {}): GraphCommit {
+    return { ...makeCommit(hash, parents, opts.refs ?? []), subject: opts.subject ?? `commit ${hash}` };
+  }
+
+  it('propagates a tip ref down the first-parent chain', () => {
+    const commits = [
+      commit('c3', ['c2'], { refs: ['main'] }),
+      commit('c2', ['c1']),
+      commit('c1', []),
+    ];
+    const branches = attributeBranches(commits);
+    expect(branches.get('c3')).toBe('main');
+    expect(branches.get('c2')).toBe('main');
+    expect(branches.get('c1')).toBe('main');
+  });
+
+  it('names the merged side from "Merge branch" subjects', () => {
+    // main: m1 <- c1 ; feat-x: b2 <- b1 (branched from c1); m1 merges b2
+    const commits = [
+      commit('m1', ['c1', 'b2'], { refs: ['main'], subject: "Merge branch 'feat-x'" }),
+      commit('b2', ['b1']),
+      commit('b1', ['c1']),
+      commit('c1', []),
+    ];
+    const branches = attributeBranches(commits);
+    expect(branches.get('m1')).toBe('main');
+    expect(branches.get('b2')).toBe('feat-x');
+    expect(branches.get('b1')).toBe('feat-x');
+    expect(branches.get('c1')).toBe('main');
+  });
+
+  it('handles GitHub pull request merge subjects', () => {
+    const commits = [
+      commit('m1', ['c1', 'b1'], { refs: ['main'], subject: 'Merge pull request #42 from psedge/fix/rate-limit' }),
+      commit('b1', ['c1']),
+      commit('c1', []),
+    ];
+    const branches = attributeBranches(commits);
+    expect(branches.get('b1')).toBe('fix/rate-limit');
+  });
+
+  it('uses "into" targets when the merge itself is unattributed', () => {
+    const commits = [
+      commit('m1', ['c1', 'b1'], { subject: "Merge branch 'feat-x' into develop" }),
+      commit('b1', ['c1']),
+      commit('c1', []),
+    ];
+    const branches = attributeBranches(commits);
+    expect(branches.get('m1')).toBe('develop');
+    expect(branches.get('c1')).toBe('develop');
+    expect(branches.get('b1')).toBe('feat-x');
+  });
+
+  it('strips "HEAD -> " decoration from refs', () => {
+    const commits = [commit('c1', [], { refs: ['HEAD -> main'] })];
+    expect(attributeBranches(commits).get('c1')).toBe('main');
+  });
+
+  it('leaves unattributable commits unnamed rather than guessing', () => {
+    const commits = [
+      commit('c2', ['c1']),
+      commit('c1', []),
+    ];
+    const branches = attributeBranches(commits);
+    expect(branches.has('c2')).toBe(false);
+    expect(branches.has('c1')).toBe(false);
+  });
+});
+
+describe('parseMergedBranch', () => {
+  it('parses common merge subject shapes', () => {
+    expect(parseMergedBranch("Merge branch 'feat-x'")).toBe('feat-x');
+    expect(parseMergedBranch("Merge branch 'feat-x' into main")).toBe('feat-x');
+    expect(parseMergedBranch("Merge remote-tracking branch 'origin/feat-x'")).toBe('feat-x');
+    expect(parseMergedBranch('Merge pull request #7 from owner/branch-name')).toBe('branch-name');
+    expect(parseMergedBranch('regular commit subject')).toBeNull();
   });
 });

@@ -15,7 +15,20 @@ import (
 )
 
 // setupBaselineEnv creates a real git repo, a DB, and returns a router + the DB handle.
+// The service profile is pre-configured so the write gate (on by default) passes.
 func setupBaselineEnv(t *testing.T) (http.Handler, *db.DB) {
+	t.Helper()
+	repo, database := setupRepoAndDB(t)
+	// Gate behaviour itself is covered in handlers_profile_test.go.
+	if err := database.PutServiceProfile(model.ServiceProfile{}); err != nil {
+		t.Fatalf("configure profile: %v", err)
+	}
+	return NewRouter(repo, database, nil), database
+}
+
+// setupRepoAndDB creates a real git repo with one commit and a fresh DB,
+// without touching the service profile (unconfigured).
+func setupRepoAndDB(t *testing.T) (*git.Repo, *db.DB) {
 	t.Helper()
 	dir := t.TempDir()
 
@@ -49,9 +62,7 @@ func setupBaselineEnv(t *testing.T) (http.Handler, *db.DB) {
 	}
 	t.Cleanup(func() { database.Close() })
 
-	repo := git.NewRepo(dir)
-	router := NewRouter(repo, database, nil)
-	return router, database
+	return git.NewRepo(dir), database
 }
 
 func TestBaselinesAPI_ListEmpty(t *testing.T) {

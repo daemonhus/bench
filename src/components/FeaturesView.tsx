@@ -1,11 +1,18 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { featuresApi } from '../core/api';
+import { featuresApi, findingsApi } from '../core/api';
 import { useNavList } from '../core/use-nav-list';
 import { useEvents } from '../core/use-events';
 import { useAnnotationStore } from '../stores/annotation-store';
 import { useRepoStore } from '../stores/repo-store';
 import { useUIStore } from '../stores/ui-store';
 import { FeatureCard } from './FeatureCard';
+
+// The subset of Finding this view needs for count links.
+interface FindingLite {
+  status: string;
+  resolvedCommit?: string;
+  features?: string[];
+}
 import { SearchBox } from './SearchBox';
 import { useRegexSearch } from '../hooks/useRegexSearch';
 import { parseRoute } from '../core/router';
@@ -236,6 +243,7 @@ const CreateFeatureModal: React.FC<CreateFeatureModalProps> = ({ onClose, onCrea
 export const FeaturesView: React.FC = () => {
   const features = useAnnotationStore((s) => s.features);
   const loadFeatures = useAnnotationStore((s) => s.loadFeatures);
+  const [allFindings, setAllFindings] = useState<FindingLite[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<FeaturesTab>('interfaces');
   const [sortOrder, setSortOrder] = useState<FeatureSort>(() => {
@@ -276,6 +284,9 @@ export const FeaturesView: React.FC = () => {
   }, [deepLinkId, features, loading, setScrollToFeature]);
 
   const refreshFeatures = useCallback(() => {
+    findingsApi.list()
+      .then((f) => setAllFindings(f as FindingLite[]))
+      .catch(() => setAllFindings([]));
     return featuresApi.list().then((f) => loadFeatures(f as Feature[])).catch(() => {});
   }, [loadFeatures]);
 
@@ -442,10 +453,23 @@ export const FeaturesView: React.FC = () => {
     pendingReplyFocusId.current = null;
   }, [collapsedIds, navContainerRef]);
 
+  // Open findings per feature, for the header count links.
+  const openFindingsByFeature = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const fd of allFindings) {
+      if (fd.status === 'closed' || fd.resolvedCommit) continue;
+      for (const fid of fd.features ?? []) {
+        m.set(fid, (m.get(fid) ?? 0) + 1);
+      }
+    }
+    return m;
+  }, [allFindings]);
+
   const renderCard = (f: Feature) => (
     <div key={f.id} data-feature-id={f.id} data-nav-id={f.id} data-nav-focused={navFocusedId === f.id ? 'true' : undefined}>
       <FeatureCard
         feature={f}
+        openFindingsCount={openFindingsByFeature.get(f.id) ?? 0}
         isExpanded={!collapsedIds.has(f.id)}
         isNavFocused={navFocusedId === f.id}
         expandSnippetsTick={expandSnippetsTick}

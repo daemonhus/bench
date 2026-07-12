@@ -628,7 +628,7 @@ export const FindingCard: React.FC<FindingCardProps> = ({
             </a>
           ))}
           {linkedFeatures.map((feat) => {
-            const fKindColor = KIND_COLORS[feat.kind] ?? '#6b7280';
+            const fKindColor = KIND_COLORS[feat.kind] ?? 'var(--kind-externality)';
             const isInterface = feat.kind === 'interface';
             const method = feat.operation?.toUpperCase();
             const filename = feat.anchor.fileId?.split('/').pop();

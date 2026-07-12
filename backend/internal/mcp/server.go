@@ -46,18 +46,33 @@ type rpcError struct {
 
 // Handler serves MCP JSON-RPC requests at POST /mcp.
 type Handler struct {
-	tools map[string]Tool
+	tools          map[string]Tool
+	db             *db.DB
+	requireProfile bool
+}
+
+// HandlerOption customises NewHandler behaviour.
+type HandlerOption func(*Handler)
+
+// WithRequireProfile controls the service-profile write gate (default true):
+// tools that record review judgment error until the profile is configured.
+func WithRequireProfile(v bool) HandlerOption {
+	return func(h *Handler) { h.requireProfile = v }
 }
 
 // NewHandler creates an MCP handler wired to the given dependencies.
-func NewHandler(database *db.DB, repo *git.Repo, reconciler *reconcile.Reconciler, broker *events.Broker) http.Handler {
+func NewHandler(database *db.DB, repo *git.Repo, reconciler *reconcile.Reconciler, broker *events.Broker, opts ...HandlerOption) http.Handler {
 	deps := &toolDeps{
 		db:         database,
 		repo:       repo,
 		reconciler: reconciler,
 		broker:     broker,
 	}
-	return &Handler{tools: registerAllTools(deps)}
+	h := &Handler{tools: registerAllTools(deps), db: database, requireProfile: true}
+	for _, opt := range opts {
+		opt(h)
+	}
+	return h
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -152,6 +167,21 @@ func (h *Handler) handleToolsCall(ctx context.Context, w http.ResponseWriter, re
 			"content": []map[string]string{{"type": "text", "text": err.Error()}},
 		})
 		return
+	}
+
+	if h.requireProfile && tool.RequiresProfile {
+		configured, err := h.db.ProfileConfigured()
+		if err != nil {
+			writeRPCError(w, req.ID, errInternal, err.Error())
+			return
+		}
+		if !configured {
+			writeRPCResult(w, req.ID, map[string]any{
+				"isError": true,
+				"content": []map[string]string{{"type": "text", "text": profileGateMessage}},
+			})
+			return
+		}
 	}
 
 	args := coerceParams(tool.InputSchema, params.Arguments)

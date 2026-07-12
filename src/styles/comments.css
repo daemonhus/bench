@@ -14,11 +14,12 @@
 .comment-type-toggle-btn {
   background: none;
   border: 1px solid var(--border-default);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   cursor: pointer;
-  font-size: 14px;
-  padding: 6px 10px;
-  line-height: 1;
+  font-size: var(--font-size-small);
+  font-weight: 500;
+  padding: 5px 12px;
+  line-height: 1.4;
   color: var(--text-muted);
   transition: color var(--transition-base), background var(--transition-base), border-color var(--transition-base);
 }
@@ -37,7 +38,7 @@
 .comment-type-badge {
   display: inline-block;
   padding: 1px 5px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   font-size: 10px;
   font-weight: 600;
   margin-left: 6px;
@@ -103,11 +104,12 @@
 }
 
 .comment-btn {
-  padding: 6px 12px;
-  border-radius: 6px;
+  padding: 6px 14px;
+  border-radius: var(--radius-base);
   border: 1px solid var(--border-default);
   cursor: pointer;
-  font-size: var(--font-size-ui);
+  font-size: var(--font-size-control);
+  font-weight: 500;
   font-family: var(--font-sans);
 }
 
@@ -121,13 +123,13 @@
 }
 
 .comment-btn-submit {
-  background: var(--btn-success);
+  background: var(--accent-blue);
   color: #fff;
-  border-color: rgba(240, 246, 252, 0.1);
+  border-color: var(--accent-blue);
 }
 
 .comment-btn-submit:hover {
-  background: var(--btn-success-hover);
+  background: color-mix(in srgb, var(--accent-blue) 88%, white);
 }
 
 .comment-btn-submit:disabled {

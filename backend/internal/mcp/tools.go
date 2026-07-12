@@ -20,6 +20,10 @@ type Tool struct {
 	Description string
 	InputSchema json.RawMessage
 	Handler     func(ctx context.Context, params json.RawMessage) (string, error)
+	// RequiresProfile marks tools that record review judgment: the dispatcher
+	// rejects them until the service profile is configured. Assigned centrally
+	// in registerAllTools by name pattern.
+	RequiresProfile bool
 }
 
 type toolDeps struct {
@@ -173,8 +177,10 @@ func registerAllTools(deps *toolDeps) map[string]Tool {
 		registerBaselineTools(deps),
 		registerFeatureTools(deps),
 		registerRefTools(deps),
+		registerProfileTools(deps),
 	} {
 		for _, t := range list {
+			t.RequiresProfile = requiresProfile(t.Name)
 			tools[t.Name] = t
 		}
 	}

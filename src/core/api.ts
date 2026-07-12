@@ -1,4 +1,4 @@
-import type { Finding, Comment, FindingWithPosition, CommentWithPosition, CommitInfo, FileEntry, BranchInfo, GraphCommit, ReconciledHead, JobSnapshot, ReconcileFileStatus, AnnotationPosition, PaginatedResponse, GrepMatch, Baseline, BaselineDelta, Feature, FeatureWithPosition, FeatureKind, FeatureStatus, Ref } from './types';
+import type { Finding, Comment, FindingWithPosition, CommentWithPosition, CommitInfo, FileEntry, BranchInfo, GraphCommit, ReconciledHead, JobSnapshot, ReconcileFileStatus, AnnotationPosition, PaginatedResponse, GrepMatch, Baseline, BaselineDelta, Feature, FeatureWithPosition, FeatureKind, FeatureStatus, Ref, ServiceProfile } from './types';
 
 interface DiffResult {
   raw: string;
@@ -234,6 +234,19 @@ export const reconcileApi = {
   },
   history(type: 'finding' | 'comment', id: string): Promise<{ id: string; type: string; positions: AnnotationPosition[] }> {
     return fetchJSON(`/api/annotations/${type}/${encodeURIComponent(id)}/history`);
+  },
+};
+
+export const profileApi = {
+  get(): Promise<ServiceProfile> {
+    return fetchJSON('/api/profile');
+  },
+  update(patch: Partial<ServiceProfile>): Promise<ServiceProfile> {
+    return fetchJSON('/api/profile', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    });
   },
 };
 

@@ -25,6 +25,7 @@ import (
 	"bench/internal/api"
 	"bench/internal/db"
 	"bench/internal/git"
+	"bench/internal/model"
 )
 
 // ---------------------------------------------------------------------------
@@ -446,6 +447,13 @@ func TestNormalizeBatchItem_CamelCaseAliases(t *testing.T) {
 
 func setupIntegrationServer(t *testing.T) (*httptest.Server, string) {
 	t.Helper()
+	return setupIntegrationServerWithProfile(t, true)
+}
+
+// setupIntegrationServerWithProfile optionally leaves the service profile
+// unconfigured so gate behaviour can be exercised.
+func setupIntegrationServerWithProfile(t *testing.T, configureProfile bool) (*httptest.Server, string) {
+	t.Helper()
 	dir := t.TempDir()
 
 	for _, args := range [][]string{
@@ -476,6 +484,13 @@ func setupIntegrationServer(t *testing.T) (*httptest.Server, string) {
 	t.Cleanup(func() { database.Close() })
 
 	repo := git.NewRepo(dir)
+	if configureProfile {
+		// Configure the profile so the write gate (on by default) passes;
+		// gate behaviour is covered in TestCLIIntegration_Profile_WriteGate.
+		if err := database.PutServiceProfile(model.ServiceProfile{}); err != nil {
+			t.Fatalf("configure profile: %v", err)
+		}
+	}
 	router := api.NewRouter(repo, database, nil)
 	srv := httptest.NewServer(router)
 	t.Cleanup(srv.Close)

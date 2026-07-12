@@ -1,22 +1,15 @@
 import React, { useState } from 'react';
 import { Pie } from '@visx/shape';
-import type { Severity, FindingStatus } from '../core/types';
+import type { Finding, Severity, FindingStatus } from '../core/types';
+import { FindingMiniCard, useHoverCard } from './mini-cards';
+import { categoryMeta, isOpenFinding, SEVERITY_RANK } from '../core/finding-categories';
 
 // ── Colours ───────────────────────────────────────────────────────────────────
 
-const CATEGORY_COLORS: Record<string, string> = {
-  auth: '#dc2626', authz: '#ea580c', session: '#f97316',
-  injection: '#b91c1c', ssrf: '#e11d48', crypto: '#7c3aed',
-  'data-exposure': '#2563eb', 'input-validation': '#0891b2', 'path-traversal': '#0d9488',
-  deserialization: '#059669', 'race-condition': '#ca8a04', config: '#d97706',
-  'error-handling': '#64748b', logging: '#8b5cf6', 'business-logic': '#6366f1',
-  dependencies: '#78716c',
-};
-
 const SOURCE_COLORS: Record<string, string> = {
-  pentest: '#818cf8', tool: '#34d399', manual: '#f0883e',
+  pentest: 'var(--accent-blue)', tool: 'var(--accent-green)', manual: '#f0883e',
 };
-const SOURCE_PALETTE = ['#818cf8', '#34d399', '#f0883e', '#bc8cff', '#0891b2', '#e11d48'];
+const SOURCE_PALETTE = ['var(--accent-blue)', 'var(--accent-green)', '#f0883e', 'var(--accent-purple)', 'var(--category-input-validation)', 'var(--category-ssrf)'];
 
 // ── Tooltip ───────────────────────────────────────────────────────────────────
 
@@ -35,11 +28,11 @@ function ChartTooltip({ tip }: { tip: TooltipState }) {
 // ── 1. Severity Distribution — horizontal bars ────────────────────────────────
 
 const SEV_GROUPS = [
-  { keys: ['critical'] as Severity[], label: 'Critical', color: '#dc2626' },
-  { keys: ['high'] as Severity[], label: 'High', color: '#ea580c' },
-  { keys: ['medium'] as Severity[], label: 'Medium', color: '#ca8a04' },
-  { keys: ['low'] as Severity[], label: 'Low', color: '#2563eb' },
-  { keys: ['info'] as Severity[], label: 'Info', color: '#6b7280' },
+  { keys: ['critical'] as Severity[], label: 'Critical', color: 'var(--severity-critical)' },
+  { keys: ['high'] as Severity[], label: 'High', color: 'var(--severity-high)' },
+  { keys: ['medium'] as Severity[], label: 'Medium', color: 'var(--severity-medium)' },
+  { keys: ['low'] as Severity[], label: 'Low', color: 'var(--severity-low)' },
+  { keys: ['info'] as Severity[], label: 'Info', color: 'var(--severity-info)' },
 ];
 
 function SeverityBars({ totals }: { totals: Record<string, number> }) {
@@ -137,7 +130,7 @@ function SourcePanel({ entries, total }: { entries: LegendEntry[]; total: number
                 ))}
               </Pie>
               <text textAnchor="middle" fill="var(--text-primary)" fontSize={26} fontWeight={800} fontFamily={FONT} dy="-4" letterSpacing="-0.025em">{total}</text>
-              <text textAnchor="middle" fill="#55606f" fontSize={9} fontWeight={700} fontFamily={FONT} dy="14" letterSpacing="0.1em">TOTAL FINDINGS</text>
+              <text textAnchor="middle" fill="var(--text-muted)" fontSize={9} fontWeight={700} fontFamily={FONT} dy="14" letterSpacing="0.1em">TOTAL FINDINGS</text>
             </g>
           </svg>
           {tip && <ChartTooltip tip={tip} />}
@@ -147,41 +140,68 @@ function SourcePanel({ entries, total }: { entries: LegendEntry[]; total: number
   );
 }
 
-// ── 4. Category Heatmap — 2×N tiles ──────────────────────────────────────────
+// ── 4. Category Heatmap — one square per finding, hover mini-card ────────────
 
-const TOP_N = 5;
+function CategoryGrid({ findings }: { findings: Finding[] }) {
+  const { card, containerRef, showCard, cancelClose, scheduleClose } = useHoverCard<Finding>();
 
-function catShort(cat: string): string {
-  const abbrevs: Record<string, string> = {
-    'path-traversal': 'PATH-TRAV', 'data-exposure': 'DATA-EXP',
-    'input-validation': 'INPUT-VAL', 'business-logic': 'BIZ-LOGIC',
-    'error-handling': 'ERR-HAND', 'race-condition': 'RACE-COND',
-  };
-  return (abbrevs[cat] ?? cat.replace(/-/g, ' ')).toUpperCase().slice(0, 9);
-}
+  const byCategory = new Map<string, Finding[]>();
+  for (const f of findings) {
+    const cat = f.category || 'uncategorised';
+    byCategory.set(cat, [...(byCategory.get(cat) ?? []), f]);
+  }
+  if (byCategory.size === 0) return null;
 
-function CategoryGrid({ data }: { data: [string, number][] }) {
-  if (data.length === 0) return null;
-
-  const topData = data.slice(0, TOP_N);
-  const othersCount = data.slice(TOP_N).reduce((s, [, n]) => s + n, 0);
-  const tiles = [
-    ...topData.map(([cat, count]) => ({ cat, count, color: CATEGORY_COLORS[cat] ?? '#6b7280' })),
-    ...(othersCount > 0 ? [{ cat: 'others', count: othersCount, color: '#6b7280' }] : []),
-  ];
+  const ranked = [...byCategory.entries()].sort((a, b) => {
+    const openA = a[1].filter(isOpenFinding).length;
+    const openB = b[1].filter(isOpenFinding).length;
+    return openB - openA || b[1].length - a[1].length;
+  });
 
   return (
     <div className="fmetrics-chart-panel">
       <div className="fmetrics-panel-header">
         <span className="fmetrics-panel-title">Category Heatmap</span>
       </div>
-      <div className="fmetrics-cat-grid">
-        {tiles.map(t => (
-          <div key={t.cat} className="fmetrics-cat-tile" style={{ '--cat-color': t.color } as React.CSSProperties}>
-            <span className="fmetrics-cat-tile-label">{catShort(t.cat)}</span>
-            <span className="fmetrics-cat-tile-count">{t.count}</span>
-          </div>
-        ))}
+      <div className="fmetrics-cat-rows" ref={containerRef}>
+        {ranked.map(([cat, list]) => {
+          // Open findings first (worst severity leading), resolved dimmed after.
+          const sorted = [...list].sort((a, b) => {
+            const openDiff = Number(isOpenFinding(b)) - Number(isOpenFinding(a));
+            if (openDiff !== 0) return openDiff;
+            return (SEVERITY_RANK[a.severity] ?? 5) - (SEVERITY_RANK[b.severity] ?? 5);
+          });
+          return (
+            <div key={cat} className="fmetrics-cat-row">
+              <span className="fmetrics-cat-row-label" title={categoryMeta(cat).desc}>
+                {categoryMeta(cat).label}
+              </span>
+              <span className="ovp-kind-squares">
+                {sorted.map(f => (
+                  <a
+                    key={f.id}
+                    className={`ovp-kind-square${isOpenFinding(f) ? '' : ' ovp-cat-square-resolved'}`}
+                    style={{ background: `var(--severity-${f.severity})` }}
+                    href={`#/findings/${f.id}`}
+                    aria-label={f.title}
+                    onMouseEnter={e => showCard(f, e.currentTarget)}
+                    onMouseLeave={scheduleClose}
+                  />
+                ))}
+              </span>
+              <span className="fmetrics-cat-row-count">{list.length}</span>
+            </div>
+          );
+        })}
+        {card && (
+          <FindingMiniCard
+            finding={card.payload}
+            isOpen={isOpenFinding(card.payload)}
+            style={{ left: card.left, top: card.top }}
+            onMouseEnter={cancelClose}
+            onMouseLeave={scheduleClose}
+          />
+        )}
       </div>
     </div>
   );
@@ -192,13 +212,13 @@ function CategoryGrid({ data }: { data: [string, number][] }) {
 interface FindingsMetricsProps {
   severityTotals: Record<string, number>;
   statusTotals: Record<string, number>;
-  categoryTotals: [string, number][];
+  findings: Finding[];
   sourceTotals: [string, number][];
   total: number;
 }
 
 export const FindingsMetrics: React.FC<FindingsMetricsProps> = ({
-  severityTotals, statusTotals, categoryTotals, sourceTotals, total,
+  severityTotals, statusTotals, findings, sourceTotals, total,
 }) => {
   const srcEntries: LegendEntry[] = sourceTotals.map(([src, count], i) => ({
     label: src, value: count,
@@ -211,7 +231,7 @@ export const FindingsMetrics: React.FC<FindingsMetricsProps> = ({
         <SeverityBars totals={severityTotals} />
         <ResolutionTiles totals={statusTotals} />
         {srcEntries.length > 0 && <SourcePanel entries={srcEntries} total={total} />}
-        {categoryTotals.length > 0 && <CategoryGrid data={categoryTotals} />}
+        {findings.length > 0 && <CategoryGrid findings={findings} />}
       </div>
     </div>
   );

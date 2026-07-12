@@ -1,0 +1,861 @@
+/* ============================================================
+   Project Overview page (ovp-*) — KPI row, findings trend chart,
+   features by kind, repository/reconciliation state.
+   Chart hue validated with the dataviz palette checks:
+   dark #7c86f0 on --bg-secondary, light #4f46e5 on white.
+   ============================================================ */
+
+:root {
+  --chart-series: #7c86f0;
+}
+
+[data-theme='light'] {
+  --chart-series: #4f46e5;
+}
+
+.ovp {
+  flex: 1;
+  overflow-y: auto;
+  background: var(--bg-primary);
+}
+
+/* Full-width, roughly three columns: git | findings | features (wider). */
+.ovp-columns {
+  padding: 20px 24px 60px;
+  display: grid;
+  grid-template-columns: minmax(300px, 1.1fr) minmax(280px, 1fr) minmax(340px, 1.3fr);
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .ovp-columns {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .ovp-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ovp-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.ovp-loading {
+  padding: 48px;
+  color: var(--text-muted);
+  font-size: var(--font-size-ui);
+  text-align: center;
+}
+
+.ovp-empty {
+  color: var(--text-muted);
+  font-size: var(--font-size-small);
+  padding: 6px 0;
+}
+
+.ovp-mono {
+  font-family: var(--font-mono);
+}
+
+/* ----- Stat tiles ----- */
+
+.ovp-stat-row-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+/* Inline stat blocks inside the git panel */
+.ovp-git-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.ovp-stat-inline {
+  min-width: 0;
+}
+
+.ovp-stat {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-muted);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  min-width: 0;
+}
+
+.ovp-stat-label {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.ovp-stat-value {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.ovp-stat-when {
+  font-size: var(--font-size-xs);
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.ovp-stat-sub {
+  margin-top: 6px;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Severity chips under the open-findings stat */
+
+.ovp-severity-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  white-space: normal;
+}
+
+.ovp-severity-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-secondary);
+}
+
+.ovp-severity-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.ovp-severity-chip[data-severity='critical'] .ovp-severity-dot { background: var(--severity-critical); }
+.ovp-severity-chip[data-severity='high'] .ovp-severity-dot { background: var(--severity-high); }
+.ovp-severity-chip[data-severity='medium'] .ovp-severity-dot { background: var(--severity-medium); }
+.ovp-severity-chip[data-severity='low'] .ovp-severity-dot { background: var(--severity-low); }
+.ovp-severity-chip[data-severity='info'] .ovp-severity-dot { background: var(--severity-info); }
+
+/* ----- Panels ----- */
+
+.ovp-panel {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-muted);
+  border-radius: var(--radius-md);
+  padding: 16px 18px;
+  min-width: 0;
+}
+
+.ovp-panel-title {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0 0 14px;
+}
+
+.ovp-panel-title-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: inherit;
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+.ovp-panel-title-icon {
+  opacity: 0.55;
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
+}
+
+.ovp-panel-title-link:hover {
+  color: var(--accent-blue);
+}
+
+.ovp-panel-title-link:hover .ovp-panel-title-icon {
+  opacity: 1;
+  transform: translate(1px, -1px);
+}
+
+.ovp-inline-link {
+  color: var(--accent-blue);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.ovp-subtitle {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0 0 8px;
+}
+
+/* ----- Repository context badges ----- */
+
+/* Project header: repo name + Context link */
+.ovp-project-header {
+  margin-bottom: 12px;
+}
+
+.ovp-project-title {
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  letter-spacing: var(--tracking-snug);
+  color: var(--text-primary);
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ovp-context-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--accent-blue);
+  text-decoration: none;
+}
+
+.ovp-context-link-arrow {
+  display: inline-block;
+  transition: transform var(--transition-fast);
+}
+
+.ovp-context-link:hover .ovp-context-link-arrow {
+  transform: translateX(2px);
+}
+
+/* User-supplied free text, set off as a quote */
+.ovp-ctx-desc {
+  margin: 0 0 12px;
+  padding: 2px 0 2px 12px;
+  border-left: 3px solid color-mix(in srgb, var(--accent-blue) 45%, transparent);
+  font-size: var(--font-size-small);
+  line-height: var(--leading-normal);
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.ovp-ctx-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ovp-ctx-badge {
+  font-size: var(--font-size-xs);
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.ovp-ctx-badge-warn {
+  color: var(--severity-medium);
+  border-color: color-mix(in srgb, var(--severity-medium) 40%, transparent);
+  background: var(--severity-medium-subtle);
+}
+
+.ovp-ctx-badge-danger {
+  color: var(--severity-critical);
+  border-color: color-mix(in srgb, var(--severity-critical) 40%, transparent);
+  background: var(--severity-critical-subtle);
+}
+
+/* ----- Systemic issues (findings by category) ----- */
+
+.ovp-cats {
+  /* Anchors the hover mini-card, which positions in px relative to here */
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ovp-cat-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--font-size-small);
+}
+
+.ovp-cat-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ovp-cat-squares {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.ovp-cat-square-resolved {
+  opacity: 0.3;
+}
+
+/* Category heatmap rows inside the Findings metrics panel */
+.fmetrics-cat-rows {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fmetrics-cat-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.fmetrics-cat-row-label {
+  width: 110px;
+  flex-shrink: 0;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fmetrics-cat-row-count {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+
+.ovp-cat-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.ovp-cat-name {
+  color: var(--text-primary);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ovp-cat-desc {
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ovp-cat-total {
+  margin-left: auto;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+}
+
+/* Colour comes inline from the green→amber→red open-count scale */
+.ovp-cat-open-badge {
+  flex-shrink: 0;
+  min-width: 56px;
+  text-align: center;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ----- Findings-per-week column chart ----- */
+
+.ovp-chart-plot {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px; /* the surface gap between adjacent bars */
+  height: 132px;
+  padding-top: 16px; /* headroom so the max-value label clears a 100% bar */
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--border-default); /* baseline, hairline */
+}
+
+.ovp-chart-slot {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  position: relative;
+  min-width: 0;
+}
+
+.ovp-chart-slot:hover {
+  background: var(--hover-subtle);
+}
+
+.ovp-chart-bar {
+  width: 100%;
+  max-width: 24px; /* bars stay thin; the slot's leftover is air */
+  background: var(--chart-series);
+  border-radius: 4px 4px 0 0; /* rounded data-end, square at the baseline */
+}
+
+.ovp-chart-value {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.ovp-chart-x {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 5px;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+/* ----- Features by kind ----- */
+
+.ovp-kinds {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.ovp-kind-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ovp-kind-label {
+  width: 96px;
+  flex-shrink: 0;
+  font-size: var(--font-size-small);
+  color: var(--text-secondary);
+}
+
+.ovp-kind-squares {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  align-items: center;
+  min-width: 0;
+}
+
+.ovp-kind-square {
+  position: relative;
+  width: 13px;
+  height: 13px;
+  border-radius: 3px;
+  display: block;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.ovp-kind-square:hover {
+  transform: scale(1.25);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-blue) 45%, transparent);
+}
+
+/* Feature with open findings: alert notch, same as map nodes */
+.ovp-kind-square-alert::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--status-open);
+  border: 1.5px solid var(--bg-secondary);
+}
+
+.ovp-kind-none {
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+}
+
+/* Card anchored to a square: px coordinates, below the square */
+.ovp-map-card.ovp-kind-card {
+  transform: translate(-50%, 0);
+}
+
+.ovp-kind-count {
+  width: 28px;
+  flex-shrink: 0;
+  text-align: right;
+  font-size: var(--font-size-small);
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ----- Repository panel ----- */
+
+.ovp-repo-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ovp-recon-chip {
+  font-size: var(--font-size-xs);
+  padding: 3px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+  margin-bottom: 14px;
+}
+
+.ovp-recon-ok {
+  color: var(--accent-green);
+  background: var(--accent-green-subtle);
+  border: 1px solid color-mix(in srgb, var(--accent-green) 35%, transparent);
+}
+
+.ovp-recon-behind {
+  color: var(--severity-medium);
+  background: var(--severity-medium-subtle);
+  border: 1px solid color-mix(in srgb, var(--severity-medium) 35%, transparent);
+}
+
+/* Embedded history graph — reuses the git-tree-* classes from the Browse
+   panel so the rendering is identical; this wrapper just bounds and scrolls it. */
+.ovp-git-tree {
+  max-height: 420px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  margin: 0 -6px;
+}
+
+.ovp-git-tree .git-tree-row {
+  cursor: default;
+}
+
+.ovp-branches {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ovp-branch-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-size-small);
+  min-width: 0;
+}
+
+.ovp-branch-name {
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ovp-branch-hash {
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  flex-shrink: 0;
+}
+
+.ovp-badge {
+  font-size: 10px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border-default);
+  color: var(--text-muted);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.ovp-badge-current,
+.ovp-badge-head {
+  color: var(--accent-green);
+  border-color: color-mix(in srgb, var(--accent-green) 40%, transparent);
+  background: var(--accent-green-subtle);
+}
+
+.ovp-badge-planned {
+  color: var(--accent-purple);
+  border-color: color-mix(in srgb, var(--accent-purple) 40%, transparent);
+  background: var(--accent-purple-subtle);
+  margin-bottom: 14px;
+}
+
+/* ----- Feature map (HTML nodes over an SVG edge layer) ----- */
+
+.ovp-map {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 400 / 260;
+}
+
+.ovp-map-edges {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.ovp-map-edge {
+  stroke: var(--border-default);
+  stroke-width: 1.5;
+  transition: opacity var(--transition-fast);
+}
+
+/* Hover emphasis: everything not connected to the hovered node recedes */
+.ovp-map-edge-dim {
+  opacity: 0.25;
+}
+
+.ovp-map-node-dim {
+  opacity: 0.3;
+}
+
+.ovp-map-node-el {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-decoration: none;
+  max-width: 120px;
+  transition: opacity var(--transition-fast);
+  touch-action: none; /* nodes are draggable (session repin) */
+}
+
+a.ovp-map-node-el:hover .ovp-map-dot {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-blue) 35%, transparent);
+}
+
+a.ovp-map-node-el:hover .ovp-map-node-label {
+  color: var(--text-primary);
+}
+
+.ovp-map-dot {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--bg-secondary); /* surface ring */
+  flex-shrink: 0;
+  transition: box-shadow var(--transition-fast);
+}
+
+/* Open-findings marker on a node */
+.ovp-map-dot-alert {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--status-open);
+  border: 1.5px solid var(--bg-secondary);
+}
+
+.ovp-map-node-label {
+  font-size: 9px;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ovp-map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-top: 10px;
+}
+
+.ovp-map-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+/* Hover mini-card for map nodes */
+.ovp-map-card {
+  position: absolute;
+  z-index: var(--z-tooltip);
+  width: 300px;
+  padding: 10px 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-popup);
+  /* Interactive: pointer can move into the card and click its links */
+  transform: translate(14px, -50%);
+}
+
+/* Map cards are positioned in measured px (clamped inside the map);
+   only the vertical centring remains a transform. */
+.ovp-map-card-measured {
+  transform: translateY(-50%);
+}
+
+.ovp-map-card-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--font-size-small);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+  /* Wrap prose at spaces; only split unbroken tokens (URLs) when forced */
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+
+.ovp-map-card-title svg {
+  flex-shrink: 0;
+  opacity: 0.5;
+}
+
+.ovp-map-card-title:hover {
+  color: var(--accent-blue);
+}
+
+.ovp-map-card-title:hover svg {
+  opacity: 1;
+}
+
+.ovp-map-card-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.ovp-map-card-link {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  text-decoration: none;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ovp-map-card-link:hover {
+  color: var(--accent-blue);
+  border-color: color-mix(in srgb, var(--accent-blue) 45%, transparent);
+  background: var(--accent-blue-subtle);
+}
+
+.ovp-map-card-link-more {
+  font-size: 10px;
+  padding: 2px 6px;
+  color: var(--text-muted);
+}
+
+.ovp-map-card-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.ovp-map-card-kind {
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  padding: 1px 7px;
+  border-radius: 999px;
+}
+
+.ovp-map-card-desc {
+  margin: 0 0 8px;
+  font-size: var(--font-size-xs);
+  line-height: var(--leading-normal);
+  color: var(--text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.ovp-map-card-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.ovp-map-card-open {
+  color: var(--status-open);
+  font-weight: 500;
+}
+
+a.ovp-map-card-open-link {
+  text-decoration: none;
+}
+
+a.ovp-map-card-open-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.ovp-map-card-file {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}

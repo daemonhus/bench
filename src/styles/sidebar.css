@@ -72,11 +72,11 @@
 
 .reconcile-status {
   position: relative;
-  font-size: 13px;
+  font-size: var(--font-size-body);
   line-height: 1;
   cursor: pointer;
   padding: 2px 4px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 
 .reconcile-status:hover {
@@ -369,7 +369,7 @@
   color: var(--text-muted);
   cursor: pointer;
   padding: 6px;
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -405,7 +405,7 @@
   color: var(--text-muted);
   cursor: pointer;
   padding: 6px;
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -460,7 +460,7 @@
   color: var(--tooltip-text);
   background: var(--tooltip-bg);
   border: 1px solid var(--tooltip-border);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   padding: 5px 10px;
   box-shadow: var(--tooltip-shadow);
   pointer-events: none;
@@ -517,7 +517,7 @@
   color: var(--text-muted);
   cursor: pointer;
   padding: 4px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   display: flex;
   align-items: center;
 }
@@ -565,7 +565,7 @@
   padding: 0 5px;
   background: var(--bg-tertiary);
   border: 1px solid var(--border-default);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--text-primary);
@@ -573,7 +573,7 @@
 }
 
 .shortcuts-desc {
-  font-size: 13px;
+  font-size: var(--font-size-body);
   color: var(--text-muted);
 }
 
@@ -631,7 +631,7 @@
 .panel-drawer-btn {
   background: none;
   border: 1px solid var(--border-default);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   color: var(--text-muted);
   padding: 3px 5px;
   cursor: pointer;

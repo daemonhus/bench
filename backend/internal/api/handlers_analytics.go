@@ -64,12 +64,21 @@ func (h *analyticsHandlers) summary(w http.ResponseWriter, r *http.Request) {
 		totalFindings += row.Count
 	}
 
+	// Embed the service profile so agents entering via the summary absorb
+	// the service context without an extra call. Null when unconfigured.
+	profile, err := serviceProfileIfConfigured(h.db)
+	if err != nil {
+		writeInternalError(w, err)
+		return
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
 		"commit":             commit,
 		"totalFindings":      totalFindings,
 		"bySeverity":         bySeverity,
 		"unresolvedComments": unresolvedComments,
 		"reconciliation":     reconHead,
+		"serviceProfile":     profile,
 	})
 }
 

@@ -61,6 +61,28 @@
   background: color-mix(in srgb, #b45309 4%, var(--bg-surface));
 }
 
+/* Open-findings count on a feature card: status-open is the alert voice;
+   links through to the feature-filtered Findings view */
+.feature-open-findings-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  color: var(--status-open);
+  background: var(--status-open-subtle);
+  border: 1px solid color-mix(in srgb, var(--status-open) 35%, transparent);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.feature-open-findings-link:hover {
+  border-color: var(--status-open);
+  background: color-mix(in srgb, var(--status-open) 22%, transparent);
+}
+
 .feature-header-right {
   margin-left: auto;
 }
@@ -114,7 +136,7 @@
   font-family: var(--font-mono);
   color: #fff;
   padding: 2px 7px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   flex-shrink: 0;
   letter-spacing: 0.03em;
 }
@@ -138,7 +160,7 @@
   font-weight: 700;
   font-family: var(--font-mono);
   padding: 2px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   border: 1px solid var(--border-muted);
   flex-shrink: 0;
   letter-spacing: 0.02em;
@@ -164,7 +186,7 @@
   font-weight: 600;
   color: #fff;
   padding: 2px 7px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   flex-shrink: 0;
   text-transform: capitalize;
   opacity: 0.85;
@@ -201,7 +223,7 @@
   background: var(--bg-tertiary);
   border: 1px solid var(--border-muted);
   padding: 1px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   flex-shrink: 0;
   text-transform: capitalize;
 }
@@ -211,7 +233,7 @@
   font-size: 10px;
   font-weight: 600;
   padding: 1px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   flex-shrink: 0;
   text-transform: capitalize;
   background: var(--bg-tertiary);
@@ -290,7 +312,7 @@
   margin-bottom: 4px;
   background: var(--bg-primary);
   border: 1px solid var(--border-muted);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   overflow: hidden;
   font-family: var(--font-mono);
   font-size: var(--font-size-code);
@@ -396,7 +418,7 @@
   padding: 10px 16px;
   background: transparent;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   color: var(--text-muted);
   font-size: var(--font-size-small);
   font-family: var(--font-sans);
@@ -440,7 +462,7 @@
   padding: 4px 10px;
   background: none;
   border: 1px solid var(--border-default);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   color: var(--text-secondary);
   font-size: var(--font-size-small);
   font-family: var(--font-sans);
@@ -491,7 +513,7 @@
   padding: 0 16px;
   background: none;
   border: 1px dashed var(--border-default);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   color: var(--text-muted);
   font-size: var(--font-size-small);
   font-family: var(--font-sans);
@@ -515,7 +537,7 @@
   background: var(--bg-tertiary);
   border: 1px solid var(--border-muted);
   padding: 1px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   flex-shrink: 0;
 }
 
@@ -667,7 +689,7 @@ button.feature-params-heading-toggle:hover {
   padding: 8px;
   background: var(--bg-primary);
   border: 1px solid var(--border-muted);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 
 .feature-params-edit-header {
@@ -969,7 +991,7 @@ button.feature-params-heading-toggle:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: var(--font-size-body);
   color: var(--text-primary);
 }
 
@@ -1181,7 +1203,7 @@ button.feature-params-heading-toggle:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: var(--font-size-body);
   color: var(--text-primary);
 }
 

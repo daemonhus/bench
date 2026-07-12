@@ -77,8 +77,8 @@ func (d *DB) ListFindings(fileID string, limit, offset int) ([]model.Finding, in
 	}
 
 	query := `SELECT id, anchor_file_id, anchor_commit_id, anchor_line_start, anchor_line_end,
-		severity, title, description, cwe, cve, vector, score, status, source, category, created_at, resolved_commit, line_hash, external_id, anchor_updated_at FROM findings` + baseWhere
-	query += ` ORDER BY created_at DESC`
+		severity, title, description, cwe, cve, vector, score, status, source, category, created_at, resolved_commit, resolved_at, line_hash, external_id, anchor_updated_at FROM findings` + baseWhere
+	query += ` ORDER BY created_at DESC, rowid`
 	args := append([]any{}, whereArgs...)
 	if limit > 0 {
 		query += ` LIMIT ? OFFSET ?`
@@ -95,11 +95,11 @@ func (d *DB) ListFindings(fileID string, limit, offset int) ([]model.Finding, in
 	for rows.Next() {
 		var f model.Finding
 		var lineStart, lineEnd sql.NullInt64
-		var resolvedCommit, anchorUpdatedAt sql.NullString
+		var resolvedCommit, resolvedAt, anchorUpdatedAt sql.NullString
 		err := rows.Scan(&f.ID, &f.Anchor.FileID, &f.Anchor.CommitID,
 			&lineStart, &lineEnd,
 			&f.Severity, &f.Title, &f.Description, &f.CWE, &f.CVE, &f.Vector, &f.Score,
-			&f.Status, &f.Source, &f.Category, &f.CreatedAt, &resolvedCommit, &f.LineHash, &f.ExternalID, &anchorUpdatedAt)
+			&f.Status, &f.Source, &f.Category, &f.CreatedAt, &resolvedCommit, &resolvedAt, &f.LineHash, &f.ExternalID, &anchorUpdatedAt)
 		if err != nil {
 			return nil, 0, fmt.Errorf("scan finding: %w", err)
 		}
@@ -111,6 +111,9 @@ func (d *DB) ListFindings(fileID string, limit, offset int) ([]model.Finding, in
 		}
 		if resolvedCommit.Valid {
 			f.ResolvedCommit = &resolvedCommit.String
+		}
+		if resolvedAt.Valid {
+			f.ResolvedAt = &resolvedAt.String
 		}
 		if anchorUpdatedAt.Valid {
 			f.AnchorUpdatedAt = &anchorUpdatedAt.String
@@ -235,6 +238,18 @@ func (d *DB) UpdateFinding(id string, updates map[string]any) (*model.Finding, e
 			args = append(args, v)
 		}
 	}
+	// Fix-time tracking: stamp resolved_at the first time a finding becomes
+	// resolved (status set to closed, or a resolvedCommit recorded — the CLI
+	// resolve path sends only the latter), and clear it on explicit reopen.
+	if st, ok := updates["status"].(string); ok {
+		if st == "closed" {
+			setClauses = append(setClauses, "resolved_at = COALESCE(resolved_at, datetime('now'))")
+		} else {
+			setClauses = append(setClauses, "resolved_at = NULL")
+		}
+	} else if rc, ok := updates["resolvedCommit"].(string); ok && rc != "" {
+		setClauses = append(setClauses, "resolved_at = COALESCE(resolved_at, datetime('now'))")
+	}
 	if len(setClauses) == 0 && !hasFeatureIDs {
 		return nil, fmt.Errorf("no valid fields to update")
 	}
@@ -286,15 +301,15 @@ func (d *DB) GetFinding(id string) (*model.Finding, error) {
 	}
 	var f model.Finding
 	var lineStart, lineEnd sql.NullInt64
-	var resolvedCommit, anchorUpdatedAt sql.NullString
+	var resolvedCommit, resolvedAt, anchorUpdatedAt sql.NullString
 	err = d.conn.QueryRow(
 		`SELECT id, anchor_file_id, anchor_commit_id, anchor_line_start, anchor_line_end,
-			severity, title, description, cwe, cve, vector, score, status, source, category, created_at, resolved_commit, line_hash, external_id, anchor_updated_at
+			severity, title, description, cwe, cve, vector, score, status, source, category, created_at, resolved_commit, resolved_at, line_hash, external_id, anchor_updated_at
 		FROM findings WHERE id = ? AND project_id = ?`, id, d.projectID,
 	).Scan(&f.ID, &f.Anchor.FileID, &f.Anchor.CommitID,
 		&lineStart, &lineEnd,
 		&f.Severity, &f.Title, &f.Description, &f.CWE, &f.CVE, &f.Vector, &f.Score,
-		&f.Status, &f.Source, &f.Category, &f.CreatedAt, &resolvedCommit, &f.LineHash, &f.ExternalID, &anchorUpdatedAt)
+		&f.Status, &f.Source, &f.Category, &f.CreatedAt, &resolvedCommit, &resolvedAt, &f.LineHash, &f.ExternalID, &anchorUpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -306,6 +321,9 @@ func (d *DB) GetFinding(id string) (*model.Finding, error) {
 	}
 	if resolvedCommit.Valid {
 		f.ResolvedCommit = &resolvedCommit.String
+	}
+	if resolvedAt.Valid {
+		f.ResolvedAt = &resolvedAt.String
 	}
 	if anchorUpdatedAt.Valid {
 		f.AnchorUpdatedAt = &anchorUpdatedAt.String
@@ -384,7 +402,7 @@ func (d *DB) BatchResolveFindings(items []struct{ ID, Commit string }) (int, err
 		}
 		defer tx.Rollback()
 
-		stmt, err := tx.Prepare(`UPDATE findings SET resolved_commit = ?, status = 'closed' WHERE id = ? AND project_id = ?`)
+		stmt, err := tx.Prepare(`UPDATE findings SET resolved_commit = ?, status = 'closed', resolved_at = COALESCE(resolved_at, datetime('now')) WHERE id = ? AND project_id = ?`)
 		if err != nil {
 			return 0, fmt.Errorf("prepare: %w", err)
 		}

@@ -112,7 +112,7 @@
   padding: 0;
   background: transparent;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   color: var(--text-muted);
   cursor: pointer;
 }
@@ -183,9 +183,10 @@
   background: transparent;
   color: var(--text-muted);
   border: none;
-  border-radius: 6px;
-  padding: 10px 16px;
+  border-radius: var(--radius-base);
+  padding: 8px 14px;
   font-size: var(--font-size-small);
+  font-weight: 500;
   font-family: var(--font-sans);
   cursor: pointer;
   transition: background var(--transition-fast), color var(--transition-fast);
@@ -194,11 +195,6 @@
   gap: 6px;
   white-space: nowrap;
   user-select: none;
-}
-
-.multi-select-trigger:focus-visible {
-  outline: 1.5px solid color-mix(in srgb, var(--accent-blue) 65%, transparent);
-  outline-offset: -1px;
 }
 
 .multi-select-trigger:hover {
@@ -242,7 +238,7 @@
   align-items: center;
   width: 100%;
   color: var(--text-secondary);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
 }
 
 .multi-select-option:hover,
@@ -268,7 +264,7 @@
   cursor: pointer;
   text-align: left;
   white-space: nowrap;
-  border-radius: 6px;
+  border-radius: var(--radius-base);
 }
 
 .multi-select-only {
@@ -280,7 +276,7 @@
   font-size: 11px;
   font-family: var(--font-sans);
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   opacity: 0;
   transition: opacity var(--transition-fast), background var(--transition-fast);
 }
@@ -319,7 +315,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   flex-shrink: 0;
   opacity: 0;
   pointer-events: none;
@@ -329,11 +325,6 @@
 .activity-filter-clear-visible {
   opacity: 1;
   pointer-events: auto;
-}
-
-.activity-filter-clear:focus-visible {
-  outline: 1.5px solid color-mix(in srgb, var(--accent-blue) 65%, transparent);
-  outline-offset: -1px;
 }
 
 .activity-filter-clear:hover {
@@ -349,7 +340,7 @@
   background: var(--bg-surface);
   color: var(--text-secondary);
   border: 1px solid var(--border-default);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   cursor: pointer;
   font-size: 12px;
 }
@@ -459,7 +450,7 @@
 .overview-comment-card {
   background: none;
   border: 1px solid var(--border-default);
-  border-radius: 0;
+  border-radius: var(--radius-base);
   padding: 16px 18px;
   margin-bottom: 17px;
 }
@@ -577,8 +568,9 @@
 
 .activity-event-label-text {
   font-size: var(--font-size-small);
-  font-weight: 600;
-  color: var(--text-secondary);
+  font-weight: 400;
+  color: var(--text-muted);
+  letter-spacing: var(--tracking-wide);
 }
 
 .activity-event-label-actor {
@@ -599,6 +591,7 @@
   margin-top: 10px;
   border: 1px solid var(--border-default);
   border-left: 3px solid var(--card-severity, var(--severity-high));
+  border-radius: var(--radius-xs);
   background: var(--bg-tertiary);
   padding: 15px;
   cursor: pointer;
@@ -665,6 +658,7 @@
   margin-top: 10px;
   border: 1px solid var(--border-default);
   border-left: 3px solid var(--accent-blue);
+  border-radius: var(--radius-xs);
   background: var(--bg-tertiary);
   padding: 10px 12px;
   cursor: pointer;
@@ -685,6 +679,7 @@
 
 .activity-feature-ref-kind {
   font-size: var(--font-size-small);
+  font-family: var(--font-mono);
   color: var(--text-muted);
   flex-shrink: 0;
 }
@@ -704,7 +699,7 @@
   background: var(--bg-tertiary);
   border: 1px solid var(--border-default);
   border-left: 3px solid var(--accent-purple);
-  border-radius: 0;
+  border-radius: var(--radius-base);
   padding: 16px 18px;
   margin-bottom: 17px;
   cursor: pointer;
@@ -780,7 +775,7 @@
   background: var(--accent-purple-subtle);
   color: var(--accent-purple);
   padding: 1px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 600;
@@ -790,7 +785,7 @@
 /* ----- Commit Groups (collapsible non-merge runs in delta) ----- */
 .overview-commit-group {
   border: 1px solid var(--border-default);
-  border-radius: 0;
+  border-radius: var(--radius-base);
   margin-bottom: 17px;
   overflow: hidden;
 }
@@ -943,7 +938,7 @@
   min-width: 160px;
   background: var(--bg-tertiary);
   border: 1px solid var(--border-default);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   padding: 12px;
   display: flex;
   flex-direction: column;
@@ -1050,7 +1045,7 @@
   gap: 6px;
   background: var(--bg-secondary);
   border: 1px solid var(--border-default);
-  border-radius: 6px;
+  border-radius: var(--radius-base);
   padding: 5px 8px;
   font-size: var(--font-size-small);
   color: var(--text-secondary);

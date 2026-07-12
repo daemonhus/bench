@@ -482,6 +482,26 @@ var commands = []cmdDef{
 			{Name: "type", Param: "type", Desc: "Annotation type [finding|comment]", Required: true},
 			{Name: "id", Param: "id", Desc: "Annotation ID", Required: true},
 		}},
+
+	// ── profile ─────────────────────────────────────────────────────────
+	{Cat: "profile", Name: "get", Desc: "Get the service profile — reviewer-configured meta-attributes of the service under review (exposure, compute, data sensitivity, criticality, tenancy, lifecycle, edge protections, compliance, auth model, consumers). Empty fields mean 'not configured', not 'confirmed absent'.",
+		EP: endpoint{"GET", "/api/profile"}},
+	{Cat: "profile", Name: "set", Desc: "Update the service profile (partial update — only provided flags are sent). List flags replace the full list. 'none' is an explicit claim (control confirmed absent) and cannot be combined with other values. Findings/comments/features/baselines writes are rejected with 412 until the profile has been set at least once.",
+		EP: endpoint{"PATCH", "/api/profile"},
+		Flags: []flagDef{
+			{Name: "description", Param: "description", Desc: "What the service does"},
+			{Name: "owner", Param: "owner", Desc: "Team or person accountable"},
+			{Name: "externally-facing", Param: "externallyFacing", Desc: "Internet reachability [full|partial|none]"},
+			{Name: "compute", Param: "compute", Desc: "Runtime environment [vps|kubernetes|serverless|bare-metal]"},
+			{Name: "data-sensitivity", Param: "dataSensitivity", Desc: "Declared highest data classification [public|internal|pii|payment|phi|credentials]"},
+			{Name: "criticality", Param: "criticality", Desc: "Business impact if compromised or down [low|medium|high|critical]"},
+			{Name: "tenancy", Param: "tenancy", Desc: "Tenancy model [single-tenant|multi-tenant]"},
+			{Name: "lifecycle", Param: "lifecycle", Desc: "Lifecycle stage [active|maintenance|deprecated|decommissioning]"},
+			{Name: "edge-protections", Param: "edgeProtections", Desc: "Comma-separated [waf|api-gateway|rate-limiting|ddos-protection|none]", Type: "list"},
+			{Name: "compliance-scope", Param: "complianceScope", Desc: "Comma-separated [pci-dss|hipaa|soc2|gdpr|none]", Type: "list"},
+			{Name: "authentication-model", Param: "authenticationModel", Desc: "Comma-separated [none|api-key|oauth-oidc|mtls|session|gateway-terminated]", Type: "list"},
+			{Name: "consumer-type", Param: "consumerType", Desc: "Comma-separated [first-party-frontend|internal-services|third-party-partners|general-public]", Type: "list"},
+		}},
 }
 
 // ---------------------------------------------------------------------------

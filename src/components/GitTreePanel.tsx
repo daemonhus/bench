@@ -1,67 +1,7 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { gitApi } from '../core/api';
-import { computeGraphLayout } from '../core/graph-layout';
+import { computeGraphLayout, LANE_WIDTH, ROW_HEIGHT, NODE_RADIUS, laneColor, laneX, rowY, edgePath } from '../core/graph-layout';
 import type { GraphCommit, ReconciledHead } from '../core/types';
-
-const LANE_WIDTH = 20;
-const ROW_HEIGHT = 32;
-const NODE_RADIUS = 5;
-
-const LANE_COLORS = [
-  '#58a6ff', // blue
-  '#3fb950', // green
-  '#bc8cff', // purple
-  '#f0883e', // orange
-  '#f778ba', // pink
-  '#79c0ff', // light blue
-  '#d29922', // gold
-  '#ff7b72', // red
-];
-
-function laneColor(lane: number): string {
-  return LANE_COLORS[lane % LANE_COLORS.length];
-}
-
-function laneX(lane: number): number {
-  return lane * LANE_WIDTH + LANE_WIDTH / 2;
-}
-
-function rowY(row: number): number {
-  return row * ROW_HEIGHT + ROW_HEIGHT / 2;
-}
-
-function edgePath(
-  fromRow: number,
-  fromLane: number,
-  toRow: number,
-  toLane: number,
-): string {
-  const x1 = laneX(fromLane);
-  const y1 = rowY(fromRow) + NODE_RADIUS;
-  const x2 = laneX(toLane);
-  const y2 = rowY(toRow) - NODE_RADIUS;
-
-  // Same lane: straight line
-  if (fromLane === toLane) {
-    return `M ${x1} ${y1} L ${x2} ${y2}`;
-  }
-
-  // Cross-lane: quick S-curve near the source, then straight down to target
-  const dy = y2 - y1;
-  const curveH = Math.min(ROW_HEIGHT * 1.2, dy);
-
-  if (dy <= ROW_HEIGHT * 1.2) {
-    // Short span — single smooth S-curve
-    return `M ${x1} ${y1} C ${x1} ${y1 + dy * 0.4}, ${x2} ${y2 - dy * 0.4}, ${x2} ${y2}`;
-  }
-
-  // Long span — S-curve transition near source, then straight to target
-  return (
-    `M ${x1} ${y1} ` +
-    `C ${x1} ${y1 + curveH * 0.5}, ${x2} ${y1 + curveH * 0.5}, ${x2} ${y1 + curveH} ` +
-    `L ${x2} ${y2}`
-  );
-}
 
 interface GitTreePanelProps {
   isOpen: boolean;

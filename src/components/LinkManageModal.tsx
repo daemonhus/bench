@@ -68,7 +68,7 @@ function extractMethod(title: string): { method: string; path: string } | null {
 }
 
 function featureBadgeAndTitle(f: Feature) {
-  const kindColor = KIND_COLORS[f.kind] ?? '#6b7280';
+  const kindColor = KIND_COLORS[f.kind] ?? 'var(--kind-externality)';
   if (f.kind === 'interface') {
     const op = f.operation?.toUpperCase();
     const parsed = op ? null : extractMethod(f.title);
@@ -336,7 +336,7 @@ export const LinkManageModal: React.FC<LinkManageModalProps> = ({
                   {pickerItems.map((item, idx) => {
                     const { feat, isLinked } = item;
                     const { badge } = featureBadgeAndTitle(feat);
-                    const kindColor = KIND_COLORS[feat.kind] ?? '#6b7280';
+                    const kindColor = KIND_COLORS[feat.kind] ?? 'var(--kind-externality)';
                     const isSelected = idx === selectedIndex;
                     const desc = isLinked && entityType === 'feature'
                       ? (localLinkedFeatures.find((x) => x.id === feat.id)?.description ?? '')

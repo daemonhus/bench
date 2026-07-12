@@ -2,6 +2,7 @@ package model
 
 import (
 	"net/url"
+	"strconv"
 	"strings"
 )
 
@@ -72,6 +73,7 @@ type Finding struct {
 	Category        string   `json:"category"`
 	CreatedAt       string   `json:"createdAt"`
 	ResolvedCommit  *string  `json:"resolvedCommit,omitempty"`
+	ResolvedAt      *string  `json:"resolvedAt,omitempty"`
 	LineHash        string   `json:"lineHash,omitempty"`
 	AnchorUpdatedAt *string  `json:"anchorUpdatedAt,omitempty"`
 	CommentCount    int      `json:"commentCount,omitempty"`
@@ -328,4 +330,136 @@ type BaselineDelta struct {
 	CurrentStats      ProjectStats `json:"currentStats"`
 	NewFeatures       []Feature    `json:"newFeatures"`
 	RemovedFeatureIDs []string     `json:"removedFeatureIds"`
+	// ServiceProfile is embedded so agents entering via delta review absorb
+	// the service context without an extra call. Null when unconfigured.
+	ServiceProfile *ServiceProfile `json:"serviceProfile"`
+}
+
+// ServiceProfile is the singleton set of reviewer-configured meta-attributes
+// describing the service under review. Empty fields mean "not configured" —
+// never treat absence as confirmation that a control is missing. In the
+// multi-select fields, "none" is an explicit positive claim (control confirmed
+// absent) and cannot be combined with other values.
+type ServiceProfile struct {
+	Description         string   `json:"description"`
+	Owner               string   `json:"owner"`
+	ExternallyFacing    string   `json:"externallyFacing"`
+	Compute             string   `json:"compute"`
+	DataSensitivity     string   `json:"dataSensitivity"`
+	Criticality         string   `json:"criticality"`
+	Tenancy             string   `json:"tenancy"`
+	Lifecycle           string   `json:"lifecycle"`
+	EdgeProtections     []string `json:"edgeProtections"`
+	ComplianceScope     []string `json:"complianceScope"`
+	AuthenticationModel []string `json:"authenticationModel"`
+	ConsumerType        []string `json:"consumerType"`
+	UpdatedAt           string   `json:"updatedAt,omitempty"`
+}
+
+// Valid values for each ServiceProfile enum field. Single source of truth for
+// API, MCP, and CLI validation; the SQLite CHECK constraints mirror the
+// single-select sets.
+var (
+	ProfileExternallyFacingValues = []string{"full", "partial", "none"}
+	ProfileComputeValues          = []string{"vps", "kubernetes", "serverless", "bare-metal"}
+	ProfileDataSensitivityValues  = []string{"public", "internal", "pii", "payment", "phi", "credentials"}
+	ProfileCriticalityValues      = []string{"low", "medium", "high", "critical"}
+	ProfileTenancyValues          = []string{"single-tenant", "multi-tenant"}
+	ProfileLifecycleValues        = []string{"active", "maintenance", "deprecated", "decommissioning"}
+
+	ProfileEdgeProtectionValues      = []string{"waf", "api-gateway", "rate-limiting", "ddos-protection", "none"}
+	ProfileComplianceScopeValues     = []string{"pci-dss", "hipaa", "soc2", "gdpr", "none"}
+	ProfileAuthenticationModelValues = []string{"none", "api-key", "oauth-oidc", "mtls", "session", "gateway-terminated"}
+	ProfileConsumerTypeValues        = []string{"first-party-frontend", "internal-services", "third-party-partners", "general-public"}
+)
+
+// Normalize ensures multi-select fields serialise as [] rather than null.
+func (p *ServiceProfile) Normalize() {
+	if p.EdgeProtections == nil {
+		p.EdgeProtections = []string{}
+	}
+	if p.ComplianceScope == nil {
+		p.ComplianceScope = []string{}
+	}
+	if p.AuthenticationModel == nil {
+		p.AuthenticationModel = []string{}
+	}
+	if p.ConsumerType == nil {
+		p.ConsumerType = []string{}
+	}
+}
+
+// Validate checks every enum field against its valid-value set. Empty
+// single-selects and empty arrays are valid ("not configured"). Field names
+// in errors use the JSON names.
+func (p *ServiceProfile) Validate() error {
+	singles := []struct {
+		field, value string
+		valid        []string
+	}{
+		{"externallyFacing", p.ExternallyFacing, ProfileExternallyFacingValues},
+		{"compute", p.Compute, ProfileComputeValues},
+		{"dataSensitivity", p.DataSensitivity, ProfileDataSensitivityValues},
+		{"criticality", p.Criticality, ProfileCriticalityValues},
+		{"tenancy", p.Tenancy, ProfileTenancyValues},
+		{"lifecycle", p.Lifecycle, ProfileLifecycleValues},
+	}
+	for _, s := range singles {
+		if s.value == "" {
+			continue
+		}
+		if !containsString(s.valid, s.value) {
+			return &ProfileValidationError{Field: s.field, Value: s.value, Valid: s.valid}
+		}
+	}
+
+	multis := []struct {
+		field  string
+		values []string
+		valid  []string
+	}{
+		{"edgeProtections", p.EdgeProtections, ProfileEdgeProtectionValues},
+		{"complianceScope", p.ComplianceScope, ProfileComplianceScopeValues},
+		{"authenticationModel", p.AuthenticationModel, ProfileAuthenticationModelValues},
+		{"consumerType", p.ConsumerType, ProfileConsumerTypeValues},
+	}
+	for _, m := range multis {
+		hasNone := false
+		for _, v := range m.values {
+			if !containsString(m.valid, v) {
+				return &ProfileValidationError{Field: m.field, Value: v, Valid: m.valid}
+			}
+			if v == "none" {
+				hasNone = true
+			}
+		}
+		if hasNone && len(m.values) > 1 {
+			return &ProfileValidationError{Field: m.field, Value: "none", Valid: m.valid, NoneMixed: true}
+		}
+	}
+	return nil
+}
+
+// ProfileValidationError describes an invalid ServiceProfile field value.
+type ProfileValidationError struct {
+	Field     string
+	Value     string
+	Valid     []string
+	NoneMixed bool
+}
+
+func (e *ProfileValidationError) Error() string {
+	if e.NoneMixed {
+		return "invalid " + e.Field + ": \"none\" is an explicit claim and cannot be combined with other values"
+	}
+	return "invalid " + e.Field + " value " + strconv.Quote(e.Value) + ": valid values are " + strings.Join(e.Valid, ", ")
+}
+
+func containsString(list []string, v string) bool {
+	for _, s := range list {
+		if s == v {
+			return true
+		}
+	}
+	return false
 }

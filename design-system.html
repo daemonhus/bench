@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>Bench Design System — Controls Inventory</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Real app styles: specimens render from the same CSS the app ships,
+     so this page cannot drift from reality. -->
+<link rel="stylesheet" href="src/App.css">
+<style>
+  /* Page chrome only — everything inside a specimen uses app classes. */
+  body { background: var(--bg-primary); color: var(--text-primary); font-family: var(--font-sans); margin: 0; }
+  .ds-page { max-width: 1200px; margin: 0 auto; padding: 32px 40px 120px; }
+  .ds-header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 8px; }
+  .ds-title { font-size: var(--font-size-xl); font-weight: 650; letter-spacing: var(--tracking-tight); margin: 0; }
+  .ds-intro { color: var(--text-secondary); font-size: var(--font-size-small); max-width: 720px; line-height: var(--leading-normal); margin: 0 0 28px; }
+  .ds-section { margin-bottom: 44px; }
+  .ds-section-title { font-size: var(--font-size-md); font-weight: 600; letter-spacing: var(--tracking-snug); margin: 0 0 4px; padding-top: 18px; border-top: 1px solid var(--border-muted); }
+  .ds-usage { color: var(--text-muted); font-size: var(--font-size-xs); line-height: var(--leading-normal); margin: 0 0 14px; max-width: 860px; }
+  .ds-usage code { font-family: var(--font-mono); color: var(--text-secondary); background: var(--bg-tertiary); padding: 1px 5px; border-radius: 3px; font-size: 11px; }
+  .ds-specimens { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; }
+  .ds-specimen { background: var(--bg-secondary); border: 1px solid var(--border-muted); border-radius: var(--radius-md); padding: 16px; min-width: 180px; }
+  .ds-specimen-wide { flex: 1 1 340px; }
+  .ds-specimen-label { display: block; font-size: 10px; font-weight: 600; letter-spacing: var(--tracking-wider); text-transform: uppercase; color: var(--text-muted); margin-bottom: 10px; }
+  .ds-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .ds-col { display: flex; flex-direction: column; gap: 8px; }
+  .ds-note { font-size: 10px; color: var(--text-muted); margin-top: 8px; }
+  .ds-theme-btn { position: fixed; top: 18px; right: 24px; z-index: 50; }
+  /* neutralise app layout expectations inside specimens */
+  .ds-specimen .tab-bar { position: static; border: none; background: transparent; padding: 0; }
+  .ds-specimen .profile-banner { border-radius: var(--radius-base); border: 1px solid color-mix(in srgb, var(--status-open) 25%, transparent); }
+  .ds-specimen .multi-select-dropdown-static { position: static; display: block; margin-top: 6px; width: 220px; }
+</style>
+</head>
+<body>
+<div class="ds-page">
+  <div class="ds-header">
+    <h1 class="ds-title">Bench controls inventory</h1>
+    <button class="baseline-action-btn ds-theme-btn" onclick="
+      const r = document.documentElement;
+      r.dataset.theme = r.dataset.theme === 'dark' ? 'light' : 'dark';
+      this.textContent = r.dataset.theme === 'dark' ? 'Light theme' : 'Dark theme';
+    ">Light theme</button>
+  </div>
+  <p class="ds-intro">
+    Every button and input family currently in the tool, rendered from the live stylesheets
+    (<code>src/App.css</code>), with notes on where each is used. Interactive states
+    (hover, focus) are live: mouse over the specimens. Toggle the theme to compare both modes.
+  </p>
+
+  <!-- ══════════════ 1. Primary action buttons ══════════════ -->
+  <section class="ds-section">
+    <h2 class="ds-section-title">Action buttons — <code>baseline-action-btn</code></h2>
+    <p class="ds-usage">
+      The canonical button family. Used in: <code>SetBaselineModal</code> (submit/cancel),
+      <code>DeltaView</code> ("Set Baseline", delete confirmation), the unconfigured-profile
+      banner ("Open Config"), and this page's theme toggle. Primary = one main action per surface;
+      outline for secondary; danger reserved for deletion.
+    </p>
+    <div class="ds-specimens">
+      <div class="ds-specimen"><span class="ds-specimen-label">Default</span>
+        <button class="baseline-action-btn">Cancel</button></div>
+      <div class="ds-specimen"><span class="ds-specimen-label">Primary</span>
+        <button class="baseline-action-btn baseline-action-btn-primary">Set Baseline</button></div>
+      <div class="ds-specimen"><span class="ds-specimen-label">Outline</span>
+        <button class="baseline-action-btn baseline-action-btn-outline">Skip</button></div>
+      <div class="ds-specimen"><span class="ds-specimen-label">Danger</span>
+        <button class="baseline-action-btn baseline-action-btn-danger">Delete</button></div>
+      <div class="ds-specimen"><span class="ds-specimen-label">Disabled</span>
+        <button class="baseline-action-btn baseline-action-btn-primary" disabled>Saving…</button></div>
+      <div class="ds-specimen"><span class="ds-specimen-label">Banner pill (with arrow)</span>
+        <button class="baseline-action-btn baseline-action-btn-primary profile-banner-link">Open Config <span class="profile-banner-link-arrow">→</span></button></div>
+    </div>
+  </section>
+
+  <!-- ══════════════ 2. Tab bar ══════════════ -->
+  <section class="ds-section">
+    <h2 class="ds-section-title">Tab bar — <code>tab-bar-tab</code>, <code>quick-add-btn</code>, <code>theme-toggle-slider</code></h2>
+    <p class="ds-usage">
+      Top navigation in <code>App.tsx</code>: one tab per view with keyboard-shortcut badge
+      (<code>tab-bar-kbd</code>); quick-add icon buttons for comment/finding/feature; the
+      theme slider on the right.
+    </p>
+    <div class="ds-specimens">
+      <div class="ds-specimen ds-specimen-wide"><span class="ds-specimen-label">Tabs (active + inactive)</span>
+        <div class="tab-bar"><div class="tab-bar-tabs">
+          <button class="tab-bar-tab tab-bar-tab-active">Overview<kbd class="tab-bar-kbd">0</kbd></button>
+          <button class="tab-bar-tab">Browse<kbd class="tab-bar-kbd">1</kbd></button>
+          <button class="tab-bar-tab">Findings<kbd class="tab-bar-kbd">3</kbd></button>
+        </div></div>
+      </div>
+      <div class="ds-specimen"><span class="ds-specimen-label">Quick-add icons</span>
+        <div class="ds-row quick-add-buttons">
+          <button class="quick-add-btn quick-add-comment" data-tooltip="Add comment"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 2h12v9H5l-3 3V2z"/></svg></button>
+          <button class="quick-add-btn quick-add-vuln" data-tooltip="Add finding"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1L1 14h14L8 1z"/><line x1="8" y1="6" x2="8" y2="9"/></svg></button>
+        </div>
+        <div class="ds-note">Hover for the shared <code>data-tooltip</code> treatment.</div>
+      </div>
+      <div class="ds-specimen"><span class="ds-specimen-label">Theme slider</span>
+        <button class="theme-toggle-slider" data-theme-is-dark="true" onclick="this.dataset.themeIsDark = this.dataset.themeIsDark === 'true' ? 'false' : 'true'">
+          <svg class="theme-icon theme-icon-moon" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13.5 10A6 6 0 0 1 6 2.5a6 6 0 1 0 7.5 7.5z"/></svg>
+          <span class="theme-toggle-thumb"></span>
+          <svg class="theme-icon theme-icon-sun" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="3"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2"/></svg>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ 3. Segmented + view-mode ══════════════ -->
+  <section class="ds-section">
+    <h2 class="ds-section-title">Segmented controls — <code>seg-control</code> / <code>view-mode-btn</code></h2>
+    <p class="ds-usage">
+      <code>seg-control</code>/<code>seg-btn</code> (with built-in dash/check glyphs): the
+      activity-kind filter in <code>DeltaView</code>. <code>view-mode-btn</code>: the
+      Browse ⁄ Compare switch in the commit selector (<code>App.tsx</code>).
+      Note: until recently the Config page borrowed <code>seg-btn</code> for its radios —
+      replaced by the choice chips below after the radio/checkbox ambiguity came up.
+    </p>
+    <div class="ds-specimens">
+      <div class="ds-specimen"><span class="ds-specimen-label">seg-control</span>
+        <div class="seg-control">
+          <button class="seg-btn seg-btn-active">Findings</button>
+          <button class="seg-btn">Comments</button>
+          <button class="seg-btn">Git Events</button>
+        </div>
+      </div>
+      <div class="ds-specimen"><span class="ds-specimen-label">view-mode-btn</span>
+        <div class="ds-row">
+          <button class="view-mode-btn view-mode-btn-active">Browse</button>
+          <button class="view-mode-btn">Compare</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ 4. Config choice chips ══════════════ -->
+  <section class="ds-section">
+    <h2 class="ds-section-title">Choice chips — <code>config-choice</code></h2>
+    <p class="ds-usage">
+      The Config page's service-profile form (<code>ConfigView</code>). Shape encodes semantics:
+      pill + ring-and-dot = radio (pick one); squared + tick box = checkbox (pick any).
+      Disabled state appears when the exclusive "None" is selected in a multi-select.
+    </p>
+    <div class="ds-specimens">
+      <div class="ds-specimen ds-specimen-wide"><span class="ds-specimen-label">Radio (single-select)</span>
+        <div class="config-choices config-choices-radio">
+          <button class="config-choice config-choice-radio config-choice-active"><span class="config-choice-ind config-choice-ind-radio"></span>Not set</button>
+          <button class="config-choice config-choice-radio"><span class="config-choice-ind config-choice-ind-radio"></span>PII</button>
+          <button class="config-choice config-choice-radio"><span class="config-choice-ind config-choice-ind-radio"></span>Payment (PCI)</button>
+        </div>
+      </div>
+      <div class="ds-specimen ds-specimen-wide"><span class="ds-specimen-label">Checkbox (multi-select) + disabled</span>
+        <div class="config-choices config-choices-check">
+          <label class="config-choice config-choice-check config-choice-active"><span class="config-choice-ind config-choice-ind-check"></span>WAF</label>
+          <label class="config-choice config-choice-check"><span class="config-choice-ind config-choice-ind-check"></span>Rate Limited</label>
+          <label class="config-choice config-choice-check config-choice-disabled"><span class="config-choice-ind config-choice-ind-check"></span>API Gateway</label>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ 5. Canonical form inputs ══════════════ -->
+  <section class="ds-section">
+    <h2 class="ds-section-title">Form inputs — <code>finding-edit-*</code> family</h2>
+    <p class="ds-usage">
+      The canonical input geometry (8px 12px, <code>--radius-base</code>, blue focus ring) after the
+      form-unification pass (<code>PLAN-form-unification.md</code>). Used in: <code>FindingCard</code>
+      and <code>FeatureCard</code> edit forms, <code>FeaturesView</code>, <code>ConfigView</code>
+      (Description/Owner), and Sidebar drafts (as <code>finding-input</code>, themed by draft card).
+      <code>-sm</code> is the monospace variant for line numbers and hashes.
+    </p>
+    <div class="ds-specimens">
+      <div class="ds-specimen ds-specimen-wide"><span class="ds-specimen-label">Text / select / textarea</span>
+        <div class="ds-col">
+          <input class="finding-edit-input" value="SQL injection in user lookup" />
+          <input class="finding-edit-input" placeholder="Placeholder text" />
+          <select class="finding-edit-select"><option>high</option><option>medium</option></select>
+          <textarea class="finding-edit-textarea" rows="2">User input concatenated into the query string without parameterisation.</textarea>
+        </div>
+      </div>
+      <div class="ds-specimen"><span class="ds-specimen-label">Small mono (-sm)</span>
+        <div class="ds-col">
+          <input class="finding-edit-input-sm" value="6d6acc0" style="width:110px" />
+          <input class="finding-edit-input-sm" value="142" style="width:64px" />
+        </div>
+      </div>
+      <div class="ds-specimen"><span class="ds-specimen-label">Comment textarea</span>
+        <textarea class="comment-textarea" rows="2" placeholder="Leave a comment…"></textarea>
+        <div class="ds-note">Used in <code>CommentEditor</code>, Sidebar comment forms.</div>
+      </div>
+    </div>
+    <div class="ds-specimens" style="margin-top:14px">
+      <div class="ds-specimen ds-specimen-wide"><span class="ds-specimen-label">Draft-card frames (finding = orange, feature = purple, comment = blue)</span>
+        <div class="ds-row" style="align-items:stretch">
+          <div class="finding-card-new" style="padding:12px;border-radius:var(--radius-base);flex:1">
+            <input class="finding-edit-input" placeholder="New finding title…" />
+          </div>
+          <div class="feature-card-new" style="padding:12px;border-radius:var(--radius-base);flex:1">
+            <input class="finding-edit-input" placeholder="New feature title…" />
+          </div>
+        </div>
+        <div class="ds-note">Dashed frame = unsaved draft; the left spine names the entity. Inputs inside stay canonical (neutral border, blue focus).</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ 6. Anchor + tags ══════════════ -->
+  <section class="ds-section">
+    <h2 class="ds-section-title">Anchor field &amp; tag chips — <code>anchor-field-*</code>, <code>tag-input-*</code></h2>
+    <p class="ds-usage">
+      <code>AnchorField</code>: file path + line range in one row, used by every annotation edit form.
+      <code>TagInput</code>: chip editor with autocomplete, used by <code>FeatureCard</code> and the
+      Sidebar new-feature form.
+    </p>
+    <div class="ds-specimens">
+      <div class="ds-specimen ds-specimen-wide"><span class="ds-specimen-label">Anchor row</span>
+        <div class="anchor-field-row" style="display:flex;gap:6px;align-items:center">
+          <input class="anchor-field-file" style="flex:1" value="internal/cmd/webhook_github.go" />
+          <input class="anchor-field-line" style="width:64px;text-align:right" value="142" />
+          <span style="color:var(--text-muted)">–</span>
+          <input class="anchor-field-line" style="width:64px;text-align:right" value="167" />
+        </div>
+      </div>
+      <div class="ds-specimen ds-specimen-wide"><span class="ds-specimen-label">Tag chips</span>
+        <div class="tag-input-chip-row" style="display:flex;flex-wrap:wrap;gap:4px;align-items:center">
+          <span class="tag-input-chip">http<button class="tag-input-chip-remove">×</button></span>
+          <span class="tag-input-chip">webhooks<button class="tag-input-chip-remove">×</button></span>
+          <input class="tag-input-field" placeholder="Add tag…" style="flex:1;min-width:80px" />
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ 7. Filter dropdowns + search ══════════════ -->
+  <section class="ds-section">
+    <h2 class="ds-section-title">Filters &amp; search — <code>multi-select-*</code>, <code>search-box</code>, <code>in-file-search</code></h2>
+    <p class="ds-usage">
+      <code>MultiSelectDropdown</code>: severity/source/kind filters on the Findings and Features
+      pages. Search inputs: <code>SearchBox</code> (Features page), the annotation search
+      (<code>OverviewView</code>-era, now Delta), and the in-file search bar in Browse
+      (<code>InFileSearchBar</code>, with nav/counter/close).
+    </p>
+    <div class="ds-specimens">
+      <div class="ds-specimen"><span class="ds-specimen-label">Multi-select (open)</span>
+        <div class="multi-select">
+          <div class="multi-select-pill">
+            <button class="multi-select-trigger multi-select-trigger-active">Severity <span class="multi-select-chevron">▾</span></button>
+          </div>
+          <div class="multi-select-dropdown multi-select-dropdown-static">
+            <div class="multi-select-option multi-select-option-active"><button class="multi-select-option-toggle"><span class="multi-select-check"></span>critical</button></div>
+            <div class="multi-select-option multi-select-option-active"><button class="multi-select-option-toggle"><span class="multi-select-check"></span>high</button></div>
+            <div class="multi-select-option"><button class="multi-select-option-toggle"><span class="multi-select-check"></span>medium</button></div>
+          </div>
+        </div>
+      </div>
+      <div class="ds-specimen"><span class="ds-specimen-label">Annotation search</span>
+        <div class="annotation-search">
+          <input class="annotation-search-input" placeholder="Search annotations… (/ to focus)" />
+        </div>
+      </div>
+      <div class="ds-specimen ds-specimen-wide"><span class="ds-specimen-label">In-file search bar</span>
+        <div class="in-file-search-bar" style="position:static">
+          <input class="in-file-search-input" value="webhook" />
+          <span class="in-file-search-counter">2 / 14</span>
+          <button class="in-file-search-nav-btn">↑</button>
+          <button class="in-file-search-nav-btn">↓</button>
+          <button class="in-file-search-close">×</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ 8. Inline card toggles ══════════════ -->
+  <section class="ds-section">
+    <h2 class="ds-section-title">Severity input — radio where spacious, select where compact</h2>
+    <p class="ds-usage">
+      Two deliberate forms for the same field. <strong>Severity radio</strong> (pill chips,
+      severity-coloured, pick-one): the default wherever there is room — <code>FindingCard</code>
+      edit forms and the quick-add modal. <strong>Severity select</strong>: the compact fallback,
+      kept only in the Browse side-panel draft where a five-chip row will not fit. Do not
+      introduce new severity dropdowns in spacious layouts.
+    </p>
+    <div class="ds-specimens">
+      <div class="ds-specimen ds-specimen-wide"><span class="ds-specimen-label">Severity radio (spacious)</span>
+        <div class="ds-row" role="radiogroup">
+          <button class="finding-severity-toggle-btn severity-critical">critical</button>
+          <button class="finding-severity-toggle-btn severity-high active">high</button>
+          <button class="finding-severity-toggle-btn severity-medium">medium</button>
+          <button class="finding-severity-toggle-btn severity-low">low</button>
+          <button class="finding-severity-toggle-btn severity-info">info</button>
+        </div>
+      </div>
+      <div class="ds-specimen"><span class="ds-specimen-label">Severity select (compact: Browse side-panel)</span>
+        <select class="finding-severity-select"><option>High</option><option>Medium</option></select>
+      </div>
+      <div class="ds-specimen ds-specimen-wide"><span class="ds-specimen-label">Status radio (same grammar)</span>
+        <div class="ds-row" role="radiogroup">
+          <button class="finding-status-toggle-btn status-open active">open</button>
+          <button class="finding-status-toggle-btn status-in-progress">in-progress</button>
+          <button class="finding-status-toggle-btn status-closed">closed</button>
+        </div>
+      </div>
+      <div class="ds-specimen ds-specimen-wide"><span class="ds-specimen-label">Comment type</span>
+        <div class="ds-row">
+          <button class="comment-type-toggle-btn active">⚠️ Concern</button>
+          <button class="comment-type-toggle-btn">❓ Question</button>
+          <button class="comment-type-toggle-btn">💡 Idea</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ 9. Comment + icon buttons ══════════════ -->
+  <section class="ds-section">
+    <h2 class="ds-section-title">Comment buttons — <code>comment-btn</code>, <code>comment-icon-btn</code></h2>
+    <p class="ds-usage">
+      Thread actions across <code>FindingCard</code>, <code>FeatureCard</code>, comment threads,
+      and modals: submit/cancel pairs, and icon-only edit/delete buttons (danger variant for delete).
+      The highest-traffic button family in the codebase (39 usages).
+    </p>
+    <div class="ds-specimens">
+      <div class="ds-specimen"><span class="ds-specimen-label">Submit / cancel</span>
+        <div class="ds-row">
+          <button class="comment-btn comment-btn-submit">Submit</button>
+          <button class="comment-btn comment-btn-cancel">Cancel</button>
+        </div>
+      </div>
+      <div class="ds-specimen"><span class="ds-specimen-label">Icon buttons</span>
+        <div class="ds-row">
+          <button class="comment-icon-btn" style="opacity:1" data-tooltip="Edit"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M11 2l3 3L5 14H2v-3L11 2z"/></svg></button>
+          <button class="comment-icon-btn comment-icon-btn-danger" style="opacity:1" data-tooltip="Delete"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M6 4V2h4v2M4 4l1 10h6l1-10"/></svg></button>
+        </div>
+        <div class="ds-note">Default state is <code>opacity: 0</code>: these reveal on parent card/comment hover (forced visible here).</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ 10. Selection toolbar ══════════════ -->
+  <section class="ds-section">
+    <h2 class="ds-section-title">Selection toolbar — <code>selection-toolbar-btn</code></h2>
+    <p class="ds-usage">
+      The floating toolbar that appears when selecting lines in Browse
+      (<code>SelectionToolbar</code>): add comment / finding / feature / copy link.
+      Variant classes tint the finding (orange) and feature buttons.
+    </p>
+    <div class="ds-specimens">
+      <div class="ds-specimen ds-specimen-wide"><span class="ds-specimen-label">Toolbar (floats over the code view in the app)</span>
+        <div class="selection-toolbar" style="position:static;display:inline-flex">
+          <button class="selection-toolbar-btn">💬 Comment</button>
+          <button class="selection-toolbar-btn selection-toolbar-btn-finding">⚠ Finding</button>
+          <button class="selection-toolbar-btn selection-toolbar-btn-feature">✦ Feature</button>
+          <button class="selection-toolbar-btn">⎘ Copy link</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ 11. Links & utility buttons ══════════════ -->
+  <section class="ds-section">
+    <h2 class="ds-section-title">Links &amp; utility — panel links, nav, load-more, dismiss</h2>
+    <p class="ds-usage">
+      Overview panel-title deep links and the Context link (<code>OverviewView</code>);
+      back/forward <code>nav-btn</code> (App header); <code>git-tree-load-more</code>
+      (history panel); banner dismiss; collapsible section headers
+      (<code>findings-metrics-toggle</code> pattern).
+    </p>
+    <div class="ds-specimens">
+      <div class="ds-specimen"><span class="ds-specimen-label">Panel title link</span>
+        <h3 class="ovp-panel-title" style="margin:0"><a class="ovp-panel-title-link" href="#">Systemic issues
+          <svg class="ovp-panel-title-icon" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5l5-5M4 3.5h4.5V8"/></svg></a></h3>
+      </div>
+      <div class="ds-specimen"><span class="ds-specimen-label">Context link</span>
+        <a class="ovp-context-link" href="#">Context <span class="ovp-context-link-arrow">→</span></a>
+      </div>
+      <div class="ds-specimen"><span class="ds-specimen-label">Nav / dismiss</span>
+        <div class="ds-row">
+          <button class="nav-btn">←</button>
+          <button class="nav-btn">→</button>
+          <button class="profile-banner-dismiss">×</button>
+        </div>
+      </div>
+      <div class="ds-specimen"><span class="ds-specimen-label">Load more</span>
+        <button class="git-tree-load-more" style="position:static">Load more...</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ 12. Interactive data marks ══════════════ -->
+  <section class="ds-section">
+    <h2 class="ds-section-title">Interactive marks — <code>ovp-kind-square</code>, map nodes</h2>
+    <p class="ds-usage">
+      Clickable data marks sharing one grammar (colour = identity, red notch = open findings,
+      hover = mini-card): the Features-by-kind waffle and the feature map on Overview, and the
+      Category Heatmap on the Findings page (severity-coloured, dimmed = resolved).
+    </p>
+    <div class="ds-specimens">
+      <div class="ds-specimen"><span class="ds-specimen-label">Feature squares (kind colours)</span>
+        <div class="ds-row">
+          <a class="ovp-kind-square" style="background:#2563eb" href="#"></a>
+          <a class="ovp-kind-square ovp-kind-square-alert" style="background:#16a34a" href="#"></a>
+          <a class="ovp-kind-square" style="background:#ea580c" href="#"></a>
+          <a class="ovp-kind-square" style="background:#7c3aed" href="#"></a>
+        </div>
+      </div>
+      <div class="ds-specimen"><span class="ds-specimen-label">Finding squares (severity + resolved)</span>
+        <div class="ds-row">
+          <a class="ovp-kind-square" style="background:var(--severity-critical)" href="#"></a>
+          <a class="ovp-kind-square" style="background:var(--severity-high)" href="#"></a>
+          <a class="ovp-kind-square ovp-cat-square-resolved" style="background:var(--severity-medium)" href="#"></a>
+        </div>
+      </div>
+      <div class="ds-specimen"><span class="ds-specimen-label">Map node</span>
+        <span class="ovp-map-node-el" style="position:static;transform:none">
+          <span class="ovp-map-dot" style="background:#2563eb"><span class="ovp-map-dot-alert"></span></span>
+          <span class="ovp-map-node-label">/webhook/{provider}</span>
+        </span>
+      </div>
+    </div>
+  </section>
+
+</div>
+</body>
+</html>

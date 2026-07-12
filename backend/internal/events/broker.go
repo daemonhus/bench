@@ -9,6 +9,7 @@ const (
 	TopicAnnotations Topic = "annotations" // findings or comments
 	TopicBaselines   Topic = "baselines"
 	TopicGit         Topic = "git"
+	TopicProfile     Topic = "profile"
 )
 
 // Broker is an in-process pub/sub event broker.
