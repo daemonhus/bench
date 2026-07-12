@@ -75,6 +75,6 @@ export async function ensureLanguageRegistered(lang: string): Promise<void> {
     const mod = await import(`../../node_modules/refractor/lang/${lang}.js`);
     refractor.register(mod.default);
   } catch {
-    // Language module not available — highlight will fall back to plain text
+    // Language module not available - highlight will fall back to plain text
   }
 }

@@ -15,7 +15,7 @@
   position: relative;
 }
 
-/* overview-tree-header removed — reuses .left-panel-header-row */
+/* overview-tree-header removed - reuses .left-panel-header-row */
 
 .overview-tree-panel .file-tree {
   flex: 1;
@@ -350,7 +350,7 @@
   color: var(--text-primary);
 }
 
-/* Finding cards inside overview activity stream — match comment/merge card spacing */
+/* Finding cards inside overview activity stream - match comment/merge card spacing */
 .overview-col-activity .finding-card,
 .overview-col-findings .finding-card {
   margin-bottom: 17px;
@@ -518,7 +518,7 @@
   text-decoration: underline;
 }
 
-/* overview-comment-time removed — date now in card header */
+/* overview-comment-time removed - date now in card header */
 
 .overview-comment-actions {
   display: flex;
@@ -741,7 +741,7 @@
   color: var(--text-primary);
 }
 
-/* overview-merge-header removed — uses shared .overview-card-header */
+/* overview-merge-header removed - uses shared .overview-card-header */
 
 .overview-merge-icon {
   color: var(--accent-purple);
@@ -761,7 +761,7 @@
   white-space: nowrap;
 }
 
-/* overview-merge-hash, overview-merge-date removed — uses shared card layout */
+/* overview-merge-hash, overview-merge-date removed - uses shared card layout */
 
 .overview-merge-author {
   color: var(--text-secondary);
@@ -1089,7 +1089,7 @@
   gap: 12px;
 }
 
-/* All charts in one row — equal columns, wraps on smaller viewports */
+/* All charts in one row - equal columns, wraps on smaller viewports */
 .fmetrics-all-row {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -1672,7 +1672,7 @@ a.findings-feature-chip-code:hover {
 /* ----- Annotation Search Box ----- */
 /*
  * Styled as a pill to match the segmented controls and multi-select triggers
- * in the same filter row. No explicit border — bg-surface pill, shadow focus
+ * in the same filter row. No explicit border - bg-surface pill, shadow focus
  * ring (same as --shadow-focus-blue), subtle red tint for invalid regex.
  */
 .annotation-search {

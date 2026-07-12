@@ -53,7 +53,7 @@ describe('reconcile retry guard (pure function)', () => {
     guard.reconciledForCommit = r1.newGuardValue;
 
     // Simulate: reconcile fails, fetchHead() runs, reconciledHead object updates
-    // (but still not fully reconciled — this caused the infinite loop)
+    // (but still not fully reconciled - this caused the infinite loop)
     const headAfterFail: ReconciledHead = {
       reconciledHead: 'old',
       gitHead: 'abc123',

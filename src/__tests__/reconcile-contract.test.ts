@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { JobSnapshot, ReconcileResult, ReconcileSummary } from '../core/types';
 
 // These JSON fixtures represent the EXACT shape the Go backend produces.
-// They are the TypeScript side of the contract — if either side changes
+// They are the TypeScript side of the contract - if either side changes
 // a field name, these tests break. See also:
 //   backend/internal/reconcile/contract_test.go (Go side)
 
@@ -58,7 +58,7 @@ const GO_JOB_SNAPSHOT_FAILED: unknown = {
 };
 
 describe('reconcile contract: Go backend → TypeScript types', () => {
-  it('JobSnapshot (done) — all fields accessible via TS type', () => {
+  it('JobSnapshot (done) - all fields accessible via TS type', () => {
     const snap = GO_JOB_SNAPSHOT_DONE as JobSnapshot;
 
     expect(snap.jobId).toBe('rec-42');

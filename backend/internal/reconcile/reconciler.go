@@ -176,7 +176,7 @@ func (r *Reconciler) GetReconciledHead() (*model.ReconciledHead, error) {
 	}
 
 	if len(files) == 0 {
-		// No annotations — fully reconciled by definition
+		// No annotations - fully reconciled by definition
 		result.IsFullyReconciled = true
 		return result, nil
 	}
@@ -212,7 +212,7 @@ func (r *Reconciler) GetReconciledHead() (*model.ReconciledHead, error) {
 
 		// Check if this file's lastCommit is an ancestor of HEAD. An unknown-ref
 		// error means the stored commit no longer exists in this repo (rebase,
-		// GC, or DB carried across checkouts) — treat it like a rebase so the
+		// GC, or DB carried across checkouts) - treat it like a rebase so the
 		// file shows up as needing reconciliation instead of 500-ing the whole
 		// head computation.
 		isAnc, err := r.git.IsAncestor(lastCommit, head)
@@ -229,7 +229,7 @@ func (r *Reconciler) GetReconciledHead() (*model.ReconciledHead, error) {
 		}
 
 		if !isAnc {
-			// Rebase happened — this file needs re-reconciliation
+			// Rebase happened - this file needs re-reconciliation
 			allReconciled = false
 			result.Unreconciled = append(result.Unreconciled, model.UnreconciledFile{
 				FileID:               f,
@@ -358,7 +358,7 @@ func (r *Reconciler) runJob(job *Job) {
 	for i, fileID := range files {
 		commitsWalked, fileSummary, err := r.reconcileFile(job, fileID, job.TargetCommit)
 		if err != nil {
-			// One bad file shouldn't kill the whole reconcile pass — log it,
+			// One bad file shouldn't kill the whole reconcile pass - log it,
 			// remember it for the job-level summary, and continue.
 			log.Printf("[reconcile] job %s: file %s FAILED: %v", job.ID, fileID, err)
 			fileErrors = append(fileErrors, fmt.Sprintf("%s: %v", fileID, err))
@@ -370,7 +370,7 @@ func (r *Reconciler) runJob(job *Job) {
 			})
 			continue
 		}
-		log.Printf("[reconcile] job %s: file %d/%d %s — %d commits, %d annotations (exact=%d moved=%d orphaned=%d resolved=%d)",
+		log.Printf("[reconcile] job %s: file %d/%d %s - %d commits, %d annotations (exact=%d moved=%d orphaned=%d resolved=%d)",
 			job.ID, i+1, len(files), fileID, commitsWalked,
 			fileSummary.Total, fileSummary.Exact, fileSummary.Moved, fileSummary.Orphaned, fileSummary.Resolved)
 		totalCommits += commitsWalked
@@ -396,7 +396,7 @@ func (r *Reconciler) runJob(job *Job) {
 		DurationMs:      dur.Milliseconds(),
 	}
 	if len(fileErrors) > 0 {
-		log.Printf("[reconcile] job %s: completed with %d file error(s) in %s — %d files, %d commits, %d annotations",
+		log.Printf("[reconcile] job %s: completed with %d file error(s) in %s - %d files, %d commits, %d annotations",
 			job.ID, len(fileErrors), dur, result.FilesReconciled, totalCommits, summary.Total)
 		// Surface the first few errors so the UI banner has something specific.
 		preview := fileErrors
@@ -406,7 +406,7 @@ func (r *Reconciler) runJob(job *Job) {
 		job.completeWithWarning(result, fmt.Sprintf("%d of %d files failed: %s", len(fileErrors), len(files), strings.Join(preview, "; ")))
 		return
 	}
-	log.Printf("[reconcile] job %s: DONE in %s — %d files, %d commits, %d annotations",
+	log.Printf("[reconcile] job %s: DONE in %s - %d files, %d commits, %d annotations",
 		job.ID, dur, len(files), totalCommits, summary.Total)
 	job.complete(result)
 }
@@ -553,7 +553,7 @@ func (r *Reconciler) reconcileFile(job *Job, fileID, targetCommit string) (int, 
 	// Determine the starting commit
 	fromCommit := lastCommit
 	if fromCommit == "" {
-		// No previous reconciliation — use the anchor commit
+		// No previous reconciliation - use the anchor commit
 		// Since all annotations for this file share the same anchor fileID,
 		// we use the first annotation's anchor commit as the starting point.
 		if len(findings) > 0 {
@@ -566,7 +566,7 @@ func (r *Reconciler) reconcileFile(job *Job, fileID, targetCommit string) (int, 
 	}
 
 	if fromCommit == targetCommit {
-		// Already at target — no diff walking needed, but record the state
+		// Already at target - no diff walking needed, but record the state
 		// so GetReconciledHead knows this file is reconciled.
 		if err := r.rec.SetReconciliationState(fileID, targetCommit); err != nil {
 			return 0, ReconcileSummary{}, fmt.Errorf("update reconciliation state: %w", err)
@@ -576,7 +576,7 @@ func (r *Reconciler) reconcileFile(job *Job, fileID, targetCommit string) (int, 
 
 	// Check ancestry (rebase detection). If the source commit no longer exists
 	// in the repo (force-push, history rewrite, branch dropped), we can't walk
-	// any diffs from it — mark all of this file's annotations orphaned and
+	// any diffs from it - mark all of this file's annotations orphaned and
 	// move on rather than failing the entire job.
 	isAnc, err := r.git.IsAncestor(fromCommit, targetCommit)
 	if err != nil {
@@ -587,7 +587,7 @@ func (r *Reconciler) reconcileFile(job *Job, fileID, targetCommit string) (int, 
 	}
 
 	if !isAnc {
-		// Rebase detected — find merge base and reset
+		// Rebase detected - find merge base and reset
 		mergeBase, err := r.git.MergeBase(fromCommit, targetCommit)
 		if err != nil {
 			if errors.Is(err, git.ErrUnknownRef) {
@@ -692,7 +692,7 @@ func (r *Reconciler) reconcileFile(job *Job, fileID, targetCommit string) (int, 
 		}
 	}
 
-	// Store final positions (only deltas — where position or confidence changed)
+	// Store final positions (only deltas - where position or confidence changed)
 	for i := range anns {
 		fileIDPtr := &currentPath
 		if anns[i].confidence == "orphaned" && anns[i].lineStart == 0 {
@@ -827,7 +827,7 @@ func (r *Reconciler) mapAnnotations(anns []annotationInfo, hunks []DiffHunk, com
 			anns[i].lineEnd = newEnd
 			anns[i].confidence = "exact"
 		} else {
-			// Diff mapping failed — try content hash fallback
+			// Diff mapping failed - try content hash fallback
 			matched := r.contentMatch(&anns[i], commit, fileID)
 			if !matched {
 				anns[i].confidence = "orphaned"

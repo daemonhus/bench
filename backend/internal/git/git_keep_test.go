@@ -160,7 +160,7 @@ func TestUnpinCommit_RemovesRef(t *testing.T) {
 
 func TestUnpinCommit_MissingIsNoop(t *testing.T) {
 	repo, first, _ := makeTwoCommitRepo(t)
-	// Never pinned — unpin should not error.
+	// Never pinned - unpin should not error.
 	if err := repo.UnpinCommit(first); err != nil {
 		t.Fatalf("UnpinCommit on missing ref: %v", err)
 	}

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useAnnotationStore } from '../stores/annotation-store';
 import type { Finding, Comment } from '../core/types';
 
-// Mock the API modules — all calls resolve successfully so optimistic updates stick
+// Mock the API modules - all calls resolve successfully so optimistic updates stick
 vi.mock('../core/api', () => ({
   findingsApi: {
     create: vi.fn().mockResolvedValue({}),
@@ -264,7 +264,7 @@ describe('finding-comments integration', () => {
       // 8. No comments linked to the deleted finding
       expect(useAnnotationStore.getState().getCommentsForFinding('f1')).toHaveLength(0);
 
-      // 9. Simulate overview panel — finding no longer in open list
+      // 9. Simulate overview panel - finding no longer in open list
       const openFindings = useAnnotationStore.getState().findings
         .filter((f) => f.status === 'open');
       expect(openFindings).toHaveLength(0);

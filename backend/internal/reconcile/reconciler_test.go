@@ -398,7 +398,7 @@ func TestReconcile_Orphaned(t *testing.T) {
 }
 
 func TestReconcile_EmptyDiff(t *testing.T) {
-	// File not touched between commits — positions should stay the same.
+	// File not touched between commits - positions should stay the same.
 	git := &mockGit{
 		headCommit: "C",
 		revLists:   map[string][]string{"A..C": {"B", "C"}},
@@ -778,7 +778,7 @@ func TestReconcile_GetReconciledHead_StaleCommit(t *testing.T) {
 	if head.IsFullyReconciled {
 		t.Fatal("expected not fully reconciled")
 	}
-	// Both files should appear as unreconciled — ok.py because it's behind HEAD,
+	// Both files should appear as unreconciled - ok.py because it's behind HEAD,
 	// stale.py because its commit doesn't resolve at all.
 	if len(head.Unreconciled) != 2 {
 		t.Fatalf("expected 2 unreconciled files, got %d", len(head.Unreconciled))
@@ -850,7 +850,7 @@ func TestReconcile_FileRenamed_ContentHashFollowsRename(t *testing.T) {
 		t.Fatalf("expected done, got %s: %s", s.Status, s.Error)
 	}
 
-	// Annotation should be "moved" — found via content hash on the renamed file.
+	// Annotation should be "moved" - found via content hash on the renamed file.
 	if s.Result.Annotations.Moved != 1 {
 		t.Fatalf("expected 1 moved, got orphaned=%d exact=%d moved=%d",
 			s.Result.Annotations.Orphaned, s.Result.Annotations.Exact, s.Result.Annotations.Moved)
@@ -882,7 +882,7 @@ func TestReconcile_FileRenamed_ContentHashFollowsRename(t *testing.T) {
 
 func TestReconcile_FileDeleted_OrphansAnnotation(t *testing.T) {
 	// File genuinely deleted (not renamed). All lines removed, no content match.
-	// Annotation should be orphaned — this is correct behaviour.
+	// Annotation should be orphaned - this is correct behaviour.
 	git := &mockGit{
 		headCommit: "B",
 		revLists:   map[string][]string{"A..B": {"B"}},
@@ -957,7 +957,7 @@ func TestReconcile_FileRenamed_EmptyDiff_DetectedByExistenceCheck(t *testing.T) 
 		t.Fatalf("expected done, got %s: %s", s.Status, s.Error)
 	}
 
-	// File doesn't exist at target commit — existence check catches the phantom
+	// File doesn't exist at target commit - existence check catches the phantom
 	if s.Result.Annotations.Orphaned != 1 {
 		t.Fatalf("expected 1 orphaned, got orphaned=%d exact=%d moved=%d",
 			s.Result.Annotations.Orphaned, s.Result.Annotations.Exact, s.Result.Annotations.Moved)
@@ -1081,7 +1081,7 @@ func TestReconcile_OrphanedStaysOrphaned(t *testing.T) {
 				{
 					ID:     "FIND-1",
 					Anchor: model.Anchor{FileID: "src/auth.py", CommitID: "A", LineRange: &model.LineRange{Start: 5, End: 6}},
-					// No LineHash — so content match also fails
+					// No LineHash - so content match also fails
 				},
 			},
 		},
@@ -1158,7 +1158,7 @@ func TestReconcile_IntPtrLine1(t *testing.T) {
 		revLists:   map[string][]string{"A..B": {"B"}},
 		ancestors:  map[string]bool{"A:B": true},
 		diffs: map[string]string{
-			// Insert at line 5 — annotation at line 1 should stay at line 1
+			// Insert at line 5 - annotation at line 1 should stay at line 1
 			"A:B:src/auth.py": "@@ -5,2 +5,3 @@\n line 5\n+new\n line 6",
 		},
 		shows: map[string]string{"B:src/auth.py": "file exists"},
@@ -1190,7 +1190,7 @@ func TestReconcile_IntPtrLine1(t *testing.T) {
 	}
 	p := positions[0]
 	if p.LineStart == nil {
-		t.Fatal("LineStart is nil — intPtr(1) returned nil (bug)")
+		t.Fatal("LineStart is nil - intPtr(1) returned nil (bug)")
 	}
 	if *p.LineStart != 1 || *p.LineEnd != 1 {
 		t.Fatalf("expected lines 1-1, got %d-%d", *p.LineStart, *p.LineEnd)
@@ -1281,7 +1281,7 @@ func TestReconcile_AutoResolve_OrphanedFinding(t *testing.T) {
 }
 
 func TestReconcile_AutoResolve_SkipsAlreadyResolved(t *testing.T) {
-	// Finding already has resolvedCommit set — should not be resolved again.
+	// Finding already has resolvedCommit set - should not be resolved again.
 	git := &mockGit{
 		headCommit: "B",
 		revLists:   map[string][]string{"A..B": {"B"}},
@@ -1331,7 +1331,7 @@ func TestReconcile_AutoResolve_SkipsAlreadyResolved(t *testing.T) {
 }
 
 func TestReconcile_AutoResolve_CommentsNotResolved(t *testing.T) {
-	// Comments are orphaned but should NOT be auto-resolved — only findings.
+	// Comments are orphaned but should NOT be auto-resolved - only findings.
 	git := &mockGit{
 		headCommit: "B",
 		revLists:   map[string][]string{"A..B": {"B"}},
@@ -1371,7 +1371,7 @@ func TestReconcile_AutoResolve_CommentsNotResolved(t *testing.T) {
 		t.Fatalf("expected 1 orphaned comment, got %d", s.Result.Annotations.Orphaned)
 	}
 
-	// No resolution — only findings are auto-resolved
+	// No resolution - only findings are auto-resolved
 	if len(resolver.resolved) != 0 {
 		t.Fatalf("expected 0 resolutions for comments, got %d", len(resolver.resolved))
 	}
@@ -1493,7 +1493,7 @@ func TestReconcile_OrphanedThenReAnchored(t *testing.T) {
 		t.Fatalf("expected done, got %s: %s", s.Status, s.Error)
 	}
 
-	// The finding should NOT be orphaned — the manual anchor fix should be respected
+	// The finding should NOT be orphaned - the manual anchor fix should be respected
 	if s.Result.Annotations.Orphaned != 0 {
 		t.Fatalf("expected 0 orphaned (anchor was re-set), got %d", s.Result.Annotations.Orphaned)
 	}
@@ -1766,7 +1766,7 @@ func TestReconcile_Feature_OrphanedThenReAnchored(t *testing.T) {
 		t.Fatalf("expected done, got %s: %s", s.Status, s.Error)
 	}
 
-	// Feature should NOT be orphaned — the manual anchor fix must be respected
+	// Feature should NOT be orphaned - the manual anchor fix must be respected
 	if s.Result.Annotations.Orphaned != 0 {
 		t.Fatalf("expected 0 orphaned (anchor was re-set), got %d", s.Result.Annotations.Orphaned)
 	}

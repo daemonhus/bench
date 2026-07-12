@@ -32,7 +32,7 @@ because it is intercepted globally in capture phase. In single-area views
 (Changes), Tab is suppressed.
 
 Tab is **not** intercepted when focus is in an `INPUT`, `TEXTAREA`, or
-`contenteditable` element — native Tab behaviour applies there.
+`contenteditable` element - native Tab behaviour applies there.
 
 ### List navigation (within a focused area)
 
@@ -116,9 +116,9 @@ DeltaView, and Sidebar.
 const { focusedId, containerRef, handleKeyDown } = useNavList({
   items,          // T[]
   getId,          // (item: T) => string
-  onSelect,       // Space — toggle expand/collapse
-  onActivate,     // Enter — navigate / primary action
-  onShiftActivate,// Shift+Enter — secondary action (optional)
+  onSelect,       // Space - toggle expand/collapse
+  onActivate,     // Enter - navigate / primary action
+  onShiftActivate,// Shift+Enter - secondary action (optional)
   onFocusChange,  // fires whenever arrow-key focus changes
 });
 ```
@@ -132,16 +132,16 @@ The hook:
 
 | Key | Condition | Action |
 |-----|-----------|--------|
-| `ArrowDown` | — | `moveFocus(index + 1)` |
-| `ArrowUp` | — | `moveFocus(index - 1)` |
+| `ArrowDown` | - | `moveFocus(index + 1)` |
+| `ArrowUp` | - | `moveFocus(index - 1)` |
 | `Shift+Enter` | item focused, `onShiftActivate` set | `onShiftActivate(item)` |
 | `Shift+Enter` | item focused, no `onShiftActivate` | falls through to `onActivate` |
 | `Enter` | item focused | `onActivate(item)` if set, else `onSelect(item)` |
 | `Space` | item focused | `onSelect(item)` |
-| `Escape` | — | clear `focusedId` |
+| `Escape` | - | clear `focusedId` |
 
 Keys are ignored when the event target is an `INPUT`, `TEXTAREA`, or
-`contenteditable` element. The hook does **not** handle Tab — area cycling is
+`contenteditable` element. The hook does **not** handle Tab - area cycling is
 handled by the global Tab interceptor.
 
 ### Global Tab area cycling (`src/App.tsx`)
@@ -171,17 +171,17 @@ Handler logic:
    area with `focus({ preventScroll: true })` + smooth `scrollIntoView`.
 7. If `activeElement` is not inside any nav area, focus the first area.
 
-No individual component handles Tab — all Tab routing lives in this one place.
+No individual component handles Tab - all Tab routing lives in this one place.
 
 ### Auto-focus on navigation (`src/App.tsx`, `src/stores/ui-store.ts`)
 
 `pendingNavFocus` is a field in the UI Zustand store. It is set by:
-- **View switching** (keys `1`–`4` or tab bar click) — focuses the primary area
+- **View switching** (keys `1`–`4` or tab bar click) - focuses the primary area
   for the target view.
-- **`navigateToFile`** (Enter on a finding/feature/delta item) — sets
+- **`navigateToFile`** (Enter on a finding/feature/delta item) - sets
   `pendingNavFocus` to `'codeview'` so the code viewer is focused after
   switching to Browse.
-- **File tree Enter** — sets `pendingNavFocus` to `'codeview'` when opening a
+- **File tree Enter** - sets `pendingNavFocus` to `'codeview'` when opening a
   file or folder from the tree.
 
 A `useEffect` in `App.tsx` consumes `pendingNavFocus`:
@@ -195,10 +195,10 @@ A `useEffect` in `App.tsx` consumes `pendingNavFocus`:
 `codeviewFocusedLine` is a field in the UI Zustand store that tracks which line
 has keyboard focus (1-indexed, null = none). When the codeview panel is focused:
 
-- **ArrowDown / ArrowUp** — increments/decrements the focused line number, scrolls
+- **ArrowDown / ArrowUp** - increments/decrements the focused line number, scrolls
   the line into view, and highlights it with the `.codeview-focused-line` class.
-- **Enter** — opens the quick-add finding popover anchored to the focused line.
-- **Escape** — clears line focus.
+- **Enter** - opens the quick-add finding popover anchored to the focused line.
+- **Escape** - clears line focus.
 
 The focused line is automatically cleared when the selected file or view changes.
 
@@ -235,7 +235,7 @@ Tab cycle:  [filetree] → [codeview] → [sidebar]
                  ↑___________________________|
 ```
 
-- `[filetree]` — `FileTree` component. Arrow keys traverse visible tree nodes.
+- `[filetree]` - `FileTree` component. Arrow keys traverse visible tree nodes.
   `→` / `←` expand and collapse folders. `Space` toggles folder expand/collapse.
   `Enter` on a file opens it and moves focus to codeview. `Enter` on a folder
   opens the folder view in the code browser and moves focus to codeview.
@@ -243,14 +243,14 @@ Tab cycle:  [filetree] → [codeview] → [sidebar]
   `focusedPath` state separate from the selected file, so arrow-key browsing
   does not navigate the code view until `Enter` is pressed.
 
-- `[codeview]` — the code viewer. Receives focus on click, via Tab, or via
+- `[codeview]` - the code viewer. Receives focus on click, via Tab, or via
   Enter from the file tree / other views. Arrow keys navigate line-by-line with
   a visible blue highlight on the focused line. `Enter` opens the quick-add
   finding popover for the focused line. `Escape` clears line focus. The codeview
   has an inset focus ring (`outline-offset: -2px`) so the `overflow: hidden`
   container does not clip it.
 
-- `[sidebar]` — only present when the sidebar is open. Uses `useNavList` over
+- `[sidebar]` - only present when the sidebar is open. Uses `useNavList` over
   the current file's findings, comments, and features. Arrow keys move between
   annotation cards. `onFocusChange` scrolls the code view to the annotation's
   line range. `Space` expands/collapses a finding card. `Enter` expands the
@@ -264,16 +264,16 @@ Tab cycle:  [delta-header] → [delta-filters] → [delta]
                   ↑________________________________|
 ```
 
-- `[delta-header]` — baseline info bar with edit, set-baseline, and Compare
+- `[delta-header]` - baseline info bar with edit, set-baseline, and Compare
   buttons. `←` / `→` move between buttons. `Enter` / `Space` activates the
   focused button.
-- `[delta-filters]` — activity filter row with kind toggles, severity dropdown,
+- `[delta-filters]` - activity filter row with kind toggles, severity dropdown,
   actor dropdown, and clear button. `←` / `→` move focus between the interactive
   controls. `Enter` / `Space` activates the focused control (toggles a kind
   filter, opens a dropdown).
-- `[delta]` — activity stream. `useNavList` is used with:
-  - `onSelect` (Space) — toggles commit-group and merge rows open/closed.
-  - `onActivate` (Enter) — navigates to the annotation's file (switches to
+- `[delta]` - activity stream. `useNavList` is used with:
+  - `onSelect` (Space) - toggles commit-group and merge rows open/closed.
+  - `onActivate` (Enter) - navigates to the annotation's file (switches to
     Browse, focuses codeview at the annotation's line via `pendingCodeviewLine`);
     for commit-group items, toggles the group.
 
@@ -284,10 +284,10 @@ Tab cycle:  [findings-filter] → [findings-list]
                   ↑___________________|
 ```
 
-- `[findings-filter]` — title row with search box, severity filters, and
+- `[findings-filter]` - title row with search box, severity filters, and
   open/closed toggle. `←` / `→` move between filter buttons (skips the search
   input). `Enter` / `Space` activates the focused button.
-- `[findings-list]` — scrollable card list. `Space` toggles collapse. `Enter`
+- `[findings-list]` - scrollable card list. `Space` toggles collapse. `Enter`
   expands the focused card in place (show details / linked features).
   `Shift+Enter` navigates to the finding's file location in Browse (focuses
   codeview at the annotation's line via `pendingCodeviewLine`).
@@ -299,13 +299,13 @@ Tab cycle:  [features-tabs] → [features-list] → [features-filter]
                   ↑___________________________________|
 ```
 
-- `[features-tabs]` — kind tab bar (All / Interface / Source / ...).
+- `[features-tabs]` - kind tab bar (All / Interface / Source / ...).
   `←` / `→` switch between tabs.
-- `[features-list]` — card list. `Space` toggles collapse (and resets the
+- `[features-list]` - card list. `Space` toggles collapse (and resets the
   snippet to visible if it was previously collapsed). `Enter` expands the
   focused card in place. `Shift+Enter` navigates to the feature's file
   location in Browse (focuses codeview at the annotation's line).
-- `[features-filter]` — search box and sort controls.
+- `[features-filter]` - search box and sort controls.
 
 ---
 
@@ -400,19 +400,19 @@ closes, overlay click closes, `/` shortcut listed).
 
 ## Known Issues
 
-1. ~~**Browse: focus stuck in file tree.**~~ Fixed — Enter on a file moves
+1. ~~**Browse: focus stuck in file tree.**~~ Fixed - Enter on a file moves
    focus to codeview. Enter on a folder opens it in the code browser.
 
-2. ~~**Browse: folder expand/collapse should use Space, not Enter.**~~ Fixed —
+2. ~~**Browse: folder expand/collapse should use Space, not Enter.**~~ Fixed -
    Space toggles folder expand/collapse. Enter opens files/folders.
 
-3. ~~**Changes: Tab doesn't reach header or filters.**~~ Fixed — split into
+3. ~~**Changes: Tab doesn't reach header or filters.**~~ Fixed - split into
    `delta-header` (baseline controls), `delta-filters` (kind toggles,
    severity/actor dropdowns), and `delta` (activity stream) nav areas. Tab
    cycles between all three. Arrow keys navigate within header and filter
    controls.
 
-4. ~~**Findings: can't interact with filters via Enter.**~~ Fixed — added
+4. ~~**Findings: can't interact with filters via Enter.**~~ Fixed - added
    arrow-key navigation within `[findings-filter]`. `←` / `→` move between
    buttons, `Enter` / `Space` activates. Input fields (search box) are skipped
    by the arrow handler so typing works normally.
@@ -420,7 +420,7 @@ closes, overlay click closes, `/` shortcut listed).
 5. ~~**Findings: Enter on card navigates to code instead of comment.**~~ Fixed
    (`src/components/Sidebar.tsx`). Root cause: `onActivate` expanded the card
    and called `setScrollTargetLine(range.start)`, which scrolled the codeview
-   to the finding's line — visually indistinguishable from "navigates to
+   to the finding's line - visually indistinguishable from "navigates to
    code". The textarea focus was also racy: the old `requestAnimationFrame`
    ran before React committed the expanded state, so the textarea wasn't in
    the DOM and focus silently fell back to the first button. Fix: removed the
@@ -431,7 +431,7 @@ closes, overlay click closes, `/` shortcut listed).
 
 6. **Findings: no keyboard path to the comment input (Findings / Features
    tabs).** Partially fixed. In the Browse sidebar, Enter on a finding card
-   focuses the reply textarea and Cmd/Ctrl+Enter submits — this works. But in
+   focuses the reply textarea and Cmd/Ctrl+Enter submits - this works. But in
    the standalone Findings and Features tabs there is no keyboard path to the
    reply textarea at all, because Enter there navigates to the file instead.
    Decide whether those tabs should (a) expose an inline reply affordance with
@@ -439,21 +439,21 @@ closes, overlay click closes, `/` shortcut listed).
    key (e.g. `R`) that opens the reply textarea on the focused card without
    changing the primary Enter behaviour.
 
-7. ~~**Features: Space expand doesn't show code snippet.**~~ Fixed — when a
+7. ~~**Features: Space expand doesn't show code snippet.**~~ Fixed - when a
    feature card is re-expanded via Space, the snippet collapsed state
    (persisted in localStorage) is reset so the code snippet is always visible
    on expand.
 
-8. ~~**Shortcuts modal missing `/` shortcut.**~~ Fixed — added `/` → "Focus
+8. ~~**Shortcuts modal missing `/` shortcut.**~~ Fixed - added `/` → "Focus
    search box (Findings / Features)" to the Search group in
    `KeyboardShortcutsModal.tsx`.
 
-9. ~~**Navigate-to-file doesn't select the target line.**~~ Fixed — all
+9. ~~**Navigate-to-file doesn't select the target line.**~~ Fixed - all
    `navigateToFile` paths (Findings Enter, Features Enter, Changes Enter,
    content search Cmd+Shift+F) now set `codeviewFocusedLine` so arrow-key
    navigation starts from the target line instead of line 1. Uses a
    `pendingCodeviewLine` field in the UI store to survive the view-transition
-   clear effect — the clear effect (`setCodeviewFocusedLine(null)`) fires on
+   clear effect - the clear effect (`setCodeviewFocusedLine(null)`) fires on
    `[selectedFilePath, viewMode]` changes and would race against direct sets.
    `pendingCodeviewLine` is consumed by the `pendingNavFocus` effect after the
    clear has run, ensuring the focused line is applied after the codeview
@@ -461,7 +461,7 @@ closes, overlay click closes, `/` shortcut listed).
 
 10. ~~**Changes: MultiSelectDropdown options not keyboard-navigable.**~~ Fixed
     (`src/components/MultiSelectDropdown.tsx`). The dropdown overlay had no
-    `keydown` handler — once open, it was mouse-only. The fix adds a
+    `keydown` handler - once open, it was mouse-only. The fix adds a
     `focusedIndex` state (–1 when closed) and routes `keydown` on the trigger
     button through a single handler that is active whether the dropdown is open
     or closed:
@@ -514,7 +514,7 @@ closes, overlay click closes, `/` shortcut listed).
 14. ~~**Sidebar: Tab inside reply textarea goes to submit button.**~~ Fixed
     (`src/components/Sidebar.tsx`). The global Tab area-cycling handler in
     `App.tsx` registers on `document` in capture phase but explicitly returns
-    early when `e.target.tagName === 'TEXTAREA'`, so native Tab applies —
+    early when `e.target.tagName === 'TEXTAREA'`, so native Tab applies -
     which moves focus to the adjacent submit button (`→`) instead of cycling
     to the next nav area. The fix adds an `onKeyDownCapture` prop on the
     sidebar `<aside>`:
@@ -532,14 +532,14 @@ closes, overlay click closes, `/` shortcut listed).
     Fixed across `src/stores/ui-store.ts`, `src/App.tsx`,
     `src/components/BrowseView.tsx`, `src/components/CodeRow.tsx`, and
     `src/styles/components.css`. Two new store fields drive the flow:
-    - `codeviewSelectAnchor: number | null` — set when the user presses Enter
+    - `codeviewSelectAnchor: number | null` - set when the user presses Enter
       on a focused line (Phase 1). While non-null, arrow keys still move
       `codeviewFocusedLine` (the non-anchor end of the selection), and
       `BrowseView` passes `isSelectRange={true}` to every `CodeRow` whose line
       number falls within `[min(anchor, focusedLine), max(anchor, focusedLine)]`.
       `CodeRow` renders `.codeview-select-range` (a lighter 12 % blue tint,
       distinct from the 25 % focused-line highlight) for those rows.
-    - `codeviewTypePick: { start, end, anchor, current } | null` — set when the
+    - `codeviewTypePick: { start, end, anchor, current } | null` - set when the
       user presses Enter a second time (Phase 2). This clears `codeviewSelectAnchor`
       and shows a `typepick-pill` bar fixed at the bottom of the viewport. The
       pill lists Finding / Comment / Feature; `←`/`→` change `typePickIndex`
@@ -552,8 +552,8 @@ closes, overlay click closes, `/` shortcut listed).
     lands on it.**~~ Fixed (`src/styles/components.css`). Root cause:
     `.sidebar-wrapper` (the grid child that contains the aside) has
     `overflow: hidden` (`sidebar.css:491`). The generic
-    `[data-nav-area]:focus-visible` rule uses `outline-offset: 5px` — an
-    outset ring — so the left/right/bottom edges were clipped by the wrapper
+    `[data-nav-area]:focus-visible` rule uses `outline-offset: 5px` - an
+    outset ring - so the left/right/bottom edges were clipped by the wrapper
     and only the top edge around the header survived, reading as "just the
     header is highlighted". Fix mirrors the codeview case: added a
     `[data-nav-area="sidebar"]:focus-visible` rule with an inset outline
@@ -562,7 +562,7 @@ closes, overlay click closes, `/` shortcut listed).
 
 17. **Browse: folder view in code editor is not arrow-key navigable.** Pressing
     Enter on a folder in the file tree opens a vim-style folder listing in the
-    code viewer and moves focus there, but arrow keys do nothing — you can't
+    code viewer and moves focus there, but arrow keys do nothing - you can't
     move between entries in the listing to drill in. The codeview arrow-key
     handler assumes file content (line numbers) and has no branch for the
     folder-listing view. Needs a folder-mode handler (↑/↓ between entries,
@@ -572,7 +572,7 @@ closes, overlay click closes, `/` shortcut listed).
     lacks focus indicator on Compare.** Two issues in the `delta-header` nav
     area:
     1. When a "Previous baselines" button is present, ←/→ arrow navigation
-       skips over it — the button is not in the arrow-key walk list (likely a
+       skips over it - the button is not in the arrow-key walk list (likely a
        selector mismatch or the button renders outside the nav area container).
     2. The Compare button gets keyboard focus but shows no visible focus ring
        or highlight, so there's no feedback that it's the active target before
@@ -585,7 +585,7 @@ closes, overlay click closes, `/` shortcut listed).
     jumps focus away.** Two related issues in `[findings-filter]`:
     1. The search input is intentionally skipped by the ←/→ walk (so typing
        works), but this means there's no keyboard path to the search box from
-       within the filter row — the only way in is `/` or a mouse click. The
+       within the filter row - the only way in is `/` or a mouse click. The
        arrow handler should include the input as a stop (entering it focuses
        the field for typing) while still not consuming keys while typing.
     2. Pressing the search input's clear (✕) button moves focus to the next
@@ -602,12 +602,12 @@ closes, overlay click closes, `/` shortcut listed).
     nav area (so `data-nav-focused` and the keyboard handler remain in scope)
     or `useNavList` should not clear `focusedId` when focus moves to an
     interactive child inside the same nav area. Likely applies to Findings
-    cards too — verify.
+    cards too - verify.
 
 21. ~~**Browse sidebar: expand key and snippet visibility don't match spec.**~~
     Fixed (`src/components/Sidebar.tsx`, `src/components/FeatureCard.tsx`).
     1. Space: the `onSelect` handler in `Sidebar.tsx` only expanded finding
-       cards — feature cards silently ignored Space. Extended to also toggle
+       cards - feature cards silently ignored Space. Extended to also toggle
        expansion on `item.kind === 'feature'`. Findings already worked; if
        Space appeared dead in testing it was likely the separate
        focus-context-loss bug (#20) rather than this handler.
@@ -620,13 +620,13 @@ closes, overlay click closes, `/` shortcut listed).
 22. ~~**Browse: Tab focus ring only highlights the nav bar, not the content
     area.**~~ Fixed (`src/styles/layout.css`). Root cause: `.app-layout` uses
     CSS Grid with no explicit `grid-template-rows`, so the single implicit row
-    track is `auto`-sized — its height equals the tallest grid item's
+    track is `auto`-sized - its height equals the tallest grid item's
     *content* height. When a long file is open, that height exceeds the
     viewport. `.main-panel` stretches to fill the row track (correct per CSS
     Grid's default `align-self: stretch`), but its layout height is now taller
     than the viewport. The inset `outline-offset: -2px` ring is drawn relative
     to the element's full layout box, so the bottom of the ring sits below the
-    fold — only the top edge (around the toolbar) is visible.
+    fold - only the top edge (around the toolbar) is visible.
     The fix adds `grid-auto-rows: minmax(0, 1fr)` to `.app-layout`, which
     sizes the implicit row to exactly fill the grid container (the remaining
     viewport height below the tab bar) rather than the content. `align-items:

@@ -24,7 +24,7 @@ type baselineHandlers struct {
 	broker *events.Broker
 }
 
-// GET /api/baselines — list all baselines (most recent first)
+// GET /api/baselines - list all baselines (most recent first)
 func (h *baselineHandlers) list(w http.ResponseWriter, r *http.Request) {
 	limit := 20
 	if s := r.URL.Query().Get("limit"); s != "" {
@@ -43,7 +43,7 @@ func (h *baselineHandlers) list(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, baselines)
 }
 
-// GET /api/baselines/latest — most recent baseline
+// GET /api/baselines/latest - most recent baseline
 func (h *baselineHandlers) latest(w http.ResponseWriter, r *http.Request) {
 	baseline, err := h.db.GetLatestBaseline()
 	if err != nil {
@@ -57,7 +57,7 @@ func (h *baselineHandlers) latest(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, baseline)
 }
 
-// GET /api/baselines/delta — changes since latest baseline
+// GET /api/baselines/delta - changes since latest baseline
 func (h *baselineHandlers) delta(w http.ResponseWriter, r *http.Request) {
 	baseline, err := h.db.GetLatestBaseline()
 	if err != nil {
@@ -77,7 +77,7 @@ func (h *baselineHandlers) delta(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, delta)
 }
 
-// GET /api/baselines/{id}/delta — delta for a specific baseline vs previous
+// GET /api/baselines/{id}/delta - delta for a specific baseline vs previous
 func (h *baselineHandlers) deltaFor(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if id == "" {
@@ -110,7 +110,7 @@ func (h *baselineHandlers) deltaFor(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, delta)
 }
 
-// POST /api/baselines — create a new baseline (defaults to default branch tip)
+// POST /api/baselines - create a new baseline (defaults to default branch tip)
 func (h *baselineHandlers) create(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Reviewer string `json:"reviewer"`
@@ -220,7 +220,7 @@ func (h *baselineHandlers) create(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, created)
 }
 
-// PATCH /api/baselines/{id} — update mutable fields (reviewer, summary)
+// PATCH /api/baselines/{id} - update mutable fields (reviewer, summary)
 func (h *baselineHandlers) update(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if id == "" {

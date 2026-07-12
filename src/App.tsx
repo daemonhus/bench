@@ -454,7 +454,7 @@ export function App() {
     return () => window.removeEventListener('keydown', handler);
   }, [handleGoBack, handleGoForward, viewMode, browseDir, fileContent]);
 
-  // Global Tab/Shift+Tab area cycling — capture phase so it fires before
+  // Global Tab/Shift+Tab area cycling - capture phase so it fires before
   // any component handler or browser default.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -462,10 +462,10 @@ export function App() {
       const t = e.target as HTMLElement;
       const tag = t?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || t?.isContentEditable) return;
-      // Floating overlays manage their own Tab cycle internally — don't yank
+      // Floating overlays manage their own Tab cycle internally - don't yank
       // focus out to the next nav-area.
       if (t?.closest?.('.selection-toolbar') || t?.closest?.('.in-file-search-bar')) return;
-      // While editing a draft form, Tab cycles fields within the card —
+      // While editing a draft form, Tab cycles fields within the card -
       // don't yank focus out to the next nav-area.
       if (t?.closest?.('.comment-card-new, .finding-card-new, .feature-card-new')) return;
 
@@ -484,7 +484,7 @@ export function App() {
       if (idx === -1) {
         next = 0;
       } else if (live.length <= 1) {
-        // Single-area view — suppress Tab but don't move
+        // Single-area view - suppress Tab but don't move
         e.preventDefault();
         e.stopPropagation();
         return;
@@ -536,7 +536,7 @@ export function App() {
       applyPendingLine();
       return;
     }
-    // Element not yet in DOM — watch for it
+    // Element not yet in DOM - watch for it
     const observer = new MutationObserver(() => {
       const el = document.querySelector(`[data-nav-area="${area}"]`) as HTMLElement | null;
       if (el) {
@@ -843,7 +843,7 @@ export function App() {
 
   return (
     <div className="app-shell">
-      {/* Tab bar — primary view navigation */}
+      {/* Tab bar - primary view navigation */}
       <div className="tab-bar">
         <div className="tab-bar-tabs">
           {repoName && (
@@ -1117,7 +1117,7 @@ export function App() {
         } : undefined}
         onKeyDown={isCodeView ? (e) => {
           // Don't drive codeview's logical line-focus when DOM focus is inside
-          // an overlay bar (find-in-file, go-to-line) or any text input —
+          // an overlay bar (find-in-file, go-to-line) or any text input -
           // otherwise Arrow/Enter/Escape there would also move the focused
           // line and could trigger range-selection / finding creation.
           const t = e.target as HTMLElement;
@@ -1145,7 +1145,7 @@ export function App() {
               next = Math.max(cur - pageStep, 1);
             }
             // Two-phase range model: once an anchor is pinned (by Enter), plain
-            // Arrow keys extend the range — they don't drop it. The anchor only
+            // Arrow keys extend the range - they don't drop it. The anchor only
             // clears on Esc or after the picker fires.
             useUIStore.getState().setCodeviewFocusedLine(next);
             const row = scroller.querySelector(`[data-new-line="${next}"]`);
@@ -1157,11 +1157,11 @@ export function App() {
             if (line === null || !selectedFilePath) return;
             e.preventDefault();
             if (anchor === null) {
-              // Phase 1 — pin the anchor on the focused line. Arrow keys now
+              // Phase 1 - pin the anchor on the focused line. Arrow keys now
               // extend the range. The toolbar appears on the next Enter.
               state.setCodeviewSelectAnchor(line);
             } else {
-              // Phase 2 — open the picker for the anchor↔focused range.
+              // Phase 2 - open the picker for the anchor↔focused range.
               const start = Math.min(anchor, line);
               const end = Math.max(anchor, line);
               state.setCodeviewSelectAnchor(null);
@@ -1169,7 +1169,7 @@ export function App() {
               state.setAnnotationAction(null);
             }
           } else if (e.key === 'Escape') {
-            // Fully cancel the line selection — drops both the anchor (if a
+            // Fully cancel the line selection - drops both the anchor (if a
             // range was being extended) and the focused-line highlight.
             const state = useUIStore.getState();
             state.setCodeviewSelectAnchor(null);
@@ -1177,7 +1177,7 @@ export function App() {
           }
         } : undefined}
       >
-        {/* File sub-header — breadcrumb + nav (browse/diff only) */}
+        {/* File sub-header - breadcrumb + nav (browse/diff only) */}
         {(viewMode === 'browse' || viewMode === 'diff') && (
         <header className="file-header">
           <div className="file-header-left">
@@ -1596,7 +1596,7 @@ export function App() {
                           value={quickFeatureDirection}
                           onChange={(e) => setQuickFeatureDirection(e.target.value)}
                         >
-                          <option value="">—</option>
+                          <option value="">-</option>
                           <option value="in">in</option>
                           <option value="out">out</option>
                         </select>
@@ -1708,7 +1708,7 @@ export function App() {
         />
       )}
 
-      {/* Keyboard shortcuts button — fixed bottom-right */}
+      {/* Keyboard shortcuts button - fixed bottom-right */}
       <button
         className="shortcuts-fab"
         data-tooltip="Keyboard shortcuts"

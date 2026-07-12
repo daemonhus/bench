@@ -11,7 +11,7 @@ import (
 // fixture is a small, predictable git repo used by the characterization
 // tests. It's intentionally tiny (three commits, one rename, one branch) so
 // every exercised behavior is easy to reason about, and so the same fixture
-// drives CLI and — eventually — go-git backends through the parity harness.
+// drives CLI and - eventually - go-git backends through the parity harness.
 type fixture struct {
 	Repo *Repo
 	Dir  string

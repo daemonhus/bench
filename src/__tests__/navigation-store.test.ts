@@ -70,7 +70,7 @@ describe('navigation-store', () => {
       useNavigationStore.getState().goBack();
       expect(useNavigationStore.getState().currentIndex).toBe(0);
 
-      // Navigate to new file — should truncate b.ts and c.ts
+      // Navigate to new file - should truncate b.ts and c.ts
       useNavigationStore.getState().pushFile('d.ts');
 
       const state = useNavigationStore.getState();

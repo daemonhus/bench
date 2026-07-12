@@ -159,7 +159,7 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
     );
   };
 
-  // Resolve the baseline commit's date from the graph — used only for filtering git commits.
+  // Resolve the baseline commit's date from the graph - used only for filtering git commits.
   const baselineCommitDate = useMemo(() => {
     if (!commitId) return null;
     const match = graphCommits.find(c => c.hash === commitId || c.hash.startsWith(commitId));
@@ -172,7 +172,7 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
 
   // Build the mainline set: commits reachable by following parents[0] from HEAD.
   // Commits only reachable via parents[1+] (feature branch commits absorbed by a merge)
-  // are excluded from the top-level activity stream — they live inside the merge card.
+  // are excluded from the top-level activity stream - they live inside the merge card.
   const mainlineSet = useMemo(() => {
     if (!graphCommits.length) return new Set<string>();
     const byHash = new Map(graphCommits.map(g => [g.hash, g]));
@@ -257,7 +257,7 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
 
     // Group commits: merge commits as standalone cards, regular commits grouped
     // between consecutive merges into collapsible commit-group cards.
-    // Only mainline commits are included — branch commits absorbed by a merge
+    // Only mainline commits are included - branch commits absorbed by a merge
     // are reachable via parents[1+] and should not appear as standalone items.
     const commitsAfterBaseline = graphCommits
       .filter(g => baselineCommitDate && g.date > baselineCommitDate && mainlineSet.has(g.hash))
@@ -536,7 +536,7 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
 
   return (
     <div className="delta-view">
-      {/* Header bar — two-column grid */}
+      {/* Header bar - two-column grid */}
       <div className="delta-header" tabIndex={0} data-nav-area="delta-header" onKeyDown={(e) => {
         if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft' && e.key !== 'Enter' && e.key !== ' ') return;
         e.preventDefault();
@@ -727,7 +727,7 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
 
       {/* Activity stream + history drawer */}
       <div className="delta-body-wrap">
-      {/* History drawer — left side */}
+      {/* History drawer - left side */}
       {historyOpen && (
         <div
           className="delta-history-drawer"

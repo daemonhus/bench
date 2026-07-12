@@ -14,7 +14,7 @@ type DB struct {
 	projectID string
 	ownsConn  bool
 	wq        *writeQueue
-	// profileConfigured caches a positive ProfileConfigured answer — the
+	// profileConfigured caches a positive ProfileConfigured answer - the
 	// profile can never become unconfigured, so one true answer is final.
 	profileConfigured atomic.Bool
 }
@@ -64,7 +64,7 @@ func (d *DB) Close() error {
 // resolveID returns the full ID matching id or its prefix within this project's table.
 // id may be a full UUID or any unambiguous prefix. Returns an error if the prefix
 // matches zero rows (not found) or more than one row (ambiguous).
-// table must be a hardcoded table name — it is interpolated directly into SQL.
+// table must be a hardcoded table name - it is interpolated directly into SQL.
 func (d *DB) resolveID(table, id string) (string, error) {
 	rows, err := d.conn.Query(
 		fmt.Sprintf("SELECT id FROM %s WHERE project_id = ? AND id LIKE ? LIMIT 2", table),
@@ -687,12 +687,12 @@ func (d *DB) migrateFindings() error {
 	_, err := d.conn.Exec(`INSERT INTO findings (id, anchor_file_id, anchor_commit_id, severity, title, status, source)
 		VALUES ('__migrate_test__', '', '', 'info', '', 'draft', 'manual')`)
 	if err == nil {
-		// New constraints work — clean up test row
+		// New constraints work - clean up test row
 		d.conn.Exec(`DELETE FROM findings WHERE id = '__migrate_test__'`)
 		return nil
 	}
 
-	// Old constraints — rebuild table
+	// Old constraints - rebuild table
 	migrate := []string{
 		`CREATE TABLE findings_new (
 			id               TEXT PRIMARY KEY,

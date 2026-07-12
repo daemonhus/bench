@@ -52,7 +52,7 @@ var categories = []category{
 // endpoint describes how a CLI command maps to a REST API call.
 type endpoint struct {
 	Method string // GET, POST, PATCH, DELETE
-	Path   string // e.g. "/api/findings" — may contain {id} placeholders
+	Path   string // e.g. "/api/findings" - may contain {id} placeholders
 }
 
 // cmdDef maps a CLI sub-command to a REST endpoint.
@@ -311,7 +311,7 @@ var commands = []cmdDef{
 		Flags: []flagDef{
 			{Name: "entity-type", Param: "entityType", Desc: "Entity type [finding|feature|comment]", Required: true},
 			{Name: "entity", Param: "entityId", Desc: "Entity ID", Required: true},
-			{Name: "provider", Param: "provider", Desc: "Provider [github|gitlab|jira|confluence|linear|notion|slack|url] — inferred from URL if omitted"},
+			{Name: "provider", Param: "provider", Desc: "Provider [github|gitlab|jira|confluence|linear|notion|slack|url] - inferred from URL if omitted"},
 			{Name: "url", Param: "url", Desc: "Full URL of the external resource", Required: true},
 			{Name: "title", Param: "title", Desc: "Optional display label"},
 		}},
@@ -399,7 +399,7 @@ var commands = []cmdDef{
 			{Name: "file", Param: "fileId", Desc: "Anchor file path", Required: true},
 			{Name: "commit", Param: "commitId", Desc: "Anchor commit", Required: true},
 			{Name: "kind", Param: "kind", Desc: "Feature kind [interface|source|sink|dependency|externality]", Required: true},
-			{Name: "title", Param: "title", Desc: "Feature title — do not prefix with HTTP method (e.g. 'Login endpoint', not 'POST /login'); use --operation for that", Required: true},
+			{Name: "title", Param: "title", Desc: "Feature title - do not prefix with HTTP method (e.g. 'Login endpoint', not 'POST /login'); use --operation for that", Required: true},
 			{Name: "start", Param: "lineStart", Desc: "Anchor line range start", Type: "int"},
 			{Name: "end", Param: "lineEnd", Desc: "Anchor line range end", Type: "int"},
 			{Name: "description", Param: "description", Desc: "Detailed description"},
@@ -524,9 +524,9 @@ var commands = []cmdDef{
 		}},
 
 	// ── profile ─────────────────────────────────────────────────────────
-	{Cat: "profile", Name: "get", Desc: "Get the service profile — reviewer-configured meta-attributes of the service under review (exposure, compute, data sensitivity, criticality, tenancy, lifecycle, edge protections, compliance, auth model, consumers). Empty fields mean 'not configured', not 'confirmed absent'.",
+	{Cat: "profile", Name: "get", Desc: "Get the service profile - reviewer-configured meta-attributes of the service under review (exposure, compute, data sensitivity, criticality, tenancy, lifecycle, edge protections, compliance, auth model, consumers). Empty fields mean 'not configured', not 'confirmed absent'.",
 		EP: endpoint{"GET", "/api/profile"}},
-	{Cat: "profile", Name: "set", Desc: "Update the service profile (partial update — only provided flags are sent). List flags replace the full list. 'none' is an explicit claim (control confirmed absent) and cannot be combined with other values. Findings/comments/features/baselines writes are rejected with 412 until the profile has been set at least once.",
+	{Cat: "profile", Name: "set", Desc: "Update the service profile (partial update - only provided flags are sent). List flags replace the full list. 'none' is an explicit claim (control confirmed absent) and cannot be combined with other values. Findings/comments/features/baselines writes are rejected with 412 until the profile has been set at least once.",
 		EP: endpoint{"PATCH", "/api/profile"},
 		Flags: []flagDef{
 			{Name: "description", Param: "description", Desc: "What the service does"},
@@ -707,7 +707,7 @@ func buildRequest(cmd *cmdDef, pf *parsedFlags) (method, path string, body io.Re
 			pathParams[fd.Name] = true
 		}
 	}
-	// Handle {path...} (catch-all) — Git show endpoint uses path after commitish.
+	// Handle {path...} (catch-all) - Git show endpoint uses path after commitish.
 	if strings.Contains(path, "{path}") {
 		if val, ok := pf.values["path"]; ok {
 			// Don't URL-encode slashes in file paths.
@@ -914,7 +914,7 @@ func buildRequest(cmd *cmdDef, pf *parsedFlags) (method, path string, body io.Re
 // ---------------------------------------------------------------------------
 
 func printRootHelp() {
-	fmt.Fprintf(os.Stderr, "bench v%s — security review workbench CLI\n\n", cliVersion)
+	fmt.Fprintf(os.Stderr, "bench v%s - security review workbench CLI\n\n", cliVersion)
 	fmt.Fprintln(os.Stderr, "Usage:")
 	fmt.Fprintln(os.Stderr, "  bench [flags] <category> <command> [command-flags]")
 	fmt.Fprintln(os.Stderr)
@@ -940,7 +940,7 @@ func printCategoryHelp(catName string) {
 			break
 		}
 	}
-	fmt.Fprintf(os.Stderr, "bench %s — %s\n\n", catName, strings.ToLower(desc))
+	fmt.Fprintf(os.Stderr, "bench %s - %s\n\n", catName, strings.ToLower(desc))
 	fmt.Fprintln(os.Stderr, "Commands:")
 
 	tw := tabwriter.NewWriter(os.Stderr, 2, 4, 3, ' ', 0)
@@ -956,7 +956,7 @@ func printCategoryHelp(catName string) {
 }
 
 func printCommandHelp(cmd *cmdDef) {
-	fmt.Fprintf(os.Stderr, "bench %s %s — %s\n\n", cmd.Cat, cmd.Name, cmd.Desc)
+	fmt.Fprintf(os.Stderr, "bench %s %s - %s\n\n", cmd.Cat, cmd.Name, cmd.Desc)
 	fmt.Fprintf(os.Stderr, "Usage:\n  bench %s %s [flags]\n", cmd.Cat, cmd.Name)
 
 	if len(cmd.Flags) > 0 {
@@ -1377,7 +1377,7 @@ func main() {
 			if len(commit) > 7 {
 				commit = commit[:7]
 			}
-			fmt.Printf("Dry run — baseline BL-%d (at %s by %s, %s) would be deleted.\n", bl.Seq, commit, bl.Reviewer, bl.CreatedAt)
+			fmt.Printf("Dry run - baseline BL-%d (at %s by %s, %s) would be deleted.\n", bl.Seq, commit, bl.Reviewer, bl.CreatedAt)
 			fmt.Printf("Snapshot: %d findings (%d open), %d comments.\n", bl.FindingsTotal, bl.FindingsOpen, bl.CommentsTotal)
 			if bl.Summary != "" {
 				fmt.Printf("Summary: %s\n", bl.Summary)

@@ -4,14 +4,14 @@
    Depends on tokens.css being loaded first.
 
    Primitives defined here:
-     .truncate                                  — single-line text ellipsis
-     .overlay-backdrop                          — fixed modal/overlay backdrop
-     .panel-header                              — header row with border-bottom
-     .icon-btn / --blue / --danger              — small bordered icon button
-     .seg-control / .seg-btn / .seg-btn-active  — segmented control
+     .truncate                                  - single-line text ellipsis
+     .overlay-backdrop                          - fixed modal/overlay backdrop
+     .panel-header                              - header row with border-bottom
+     .icon-btn / --blue / --danger              - small bordered icon button
+     .seg-control / .seg-btn / .seg-btn-active  - segmented control
        aliases: .activity-kind-toggles / .activity-kind-toggle / .activity-kind-toggle-active
-     .toggle-btn / .toggle-btn-active           — ghost binary toggle
-     .select / .select-sm / .select-mono        — native <select> base
+     .toggle-btn / .toggle-btn-active           - ghost binary toggle
+     .select / .select-sm / .select-mono        - native <select> base
    ============================================================ */
 
 /* ----- Utilities ----- */
@@ -138,7 +138,7 @@ label:has(> input:focus-visible) {
 
 /* Selection is a tone shift on the surface ramp (track = --bg-surface,
    active pill = --bg-secondary card surface + elevation token), not an
-   accent tint — accent tinting is the "filter applied" voice elsewhere.
+   accent tint - accent tinting is the "filter applied" voice elsewhere.
    The check glyph alone carries the accent. */
 .seg-btn-active,
 .activity-kind-toggle-active {
@@ -213,14 +213,14 @@ label:has(> input:focus-visible) {
   color: var(--text-primary);
 }
 
-/* Compact variant — same look, less vertical padding */
+/* Compact variant - same look, less vertical padding */
 .select-sm {
   font-size: var(--font-size-small);
   padding: 11px 36px 11px 12px;
   background-position: right 12px center;
 }
 
-/* Monospace variant — for commit hashes, file paths, branch names */
+/* Monospace variant - for commit hashes, file paths, branch names */
 .select-mono {
   font-family: var(--font-mono);
 }
@@ -301,7 +301,7 @@ label:has(> input:focus-visible) {
    against the rest of the list. `box-shadow` is used instead of `border-left` so
    layout doesn't shift when focus moves between items. */
 [data-nav-focused="true"] {
-  /* Elevation + slight background shift — no accent-color chrome so the card's
+  /* Elevation + slight background shift - no accent-color chrome so the card's
      own left-edge severity/kind color stays the hero cue and we don't fight
      the sidebar's own focus ring. */
   background-color: color-mix(in srgb, var(--text-primary) 4%, transparent);

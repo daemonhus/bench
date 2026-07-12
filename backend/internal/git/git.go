@@ -29,7 +29,7 @@ func validatePath(p string) error {
 	return nil
 }
 
-// ErrUnknownRef is returned when a commitish cannot be resolved — typically
+// ErrUnknownRef is returned when a commitish cannot be resolved - typically
 // because the commit has been rebased/GC'd or the DB references a sha from a
 // different checkout. Callers should map this to 404.
 var ErrUnknownRef = errors.New("unknown git ref")

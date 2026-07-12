@@ -8,7 +8,7 @@ import type { Feature, FeatureKind } from './types';
 // (nodes sit near what they connect to; the flow reads left to right), then
 // a d3-force simulation relaxes vertical positions and resolves collisions.
 // The simulation is run to convergence synchronously with seeded initial
-// positions — d3-force's internal jitter uses a seeded LCG, so the layout is
+// positions - d3-force's internal jitter uses a seeded LCG, so the layout is
 // deterministic: same data, same picture.
 // ---------------------------------------------------------------------------
 
@@ -177,7 +177,7 @@ export function buildFeatureMap(
 
   // Force pass: strong pull to the depth column, weak vertical centring,
   // repulsion plus collision for organic spacing, links pulling neighbours
-  // level. Run synchronously to convergence — the map is a diagram.
+  // level. Run synchronously to convergence - the map is a diagram.
   const simLinks = edges.map(([a, b]) => ({ source: a, target: b }));
   const sim = forceSimulation(simNodes)
     .force('x', forceX<SimNode>((n) => n.targetX).strength(0.55))

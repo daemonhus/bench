@@ -100,7 +100,7 @@ func TestCLIIntegration_Profile_WriteGate(t *testing.T) {
 		t.Fatalf("findings create on unconfigured profile = %d, want 412 (%v)", code, result)
 	}
 
-	// profile set is the bootstrap path — exempt from the gate.
+	// profile set is the bootstrap path - exempt from the gate.
 	if _, code := cliDo(t, srv, "profile", "set", []string{"--owner", "x"}); code != 200 {
 		t.Fatalf("profile set gated: %d", code)
 	}

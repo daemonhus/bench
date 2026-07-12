@@ -537,7 +537,7 @@ function KindSquares({ features, openByFeature }: {
                   onMouseLeave={scheduleClose}
                 />
               ))}
-              {list.length === 0 && <span className="ovp-kind-none">—</span>}
+              {list.length === 0 && <span className="ovp-kind-none">-</span>}
             </span>
             <span className="ovp-kind-count">{list.length}</span>
           </div>
@@ -560,7 +560,7 @@ function KindSquares({ features, openByFeature }: {
 }
 
 // ---------------------------------------------------------------------------
-// Feature map — static kind-banded preview of the planned force layout
+// Feature map - static kind-banded preview of the planned force layout
 // (PLAN-feature-graph.md). Real features when annotated; sample data otherwise.
 // ---------------------------------------------------------------------------
 
@@ -780,7 +780,7 @@ function FeatureMap({ features, openByFeature, worstByFeature }: {
 }
 
 // ---------------------------------------------------------------------------
-// Repository context — profile values as badges
+// Repository context - profile values as badges
 // ---------------------------------------------------------------------------
 
 interface CtxBadge {
@@ -1046,7 +1046,7 @@ export function OverviewView() {
                 Behind baseline
               </span>
               <span className="ovp-kpi-value">
-                {baseline && drift ? drift.commits : '—'}
+                {baseline && drift ? drift.commits : '-'}
                 {baseline && drift && <span className="ovp-kpi-unit">commit{drift.commits === 1 ? '' : 's'}</span>}
               </span>
               <span className="ovp-kpi-sub">
@@ -1124,7 +1124,7 @@ export function OverviewView() {
                   <h4 className="ovp-subtitle ovp-subtitle-flat">Head</h4>
                   {headDate && <span className="ovp-stat-when">{relativeTime(headDate)}</span>}
                 </div>
-                <div className="ovp-head-hash ovp-mono">{head ? head.shortHash : '—'}</div>
+                <div className="ovp-head-hash ovp-mono">{head ? head.shortHash : '-'}</div>
                 <div className="ovp-stat-sub" title={head?.subject}>{head?.subject ?? 'No commits'}</div>
                 {localBranches.length > 0 && (
                   <div className="ovp-branches-inline">
@@ -1140,7 +1140,7 @@ export function OverviewView() {
                 )}
               </div>
 
-              {/* Recent log — same rendering as the Browse git tree */}
+              {/* Recent log - same rendering as the Browse git tree */}
               <div className="ovp-section">
                 <h4 className="ovp-subtitle">Recent log</h4>
                 <div className="ovp-git-tree">

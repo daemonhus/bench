@@ -8,7 +8,7 @@ import (
 	"bench/internal/model"
 )
 
-// InsertPosition stores an annotation position entry (delta storage —
+// InsertPosition stores an annotation position entry (delta storage -
 // only call when position or confidence has changed).
 func (d *DB) InsertPosition(p *model.AnnotationPosition) error {
 	return wq0(d.wq, func() error {

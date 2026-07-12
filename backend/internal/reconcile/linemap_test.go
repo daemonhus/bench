@@ -365,7 +365,7 @@ func TestMapLineRange_AnnotationExpandsWithInsertion(t *testing.T) {
 	// Old lines 3-5 map to new lines 3,5,6 (skipping inserted line 4)
 	ns, ne, ok := MapLineRange(3, 5, hunks)
 	if !ok {
-		t.Fatal("expected ok=true — all old lines survived")
+		t.Fatal("expected ok=true - all old lines survived")
 	}
 	// line 3 → 3, line 4 → 5, line 5 → 6
 	if ns != 3 || ne != 6 {

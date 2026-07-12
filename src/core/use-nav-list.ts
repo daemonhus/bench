@@ -3,7 +3,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 /**
  * Walk up from `target` to the nearest `[data-nav-id]` ancestor inside
  * `container` and return its id. Returns null if no such ancestor exists or
- * the match is outside the container. Exported for testing — the hook below
+ * the match is outside the container. Exported for testing - the hook below
  * uses it on focus and pointer-down to update the current nav anchor.
  */
 export function resolveNavId(
@@ -111,7 +111,7 @@ export function useNavList<T>({
   }, [focusedIndex, items, moveFocus, onSelect, onActivate, onShiftActivate, onFocusChange]);
 
   // Track focus moves inside the list so the "current" card is whichever one
-  // the user last interacted with — clicking a card body, focusing its reply
+  // the user last interacted with - clicking a card body, focusing its reply
   // textarea, or tabbing to a button inside the card all update focusedId so
   // subsequent arrow-key navigation continues from there.
   //

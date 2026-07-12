@@ -19,7 +19,7 @@ interface AnchorDraft {
 }
 
 function shortPath(p: string | undefined): string {
-  if (!p) return '—';
+  if (!p) return '-';
   const parts = p.split('/');
   return parts.length > 2 ? `…/${parts.slice(-2).join('/')}` : p;
 }
@@ -42,7 +42,7 @@ export const OrphanTriagePanel: React.FC<Props> = ({ onClose }) => {
 
   // Always fetch fresh from the API. The annotation store gets populated by
   // multiple callers with different fidelity (some pass `commit`, some don't),
-  // so trusting it for orphan detection is unreliable — by the time the modal
+  // so trusting it for orphan detection is unreliable - by the time the modal
   // opens, `confidence` may have been wiped by a no-commit refresh. The
   // `commit` param ensures findings/comments come back enriched; features
   // carry their orphan signal on `status` so a plain list is enough.
@@ -100,7 +100,7 @@ export const OrphanTriagePanel: React.FC<Props> = ({ onClose }) => {
     setSelected(allSelected ? new Set() : new Set(allKeys));
   };
 
-  // Selection set is scope-specific — clear it when the user flips the toggle.
+  // Selection set is scope-specific - clear it when the user flips the toggle.
   useEffect(() => { setSelected(new Set()); }, [scope]);
 
   useEffect(() => {

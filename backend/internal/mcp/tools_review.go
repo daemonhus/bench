@@ -288,7 +288,7 @@ func toolGetCoverage(deps *toolDeps) Tool {
 				// Check staleness: was file modified since review?
 				changed, err := deps.repo.DiffFiles(rp.commitID, p.Commit)
 				if err != nil {
-					// Can't check staleness — assume reviewed
+					// Can't check staleness - assume reviewed
 					reviewed++
 					files = append(files, map[string]string{
 						"path":        e.Path,

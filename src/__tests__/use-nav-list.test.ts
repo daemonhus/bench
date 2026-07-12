@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { resolveNavId } from '../core/use-nav-list';
 
 // resolveNavId is the DOM-walking primitive behind useNavList's focus and
-// pointer-down handlers — it's what makes "click a card or type into one of
+// pointer-down handlers - it's what makes "click a card or type into one of
 // its inputs" become the anchor for subsequent arrow-key navigation.
 
 function buildList(ids: string[]): { container: HTMLElement; cards: HTMLElement[] } {
@@ -86,7 +86,7 @@ describe('resolveNavId', () => {
   });
 
   it('switches anchor when the user clicks into a different card', () => {
-    // Behavioural assertion: this is the regression the change fixes — after
+    // Behavioural assertion: this is the regression the change fixes - after
     // interacting with card b, resolveNavId reports 'b' instead of whatever
     // the previous anchor was.
     const { container, cards } = buildList(['a', 'b', 'c']);

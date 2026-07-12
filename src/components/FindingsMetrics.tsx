@@ -25,7 +25,7 @@ function ChartTooltip({ tip }: { tip: TooltipState }) {
   );
 }
 
-// ── 1. Severity Distribution — horizontal bars ────────────────────────────────
+// ── 1. Severity Distribution - horizontal bars ────────────────────────────────
 
 const SEV_GROUPS = [
   { keys: ['critical'] as Severity[], label: 'Critical', color: 'var(--severity-critical)' },
@@ -64,7 +64,7 @@ function SeverityBars({ totals }: { totals: Record<string, number> }) {
   );
 }
 
-// ── 2. Resolution Status — 2×2 tiles ─────────────────────────────────────────
+// ── 2. Resolution Status - 2×2 tiles ─────────────────────────────────────────
 
 // Bar colours grade by how much attention the bucket demands: open is the
 // full-intensity alarm, in progress is a pale blue (being handled), accepted
@@ -187,7 +187,7 @@ export function ResolutionStrip({ totals }: { totals: Record<string, number> }) 
   );
 }
 
-// ── 3. Findings by Source — large centred donut ───────────────────────────────
+// ── 3. Findings by Source - large centred donut ───────────────────────────────
 
 const SRC_SIZE = 180, SRC_OUTER = 82, SRC_INNER = 59;
 const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif";
@@ -229,7 +229,7 @@ function SourcePanel({ entries, total }: { entries: LegendEntry[]; total: number
   );
 }
 
-// ── 4. Category Heatmap — one square per finding, hover mini-card ────────────
+// ── 4. Category Heatmap - one square per finding, hover mini-card ────────────
 
 function CategoryGrid({ findings }: { findings: Finding[] }) {
   const { card, containerRef, showCard, cancelClose, scheduleClose } = useHoverCard<Finding>();

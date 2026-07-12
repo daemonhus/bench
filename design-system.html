@@ -2,13 +2,13 @@
 <html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
-<title>Bench Design System — Controls Inventory</title>
+<title>Bench Design System - Controls Inventory</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- Real app styles: specimens render from the same CSS the app ships,
      so this page cannot drift from reality. -->
 <link rel="stylesheet" href="src/App.css">
 <style>
-  /* Page chrome only — everything inside a specimen uses app classes. */
+  /* Page chrome only - everything inside a specimen uses app classes. */
   body { background: var(--bg-primary); color: var(--text-primary); font-family: var(--font-sans); margin: 0; }
   .ds-page { max-width: 1200px; margin: 0 auto; padding: 32px 40px 120px; }
   .ds-header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 8px; }
@@ -50,7 +50,7 @@
 
   <!-- ══════════════ 1. Primary action buttons ══════════════ -->
   <section class="ds-section">
-    <h2 class="ds-section-title">Action buttons — <code>baseline-action-btn</code></h2>
+    <h2 class="ds-section-title">Action buttons - <code>baseline-action-btn</code></h2>
     <p class="ds-usage">
       The canonical button family. Used in: <code>SetBaselineModal</code> (submit/cancel),
       <code>DeltaView</code> ("Set Baseline", delete confirmation), the unconfigured-profile
@@ -75,7 +75,7 @@
 
   <!-- ══════════════ 2. Tab bar ══════════════ -->
   <section class="ds-section">
-    <h2 class="ds-section-title">Tab bar — <code>tab-bar-tab</code>, <code>quick-add-btn</code>, <code>theme-toggle-slider</code></h2>
+    <h2 class="ds-section-title">Tab bar - <code>tab-bar-tab</code>, <code>quick-add-btn</code>, <code>theme-toggle-slider</code></h2>
     <p class="ds-usage">
       Top navigation in <code>App.tsx</code>: one tab per view with keyboard-shortcut badge
       (<code>tab-bar-kbd</code>); quick-add icon buttons for comment/finding/feature; the
@@ -108,12 +108,12 @@
 
   <!-- ══════════════ 3. Segmented + view-mode ══════════════ -->
   <section class="ds-section">
-    <h2 class="ds-section-title">Segmented controls — <code>seg-control</code> / <code>view-mode-btn</code></h2>
+    <h2 class="ds-section-title">Segmented controls - <code>seg-control</code> / <code>view-mode-btn</code></h2>
     <p class="ds-usage">
       <code>seg-control</code>/<code>seg-btn</code> (with built-in dash/check glyphs): the
       activity-kind filter in <code>DeltaView</code>. <code>view-mode-btn</code>: the
       Browse ⁄ Compare switch in the commit selector (<code>App.tsx</code>).
-      Note: until recently the Config page borrowed <code>seg-btn</code> for its radios —
+      Note: until recently the Config page borrowed <code>seg-btn</code> for its radios -
       replaced by the choice chips below after the radio/checkbox ambiguity came up.
     </p>
     <div class="ds-specimens">
@@ -135,7 +135,7 @@
 
   <!-- ══════════════ 4. Config choice chips ══════════════ -->
   <section class="ds-section">
-    <h2 class="ds-section-title">Choice chips — <code>config-choice</code></h2>
+    <h2 class="ds-section-title">Choice chips - <code>config-choice</code></h2>
     <p class="ds-usage">
       The Config page's service-profile form (<code>ConfigView</code>). Shape encodes semantics:
       pill + ring-and-dot = radio (pick one); squared + tick box = checkbox (pick any).
@@ -161,7 +161,7 @@
 
   <!-- ══════════════ 5. Canonical form inputs ══════════════ -->
   <section class="ds-section">
-    <h2 class="ds-section-title">Form inputs — <code>finding-edit-*</code> family</h2>
+    <h2 class="ds-section-title">Form inputs - <code>finding-edit-*</code> family</h2>
     <p class="ds-usage">
       The canonical input geometry (8px 12px, <code>--radius-base</code>, blue focus ring) after the
       form-unification pass (<code>PLAN-form-unification.md</code>). Used in: <code>FindingCard</code>
@@ -206,7 +206,7 @@
 
   <!-- ══════════════ 6. Anchor + tags ══════════════ -->
   <section class="ds-section">
-    <h2 class="ds-section-title">Anchor field &amp; tag chips — <code>anchor-field-*</code>, <code>tag-input-*</code></h2>
+    <h2 class="ds-section-title">Anchor field &amp; tag chips - <code>anchor-field-*</code>, <code>tag-input-*</code></h2>
     <p class="ds-usage">
       <code>AnchorField</code>: file path + line range in one row, used by every annotation edit form.
       <code>TagInput</code>: chip editor with autocomplete, used by <code>FeatureCard</code> and the
@@ -233,7 +233,7 @@
 
   <!-- ══════════════ 7. Filter dropdowns + search ══════════════ -->
   <section class="ds-section">
-    <h2 class="ds-section-title">Filters &amp; search — <code>multi-select-*</code>, <code>search-box</code>, <code>in-file-search</code></h2>
+    <h2 class="ds-section-title">Filters &amp; search - <code>multi-select-*</code>, <code>search-box</code>, <code>in-file-search</code></h2>
     <p class="ds-usage">
       <code>MultiSelectDropdown</code>: severity/source/kind filters on the Findings and Features
       pages. Search inputs: <code>SearchBox</code> (Features page), the annotation search
@@ -272,10 +272,10 @@
 
   <!-- ══════════════ 8. Inline card toggles ══════════════ -->
   <section class="ds-section">
-    <h2 class="ds-section-title">Severity input — radio where spacious, select where compact</h2>
+    <h2 class="ds-section-title">Severity input - radio where spacious, select where compact</h2>
     <p class="ds-usage">
       Two deliberate forms for the same field. <strong>Severity radio</strong> (pill chips,
-      severity-coloured, pick-one): the default wherever there is room — <code>FindingCard</code>
+      severity-coloured, pick-one): the default wherever there is room - <code>FindingCard</code>
       edit forms and the quick-add modal. <strong>Severity select</strong>: the compact fallback,
       kept only in the Browse side-panel draft where a five-chip row will not fit. Do not
       introduce new severity dropdowns in spacious layouts.
@@ -312,7 +312,7 @@
 
   <!-- ══════════════ 9. Comment + icon buttons ══════════════ -->
   <section class="ds-section">
-    <h2 class="ds-section-title">Comment buttons — <code>comment-btn</code>, <code>comment-icon-btn</code></h2>
+    <h2 class="ds-section-title">Comment buttons - <code>comment-btn</code>, <code>comment-icon-btn</code></h2>
     <p class="ds-usage">
       Thread actions across <code>FindingCard</code>, <code>FeatureCard</code>, comment threads,
       and modals: submit/cancel pairs, and icon-only edit/delete buttons (danger variant for delete).
@@ -337,7 +337,7 @@
 
   <!-- ══════════════ 10. Selection toolbar ══════════════ -->
   <section class="ds-section">
-    <h2 class="ds-section-title">Selection toolbar — <code>selection-toolbar-btn</code></h2>
+    <h2 class="ds-section-title">Selection toolbar - <code>selection-toolbar-btn</code></h2>
     <p class="ds-usage">
       The floating toolbar that appears when selecting lines in Browse
       (<code>SelectionToolbar</code>): add comment / finding / feature / copy link.
@@ -357,7 +357,7 @@
 
   <!-- ══════════════ 11. Links & utility buttons ══════════════ -->
   <section class="ds-section">
-    <h2 class="ds-section-title">Links &amp; utility — panel links, nav, load-more, dismiss</h2>
+    <h2 class="ds-section-title">Links &amp; utility - panel links, nav, load-more, dismiss</h2>
     <p class="ds-usage">
       Overview panel-title deep links and the Context link (<code>OverviewView</code>);
       back/forward <code>nav-btn</code> (App header); <code>git-tree-load-more</code>
@@ -387,7 +387,7 @@
 
   <!-- ══════════════ 12. Interactive data marks ══════════════ -->
   <section class="ds-section">
-    <h2 class="ds-section-title">Interactive marks — <code>ovp-kind-square</code>, map nodes</h2>
+    <h2 class="ds-section-title">Interactive marks - <code>ovp-kind-square</code>, map nodes</h2>
     <p class="ds-usage">
       Clickable data marks sharing one grammar (colour = identity, red notch = open findings,
       hover = mini-card): the Features-by-kind waffle and the feature map on Overview, and the

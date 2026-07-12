@@ -108,7 +108,7 @@ export const FindingsView: React.FC = () => {
   const filterFindingTitle = filterFindingId
     ? findings.find((f) => f.id === filterFindingId)?.title ?? filterFindingId
     : null;
-  // The single filtered finding opens expanded — collapsed is pointless when
+  // The single filtered finding opens expanded - collapsed is pointless when
   // it is the only card on screen.
   useEffect(() => {
     if (!filterFindingId) return;

@@ -109,7 +109,7 @@ type OriginSuggestion struct {
 }
 
 var mergeBranchRes = []*regexp.Regexp{
-	// "Merge pull request #12 from owner/feature/x" (GitHub) — branch is the
+	// "Merge pull request #12 from owner/feature/x" (GitHub) - branch is the
 	// part after the owner segment.
 	regexp.MustCompile(`^Merge pull request #\d+ (?:in [^ ]+ )?from [^/ ]+/(\S+)`),
 	// "Merge branch 'feature/x'" / "Merge remote-tracking branch 'origin/x'"
@@ -332,7 +332,7 @@ type ActivityAuthor struct {
 }
 
 // ActivityBucket is one period (day, week, or month) of repository activity
-// across all refs, bucketed in UTC — weeks start Monday, months on the 1st.
+// across all refs, bucketed in UTC - weeks start Monday, months on the 1st.
 // Additions/Deletions exclude merge commits so merged branch work is not
 // double-counted.
 type ActivityBucket struct {
@@ -471,7 +471,7 @@ type BaselineDelta struct {
 }
 
 // ServiceProfile is the singleton set of reviewer-configured meta-attributes
-// describing the service under review. Empty fields mean "not configured" —
+// describing the service under review. Empty fields mean "not configured" -
 // never treat absence as confirmation that a control is missing. In the
 // multi-select fields, "none" is an explicit positive claim (control confirmed
 // absent) and cannot be combined with other values.

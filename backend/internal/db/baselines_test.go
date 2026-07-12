@@ -79,7 +79,7 @@ func TestBaselineSeqAutoIncrement(t *testing.T) {
 		}
 	}
 
-	// Delete middle baseline — next one should still be max+1
+	// Delete middle baseline - next one should still be max+1
 	d.DeleteBaseline("bl-s2")
 	b4 := &model.Baseline{
 		ID:         "bl-s4",
@@ -107,7 +107,7 @@ func TestGetLatestBaseline(t *testing.T) {
 		t.Fatal("expected nil when no baselines exist")
 	}
 
-	// Create two baselines — force ordering via direct SQL
+	// Create two baselines - force ordering via direct SQL
 	d.conn.Exec(`INSERT INTO baselines (id, project_id, commit_id, reviewer, summary, created_at,
 		findings_total, findings_open, by_severity, by_status, comments_total, comments_open, finding_ids)
 		VALUES ('bl-old', '_standalone', 'aaa', '', '', '2024-01-01 00:00:00', 0, 0, '{}', '{}', 0, 0, '[]')`)

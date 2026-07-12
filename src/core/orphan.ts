@@ -1,7 +1,7 @@
 // Unified orphan signal across entity types.
 //
 // Features carry orphan state on `status` (the FeatureStatus enum includes
-// 'orphaned'). Findings and comments carry it on `confidence` — the position
+// 'orphaned'). Findings and comments carry it on `confidence` - the position
 // resolver tags annotations whose code couldn't be located.
 //
 // Anything that needs to ask "is this orphaned?" should go through this helper

@@ -9,7 +9,7 @@ package mcp
 // entry for that tool in the cases table below.
 //
 // The coverage check at the top of the test ensures every tool with required fields
-// appears in the table — adding a tool without a test case will fail this test.
+// appears in the table - adding a tool without a test case will fail this test.
 
 import (
 	"context"
@@ -76,7 +76,7 @@ func TestMCPToolRequiredFields(t *testing.T) {
 
 	// Each entry: the tool name and a valid minimal set of arguments
 	// (all required fields present, with real or plausible values).
-	// Non-existent IDs are fine — the test only cares that the handler
+	// Non-existent IDs are fine - the test only cares that the handler
 	// doesn't return a "required" error, not that the operation succeeds.
 	cases := []struct {
 		tool      string
@@ -150,7 +150,7 @@ func TestMCPToolRequiredFields(t *testing.T) {
 		{"batch_create_refs", map[string]any{"refs": []any{map[string]any{
 			"entity_type": "finding", "entity": "f-1", "provider": "url", "url": "https://example.com",
 		}}}},
-		// profile (no required fields — entries exercise the valid-args path)
+		// profile (no required fields - entries exercise the valid-args path)
 		{"get_service_profile", map[string]any{}},
 		{"update_service_profile", map[string]any{}},
 	}
@@ -166,7 +166,7 @@ func TestMCPToolRequiredFields(t *testing.T) {
 		}
 		json.Unmarshal(tool.InputSchema, &schema) //nolint:errcheck
 		if len(schema.Required) > 0 && !covered[name] {
-			t.Errorf("tool %q has required fields in schema but no entry in cases table — add it", name)
+			t.Errorf("tool %q has required fields in schema but no entry in cases table - add it", name)
 		}
 	}
 
@@ -291,7 +291,7 @@ func TestMCPUpdateFinding_ScoreIsFloat(t *testing.T) {
 		t.Fatalf("update_finding: %v", err)
 	}
 
-	// update_finding returns "Updated finding <id>:\n<json>" — strip the prefix line.
+	// update_finding returns "Updated finding <id>:\n<json>" - strip the prefix line.
 	jsonPart := result
 	if i := strings.Index(result, "\n"); i >= 0 {
 		jsonPart = result[i+1:]
@@ -446,7 +446,7 @@ func TestMCPFeatureLinks_ListLinkedTo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list_features linked_to: %v", err)
 	}
-	// Count occurrences of "id" in results — crude but sufficient
+	// Count occurrences of "id" in results - crude but sufficient
 	if !strings.Contains(result, idB) {
 		t.Errorf("list_features linked_to result missing idB (%s): %s", idB, result)
 	}

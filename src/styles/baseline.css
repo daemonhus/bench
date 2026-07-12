@@ -416,7 +416,7 @@
 /* Floats as a panel rather than a band welded to the top of the view: it
    drops in from the tab bar and insets to the body's 40px page margin, so
    its edges line up with the cards below it. Same surface as .ovp-panel on
-   the overview — flat, no shadow — so the two pages read as one system. */
+   the overview - flat, no shadow - so the two pages read as one system. */
 .delta-header {
   display: flex;
   align-items: center;

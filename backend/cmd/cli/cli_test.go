@@ -2,7 +2,7 @@ package main
 
 // CLI tests operate at two levels:
 //
-//  1. Unit tests for parseFlags and buildRequest — pure functions that build
+//  1. Unit tests for parseFlags and buildRequest - pure functions that build
 //     HTTP requests from CLI arguments. No server needed.
 //
 //  2. Integration tests that spin up a real API server and verify that each
@@ -579,7 +579,7 @@ func TestCLIIntegration_Findings_UpdateFlat(t *testing.T) {
 	}
 	id := created["id"].(string)
 
-	// Update status — verifies flat PATCH body field names reach the server
+	// Update status - verifies flat PATCH body field names reach the server
 	updated, code := cliDo(t, srv, "findings", "update", []string{
 		"--id", id,
 		"--status", "in-progress",

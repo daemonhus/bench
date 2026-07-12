@@ -103,7 +103,7 @@ func (h *featuresHandlers) create(w http.ResponseWriter, r *http.Request) {
 	// Also parse as raw map so extractLinkedFeatures handles both
 	// "linkedFeatures" (new) and "linkedFeatureIds" (legacy string array).
 	var rawBody map[string]any
-	json.Unmarshal(bodyBytes, &rawBody) //nolint:errcheck — already validated above
+	json.Unmarshal(bodyBytes, &rawBody) //nolint:errcheck - already validated above
 	if f.ID == "" {
 		f.ID = uuid.New().String()
 	}
@@ -262,7 +262,7 @@ func (h *featuresHandlers) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract parameters and linked features from the update map — handled separately.
+	// Extract parameters and linked features from the update map - handled separately.
 	replaceParams, newParams := extractParameters(id, updates)
 	delete(updates, "parameters")
 

@@ -12,7 +12,7 @@ import (
 //
 // Anywhere a backend could plausibly diverge in output shape (commit
 // timestamps, blame short-hash width, etc.) the assertion is against a
-// stable property — "has 3 commits", "line 2 changed to BETA" — rather than
+// stable property - "has 3 commits", "line 2 changed to BETA" - rather than
 // exact byte equality.
 
 // The unknown-object sha is a valid 40-hex string that does not exist in any
@@ -65,7 +65,7 @@ func TestResolveRef(t *testing.T) {
 	}
 
 	// Note: `git rev-parse <40-hex>` echoes the input without verifying the
-	// object exists — so we probe with a bogus ref *name* to get a failure.
+	// object exists - so we probe with a bogus ref *name* to get a failure.
 	if _, err := f.Repo.ResolveRef("no-such-branch"); err == nil {
 		t.Fatal("ResolveRef(missing branch) expected error, got nil")
 	}
@@ -98,7 +98,7 @@ func TestLog(t *testing.T) {
 func TestLogRange(t *testing.T) {
 	f := newFixture(t)
 
-	// Full ancestors of HEAD — three commits.
+	// Full ancestors of HEAD - three commits.
 	all, err := f.Repo.LogRange("", "HEAD", "", 0)
 	if err != nil {
 		t.Fatalf("LogRange all: %v", err)
@@ -406,7 +406,7 @@ func TestRemoteURL_Empty(t *testing.T) {
 func TestGrep_AtCommit(t *testing.T) {
 	f := newFixture(t)
 
-	// BETA was introduced in C2 — grep at C2 should find it, at C1 should not.
+	// BETA was introduced in C2 - grep at C2 should find it, at C1 should not.
 	atC2, err := f.Repo.Grep("BETA", f.C2, "", false, false, 100)
 	if err != nil {
 		t.Fatalf("Grep C2: %v", err)

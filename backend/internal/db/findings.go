@@ -214,7 +214,7 @@ func (d *DB) UpdateFinding(id string, updates map[string]any) (*model.Finding, e
 		updates["severity"] = "info"
 	}
 
-	// Extract features before building SET clause — handled separately via join table.
+	// Extract features before building SET clause - handled separately via join table.
 	var newFeatureIDs []string
 	hasFeatureIDs := false
 	if raw, ok := updates["features"]; ok {
@@ -242,7 +242,7 @@ func (d *DB) UpdateFinding(id string, updates map[string]any) (*model.Finding, e
 		}
 	}
 	// Fix-time tracking: stamp resolved_at the first time a finding becomes
-	// resolved (status set to closed, or a resolvedCommit recorded — the CLI
+	// resolved (status set to closed, or a resolvedCommit recorded - the CLI
 	// resolve path sends only the latter), and clear it on explicit reopen.
 	if st, ok := updates["status"].(string); ok {
 		if st == "closed" {
@@ -345,7 +345,7 @@ func (d *DB) GetFinding(id string) (*model.Finding, error) {
 }
 
 // BatchCreateFindings inserts multiple findings in a single transaction.
-// Returns the IDs of created findings. All-or-nothing — rolls back on any error.
+// Returns the IDs of created findings. All-or-nothing - rolls back on any error.
 func (d *DB) BatchCreateFindings(findings []model.Finding) ([]string, error) {
 	return wq(d.wq, func() ([]string, error) {
 		tx, err := d.conn.Begin()

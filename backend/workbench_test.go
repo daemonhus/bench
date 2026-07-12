@@ -14,7 +14,7 @@ func openConn(path string) (*sql.DB, error) {
 
 func TestOpen_And_Stats(t *testing.T) {
 	dir := t.TempDir()
-	// Use the test dir as a "repo" — git operations will fail but Open should succeed
+	// Use the test dir as a "repo" - git operations will fail but Open should succeed
 	wb, err := Open(dir, filepath.Join(dir, "test.db"))
 	if err != nil {
 		t.Fatalf("Open: %v", err)

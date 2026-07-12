@@ -118,7 +118,7 @@ export const TagInput: React.FC<TagInputProps> = ({
                 commit(draft);
               }
             } else if (e.key === 'Backspace' && draft === '' && value.length > 0) {
-              // Backspace at the start removes the last chip — standard chip-input UX.
+              // Backspace at the start removes the last chip - standard chip-input UX.
               e.preventDefault();
               remove(value[value.length - 1]);
             }

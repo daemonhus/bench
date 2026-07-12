@@ -59,7 +59,7 @@
  * ----- Modal / Popover Pattern -----
  *
  * Use these classes for any "create new item" dialog in the app.
- * Do NOT invent new overlay/panel classes — reuse this system for consistency.
+ * Do NOT invent new overlay/panel classes - reuse this system for consistency.
  *
  * Structure:
  *   <div class="quick-add-overlay">          ← fixed overlay, subtle dark bg, click-outside to close

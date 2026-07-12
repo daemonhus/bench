@@ -93,7 +93,7 @@ export const AnchorField: React.FC<AnchorFieldProps> = ({
   const startNum = parseInt(lineStart, 10) || 0;
   const endNum = parseInt(lineEnd, 10) || 0;
   // Both fields filled but end is before start. Don't flag a partially-typed
-  // range (only one field populated) — that's a transient state, not an error.
+  // range (only one field populated) - that's a transient state, not an error.
   const rangeInvalid = startNum > 0 && endNum > 0 && endNum < startNum;
 
   return (

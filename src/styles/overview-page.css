@@ -1,5 +1,5 @@
 /* ============================================================
-   Project Overview page (ovp-*) — KPI row, findings trend chart,
+   Project Overview page (ovp-*) - KPI row, findings trend chart,
    features by kind, repository/reconciliation state.
    Chart hue validated with the dataviz palette checks:
    dark #7c86f0 on --bg-secondary, light #4f46e5 on white.
@@ -789,7 +789,7 @@
   border: 1px solid color-mix(in srgb, var(--severity-medium) 35%, transparent);
 }
 
-/* Embedded history graph — reuses the git-tree-* classes from the Browse
+/* Embedded history graph - reuses the git-tree-* classes from the Browse
    panel so the rendering is identical; this wrapper just bounds and scrolls it. */
 .ovp-git-tree {
   max-height: 420px;

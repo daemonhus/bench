@@ -358,7 +358,7 @@
   font-size: 16px;
 }
 
-/* Keyboard shortcuts FAB — fixed bottom-right of viewport */
+/* Keyboard shortcuts FAB - fixed bottom-right of viewport */
 .shortcuts-fab {
   position: fixed;
   bottom: 12px;
@@ -389,7 +389,7 @@
   position: relative;
 }
 
-/* Expand / collapse FAB group — sits to the left of the keyboard shortcuts FAB */
+/* Expand / collapse FAB group - sits to the left of the keyboard shortcuts FAB */
 .view-expand-fabs {
   position: fixed;
   bottom: 12px;
@@ -435,7 +435,7 @@
   border-color: var(--accent-blue);
 }
 
-/* FAB must stay fixed — override the tooltip's position: relative */
+/* FAB must stay fixed - override the tooltip's position: relative */
 .shortcuts-fab[data-tooltip] {
   position: fixed;
 }
@@ -602,7 +602,7 @@
   transform: translateX(0);
 }
 
-/* Hide the collapsed 28px strip on mobile — drawer is used instead */
+/* Hide the collapsed 28px strip on mobile - drawer is used instead */
 @media (max-width: 639px) {
   .sidebar-collapsed {
     display: none;

@@ -24,7 +24,7 @@ func (h *profileHandlers) get(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, p)
 }
 
-// PATCH /api/profile — partial update: only fields present in the body are
+// PATCH /api/profile - partial update: only fields present in the body are
 // overlaid onto the stored profile. Array fields replace the full list.
 func (h *profileHandlers) update(w http.ResponseWriter, r *http.Request) {
 	p, err := h.db.GetServiceProfile()
@@ -63,7 +63,7 @@ func (h *profileHandlers) update(w http.ResponseWriter, r *http.Request) {
 }
 
 // serviceProfileIfConfigured returns the profile for embedding in overview
-// responses (summary, delta), or nil when it has never been configured —
+// responses (summary, delta), or nil when it has never been configured -
 // so absence is itself a signal.
 func serviceProfileIfConfigured(database *db.DB) (*model.ServiceProfile, error) {
 	configured, err := database.ProfileConfigured()
@@ -79,7 +79,7 @@ func serviceProfileIfConfigured(database *db.DB) (*model.ServiceProfile, error) 
 
 // profileGateMessage names every remedy so any client (human or bot) can
 // self-serve.
-const profileGateMessage = "service profile not configured — configure it before recording review annotations: " +
+const profileGateMessage = "service profile not configured - configure it before recording review annotations: " +
 	"`bench profile set` (CLI), PATCH /api/profile (REST), update_service_profile (MCP), or the Config tab (UI). " +
 	"Call get_service_profile / GET /api/profile to see the available fields."
 

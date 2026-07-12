@@ -60,7 +60,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
       ]);
       set({ commits, branches });
     } catch {
-      // Silent — polling failure shouldn't show errors
+      // Silent - polling failure shouldn't show errors
     }
   },
 

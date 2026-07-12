@@ -2,7 +2,7 @@ package api
 
 // TestAPICreateDefaults verifies the default values applied when creating
 // annotations via the REST API (CLI path). These intentionally differ from
-// the MCP layer — see tools_contract_test.go in the mcp package.
+// the MCP layer - see tools_contract_test.go in the mcp package.
 
 import (
 	"encoding/json"
@@ -93,13 +93,13 @@ func TestCommentsAPI_CreateRequiredFields(t *testing.T) {
 func TestFeaturesAPI_CreateRequiredFields(t *testing.T) {
 	router, _ := setupEnv(t)
 
-	// Features handler — check what fields it requires
+	// Features handler - check what fields it requires
 	cases := []struct {
 		name     string
 		body     string
 		wantCode int
 	}{
-		// Valid minimal create (API layer is permissive — no required fields enforced at handler)
+		// Valid minimal create (API layer is permissive - no required fields enforced at handler)
 		{"minimal valid", `{"title":"Login","kind":"interface"}`, 201},
 	}
 	for _, tc := range cases {

@@ -17,7 +17,7 @@ export interface WorkbenchProps {
   apiBase: string;
   /** Container CSS class. */
   className?: string;
-  /** Editor configuration — overrides CSS custom properties for the code viewer. */
+  /** Editor configuration - overrides CSS custom properties for the code viewer. */
   editorConfig?: EditorConfig;
 }
 

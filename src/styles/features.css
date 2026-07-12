@@ -86,7 +86,7 @@
   margin-left: auto;
 }
 
-/* Icon buttons — reveal on hover, always show when expanded */
+/* Icon buttons - reveal on hover, always show when expanded */
 .feature-card:hover .feature-header-right .comment-icon-btn,
 .feature-card-expanded .feature-header-right .comment-icon-btn {
   opacity: 0.7;
@@ -365,7 +365,7 @@
   color: var(--text-primary);
 }
 
-/* ----- Features kind toggles — suppress check icons from activity-kind-toggle ----- */
+/* ----- Features kind toggles - suppress check icons from activity-kind-toggle ----- */
 .features-view .activity-kind-toggle::before {
   display: none;
 }
@@ -540,7 +540,7 @@
   flex-shrink: 0;
 }
 
-/* Heading shared by view and edit sections — kept light so the card body
+/* Heading shared by view and edit sections - kept light so the card body
    (description, code, parameter values) reads as the dominant content. */
 .feature-params-heading {
   font-size: var(--font-size-small);
@@ -549,7 +549,7 @@
   margin-bottom: 6px;
 }
 
-/* Clickable heading variant — used when a section (Parameters, Code) is
+/* Clickable heading variant - used when a section (Parameters, Code) is
    collapsible. Sized identically to the inline Links heading so all section
    labels read as one consistent family. The base font/colour comes from
    .feature-params-heading; we only zero out the button chrome here. */
@@ -576,7 +576,7 @@ button.feature-params-heading-toggle:hover {
   width: 8px;
 }
 
-/* Section wrappers — match the Links row's vertical rhythm so Parameters,
+/* Section wrappers - match the Links row's vertical rhythm so Parameters,
    Code and Links sit in the same cadence under the card body. */
 .feature-snippet-section {
   margin-top: 10px;
@@ -840,7 +840,7 @@ button.feature-params-heading-toggle:hover {
   background: var(--bg-tertiary);
 }
 
-/* Linked-feature badge — matches the GitHub/GitLab ref chip style so both
+/* Linked-feature badge - matches the GitHub/GitLab ref chip style so both
    kinds of link flow inline on the same row. */
 .feature-linked-badge {
   display: inline-flex;
@@ -1084,7 +1084,7 @@ button.feature-params-heading-toggle:hover {
   gap: 6px;
 }
 
-/* Fixed-height results container — never changes size */
+/* Fixed-height results container - never changes size */
 .link-manage-search-results {
   height: 300px;
   overflow-y: auto;

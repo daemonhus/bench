@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-// testHandler creates an MCP handler with no real deps — just for protocol testing.
+// testHandler creates an MCP handler with no real deps - just for protocol testing.
 // Tools that require deps will error, but we can test dispatch and tool listing.
 func testHandler() http.Handler {
 	deps := &toolDeps{}

@@ -16,7 +16,7 @@ test.describe('Browse view CSS fixes', () => {
     await page.waitForSelector('[data-line-id]', { timeout: 10000 });
   });
 
-  test('Fix 1: text-muted contrast — line numbers use #6e7681', async ({ page }) => {
+  test('Fix 1: text-muted contrast - line numbers use #6e7681', async ({ page }) => {
     const lineNum = page.locator('.line-number').first();
     const color = await lineNum.evaluate(el => getComputedStyle(el).color);
     // #6e7681 = rgb(110, 118, 129)
@@ -25,7 +25,7 @@ test.describe('Browse view CSS fixes', () => {
     await page.screenshot({ path: 'e2e/screenshots/fix1-text-muted.png' });
   });
 
-  test('Fix 2: line-height — diff-row and code-content both 20px', async ({ page }) => {
+  test('Fix 2: line-height - diff-row and code-content both 20px', async ({ page }) => {
     const row = page.locator('.diff-row').first();
     const rowLH = await row.evaluate(el => getComputedStyle(el).lineHeight);
     expect(rowLH).toBe('20px');
@@ -37,7 +37,7 @@ test.describe('Browse view CSS fixes', () => {
     await page.screenshot({ path: 'e2e/screenshots/fix2-line-height.png' });
   });
 
-  test('Fix 4: z-index — FAB=100 (--z-fab), modal=300 (--z-modal)', async ({ page }) => {
+  test('Fix 4: z-index - FAB=100 (--z-fab), modal=300 (--z-modal)', async ({ page }) => {
     const fab = page.locator('.shortcuts-fab');
     await expect(fab).toBeVisible();
     const fabZ = await fab.evaluate(el => getComputedStyle(el).zIndex);

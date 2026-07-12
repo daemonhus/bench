@@ -38,11 +38,11 @@ done
 
 echo "Starting Go backend (repo=$REPO)..."
 echo "  Open http://localhost:$VITE_PORT for hot reload"
-echo "  (http://localhost:8081 serves embedded static files — no HMR)"
+echo "  (http://localhost:8081 serves embedded static files - no HMR)"
 echo ""
 
 # Resolve repo path to absolute before cd-ing into backend
 REPO="$(realpath "$REPO")"
 
-# Start Go backend — blocks until killed
+# Start Go backend - blocks until killed
 cd backend && go run ./cmd/server -repo "$REPO" --db atomish.db

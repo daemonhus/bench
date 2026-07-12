@@ -1,5 +1,5 @@
 /* ============================================================
-   Config view — service profile form
+   Config view - service profile form
    Follows the canonical form-input system (see PLAN-form-unification.md):
    inputs reuse the finding-edit-* family; single-selects reuse .seg-control;
    multi-select checkboxes mirror .multi-select-option / .multi-select-check.
@@ -56,7 +56,7 @@
   white-space: nowrap;
 }
 
-/* Auto-save indicator — replaces the old explicit Save button */
+/* Auto-save indicator - replaces the old explicit Save button */
 .config-save-status {
   display: inline-flex;
   align-items: center;
@@ -184,7 +184,7 @@
 }
 
 /* Contained by the label (which is position: relative): without that, these
-   anchor to .main-panel instead — outside the scroll container — so focusing
+   anchor to .main-panel instead - outside the scroll container - so focusing
    one scrolls .main-panel itself, which has overflow:hidden and no way to
    scroll back, stranding the page mid-scroll. */
 .config-choice input[type='checkbox'] {
@@ -255,7 +255,7 @@
   flex-shrink: 0;
 }
 
-/* Base look comes from .baseline-action-btn.baseline-action-btn-primary —
+/* Base look comes from .baseline-action-btn.baseline-action-btn-primary -
    the canonical primary button (same as Set Baseline / Save Profile). */
 .profile-banner-link {
   display: inline-flex;

@@ -31,7 +31,7 @@ func registerFindingTools(deps *toolDeps) []Tool {
 func toolListFindings(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "list_findings",
-		Description: "List security findings (summary view). Returns id, severity, status, title, file, lines, category, and comment count for each finding. Use get_finding for full details including description. Note: resolved defaults to false — set it to true when checking for duplicates before creating new findings. Baseline snapshots include all findings (including resolved), so delta counts may differ from this tool's output unless resolved is true. Pass commit (or set orphaned_only=true) to enrich each row with a 'confidence' field (exact|moved|orphaned); use this to find findings that need re-anchoring after a reconcile.",
+		Description: "List security findings (summary view). Returns id, severity, status, title, file, lines, category, and comment count for each finding. Use get_finding for full details including description. Note: resolved defaults to false - set it to true when checking for duplicates before creating new findings. Baseline snapshots include all findings (including resolved), so delta counts may differ from this tool's output unless resolved is true. Pass commit (or set orphaned_only=true) to enrich each row with a 'confidence' field (exact|moved|orphaned); use this to find findings that need re-anchoring after a reconcile.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
@@ -114,7 +114,7 @@ func toolListFindings(deps *toolDeps) Tool {
 				counts = c
 			}
 
-			// Return compact summary — use get_finding for full details
+			// Return compact summary - use get_finding for full details
 			type findingSummary struct {
 				ID           string   `json:"id"`
 				Severity     string   `json:"severity"`
@@ -318,7 +318,7 @@ func toolCreateFinding(deps *toolDeps) Tool {
 func toolUpdateFinding(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "update_finding",
-		Description: "Update a finding's metadata. Only specified fields are changed. Also the canonical way to re-anchor an orphaned finding after a refactor or history rewrite: pass file, start, end, and commit (use HEAD when the original commit is gone) — line_hash is recomputed, anchor_updated_at is stamped, and a fresh 'exact' position is recorded so the change takes effect immediately without waiting for the next reconcile. Omit a field to leave it unchanged; passing an empty commit is rejected.",
+		Description: "Update a finding's metadata. Only specified fields are changed. Also the canonical way to re-anchor an orphaned finding after a refactor or history rewrite: pass file, start, end, and commit (use HEAD when the original commit is gone) - line_hash is recomputed, anchor_updated_at is stamped, and a fresh 'exact' position is recorded so the change takes effect immediately without waiting for the next reconcile. Omit a field to leave it unchanged; passing an empty commit is rejected.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
@@ -567,7 +567,7 @@ func toolBatchCreateFindings(deps *toolDeps) Tool {
 							"end": {"type": "integer", "description": "End line number"},
 							"severity": {"type": "string", "enum": ["critical", "high", "medium", "low", "info"]},
 							"title": {"type": "string", "description": "Short title for the finding"},
-							"description": {"type": "string", "description": "Detailed description — reference concrete code: function names, line numbers, variable names"},
+							"description": {"type": "string", "description": "Detailed description - reference concrete code: function names, line numbers, variable names"},
 							"cwe": {"type": "string", "description": "CWE identifier (e.g. CWE-79)"},
 							"cve": {"type": "string", "description": "CVE identifier if applicable"},
 							"external_id": {"type": "string", "description": "External identifier from source system (e.g. F001, VULN-42)"},

@@ -60,7 +60,7 @@ const GROUPS: ShortcutGroup[] = [
       { keys: ['\u21E5'], description: 'Focus next panel area' },
       { keys: [SHIFT, '\u21E5'], description: 'Focus previous panel area' },
       { keys: ['\u2191', '\u2193'], description: 'Move between items in list' },
-      { keys: ['PgUp', 'PgDn'], description: 'Jump one page (Browse — fn+\u2191/\u2193 on Mac)' },
+      { keys: ['PgUp', 'PgDn'], description: 'Jump one page (Browse - fn+\u2191/\u2193 on Mac)' },
       { keys: ['\u2190', '\u2192'], description: 'Switch kind tabs (Features)' },
       { keys: [' '], description: 'Expand / collapse focused item' },
       { keys: [ENTER], description: 'Open focused finding / feature (Changes: jump to its tab)' },

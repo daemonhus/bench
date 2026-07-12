@@ -19,11 +19,11 @@ func registerProfileTools(deps *toolDeps) []Tool {
 func toolGetServiceProfile(deps *toolDeps) Tool {
 	return Tool{
 		Name: "get_service_profile",
-		Description: "Get the service profile — reviewer-configured meta-attributes describing the service under review " +
+		Description: "Get the service profile - reviewer-configured meta-attributes describing the service under review " +
 			"(exposure, compute, data sensitivity, criticality, tenancy, lifecycle, edge protections, compliance scope, " +
 			"authentication model, consumer types). Call this at the start of a review: these attributes provide deployment " +
 			"context that application code cannot reveal, and may make certain finding classes moot (e.g. rate limiting at " +
-			"the gateway, auth terminated upstream) or hotter (e.g. multi-tenant + PII). Empty fields mean 'not configured' — " +
+			"the gateway, auth terminated upstream) or hotter (e.g. multi-tenant + PII). Empty fields mean 'not configured' - " +
 			"never treat absence as confirmation that a control is missing.",
 		InputSchema: json.RawMessage(`{"type": "object", "properties": {}}`),
 		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
@@ -37,7 +37,7 @@ func toolGetServiceProfile(deps *toolDeps) Tool {
 			}
 			if p.UpdatedAt == "" {
 				return "Service profile not configured yet. Fields and their current (empty) values:\n" + string(b) +
-					"\nSet what you know via update_service_profile — review-judgment writes are rejected until the profile is configured.", nil
+					"\nSet what you know via update_service_profile - review-judgment writes are rejected until the profile is configured.", nil
 			}
 			return string(b), nil
 		},
@@ -47,7 +47,7 @@ func toolGetServiceProfile(deps *toolDeps) Tool {
 func toolUpdateServiceProfile(deps *toolDeps) Tool {
 	return Tool{
 		Name: "update_service_profile",
-		Description: "Update the service profile (partial update — omitted fields are left unchanged). Array fields replace " +
+		Description: "Update the service profile (partial update - omitted fields are left unchanged). Array fields replace " +
 			"the full list; pass [] to clear back to 'not configured'. In array fields, 'none' is an explicit positive claim " +
 			"(control confirmed absent) and cannot be combined with other values.",
 		InputSchema: json.RawMessage(`{
@@ -63,7 +63,7 @@ func toolUpdateServiceProfile(deps *toolDeps) Tool {
 				"lifecycle":            {"type": "string", "enum": ["", "active", "maintenance", "deprecated", "decommissioning"], "description": "Service lifecycle stage"},
 				"edge_protections":     {"type": "array", "items": {"type": "string", "enum": ["waf", "api-gateway", "rate-limiting", "ddos-protection", "none"]}, "description": "Infra-level controls outside app code. Replaces the full list."},
 				"compliance_scope":     {"type": "array", "items": {"type": "string", "enum": ["pci-dss", "hipaa", "soc2", "gdpr", "none"]}, "description": "Regulatory regimes in scope. Replaces the full list."},
-				"authentication_model": {"type": "array", "items": {"type": "string", "enum": ["none", "api-key", "oauth-oidc", "mtls", "session", "gateway-terminated"]}, "description": "How callers authenticate — may live outside app code. Replaces the full list."},
+				"authentication_model": {"type": "array", "items": {"type": "string", "enum": ["none", "api-key", "oauth-oidc", "mtls", "session", "gateway-terminated"]}, "description": "How callers authenticate - may live outside app code. Replaces the full list."},
 				"consumer_type":        {"type": "array", "items": {"type": "string", "enum": ["first-party-frontend", "internal-services", "third-party-partners", "general-public"]}, "description": "Who calls this service. Replaces the full list."}
 			}
 		}`),
@@ -128,7 +128,7 @@ func toolUpdateServiceProfile(deps *toolDeps) Tool {
 				deps.broker.Publish(events.TopicProfile)
 			}
 			if len(changed) == 0 {
-				return "Service profile touched (no fields provided) — profile now counts as configured.", nil
+				return "Service profile touched (no fields provided) - profile now counts as configured.", nil
 			}
 			return "Service profile updated: " + strings.Join(changed, ", "), nil
 		},
@@ -143,7 +143,7 @@ func profileSection(deps *toolDeps) string {
 	fmt.Fprintf(&sb, "\n### Service Profile\n")
 	configured, err := deps.db.ProfileConfigured()
 	if err != nil || !configured {
-		fmt.Fprintf(&sb, "Not configured — call get_service_profile for the schema, then update_service_profile with what you know. Review-judgment writes are rejected until then.\n")
+		fmt.Fprintf(&sb, "Not configured - call get_service_profile for the schema, then update_service_profile with what you know. Review-judgment writes are rejected until then.\n")
 		return sb.String()
 	}
 	p, err := deps.db.GetServiceProfile()
@@ -172,7 +172,7 @@ func profileSection(deps *toolDeps) string {
 
 // profileGateMessage instructs an agent blocked by the write gate how to
 // unblock itself.
-const profileGateMessage = "service profile not configured — call get_service_profile to see the schema, then " +
+const profileGateMessage = "service profile not configured - call get_service_profile to see the schema, then " +
 	"update_service_profile to set what you know. This context determines which finding classes are moot " +
 	"(e.g. rate limiting at the gateway) or amplified (e.g. multi-tenant + PII). Review-judgment writes are " +
 	"rejected until the profile is configured."

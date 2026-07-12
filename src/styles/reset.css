@@ -2,7 +2,7 @@
    Bench Global Reset
    Imported once by the top-level entry point (main.tsx for
    standalone, platform main.tsx for platform). WorkbenchView
-   does NOT import this — the host application owns the reset.
+   does NOT import this - the host application owns the reset.
    ============================================================ */
 
 *,

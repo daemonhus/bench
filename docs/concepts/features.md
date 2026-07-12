@@ -48,7 +48,7 @@ Do not include the HTTP method or protocol in `title`. Use `operation` for that.
 
 ## Parameters
 
-Parameters document the expected inputs and outputs of an `interface` feature — auth headers, path variables, query params, body fields.
+Parameters document the expected inputs and outputs of an `interface` feature - auth headers, path variables, query params, body fields.
 
 ```typescript
 {
@@ -91,9 +91,9 @@ delete_feature_parameter(id="param-xyz")
 
 ## Linking features to features
 
-Features can be linked to other features. Links are bidirectional — adding feature B to feature A's links makes A appear in B's `linkedFeatures` too. Each link can carry an optional `description` to explain the relationship. Use this to connect related surfaces: an interface to its backing source/sink, a dependency to the externality that polls it, etc.
+Features can be linked to other features. Links are bidirectional - adding feature B to feature A's links makes A appear in B's `linkedFeatures` too. Each link can carry an optional `description` to explain the relationship. Use this to connect related surfaces: an interface to its backing source/sink, a dependency to the externality that polls it, etc.
 
-**Constraints:** Self-links (linking a feature to itself) are rejected with 400. Linking to a non-existent feature ID returns 404. Updating links replaces the full list — omit the field to leave links unchanged.
+**Constraints:** Self-links (linking a feature to itself) are rejected with 400. Linking to a non-existent feature ID returns 404. Updating links replaces the full list - omit the field to leave links unchanged.
 
 Via CLI:
 
@@ -119,7 +119,7 @@ Via MCP:
 create_feature(file="...", commit="HEAD", kind="interface", title="/login",
   linked_feature_ids=["feat-abc123", "feat-def456"])
 
-# With descriptions — pass {id, description} objects
+# With descriptions - pass {id, description} objects
 update_feature(id="feat-xyz", linked_feature_ids=[
   {"id": "feat-abc123", "description": "validates JWT"},
   {"id": "feat-def456", "description": "writes audit log"}

@@ -88,7 +88,7 @@ func newWorkbench(repo *git.Repo, database *db.DB, opts ...Option) *Workbench {
 }
 
 // Handler returns the combined API + MCP handler.
-// Does NOT include middleware (CORS, logging, auth) — the caller adds those.
+// Does NOT include middleware (CORS, logging, auth) - the caller adds those.
 // Routes are relative: /api/git/commits, /api/findings, /mcp, etc.
 func (w *Workbench) Handler() http.Handler {
 	mux := http.NewServeMux()

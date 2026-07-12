@@ -558,7 +558,7 @@ test.describe('Changes: navigation', () => {
     await page.waitForTimeout(50);
     const navId = await page.locator('[data-nav-focused="true"]').getAttribute('data-nav-id');
     if (!navId?.startsWith('cg-')) { test.skip(); return; }
-    // Measure content height of the focused item — toggling changes it
+    // Measure content height of the focused item - toggling changes it
     const heightBefore = await page.locator('[data-nav-focused="true"]').evaluate(el => el.clientHeight);
     await page.keyboard.press('Space');
     await page.waitForTimeout(200);
@@ -756,7 +756,7 @@ test.describe('Finding status select', () => {
     const textarea = page.locator('.finding-comment-compose textarea').first();
     await textarea.focus();
     await expect(textarea).toBeFocused();
-    // Tab forward — the submit button is disabled (empty textarea) so focus jumps
+    // Tab forward - the submit button is disabled (empty textarea) so focus jumps
     // to the next card. That card is collapsed, so its status select must NOT
     // receive focus (tabIndex should be -1).
     await page.keyboard.press('Tab');

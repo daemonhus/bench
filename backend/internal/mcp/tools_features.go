@@ -69,7 +69,7 @@ const paramItemSchema = `{
 func toolListFeatures(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "list_features",
-		Description: "List architectural features (API interfaces, data sources/sinks, dependencies, externalities) annotated on the codebase. To surface features whose anchor no longer points to live code, filter with status='orphaned' — the reconciler marks features that way when their original location is gone, and the recovery path is update_feature with new file/start/end/commit.",
+		Description: "List architectural features (API interfaces, data sources/sinks, dependencies, externalities) annotated on the codebase. To surface features whose anchor no longer points to live code, filter with status='orphaned' - the reconciler marks features that way when their original location is gone, and the recovery path is update_feature with new file/start/end/commit.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
@@ -197,7 +197,7 @@ func toolCreateFeature(deps *toolDeps) Tool {
 				"start": {"type": "integer", "description": "Start line number"},
 				"end": {"type": "integer", "description": "End line number"},
 				"kind": {"type": "string", "enum": ["interface","source","sink","dependency","externality"], "description": "Feature kind: 'interface'=API endpoint or protocol handler (HTTP, gRPC, WebSocket), 'source'=data input (DB read, file read, inbound queue), 'sink'=data output (DB write, outbound API call, file write), 'dependency'=third-party library or external service, 'externality'=background job, scheduler, event handler, or side-effect"},
-				"title": {"type": "string", "description": "Short label for the feature — do NOT include the HTTP method or protocol prefix here (e.g. 'Login endpoint', not 'POST /login'). Use operation for the HTTP method."},
+				"title": {"type": "string", "description": "Short label for the feature - do NOT include the HTTP method or protocol prefix here (e.g. 'Login endpoint', not 'POST /login'). Use operation for the HTTP method."},
 				"description": {"type": "string", "description": "Detailed description"},
 				"operation": {"type": "string", "description": "HTTP method (GET/POST/…), gRPC method name, GraphQL operation type (query/mutation/subscription), or other protocol operation"},
 				"direction": {"type": "string", "enum": ["in","out"], "description": "Data flow direction relative to the service: 'in'=data entering the service (inbound request, consumed message), 'out'=data leaving the service (outbound call, produced message, write to store)"},
@@ -338,7 +338,7 @@ func toolCreateFeature(deps *toolDeps) Tool {
 func toolUpdateFeature(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "update_feature",
-		Description: "Update a feature annotation. Only specified fields are changed. Also the canonical way to re-anchor an orphaned feature (status='orphaned'): pass file, start, end, and commit (use HEAD when the original commit is gone) — line_hash is recomputed, anchor_updated_at is stamped, and a fresh 'exact' position is recorded. After re-anchoring, also set status='active' to clear the orphaned flag. Omit a field to leave it unchanged; passing an empty commit is rejected.",
+		Description: "Update a feature annotation. Only specified fields are changed. Also the canonical way to re-anchor an orphaned feature (status='orphaned'): pass file, start, end, and commit (use HEAD when the original commit is gone) - line_hash is recomputed, anchor_updated_at is stamped, and a fresh 'exact' position is recorded. After re-anchoring, also set status='active' to clear the orphaned flag. Omit a field to leave it unchanged; passing an empty commit is rejected.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
@@ -356,7 +356,7 @@ func toolUpdateFeature(deps *toolDeps) Tool {
 				"source": {"type": "string", "description": "Source tool or scanner"},
 				"start": {"type": "integer"},
 				"end": {"type": "integer"},
-				"linked_feature_ids": {"type": "array", "items": {"oneOf": [{"type": "string"}, {"type": "object", "properties": {"id": {"type": "string"}, "description": {"type": "string"}}, "required": ["id"]}]}, "description": "Replace all feature links — each item is an ID string or {id, description} object. Pass [] to clear. Omitting leaves links unchanged."},
+				"linked_feature_ids": {"type": "array", "items": {"oneOf": [{"type": "string"}, {"type": "object", "properties": {"id": {"type": "string"}, "description": {"type": "string"}}, "required": ["id"]}]}, "description": "Replace all feature links - each item is an ID string or {id, description} object. Pass [] to clear. Omitting leaves links unchanged."},
 				"parameters": {"type": "array", "items": ` + paramItemSchema + `, "description": "Replace all parameters. Omitting this field leaves parameters unchanged."}
 			},
 			"required": ["id"]
@@ -615,7 +615,7 @@ func toolBatchCreateFeatures(deps *toolDeps) Tool {
 							"start": {"type": "integer", "description": "Start line number"},
 							"end": {"type": "integer", "description": "End line number"},
 							"kind": {"type": "string", "enum": ["interface","source","sink","dependency","externality"], "description": "Feature kind: 'interface'=API endpoint or protocol handler (HTTP, gRPC, WebSocket), 'source'=data input (DB read, file read, inbound queue), 'sink'=data output (DB write, outbound API call, file write), 'dependency'=third-party library or external service, 'externality'=background job, scheduler, event handler, or side-effect"},
-							"title": {"type": "string", "description": "Short label for the feature — do NOT include the HTTP method or protocol prefix here (e.g. 'Login endpoint', not 'POST /login'). Use operation for the HTTP method."},
+							"title": {"type": "string", "description": "Short label for the feature - do NOT include the HTTP method or protocol prefix here (e.g. 'Login endpoint', not 'POST /login'). Use operation for the HTTP method."},
 							"description": {"type": "string", "description": "Detailed description"},
 							"operation": {"type": "string", "description": "HTTP method (GET/POST/…), gRPC method name, GraphQL operation type (query/mutation/subscription), or other protocol operation"},
 							"direction": {"type": "string", "description": "Data flow direction relative to the service: 'in'=data entering the service (inbound request, consumed message), 'out'=data leaving the service (outbound call, produced message, write to store)"},
@@ -623,7 +623,7 @@ func toolBatchCreateFeatures(deps *toolDeps) Tool {
 							"status": {"type": "string", "enum": ["draft","active"], "description": "Initial status (default: active)"},
 							"tags": {"type": "array", "items": {"type": "string"}, "description": "Optional tags"},
 							"source": {"type": "string", "description": "Tool or scanner that identified the feature"},
-							"linked_feature_ids": {"type": "array", "items": {"oneOf": [{"type": "string"}, {"type": "object", "properties": {"id": {"type": "string"}, "description": {"type": "string"}}, "required": ["id"]}]}, "description": "Features to link to — ID strings or {id, description} objects; forward references within the same batch are allowed"},
+							"linked_feature_ids": {"type": "array", "items": {"oneOf": [{"type": "string"}, {"type": "object", "properties": {"id": {"type": "string"}, "description": {"type": "string"}}, "required": ["id"]}]}, "description": "Features to link to - ID strings or {id, description} objects; forward references within the same batch are allowed"},
 							"parameters": {"type": "array", "items": ` + paramItemSchema + `, "description": "Optional parameters documenting the interface contract"}
 						},
 						"required": ["file", "commit", "kind", "title"]

@@ -167,7 +167,7 @@ func TestCommentsAPI_FilterByFinding(t *testing.T) {
 func TestCommentsAPI_LineRangeEndOmitted(t *testing.T) {
 	router, _ := setupEnv(t)
 
-	// lineRange has start but no end — end will deserialize as 0.
+	// lineRange has start but no end - end will deserialize as 0.
 	body := `{"id":"c1","author":"alice","text":"note","threadId":"t1","timestamp":"2024-01-01T00:00:00Z","anchor":{"fileId":"readme.txt","commitId":"HEAD","lineRange":{"start":1}}}`
 	req := httptest.NewRequest("POST", "/api/comments", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")

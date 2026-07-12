@@ -369,7 +369,7 @@ func toolListChangedFiles(deps *toolDeps) Tool {
 func toolListCommits(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "list_commits",
-		Description: "List commits with hash, author, date, and subject line. Without from/to returns recent repo-wide commits. With a commit range and/or path, returns commits that match — ideal for answering 'which commits changed this file between A and B?'.",
+		Description: "List commits with hash, author, date, and subject line. Without from/to returns recent repo-wide commits. With a commit range and/or path, returns commits that match - ideal for answering 'which commits changed this file between A and B?'.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {

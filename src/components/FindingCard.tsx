@@ -116,7 +116,7 @@ export const FindingCard: React.FC<FindingCardProps> = ({
   const [managingRefs, setManagingRefs] = useState(false);
   const [managingRefsCommentId, setManagingRefsCommentId] = useState<string | null>(null);
 
-  // Comment state — consume draft carried from another view (e.g. Overview → Browse)
+  // Comment state - consume draft carried from another view (e.g. Overview → Browse)
   const draftComment = useUIStore((s) => s.draftComment);
   const setDraftComment = useUIStore((s) => s.setDraftComment);
   const consumedDraft = draftComment?.findingId === finding.id ? draftComment.text : '';

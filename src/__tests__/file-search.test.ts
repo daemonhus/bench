@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 /**
- * Extracted fuzzyMatch — mirrors FileSearchModal's implementation.
+ * Extracted fuzzyMatch - mirrors FileSearchModal's implementation.
  * All query chars must appear in order (case-insensitive).
  */
 function fuzzyMatch(query: string, candidate: string): { match: boolean; score: number } {
@@ -62,7 +62,7 @@ function simulateNavigation(
   return { selectedPath, finalIndex: idx };
 }
 
-describe('FileSearchModal — fuzzyMatch', () => {
+describe('FileSearchModal - fuzzyMatch', () => {
   it('matches exact filename', () => {
     const { match } = fuzzyMatch('main.ts', 'src/main.ts');
     expect(match).toBe(true);
@@ -108,7 +108,7 @@ describe('FileSearchModal — fuzzyMatch', () => {
   });
 });
 
-describe('FileSearchModal — results filtering', () => {
+describe('FileSearchModal - results filtering', () => {
   const files = [
     'src/App.tsx',
     'src/main.ts',
@@ -140,7 +140,7 @@ describe('FileSearchModal — results filtering', () => {
   });
 });
 
-describe('FileSearchModal — keyboard navigation', () => {
+describe('FileSearchModal - keyboard navigation', () => {
   const results = [
     'src/App.tsx',
     'src/main.ts',

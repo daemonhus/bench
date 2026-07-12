@@ -131,7 +131,7 @@ test.describe('2. Toolbar internal navigation', () => {
     await expect(btns.first()).toBeFocused();
   });
 
-  // 2.1c — wrap at end
+  // 2.1c - wrap at end
   test('ArrowRight wraps from last button back to first', async ({ page }) => {
     const btns = page.locator('.selection-toolbar button');
     const count = await btns.count();
@@ -142,7 +142,7 @@ test.describe('2. Toolbar internal navigation', () => {
     await expect(btns.first()).toBeFocused();
   });
 
-  // 2.1d — wrap backwards
+  // 2.1d - wrap backwards
   test('ArrowLeft wraps from first button to last', async ({ page }) => {
     const btns = page.locator('.selection-toolbar button');
     const count = await btns.count();
@@ -152,7 +152,7 @@ test.describe('2. Toolbar internal navigation', () => {
     await expect(btns.nth(count - 1)).toBeFocused();
   });
 
-  // 2.2 — Tab stays inside toolbar
+  // 2.2 - Tab stays inside toolbar
   test('Tab cycles focus within toolbar without escaping to next nav-area', async ({ page }) => {
     const btns = page.locator('.selection-toolbar button');
     if (await btns.count() < 2) { test.skip(); return; }
@@ -164,7 +164,7 @@ test.describe('2. Toolbar internal navigation', () => {
     expect(insideToolbar).toBe(true);
   });
 
-  // 2.2b — Shift+Tab wraps backwards inside toolbar
+  // 2.2b - Shift+Tab wraps backwards inside toolbar
   test('Shift+Tab wraps backwards within toolbar', async ({ page }) => {
     const btns = page.locator('.selection-toolbar button');
     const count = await btns.count();
@@ -185,16 +185,16 @@ test.describe('2. Toolbar internal navigation', () => {
   // 2.4
   test('mousedown outside toolbar dismisses it', async ({ page }) => {
     await expect(page.locator('.selection-toolbar')).toBeVisible();
-    // Click an area with no action gutter — the filetree panel header is safe
+    // Click an area with no action gutter - the filetree panel header is safe
     await page.locator('[data-nav-area="filetree"]').click({ position: { x: 5, y: 5 } });
     await page.waitForTimeout(200);
     await expect(page.locator('.selection-toolbar')).not.toBeVisible();
   });
 
-  // 2.4b — mousedown on action gutter does NOT permanently dismiss
+  // 2.4b - mousedown on action gutter does NOT permanently dismiss
   test('mousedown on action gutter starts new selection instead of dismissing', async ({ page }) => {
     await expect(page.locator('.selection-toolbar')).toBeVisible();
-    // Start a new drag on the gutter — toolbar should survive (possibly with updated range)
+    // Start a new drag on the gutter - toolbar should survive (possibly with updated range)
     const gutter = page.locator('.diff-row .action-gutter').first();
     await gutter.dispatchEvent('mousedown');
     await page.waitForTimeout(100);
@@ -236,7 +236,7 @@ test.describe('3. Toolbar to draft form', () => {
     await expect(page.locator('.selection-toolbar')).not.toBeVisible();
   });
 
-  // 3.1d — sidebar opens automatically
+  // 3.1d - sidebar opens automatically
   test('draft form opens sidebar when sidebar is closed', async ({ page }) => {
     // Close sidebar
     const closeBtn = page.locator('.panel-drawer-btn');
@@ -257,7 +257,7 @@ test.describe('3. Toolbar to draft form', () => {
     await expect(page.locator('.comment-card-new')).toBeVisible();
   });
 
-  // 3.1e — first input in draft card is auto-focused
+  // 3.1e - first input in draft card is auto-focused
   test('first input in comment draft card receives autoFocus', async ({ page }) => {
     const ok = await openDraftViaToolbar(page, 'Comment');
     if (!ok) { test.skip(); return; }
@@ -275,14 +275,14 @@ test.describe('3. Toolbar to draft form', () => {
 
 // ── 4. Draft form keyboard ─────────────────────────────────────────────────────
 
-test.describe('4. Draft form keyboard — finding card', () => {
+test.describe('4. Draft form keyboard - finding card', () => {
   test.beforeEach(async ({ page }) => {
     await openFirstFile(page);
     const ok = await openDraftViaToolbar(page, 'Finding');
     if (!ok) test.skip();
   });
 
-  // 4.1a — Tab wraps at end of card
+  // 4.1a - Tab wraps at end of card
   test('Tab from last focusable wraps to first focusable', async ({ page }) => {
     const card = page.locator('.finding-card-new');
     const focusables = card.locator(
@@ -290,14 +290,14 @@ test.describe('4. Draft form keyboard — finding card', () => {
     );
     const count = await focusables.count();
     if (count < 2) { test.skip(); return; }
-    // Title has autoFocus — Tab through to last
+    // Title has autoFocus - Tab through to last
     for (let i = 0; i < count - 1; i++) await page.keyboard.press('Tab');
     await expect(focusables.nth(count - 1)).toBeFocused();
     await page.keyboard.press('Tab');
     await expect(focusables.first()).toBeFocused();
   });
 
-  // 4.1b — Shift+Tab wraps at start of card
+  // 4.1b - Shift+Tab wraps at start of card
   test('Shift+Tab from first focusable wraps to last focusable', async ({ page }) => {
     const card = page.locator('.finding-card-new');
     const focusables = card.locator(
@@ -310,7 +310,7 @@ test.describe('4. Draft form keyboard — finding card', () => {
     await expect(focusables.nth(count - 1)).toBeFocused();
   });
 
-  // 4.1c — Tab never escapes to next nav-area
+  // 4.1c - Tab never escapes to next nav-area
   test('Tab stays inside the finding draft card on every press', async ({ page }) => {
     const card = page.locator('.finding-card-new');
     const focusables = card.locator(
@@ -327,7 +327,7 @@ test.describe('4. Draft form keyboard — finding card', () => {
     }
   });
 
-  // 4.2a — ArrowDown on severity select changes value
+  // 4.2a - ArrowDown on severity select changes value
   test('ArrowDown on severity select changes the selected option', async ({ page }) => {
     const sel = page.locator('.finding-card-new .finding-severity-select');
     await sel.focus();
@@ -338,7 +338,7 @@ test.describe('4. Draft form keyboard — finding card', () => {
     expect(after).not.toBe(before);
   });
 
-  // 4.2b — ArrowUp on severity select changes value
+  // 4.2b - ArrowUp on severity select changes value
   test('ArrowUp on severity select changes the selected option', async ({ page }) => {
     const sel = page.locator('.finding-card-new .finding-severity-select');
     await sel.selectOption('medium');
@@ -350,7 +350,7 @@ test.describe('4. Draft form keyboard — finding card', () => {
     expect(after).not.toBe(before);
   });
 
-  // 4.4a — Escape with empty title cancels
+  // 4.4a - Escape with empty title cancels
   test('Escape with empty title cancels the finding draft', async ({ page }) => {
     const titleInput = page.locator('.finding-card-new input[type="text"]').first();
     await titleInput.focus();
@@ -361,7 +361,7 @@ test.describe('4. Draft form keyboard — finding card', () => {
     await expect(page.locator('.selection-toolbar')).not.toBeVisible();
   });
 
-  // 4.4b — Escape with content does NOT cancel
+  // 4.4b - Escape with content does NOT cancel
   test('Escape with content in title does not cancel the finding draft', async ({ page }) => {
     const titleInput = page.locator('.finding-card-new input[type="text"]').first();
     await titleInput.focus();
@@ -371,7 +371,7 @@ test.describe('4. Draft form keyboard — finding card', () => {
     await expect(page.locator('.finding-card-new')).toBeVisible();
   });
 
-  // 4.5 — Cmd+Enter submits when title is filled
+  // 4.5 - Cmd+Enter submits when title is filled
   test('Cmd+Enter submits the finding draft and closes the card', async ({ page }) => {
     const titleInput = page.locator('.finding-card-new input[type="text"]').first();
     await titleInput.focus();
@@ -381,7 +381,7 @@ test.describe('4. Draft form keyboard — finding card', () => {
     await expect(page.locator('.finding-card-new')).not.toBeVisible();
   });
 
-  // Tab past last element — targeted wrap tests
+  // Tab past last element - targeted wrap tests
 
   // When title is empty the submit button is disabled, so the last focusable is
   // the Cancel button.  Tab from it must wrap back to title, not escape to the
@@ -417,7 +417,7 @@ test.describe('4. Draft form keyboard — finding card', () => {
   });
 
   // The global capture Tab handler in App.tsx only bails early for INPUT and
-  // TEXTAREA — not SELECT.  The draft-card guard on line 460 of App.tsx must
+  // TEXTAREA - not SELECT.  The draft-card guard on line 460 of App.tsx must
   // catch <select> elements so the global handler doesn't yank focus out to
   // the next nav-area.
   test('Tab from severity <select> stays inside the card (global handler does not intercept)', async ({ page }) => {
@@ -442,8 +442,8 @@ test.describe('4. Draft form keyboard — finding card', () => {
 // The expected behaviour for every non-primary field is the same:
 //   • form stays visible
 //   • focus stays inside the card (nav-list handler must not steal it)
-// The primary field (title) cancels only when empty — tested separately.
-test.describe('4. Draft form keyboard — Escape per input type (finding)', () => {
+// The primary field (title) cancels only when empty - tested separately.
+test.describe('4. Draft form keyboard - Escape per input type (finding)', () => {
   test.beforeEach(async ({ page }) => {
     await openFirstFile(page);
     const ok = await openDraftViaToolbar(page, 'Finding');
@@ -478,7 +478,7 @@ test.describe('4. Draft form keyboard — Escape per input type (finding)', () =
     expect(insideCard).toBe(true);
   });
 
-  // TEXTAREA (description — non-primary)
+  // TEXTAREA (description - non-primary)
   test('Escape from description textarea does not cancel and keeps focus in card', async ({ page }) => {
     const desc = page.locator('.finding-card-new textarea');
     await desc.focus();
@@ -502,7 +502,7 @@ test.describe('4. Draft form keyboard — Escape per input type (finding)', () =
     await expect(page.locator('.finding-card-new')).toBeVisible();
   });
 
-  // Primary INPUT with content — no cancel, focus stays in card
+  // Primary INPUT with content - no cancel, focus stays in card
   test('Escape from title input with content does not cancel and keeps focus in card', async ({ page }) => {
     const titleInput = page.locator('.finding-card-new input[type="text"]').first();
     await titleInput.focus();
@@ -517,14 +517,14 @@ test.describe('4. Draft form keyboard — Escape per input type (finding)', () =
   });
 });
 
-test.describe('4. Draft form keyboard — comment card', () => {
+test.describe('4. Draft form keyboard - comment card', () => {
   test.beforeEach(async ({ page }) => {
     await openFirstFile(page);
     const ok = await openDraftViaToolbar(page, 'Comment');
     if (!ok) test.skip();
   });
 
-  // 4.1 — Tab traps in comment card
+  // 4.1 - Tab traps in comment card
   test('Tab wraps within comment draft card', async ({ page }) => {
     const card = page.locator('.comment-card-new');
     const focusables = card.locator(
@@ -539,7 +539,7 @@ test.describe('4. Draft form keyboard — comment card', () => {
     await expect(focusables.first()).toBeFocused();
   });
 
-  // 4.4 — Escape with empty textarea cancels
+  // 4.4 - Escape with empty textarea cancels
   test('Escape with empty comment textarea cancels the draft', async ({ page }) => {
     const textarea = page.locator('.comment-card-new textarea');
     await textarea.focus();
@@ -549,7 +549,7 @@ test.describe('4. Draft form keyboard — comment card', () => {
     await expect(page.locator('.comment-card-new')).not.toBeVisible();
   });
 
-  // 4.4b — Escape with content does NOT cancel
+  // 4.4b - Escape with content does NOT cancel
   test('Escape with text in textarea does not cancel the comment draft', async ({ page }) => {
     const textarea = page.locator('.comment-card-new textarea');
     await textarea.focus();
@@ -559,7 +559,7 @@ test.describe('4. Draft form keyboard — comment card', () => {
     await expect(page.locator('.comment-card-new')).toBeVisible();
   });
 
-  // 4.5 — Cmd+Enter submits when textarea has content
+  // 4.5 - Cmd+Enter submits when textarea has content
   test('Cmd+Enter submits the comment draft and closes the card', async ({ page }) => {
     const textarea = page.locator('.comment-card-new textarea');
     await textarea.focus();
@@ -576,7 +576,7 @@ test.describe('4. Draft form keyboard — comment card', () => {
 // and Escape handler did not reset commentDrag, causing the toolbar to reappear
 // after cancel.
 
-test.describe('4. Draft form keyboard — feature card', () => {
+test.describe('4. Draft form keyboard - feature card', () => {
   test.beforeEach(async ({ page }) => {
     await openFirstFile(page);
     const ok = await openDraftViaToolbar(page, 'Feature');
@@ -768,7 +768,7 @@ test.describe('5. Draft form side effects', () => {
     await openFirstFile(page);
   });
 
-  // 5.1 — Cancel does not reset codeview scroll position
+  // 5.1 - Cancel does not reset codeview scroll position
   test('cancelling a draft does not scroll codeview back to top', async ({ page }) => {
     const lineCount = await page.locator('[data-line-id]').count();
     if (lineCount < 20) { test.skip(); return; }
@@ -792,7 +792,7 @@ test.describe('5. Draft form side effects', () => {
     expect(scrollAfter).toBeGreaterThan(0);
   });
 
-  // 5.1b — Escape cancel also preserves scroll
+  // 5.1b - Escape cancel also preserves scroll
   test('Escape-cancelling a draft does not scroll codeview back to top', async ({ page }) => {
     const lineCount = await page.locator('[data-line-id]').count();
     if (lineCount < 20) { test.skip(); return; }
@@ -815,7 +815,7 @@ test.describe('5. Draft form side effects', () => {
     expect(scrollAfter).toBeGreaterThan(0);
   });
 
-  // 5.2 — Switching files cancels draft
+  // 5.2 - Switching files cancels draft
   test('selecting a different file discards the open draft', async ({ page }) => {
     const files = page.locator('.tree-file');
     if (await files.count() < 2) { test.skip(); return; }
@@ -842,7 +842,7 @@ test.describe('6. Finding form fields', () => {
     if (!ok) test.skip();
   });
 
-  // 6.1 — All expected fields are present
+  // 6.1 - All expected fields are present
   test('finding draft card renders all required fields', async ({ page }) => {
     const card = page.locator('.finding-card-new');
     // Title (autoFocus)
@@ -860,19 +860,19 @@ test.describe('6. Finding form fields', () => {
     await expect(card.locator('.comment-btn-cancel')).toBeVisible();
   });
 
-  // 6.2a — Submit disabled without title
+  // 6.2a - Submit disabled without title
   test('submit button is disabled when title is empty', async ({ page }) => {
     await expect(page.locator('.finding-card-new .comment-btn-submit')).toBeDisabled();
   });
 
-  // 6.2b — Submit enables when title is filled
+  // 6.2b - Submit enables when title is filled
   test('submit button enables once title has content', async ({ page }) => {
     const titleInput = page.locator('.finding-card-new input[type="text"]').first();
     await titleInput.fill('Race condition in session handler');
     await expect(page.locator('.finding-card-new .comment-btn-submit')).toBeEnabled();
   });
 
-  // 6.2c — Clearing title disables submit again
+  // 6.2c - Clearing title disables submit again
   test('submit button disables again when title is cleared', async ({ page }) => {
     const titleInput = page.locator('.finding-card-new input[type="text"]').first();
     await titleInput.fill('Race condition');
@@ -881,13 +881,13 @@ test.describe('6. Finding form fields', () => {
     await expect(page.locator('.finding-card-new .comment-btn-submit')).toBeDisabled();
   });
 
-  // 6.2d — Severity defaults to a valid value
+  // 6.2d - Severity defaults to a valid value
   test('severity select has a valid default value', async ({ page }) => {
     const value = await page.locator('.finding-card-new .finding-severity-select').inputValue();
     expect(['critical', 'high', 'medium', 'low', 'info']).toContain(value);
   });
 
-  // 6.2e — Status select has all expected options
+  // 6.2e - Status select has all expected options
   test('status select contains all valid status options', async ({ page }) => {
     const options = await page.locator('.finding-card-new .finding-status-select option').allTextContents();
     const normalized = options.map((o) => o.trim().toLowerCase());

@@ -25,7 +25,7 @@ func registerBaselineTools(deps *toolDeps) []Tool {
 func toolSetBaseline(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "set_baseline",
-		Description: "Set a baseline — snapshot the current state of all findings and comments. Creates an atomic checkpoint that can be compared against future state to see what changed. Defaults to the tip of the default branch (e.g. main) if no commit specified. Configure the service profile (update_service_profile) before a project's first baseline.",
+		Description: "Set a baseline - snapshot the current state of all findings and comments. Creates an atomic checkpoint that can be compared against future state to see what changed. Defaults to the tip of the default branch (e.g. main) if no commit specified. Configure the service profile (update_service_profile) before a project's first baseline.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
@@ -160,7 +160,7 @@ func toolDeleteBaseline(deps *toolDeps) Tool {
 				isLatest := latest != nil && latest.ID == baseline.ID
 
 				var sb strings.Builder
-				fmt.Fprintf(&sb, "Dry run — baseline BL-%d (at %s by %s, %s) would be deleted.\n",
+				fmt.Fprintf(&sb, "Dry run - baseline BL-%d (at %s by %s, %s) would be deleted.\n",
 					baseline.Seq,
 					baseline.CommitID[:minInt(7, len(baseline.CommitID))],
 					baseline.Reviewer,

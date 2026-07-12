@@ -176,7 +176,7 @@ func TestBaselinesAPI_CreateCapturesStats(t *testing.T) {
 		}
 	}
 
-	// Create baseline — should capture current stats
+	// Create baseline - should capture current stats
 	req := httptest.NewRequest("POST", "/api/baselines", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -212,7 +212,7 @@ func TestBaselinesAPI_Delete(t *testing.T) {
 	var created model.Baseline
 	json.NewDecoder(w.Body).Decode(&created)
 
-	// Dry-run delete (no confirm) — should return 200 with preview
+	// Dry-run delete (no confirm) - should return 200 with preview
 	req = httptest.NewRequest("DELETE", "/api/baselines/"+created.ID, nil)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)

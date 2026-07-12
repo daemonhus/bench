@@ -168,7 +168,7 @@ const CreateFeatureModal: React.FC<CreateFeatureModalProps> = ({ onClose, onCrea
           <div className="finding-edit-row">
             <label className="finding-edit-label">Direction</label>
             <select className="finding-edit-select" value={direction} onChange={e => setDirection(e.target.value as 'in' | 'out' | '')}>
-              <option value="">—</option>
+              <option value="">-</option>
               <option value="in">← In (source)</option>
               <option value="out">→ Out (sink)</option>
             </select>
@@ -273,7 +273,7 @@ export const FeaturesView: React.FC = () => {
   const setScrollTargetLine = useUIStore((s) => s.setScrollTargetLine);
   const setHighlightRange = useUIStore((s) => s.setHighlightRange);
 
-  // Deep-link: #/features/{id} — select + scroll to that feature. The URL
+  // Deep-link: #/features/{id} - select + scroll to that feature. The URL
   // keeps the id (anchor semantics: a refresh re-anchors) and route changes
   // while mounted re-target the scroll.
   const [deepLinkId, setDeepLinkId] = useState(() => parseRoute(window.location.hash).featureId ?? null);
@@ -382,7 +382,7 @@ export const FeaturesView: React.FC = () => {
     if (sortOrder === 'title') {
       return [...filtered].sort((a, b) => a.title.toLowerCase().localeCompare(b.title.toLowerCase()) * dir);
     }
-    // 'created' — original API order; reverse for desc
+    // 'created' - original API order; reverse for desc
     return sortDir === 'desc' ? [...filtered].reverse() : filtered;
   }, [features, currentTab, sortOrder, sortDir, searchMatcher]);
 

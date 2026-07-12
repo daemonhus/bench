@@ -1,4 +1,4 @@
-# Bench — Agent Guide
+# Bench - Agent Guide
 
 Bench is a code review workbench. This guide covers how to use it as a tool: connecting via MCP, using the CLI, and working with findings, features, comments, baselines, and reconciliation.
 
@@ -7,7 +7,7 @@ Bench is a code review workbench. This guide covers how to use it as a tool: con
 Always verify bench is running before any operations:
 
 ```bash
-bench findings list          # health check — returns [] if up
+bench findings list          # health check - returns [] if up
 ```
 
 Start if not running (mounts the current git repo read-only):
@@ -54,7 +54,7 @@ A discovered vulnerability or security issue.
   score?: number      // CVSS score
   source?: string     // tool or scanner that found it
   category?: string
-  featureIds?: string[]  // associated Feature IDs (join table — referential integrity)
+  featureIds?: string[]  // associated Feature IDs (join table - referential integrity)
   refs?: Ref[]           // external references (enriched inline)
   origin?: FindingOrigin // historical context (enriched inline)
   createdAt: string
@@ -174,14 +174,14 @@ An external reference linking an annotation to a ticket, thread, or URL in an ex
   id: string
   entityType: 'finding' | 'feature' | 'comment'
   entityId: string        // ID of the parent annotation
-  provider: string        // 'github' | 'gitlab' | 'jira' | 'confluence' | 'linear' | 'notion' | 'slack' | 'url' — inferred from URL if omitted
+  provider: string        // 'github' | 'gitlab' | 'jira' | 'confluence' | 'linear' | 'notion' | 'slack' | 'url' - inferred from URL if omitted
   url: string
   title?: string          // optional display label
   createdAt: string
 }
 ```
 
-Many refs per entity. Refs have no anchor and are not reconciled — they are pure metadata. Deleting an entity cascade-deletes its refs.
+Many refs per entity. Refs have no anchor and are not reconciled - they are pure metadata. Deleting an entity cascade-deletes its refs.
 
 ### Baseline
 
@@ -205,7 +205,7 @@ An immutable snapshot of review state at a point in time. Records every finding 
   featuresTotal: number
   featuresActive: number
   byKind: Record<string, number>   // e.g. { interface: 3, sink: 2 }
-  findingIds: string[]  // every finding ID at snapshot time — core of delta computation
+  findingIds: string[]  // every finding ID at snapshot time - core of delta computation
   featureIds: string[]  // every feature ID at snapshot time
 }
 ```
@@ -254,9 +254,9 @@ Semantics:
 - **Unset ≠ none.** Empty string / empty array means "not configured". In the
   multi-selects, `none` is an explicit positive claim (control confirmed absent)
   and cannot be combined with other values. Only an explicit `none` may downgrade
-  a finding — never absence of data.
+  a finding - never absence of data.
 - **Write gate.** All review-judgment writes (findings, comments, features, refs,
-  baselines, mark-reviewed) are rejected — HTTP 412 / MCP tool error — until the
+  baselines, mark-reviewed) are rejected - HTTP 412 / MCP tool error - until the
   profile has been set at least once. `bench profile set` / `update_service_profile`
   is the bootstrap path and is always allowed. Server flag `-require-profile=false`
   disables the gate.
@@ -344,9 +344,9 @@ DB migrations (Alembic)
 
 | Type | Use when… |
 |------|-----------|
-| `concern` | Something warrants attention but isn't a confirmed vulnerability — a smell, a weak pattern, a missing control. Use a **Finding** for confirmed issues. |
+| `concern` | Something warrants attention but isn't a confirmed vulnerability - a smell, a weak pattern, a missing control. Use a **Finding** for confirmed issues. |
 | `question` | You need clarification before making a judgment. |
-| `improvement` | A non-critical suggestion — cleaner, safer, or more robust code, not a security issue. |
+| `improvement` | A non-critical suggestion - cleaner, safer, or more robust code, not a security issue. |
 | `feature` | The comment is about a feature annotation itself (link via `featureId`). |
 | *(empty)* | A general note that doesn't fit the above. |
 
@@ -375,30 +375,30 @@ bench findings create --title "SQL injection" --severity high --features feat-ab
 
 **How to update existing links:**
 ```
-# MCP — replaces the full list
+# MCP - replaces the full list
 update_finding(id: "f-xyz", feature_ids: ["feat-abc123", "feat-def456"])
 
-# CLI — also replaces the full list
+# CLI - also replaces the full list
 bench findings update --id f-xyz --features feat-abc123,feat-def456
 ```
 
-Deleting a feature or finding automatically removes the join-table rows — no manual cleanup needed.
+Deleting a feature or finding automatically removes the join-table rows - no manual cleanup needed.
 
 ## Typical Review Workflow
 
 ```
-0. get_service_profile      ← ALWAYS do this first — load the service's deployment context
+0. get_service_profile      ← ALWAYS do this first - load the service's deployment context
                                before reading any code. The profile tells you which finding
                                classes are moot (e.g. rate limiting at the gateway, auth
                                terminated upstream) and which are amplified (multi-tenant,
-                               PII, internet-facing). Empty fields mean "not configured" —
+                               PII, internet-facing). Empty fields mean "not configured" -
                                never treat absence as evidence a control is missing.
                                If unconfigured: update_service_profile with what you know
-                               (or ask the user) — ALL create/update/delete calls are
+                               (or ask the user) - ALL create/update/delete calls are
                                rejected until the profile has been set at least once.
    list_baselines           ← check whether a meaningful baseline already exists. If seq=1
                                is empty, set a baseline before importing anything. An empty
-                               predecessor makes every delta useless — all findings appear
+                               predecessor makes every delta useless - all findings appear
                                "new".
 1. set_baseline             ← checkpoint before starting (captures current state as reference)
 2. search code, read files  ← use bench git tools to explore
@@ -414,12 +414,12 @@ Deleting a feature or finding automatically removes the join-table rows — no m
 5. get_delta                ← check progress: how many new findings since baseline?
 6. set_baseline             ← checkpoint at milestones (e.g. "auth module complete")
 7. get_delta(baseline_id)   ← what did this round produce?
-8. set_baseline             ← final snapshot — this is the deliverable
+8. set_baseline             ← final snapshot - this is the deliverable
 ```
 
-Baselines are cheap — create them liberally. The delta is where the interesting analysis happens.
+Baselines are cheap - create them liberally. The delta is where the interesting analysis happens.
 
-**Before setting any baseline**, confirm with the user that they are done with the current session and have no further findings or comments to add. Baselines are immutable — setting one prematurely makes delta analysis less useful.
+**Before setting any baseline**, confirm with the user that they are done with the current session and have no further findings or comments to add. Baselines are immutable - setting one prematurely makes delta analysis less useful.
 
 **After code changes under you:**
 ```
@@ -428,11 +428,11 @@ get_delta               ← changedFiles shows what moved
 set_baseline            ← checkpoint the updated state
 ```
 
-**After a large refactor or directory restructure:** the reconciler will orphan annotations whose files moved. Run `bench reconcile start --target HEAD`, check the job result's `orphanedCount`, then re-anchor each one — see the "Un-orphaning Annotations" workflow below.
+**After a large refactor or directory restructure:** the reconciler will orphan annotations whose files moved. Run `bench reconcile start --target HEAD`, check the job result's `orphanedCount`, then re-anchor each one - see the "Un-orphaning Annotations" workflow below.
 
 ## Workflow: Feature Analysis (Attack Surface Mapping)
 
-Map features in this order — each kind builds on the previous:
+Map features in this order - each kind builds on the previous:
 
 1. **Interfaces first.** Enumerate every HTTP endpoint, one per verb+path. Use router/route files as the source of truth.
 2. **Sources.** Find every data read point: DB clients, cache reads, queue consumers, config fetches.
@@ -475,7 +475,7 @@ From MCP, the equivalent calls are `list_findings(commit: "HEAD", orphaned_only:
 
 ### 3. Re-anchor
 
-Pass the full new anchor (file, start, end, commit). The update handlers recompute `line_hash`, stamp `anchor_updated_at`, and immediately record an `exact` position — so the change takes effect without waiting for the next reconcile.
+Pass the full new anchor (file, start, end, commit). The update handlers recompute `line_hash`, stamp `anchor_updated_at`, and immediately record an `exact` position - so the change takes effect without waiting for the next reconcile.
 
 ```bash
 bench findings update --id <id> --file <new-path> --start <n> --end <n> --commit HEAD
@@ -501,7 +501,7 @@ bench baselines set --reviewer <name> --summary "Re-anchored"
 Notes:
 - Reconciliation confidence can only decrease (`exact` → `moved` → `orphaned`).
 - Check `bench reconcile history --type finding --id <id>` (or `--type comment`) to see the full reconciliation trail.
-- If reconciliation completes with a warning like `N of M files failed`, the job's `result` is still populated — the failures are reported in the job's `error` field. Files whose anchor commits no longer exist are auto-orphaned and the job continues; you'll find them via step 2 above.
+- If reconciliation completes with a warning like `N of M files failed`, the job's `result` is still populated - the failures are reported in the job's `error` field. Files whose anchor commits no longer exist are auto-orphaned and the job continues; you'll find them via step 2 above.
 
 ## Interfaces
 
@@ -513,11 +513,11 @@ Bench exposes MCP tools and a CLI. Tool schemas and CLI `--help` are the source 
 
 **Tool groups:** git, findings, comments, features, refs, baselines, analytics, reconcile, profile.
 
-**Always use `bench git` for code access** — do not reach around the CLI to the filesystem (`cat`, `grep`, `git -C`, etc.). Use:
-- `bench git commits` — HEAD commit and recent history
-- `bench git search-code` — regex search across the repo
-- `bench git read-file` — read a file at a specific commit
-- `bench git list-files` — list files in the repo tree
+**Always use `bench git` for code access** - do not reach around the CLI to the filesystem (`cat`, `grep`, `git -C`, etc.). Use:
+- `bench git commits` - HEAD commit and recent history
+- `bench git search-code` - regex search across the repo
+- `bench git read-file` - read a file at a specific commit
+- `bench git list-files` - list files in the repo tree
 - `bench git blame` / `diff` / `changed-files` as needed
 
 **Feature titles:** Use bare URL paths (`/v1/login`, not `"Login endpoint"`). Use the `operation` field for the HTTP method.
@@ -535,11 +535,11 @@ Bench exposes MCP tools and a CLI. Tool schemas and CLI `--help` are the source 
 | `linkedFeatures` (response) | flat string array | array of `{id, description}` objects; use `linkedFeatures[].id` to get the ID |
 | `features` (CLI update) | appends | replaces the full list (same semantic as `tags`) |
 | `parameters` on non-interface features | technically allowed | by convention interface-only |
-| `commit` | omitted | always set — empty `commitId` breaks reconciliation |
-| `id` (updates) | truncated prefix | always use the **full UUID** — short prefixes return "not found" |
-| `provider` (refs) | any string | `github`, `gitlab`, `jira`, `confluence`, `linear`, `notion`, `slack`, or `url` — inferred from URL hostname if omitted |
+| `commit` | omitted | always set - empty `commitId` breaks reconciliation |
+| `id` (updates) | truncated prefix | always use the **full UUID** - short prefixes return "not found" |
+| `provider` (refs) | any string | `github`, `gitlab`, `jira`, `confluence`, `linear`, `notion`, `slack`, or `url` - inferred from URL hostname if omitted |
 | profile multi-selects (MCP) | `"waf,rate-limiting"` | `["waf", "rate-limiting"]` (JSON array); CLI uses `--edge-protections waf,rate-limiting` |
-| profile `none` (multi-selects) | `["none", "waf"]` | `none` is exclusive — it means "control confirmed absent" and cannot be combined |
+| profile `none` (multi-selects) | `["none", "waf"]` | `none` is exclusive - it means "control confirmed absent" and cannot be combined |
 
 **Default differences by interface:**
 
@@ -560,7 +560,7 @@ Bench exposes MCP tools and a CLI. Tool schemas and CLI `--help` are the source 
 
 **Resolved findings are included in baseline snapshots.** `findingIds` captures all findings including closed/resolved ones. `list_findings` excludes resolved by default, so delta counts may appear higher. Use `include_resolved=true` (MCP) or `--include-resolved` (CLI) when cross-referencing.
 
-**Baselines snapshot the database, not the commit.** Setting a baseline at commit X records all findings currently in the database — regardless of which commit each finding was anchored to. `commitId` is used for git diffs (`changedFiles`), not for scoping which findings are included.
+**Baselines snapshot the database, not the commit.** Setting a baseline at commit X records all findings currently in the database - regardless of which commit each finding was anchored to. `commitId` is used for git diffs (`changedFiles`), not for scoping which findings are included.
 
 **`get_delta` has two modes:**
 - No `baseline_id` → current state vs. latest baseline
@@ -581,8 +581,8 @@ docker logs $(docker ps -q --filter ancestor=bench) 2>&1 | tail -20
 | `CHECK constraint failed: status IN (...)` | Add `"status": "open"` to payload |
 | `CHECK constraint failed: severity IN (...)` | Use `info` not `informational` |
 | `CHECK constraint failed: source IN (...)` | Use `manual`, `pentest`, `tool`, or `mcp` |
-| `invalid JSON` (CLI, not server) | Wrong field type — `score` must be a number, `tags` must be an array |
-| `ancestry check: invalid git ref: ""` (reconcile) | Annotations have empty `commitId`. The PATCH handlers now reject empty commit strings, so this state can only persist on existing rows — patch with `bench findings update --id <id> --commit <sha>` and re-run reconcile. |
-| `ancestry check: unknown git ref` or `reference not found` (reconcile) | The anchor's commit is no longer in the repo (force push, `git filter-branch`, GC). The reconciler now auto-orphans these annotations and continues — find them via `bench findings list --commit HEAD \| jq '.[] \| select(.confidence == "orphaned")'` and re-anchor with `bench findings update ... --commit HEAD`. |
+| `invalid JSON` (CLI, not server) | Wrong field type - `score` must be a number, `tags` must be an array |
+| `ancestry check: invalid git ref: ""` (reconcile) | Annotations have empty `commitId`. The PATCH handlers now reject empty commit strings, so this state can only persist on existing rows - patch with `bench findings update --id <id> --commit <sha>` and re-run reconcile. |
+| `ancestry check: unknown git ref` or `reference not found` (reconcile) | The anchor's commit is no longer in the repo (force push, `git filter-branch`, GC). The reconciler now auto-orphans these annotations and continues - find them via `bench findings list --commit HEAD \| jq '.[] \| select(.confidence == "orphaned")'` and re-anchor with `bench findings update ... --commit HEAD`. |
 | `commitId must be a non-empty string` (PATCH) | Don't pass `commit: ""` to update tools. Omit the field to leave the anchor commit unchanged. |
-| `service profile not configured` (412 / MCP tool error) | The write gate: no annotations can be recorded until the service profile is set. Run `bench profile get` to see fields, then `bench profile set` (or `update_service_profile`) with what you know — an empty set call also satisfies the gate ("reviewed, nothing known"). |
+| `service profile not configured` (412 / MCP tool error) | The write gate: no annotations can be recorded until the service profile is set. Run `bench profile get` to see fields, then `bench profile set` (or `update_service_profile`) with what you know - an empty set call also satisfies the gate ("reviewed, nothing known"). |

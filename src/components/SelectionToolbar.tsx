@@ -64,7 +64,7 @@ export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({ startLine, e
   const currentCommit = useRepoStore((s) => s.currentCommit);
   const selectedFilePath = useRepoStore((s) => s.selectedFilePath);
 
-  // Dismiss on click outside (skip if clicking action gutter — drag handler manages state)
+  // Dismiss on click outside (skip if clicking action gutter - drag handler manages state)
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (toolbarRef.current && !toolbarRef.current.contains(e.target as Node)) {

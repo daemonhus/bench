@@ -19,7 +19,7 @@ func TestFeatureParamsAPI_CRUD(t *testing.T) {
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 	if w.Code != 201 {
-		t.Fatalf("create feature: %d — %s", w.Code, w.Body.String())
+		t.Fatalf("create feature: %d - %s", w.Code, w.Body.String())
 	}
 	var feat model.Feature
 	json.NewDecoder(w.Body).Decode(&feat)
@@ -56,7 +56,7 @@ func TestFeatureParamsAPI_CRUD(t *testing.T) {
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 	if w.Code != 201 {
-		t.Fatalf("create param: %d — %s", w.Code, w.Body.String())
+		t.Fatalf("create param: %d - %s", w.Code, w.Body.String())
 	}
 	var p model.FeatureParameter
 	json.NewDecoder(w.Body).Decode(&p)
@@ -98,7 +98,7 @@ func TestFeatureParamsAPI_CRUD(t *testing.T) {
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 	if w.Code != 200 {
-		t.Fatalf("update param: %d — %s", w.Code, w.Body.String())
+		t.Fatalf("update param: %d - %s", w.Code, w.Body.String())
 	}
 	var updated model.FeatureParameter
 	json.NewDecoder(w.Body).Decode(&updated)
@@ -143,7 +143,7 @@ func TestFeatureParamsAPI_CreateWithParameters(t *testing.T) {
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 	if w.Code != 201 {
-		t.Fatalf("create: %d — %s", w.Code, w.Body.String())
+		t.Fatalf("create: %d - %s", w.Code, w.Body.String())
 	}
 	var feat model.Feature
 	json.NewDecoder(w.Body).Decode(&feat)
@@ -181,7 +181,7 @@ func TestFeatureParamsAPI_PatchReplaces(t *testing.T) {
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 	if w.Code != 200 {
-		t.Fatalf("patch: %d — %s", w.Code, w.Body.String())
+		t.Fatalf("patch: %d - %s", w.Code, w.Body.String())
 	}
 	var patched model.Feature
 	json.NewDecoder(w.Body).Decode(&patched)

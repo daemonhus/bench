@@ -61,7 +61,7 @@ export function computeGraphLayout(commits: GraphCommit[]): GraphLayout {
         lanes[matchingLanes[i]] = null;
       }
     } else {
-      // No lane expects this commit — it's a branch head. Find a free lane or add new one.
+      // No lane expects this commit - it's a branch head. Find a free lane or add new one.
       const freeLane = lanes.indexOf(null);
       if (freeLane >= 0) {
         assignedLane = freeLane;
@@ -86,11 +86,11 @@ export function computeGraphLayout(commits: GraphCommit[]): GraphLayout {
           edges.push({ fromRow: row, fromLane: assignedLane, toRow: parentRow, toLane: assignedLane });
         }
       } else {
-        // Additional parents (merge sources) — find free lane or open new one
+        // Additional parents (merge sources) - find free lane or open new one
         // But first check if parent is already tracked by another lane
         const existingLane = lanes.indexOf(parentHash);
         if (existingLane >= 0 && parentRow !== undefined) {
-          // Parent already tracked — just draw edge to that lane
+          // Parent already tracked - just draw edge to that lane
           edges.push({ fromRow: row, fromLane: assignedLane, toRow: parentRow, toLane: existingLane });
         } else {
           // Open new lane for this parent
@@ -177,11 +177,11 @@ export function edgePath(
   const curveH = Math.min(ROW_HEIGHT * 1.2, dy);
 
   if (dy <= ROW_HEIGHT * 1.2) {
-    // Short span — single smooth S-curve
+    // Short span - single smooth S-curve
     return `M ${x1} ${y1} C ${x1} ${y1 + dy * 0.4}, ${x2} ${y2 - dy * 0.4}, ${x2} ${y2}`;
   }
 
-  // Long span — S-curve transition near source, then straight to target
+  // Long span - S-curve transition near source, then straight to target
   return (
     `M ${x1} ${y1} ` +
     `C ${x1} ${y1 + curveH * 0.5}, ${x2} ${y1 + curveH * 0.5}, ${x2} ${y1 + curveH} ` +

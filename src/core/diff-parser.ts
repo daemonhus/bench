@@ -85,7 +85,7 @@ export function parseDiff(rawDiff: string): DiffHunk[] {
       // A truly empty string at the end of the file is ignored to avoid a
       // phantom trailing change when the raw diff ends with a newline.
       if (line === '' && currentHunk.changes.length > 0) {
-        // Likely a trailing newline at end of input — skip
+        // Likely a trailing newline at end of input - skip
         continue;
       }
       change = {
@@ -98,7 +98,7 @@ export function parseDiff(rawDiff: string): DiffHunk[] {
       oldLine++;
       newLine++;
     } else {
-      // Unknown prefix — skip (e.g. "\ No newline at end of file")
+      // Unknown prefix - skip (e.g. "\ No newline at end of file")
       continue;
     }
 

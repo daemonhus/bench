@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 /**
- * Extracted matcher logic from useRegexSearch — mirrors hook's useMemo exactly.
+ * Extracted matcher logic from useRegexSearch - mirrors hook's useMemo exactly.
  */
 function buildMatcher(query: string): { matcher: ((text: string) => boolean) | null; isRegexValid: boolean } {
   const q = query.trim();
@@ -15,7 +15,7 @@ function buildMatcher(query: string): { matcher: ((text: string) => boolean) | n
   }
 }
 
-describe('useRegexSearch — matcher', () => {
+describe('useRegexSearch - matcher', () => {
   it('returns null matcher for empty query', () => {
     const { matcher, isRegexValid } = buildMatcher('');
     expect(matcher).toBeNull();

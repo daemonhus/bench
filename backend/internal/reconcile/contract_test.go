@@ -6,7 +6,7 @@ import (
 )
 
 // These tests verify the JSON wire format of reconciliation types.
-// If you change a json tag in job.go, these tests break — update
+// If you change a json tag in job.go, these tests break - update
 // the corresponding TypeScript types in src/core/types.ts to match.
 
 func TestJobSnapshotJSON_FieldNames(t *testing.T) {
@@ -45,13 +45,13 @@ func TestJobSnapshotJSON_FieldNames(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Top-level fields — must match TypeScript JobSnapshot interface
+	// Top-level fields - must match TypeScript JobSnapshot interface
 	assertJSONField(t, m, "jobId", "rec-1")
 	assertJSONField(t, m, "status", "done")
 	assertJSONField(t, m, "targetCommit", "abc123")
 	assertJSONField(t, m, "error", "some error")
 
-	// Progress — must match TypeScript JobProgress interface
+	// Progress - must match TypeScript JobProgress interface
 	prog, ok := m["progress"].(map[string]any)
 	if !ok {
 		t.Fatal("expected 'progress' to be an object")
@@ -62,7 +62,7 @@ func TestJobSnapshotJSON_FieldNames(t *testing.T) {
 	assertJSONField(t, prog, "commitsDone", float64(7))
 	assertJSONField(t, prog, "currentFile", "src/auth.py")
 
-	// Result — must match TypeScript ReconcileResult interface
+	// Result - must match TypeScript ReconcileResult interface
 	res, ok := m["result"].(map[string]any)
 	if !ok {
 		t.Fatal("expected 'result' to be an object")
@@ -71,7 +71,7 @@ func TestJobSnapshotJSON_FieldNames(t *testing.T) {
 	assertJSONField(t, res, "commitsWalked", float64(10))
 	assertJSONField(t, res, "durationMs", float64(1234))
 
-	// Annotations — must match TypeScript ReconcileSummary interface
+	// Annotations - must match TypeScript ReconcileSummary interface
 	ann, ok := res["annotations"].(map[string]any)
 	if !ok {
 		t.Fatal("expected 'result.annotations' to be an object")
@@ -116,7 +116,7 @@ func TestJobSnapshotJSON_OmitEmptyBehavior(t *testing.T) {
 		t.Errorf("pending job should not have non-empty 'error', got %v", v)
 	}
 
-	// "progress" is present even when zero — Go's omitempty doesn't omit zero structs.
+	// "progress" is present even when zero - Go's omitempty doesn't omit zero structs.
 	// The TS side must handle receiving a zero-value progress object.
 	if _, ok := m["progress"]; !ok {
 		t.Error("expected 'progress' to be present (Go omitempty doesn't omit zero structs)")

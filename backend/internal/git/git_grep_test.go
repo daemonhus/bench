@@ -60,7 +60,7 @@ func TestGrep_ExtendedRegex_Alternation(t *testing.T) {
 		t.Fatalf("Grep with alternation: %v", err)
 	}
 	if len(matches) < 2 {
-		t.Fatalf("expected ≥2 matches for 'login|execQuery', got %d — regex alternation may not be using -E", len(matches))
+		t.Fatalf("expected ≥2 matches for 'login|execQuery', got %d - regex alternation may not be using -E", len(matches))
 	}
 }
 
@@ -73,7 +73,7 @@ func TestGrep_ExtendedRegex_PlusQuantifier(t *testing.T) {
 		t.Fatalf("Grep with + quantifier: %v", err)
 	}
 	if len(matches) == 0 {
-		t.Fatal("expected match for 'auth.+token' — + quantifier may not be using -E")
+		t.Fatal("expected match for 'auth.+token' - + quantifier may not be using -E")
 	}
 }
 
@@ -101,7 +101,7 @@ func TestGrep_NoMatches(t *testing.T) {
 
 func TestGrep_Fixed_DoesNotInterpretRegex(t *testing.T) {
 	repo := makeTestRepo(t)
-	// In fixed mode, "exec." is literal — no match because file has "execQuery" not "exec."
+	// In fixed mode, "exec." is literal - no match because file has "execQuery" not "exec."
 	matches, err := repo.Grep("exec.", "HEAD", "", false, true, 100)
 	if err != nil {
 		t.Fatalf("Grep fixed: %v", err)

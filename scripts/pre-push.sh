@@ -9,7 +9,7 @@
 # typecheck: CI runs only `npm test`, so `tsc` is currently unguarded there and
 # a type error would first surface in the release build.
 #
-# Deliberately NOT run here: the Docker buildx job (multi-arch, minutes long —
+# Deliberately NOT run here: the Docker buildx job (multi-arch, minutes long -
 # CI covers it) and Playwright e2e (needs browsers and a live backend).
 #
 # To run on every push:

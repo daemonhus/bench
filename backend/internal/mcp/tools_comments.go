@@ -29,7 +29,7 @@ func registerCommentTools(deps *toolDeps) []Tool {
 func toolListComments(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "list_comments",
-		Description: "List review comments. Filter by file, finding, or feature to scope results. Set full=true to return complete comment bodies in one call — use this instead of repeated get_comment calls when you need to read a thread. Pass commit (or set orphaned_only=true) to enrich each row with a 'confidence' field (exact|moved|orphaned); use this to find comments whose anchor no longer points to live code.",
+		Description: "List review comments. Filter by file, finding, or feature to scope results. Set full=true to return complete comment bodies in one call - use this instead of repeated get_comment calls when you need to read a thread. Pass commit (or set orphaned_only=true) to enrich each row with a 'confidence' field (exact|moved|orphaned); use this to find comments whose anchor no longer points to live code.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
@@ -191,7 +191,7 @@ func toolGetComment(deps *toolDeps) Tool {
 func toolCreateComment(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "create_comment",
-		Description: "Create a review comment anchored to a file location. To attach a comment to a finding (so it appears in the finding's discussion thread), set finding to the finding's ID. Comments linked to a finding should add new information — verification evidence, reproduction steps, related code paths, or remediation notes — not repeat the finding description.",
+		Description: "Create a review comment anchored to a file location. To attach a comment to a finding (so it appears in the finding's discussion thread), set finding to the finding's ID. Comments linked to a finding should add new information - verification evidence, reproduction steps, related code paths, or remediation notes - not repeat the finding description.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
@@ -295,7 +295,7 @@ func toolCreateComment(deps *toolDeps) Tool {
 func toolUpdateComment(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "update_comment",
-		Description: "Update a comment. Only specified fields are changed. Also the canonical way to re-anchor an orphaned comment: pass file, start, end, and commit (use HEAD when the original commit is gone) — line_hash is recomputed, anchor_updated_at is stamped, and a fresh 'exact' position is recorded so the change takes effect immediately. Omit a field to leave it unchanged; passing an empty commit is rejected.",
+		Description: "Update a comment. Only specified fields are changed. Also the canonical way to re-anchor an orphaned comment: pass file, start, end, and commit (use HEAD when the original commit is gone) - line_hash is recomputed, anchor_updated_at is stamped, and a fresh 'exact' position is recorded so the change takes effect immediately. Omit a field to leave it unchanged; passing an empty commit is rejected.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
@@ -466,7 +466,7 @@ func toolDeleteComment(deps *toolDeps) Tool {
 func toolResolveComment(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "resolve_comment",
-		Description: "Mark a comment (discussion thread) as resolved at a specific commit. Use this when a review discussion is addressed, not to close a vulnerability — use resolve_finding for that.",
+		Description: "Mark a comment (discussion thread) as resolved at a specific commit. Use this when a review discussion is addressed, not to close a vulnerability - use resolve_finding for that.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
@@ -502,7 +502,7 @@ func toolResolveComment(deps *toolDeps) Tool {
 func toolBatchCreateComments(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "batch_create_comments",
-		Description: "Create multiple review comments in one operation. All comments are inserted in a single transaction. Returns the list of created comment IDs. Use this instead of repeated create_comment calls. To attach comments to findings (so they appear in the finding's discussion thread), set finding on each comment. Comments linked to a finding should add new information — verification evidence, reproduction steps, related code paths, or remediation notes — not repeat the finding description.",
+		Description: "Create multiple review comments in one operation. All comments are inserted in a single transaction. Returns the list of created comment IDs. Use this instead of repeated create_comment calls. To attach comments to findings (so they appear in the finding's discussion thread), set finding on each comment. Comments linked to a finding should add new information - verification evidence, reproduction steps, related code paths, or remediation notes - not repeat the finding description.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {

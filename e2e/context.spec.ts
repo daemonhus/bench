@@ -11,7 +11,7 @@ import { test, expect } from '@playwright/test';
  * when the profile is already configured (e.g. reusing a dev DB).
  */
 
-test.describe('Context tab — service profile', () => {
+test.describe('Context tab - service profile', () => {
   test('config tab renders form via #/config and nav tab', async ({ page }) => {
     await page.goto('/#/config');
     await expect(page.locator('.config-title')).toHaveText('Service Profile');

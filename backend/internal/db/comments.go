@@ -210,7 +210,7 @@ func (d *DB) UpdateComment(id string, updates map[string]any) error {
 }
 
 // BatchCreateComments inserts multiple comments in a single transaction.
-// Returns the IDs of created comments. All-or-nothing — rolls back on any error.
+// Returns the IDs of created comments. All-or-nothing - rolls back on any error.
 func (d *DB) BatchCreateComments(comments []model.Comment) ([]string, error) {
 	return wq(d.wq, func() ([]string, error) {
 		tx, err := d.conn.Begin()

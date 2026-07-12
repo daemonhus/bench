@@ -262,7 +262,7 @@ func (b *GoGitBackend) LogRange(from, to, path string, limit int) ([]model.Commi
 
 	var commits []model.CommitInfo
 	err = iter.ForEach(func(c *object.Commit) error {
-		// `from` is exclusive — mirror CLI's `from..to` semantics.
+		// `from` is exclusive - mirror CLI's `from..to` semantics.
 		if from != "" && c.Hash == fromHash {
 			return storer.ErrStop
 		}
@@ -331,7 +331,7 @@ func (b *GoGitBackend) Graph(limit int) ([]model.GraphCommit, error) {
 		if len(commits) >= limit {
 			return storer.ErrStop
 		}
-		// nil when empty (matches CLI's `var parents []string` — DeepEqual
+		// nil when empty (matches CLI's `var parents []string` - DeepEqual
 		// distinguishes nil from zero-length slices).
 		var parents []string
 		for _, p := range c.ParentHashes {
@@ -688,7 +688,7 @@ func (b *GoGitBackend) Show(commitish, path string) (string, error) {
 }
 
 // diffTrees resolves two commitishes and returns their change set with
-// rename detection enabled — mirrors the CLI's default (`diff.renames=true`)
+// rename detection enabled - mirrors the CLI's default (`diff.renames=true`)
 // so a rename surfaces as one Change with both From.Name and To.Name set,
 // not a delete+add pair.
 func (b *GoGitBackend) diffTrees(from, to string) (object.Changes, error) {
@@ -750,7 +750,7 @@ func (b *GoGitBackend) Diff(from, to, path string) (*model.DiffResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	// If `path` was deleted in `to`, Show errors with ErrUnknownRef — that's
+	// If `path` was deleted in `to`, Show errors with ErrUnknownRef - that's
 	// not a failure, the diff is still the useful output. Leave FullContent
 	// empty and return the raw patch.
 	full, err := b.Show(to, path)
@@ -795,7 +795,7 @@ func (b *GoGitBackend) DiffFiles(from, to string) ([]string, error) {
 	var files []string
 	for _, ch := range changes {
 		// Rename detection is on, so renames emit one Change with both
-		// names set. Prefer To — matches CLI's --name-only output.
+		// names set. Prefer To - matches CLI's --name-only output.
 		if ch.To.Name != "" {
 			files = append(files, ch.To.Name)
 		} else if ch.From.Name != "" {
@@ -805,7 +805,7 @@ func (b *GoGitBackend) DiffFiles(from, to string) ([]string, error) {
 	return files, nil
 }
 
-// countChunkLines counts how many lines a chunk contributes — `\n`-separated
+// countChunkLines counts how many lines a chunk contributes - `\n`-separated
 // plus a trailing-line adjustment when the chunk doesn't end in newline
 // (git's own counting behaves the same).
 func countChunkLines(content string) int {
@@ -1006,7 +1006,7 @@ func (b *GoGitBackend) Branches() ([]model.BranchInfo, error) {
 			short = strings.TrimPrefix(n, "refs/remotes/")
 		}
 		// Resolve symbolic refs (e.g. refs/remotes/origin/HEAD) to the hash
-		// they target — matches CLI's %(objectname:short).
+		// they target - matches CLI's %(objectname:short).
 		resolved, err := repo.Reference(r.Name(), true)
 		if err != nil {
 			return nil //nolint:nilerr // skip refs that don't resolve
@@ -1047,7 +1047,7 @@ func (b *GoGitBackend) RemoteURL() string {
 
 // Grep walks the tree at commit, compiles one pattern, and scans every blob
 // line-by-line. CLI uses `git grep` which is parallelized natively; we do
-// the same with a small worker pool. Results are unordered — the parity
+// the same with a small worker pool. Results are unordered - the parity
 // harness sorts both sides before comparing.
 func (b *GoGitBackend) Grep(pattern, commit, path string, caseInsensitive, fixed bool, maxResults int) ([]model.GrepMatch, error) {
 	if commit != "" {
@@ -1186,7 +1186,7 @@ func (b *GoGitBackend) Grep(pattern, commit, path string, caseInsensitive, fixed
 }
 
 // Blame delegates to go-git's native blame. We accept the O(history) cost
-// on large files — the CLI stays available via BENCH_GIT_BACKEND=cli.
+// on large files - the CLI stays available via BENCH_GIT_BACKEND=cli.
 func (b *GoGitBackend) Blame(commit, path string, lineStart, lineEnd int) ([]model.BlameLine, error) {
 	if commit == "" {
 		commit = "HEAD"

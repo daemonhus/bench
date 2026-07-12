@@ -34,7 +34,7 @@ const OrphanCountBadge: React.FC<{ activeJob: JobSnapshot | null; onOpen: () => 
     <button
       type="button"
       className="sidebar-orphan-badge"
-      title={`${orphaned} annotation${orphaned === 1 ? '' : 's'} orphaned — click to triage`}
+      title={`${orphaned} annotation${orphaned === 1 ? '' : 's'} orphaned - click to triage`}
       onClick={onOpen}
     >
       {orphaned} orphaned
@@ -312,7 +312,7 @@ export const Sidebar: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showOrphanTriage, setShowOrphanTriage] = useState(false);
 
-  // Pending focus target after Enter expands a finding card — consumed by effect
+  // Pending focus target after Enter expands a finding card - consumed by effect
   // below once React commits the expanded state and the textarea is in the DOM.
   const pendingReplyFocusId = useRef<string | null>(null);
 
@@ -452,18 +452,18 @@ export const Sidebar: React.FC = () => {
       }
     },
     onActivate: (item) => {
-      // Enter: expand card and focus the reply textarea. No codeview scroll —
+      // Enter: expand card and focus the reply textarea. No codeview scroll -
       // Shift+Enter is the "jump to code" action.
       const id = item.data.id;
       if (expandedFindingId !== id) {
         const range = getEffectiveLineRange(item.data);
         setExpandedFinding(id);
         if (item.kind === 'finding') setHighlightRange(range ?? null);
-        // Queue focus for after React commits the expanded state — the textarea
+        // Queue focus for after React commits the expanded state - the textarea
         // isn't in the DOM yet when onActivate runs. Effect below consumes this.
         pendingReplyFocusId.current = id;
       } else {
-        // Already expanded — textarea is already in the DOM, focus it directly.
+        // Already expanded - textarea is already in the DOM, focus it directly.
         const card = navContainerRef.current?.querySelector(`[data-nav-id="${CSS.escape(id)}"]`);
         card?.querySelector<HTMLTextAreaElement>('textarea')?.focus();
       }
@@ -514,7 +514,7 @@ export const Sidebar: React.FC = () => {
     setPositionsReady(true);
   }, [activityItems, expandedFindingId, editingId, isLoading, layoutTick]);
 
-  // Consume pendingReplyFocusId after the expanded card commits — focus the
+  // Consume pendingReplyFocusId after the expanded card commits - focus the
   // textarea if present, else the first interactive element in the card.
   useEffect(() => {
     const id = pendingReplyFocusId.current;
@@ -565,7 +565,7 @@ export const Sidebar: React.FC = () => {
     };
 
     // Sync: sidebar scroll → code viewer scroll. Skip when the scroll event
-    // was triggered by content shrinking (browser auto-clamps scrollTop) — that
+    // was triggered by content shrinking (browser auto-clamps scrollTop) - that
     // would yank the codeview to the top whenever a draft form unmounts.
     lastSidebarScrollHeight.current = sidebar.scrollHeight;
     const onSidebarScroll = () => {
@@ -1137,7 +1137,7 @@ export const Sidebar: React.FC = () => {
                         value={newFeatureDirection}
                         onChange={e => setNewFeatureDirection(e.target.value as 'in' | 'out' | '')}
                       >
-                        <option value="">—</option>
+                        <option value="">-</option>
                         <option value="in">← In (source)</option>
                         <option value="out">→ Out (sink)</option>
                       </select>

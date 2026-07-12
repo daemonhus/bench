@@ -102,7 +102,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "initialize":
 		h.handleInitialize(w, req)
 	case "notifications/initialized":
-		// Client notification — acknowledge with no response
+		// Client notification - acknowledge with no response
 		w.WriteHeader(http.StatusNoContent)
 	case "tools/list":
 		h.handleToolsList(w, req)

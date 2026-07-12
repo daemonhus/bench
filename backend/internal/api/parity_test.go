@@ -19,7 +19,7 @@ func TestCLIAPIRouteParity(t *testing.T) {
 	router, _ := setupEnv(t)
 
 	// Each entry mirrors a CLI command: {method, path}.
-	// Paths with {id} use a placeholder — we expect 404 (not found) not 405
+	// Paths with {id} use a placeholder - we expect 404 (not found) not 405
 	// (method not allowed) or a Go mux "not found" which means no route exists.
 	// For write methods we send a minimal JSON body so the router can decode it.
 	routes := []struct {

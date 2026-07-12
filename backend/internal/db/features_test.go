@@ -185,7 +185,7 @@ func TestFeatureLinks_DeleteCascades(t *testing.T) {
 	d.CreateFeature(&[]model.Feature{makeFeature("fb", "sink")}[0])
 	d.ReplaceLinkedFeatures("fa", []model.LinkedFeature{{ID: "fb"}})
 
-	// Delete fb — link should disappear
+	// Delete fb - link should disappear
 	if err := d.DeleteFeature("fb"); err != nil {
 		t.Fatalf("DeleteFeature: %v", err)
 	}

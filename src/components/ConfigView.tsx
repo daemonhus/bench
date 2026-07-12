@@ -4,7 +4,7 @@ import { useProfileStore } from '../stores/profile-store';
 import { useEvents } from '../core/use-events';
 
 // ---------------------------------------------------------------------------
-// Field metadata — options, labels, and the "why this matters" hint per field.
+// Field metadata - options, labels, and the "why this matters" hint per field.
 // The hints teach reviewers what each field is for: every attribute exists to
 // make some finding class moot or hotter.
 // ---------------------------------------------------------------------------
@@ -174,7 +174,7 @@ export function ConfigView() {
   const [draft, setDraft] = useState<ServiceProfile>(profile);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // The profile snapshot the draft was last synced from — used to tell local
+  // The profile snapshot the draft was last synced from - used to tell local
   // edits apart from server-side changes when merging.
   const syncedRef = useRef<ServiceProfile>(profile);
 
@@ -183,7 +183,7 @@ export function ConfigView() {
   }, [load]);
 
   // Merge incoming profile state (initial load, our own save response, or
-  // another session via SSE) into the draft — but keep any field the user
+  // another session via SSE) into the draft - but keep any field the user
   // has edited since the last sync, so a save round-trip never clobbers
   // in-flight typing.
   useEffect(() => {

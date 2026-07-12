@@ -657,7 +657,7 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
                           <span className="feature-param-label">Type</span>
                           {p.type ? (
                             <span className="feature-param-type-badge" style={{ color: PARAM_TYPE_COLORS[p.type] ?? 'var(--text-muted)', borderColor: `color-mix(in srgb, ${PARAM_TYPE_COLORS[p.type] ?? 'var(--text-muted)'} 30%, transparent)`, background: `color-mix(in srgb, ${PARAM_TYPE_COLORS[p.type] ?? 'var(--text-muted)'} 10%, transparent)` }}>{p.type}</span>
-                          ) : <span className="feature-param-empty">—</span>}
+                          ) : <span className="feature-param-empty">-</span>}
                         </span>
                         <span className="feature-param-field">
                           <span className="feature-param-label">Required</span>
@@ -665,11 +665,11 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
                         </span>
                         <span className="feature-param-field feature-param-field--desc">
                           <span className="feature-param-label">Description</span>
-                          {p.description ? <span className="feature-param-desc">{p.description}</span> : <span className="feature-param-empty">—</span>}
+                          {p.description ? <span className="feature-param-desc">{p.description}</span> : <span className="feature-param-empty">-</span>}
                         </span>
                         <span className="feature-param-field">
                           <span className="feature-param-label">Pattern</span>
-                          {p.pattern ? <span className="feature-params-pattern">{p.pattern}</span> : <span className="feature-param-empty">—</span>}
+                          {p.pattern ? <span className="feature-params-pattern">{p.pattern}</span> : <span className="feature-param-empty">-</span>}
                         </span>
                       </div>
                     ))}

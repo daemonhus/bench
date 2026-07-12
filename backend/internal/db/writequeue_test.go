@@ -124,7 +124,7 @@ func TestWriteQueue_CloseFlushes(t *testing.T) {
 	wg.Wait()
 
 	// Close drains the queue; subsequent ListFindings uses a fresh DB.
-	// Queue is drained by t.Cleanup via d.Close() — nothing more needed here.
+	// Queue is drained by t.Cleanup via d.Close() - nothing more needed here.
 }
 
 // TestPutSettings_Atomic verifies that PutSettings writes all keys or none.

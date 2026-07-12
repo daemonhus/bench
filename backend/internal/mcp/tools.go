@@ -119,7 +119,7 @@ func coerceParams(schema json.RawMessage, params json.RawMessage) json.RawMessag
 
 		switch prop.Type {
 		case "integer":
-			// Try to parse as integer — reject floats like "3.5"
+			// Try to parse as integer - reject floats like "3.5"
 			var n int64
 			if _, err := fmt.Sscanf(strVal, "%d", &n); err == nil {
 				m[k] = json.RawMessage(fmt.Sprintf("%d", n))

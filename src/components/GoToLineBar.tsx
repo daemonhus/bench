@@ -117,7 +117,7 @@ export const GoToLineBar: React.FC<GoToLineBarProps> = ({ maxLine, onClose }) =>
         data-form-type="other"
       />
       <span className="in-file-search-counter">
-        {value === '' ? '' : parsed !== null ? `→ ${parsed}` : '—'}
+        {value === '' ? '' : parsed !== null ? `→ ${parsed}` : '-'}
       </span>
       <button className="in-file-search-close" title="Close (Esc)" onClick={onClose}>
         <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

@@ -7,7 +7,7 @@ import type { Token } from './types';
 const dmp = new DiffMatchPatch();
 
 // ---------------------------------------------------------------------------
-// Stage 1 — Syntax highlighting via refractor
+// Stage 1 - Syntax highlighting via refractor
 // ---------------------------------------------------------------------------
 
 /**
@@ -47,7 +47,7 @@ export function highlight(content: string, language: string): Token[] {
 }
 
 // ---------------------------------------------------------------------------
-// Stage 2 — Inline edit marking via diff-match-patch
+// Stage 2 - Inline edit marking via diff-match-patch
 // ---------------------------------------------------------------------------
 
 /**
@@ -89,7 +89,7 @@ export function applyEditRanges(
 
   for (const [op, text] of diffs) {
     if (op === 0) {
-      // equal — advance cursor on both sides
+      // equal - advance cursor on both sides
       cursor += text.length;
     } else if (op === targetOp) {
       ranges.push({ start: cursor, end: cursor + text.length });
@@ -224,7 +224,7 @@ export function markEdits(
 }
 
 // ---------------------------------------------------------------------------
-// Stage 2b — Search match highlighting
+// Stage 2b - Search match highlighting
 // ---------------------------------------------------------------------------
 
 /**
@@ -244,7 +244,7 @@ export function applySearchRanges(
 }
 
 // ---------------------------------------------------------------------------
-// Stage 3 — Recursive React renderer
+// Stage 3 - Recursive React renderer
 // ---------------------------------------------------------------------------
 
 /**
