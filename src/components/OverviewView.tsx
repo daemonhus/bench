@@ -1200,28 +1200,7 @@ export function OverviewView() {
 
         <div className="ovp-columns">
 
-          {/* ── Column 1: security findings ─────────────────────────── */}
-          <div className="ovp-col">
-            <div className="ovp-panel">
-              <PanelTitle href="#/findings">Findings</PanelTitle>
-              {findings.length === 0 ? (
-                <div className="ovp-empty">No findings recorded yet.</div>
-              ) : (
-                <>
-                  <ResolutionStrip totals={statusTotals} />
-                  <div className="ovp-section">
-                    <h4 className="ovp-subtitle">Systemic issues</h4>
-                    <CategoryHeatmap systemic={systemic} findingsByCategory={findingsByCategory} isOpen={isOpen} />
-                  </div>
-                  <div className="ovp-section">
-                    <FindingsTimeline findings={findings} />
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* ── Column 2: repository ────────────────────────────────── */}
+          {/* ── Column 1: repository ────────────────────────────────── */}
           <div className="ovp-col">
             <div className="ovp-panel">
               <div className="ovp-repo-header">
@@ -1336,6 +1315,27 @@ export function OverviewView() {
               <div className="ovp-section">
                 <ActivityTimeline />
               </div>
+            </div>
+          </div>
+
+          {/* ── Column 2: security findings ─────────────────────────── */}
+          <div className="ovp-col">
+            <div className="ovp-panel">
+              <PanelTitle href="#/findings">Findings</PanelTitle>
+              {findings.length === 0 ? (
+                <div className="ovp-empty">No findings recorded yet.</div>
+              ) : (
+                <>
+                  <ResolutionStrip totals={statusTotals} />
+                  <div className="ovp-section">
+                    <h4 className="ovp-subtitle">Systemic issues</h4>
+                    <CategoryHeatmap systemic={systemic} findingsByCategory={findingsByCategory} isOpen={isOpen} />
+                  </div>
+                  <div className="ovp-section">
+                    <FindingsTimeline findings={findings} />
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
