@@ -16,6 +16,21 @@ export function resolveNavId(
   return card.getAttribute('data-nav-id');
 }
 
+/**
+ * Whether a focusout moving to `next` takes focus out of `container` entirely.
+ * A move that lands on another element inside the list (a card to its own reply
+ * box, say) keeps the nav anchor; anything else - a filter, a tab, clicking
+ * blank space (relatedTarget null) - drops it. Exported for testing.
+ */
+export function isFocusLeaving(
+  next: EventTarget | null,
+  container: HTMLElement | null,
+): boolean {
+  if (!container) return false;
+  if (!(next instanceof Node)) return true; // null / non-node: focus went nowhere in the list
+  return !container.contains(next);
+}
+
 interface UseNavListOptions<T> {
   items: T[];
   getId: (item: T) => string;
@@ -138,6 +153,18 @@ export function useNavList<T>({
     moveFocus(0);
   }, [focusedId, items, getId, moveFocus, onFocusChange]);
 
+  // The focus ring marks where arrow-keying would resume, so it has no meaning
+  // once focus leaves the list: clicking a filter, a tab, or anything else
+  // outside drops the anchor. React's onBlur is focusout, so this fires for
+  // focus moving off any descendant; a move that lands back inside the list
+  // (card to its own reply box, say) keeps the anchor.
+  const handleBlur = useCallback((e: React.FocusEvent) => {
+    if (focusedId == null) return;
+    if (!isFocusLeaving(e.relatedTarget, containerRef.current)) return;
+    setFocusedId(null);
+    onFocusChange?.(null);
+  }, [focusedId, onFocusChange]);
+
   // Clicks on parts of a card that aren't focusable (label spans, snippet
   // gutters, etc.) wouldn't otherwise update focusedId. Catch them on
   // mousedown so the update lands before any inner click handler runs.
@@ -149,5 +176,5 @@ export function useNavList<T>({
     onFocusChange?.(item ?? null);
   }, [focusedId, items, getId, onFocusChange]);
 
-  return { focusedId, focusedIndex, containerRef, handleKeyDown, handleFocus, handlePointerDown, setFocusedId };
+  return { focusedId, focusedIndex, containerRef, handleKeyDown, handleFocus, handleBlur, handlePointerDown, setFocusedId };
 }

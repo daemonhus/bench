@@ -69,7 +69,7 @@ export const FolderView: React.FC<FolderViewProps> = ({
     else onSelectFile(entry.fullPath);
   };
 
-  const { focusedId, containerRef, handleKeyDown, handleFocus } = useNavList<DirEntry>({
+  const { focusedId, containerRef, handleKeyDown, handleFocus, handleBlur } = useNavList<DirEntry>({
     items: entries,
     getId: (e) => e.id,
     onActivate: activate,
@@ -88,6 +88,7 @@ export const FolderView: React.FC<FolderViewProps> = ({
       tabIndex={0}
       onKeyDown={handleKeyDown}
       onFocus={handleFocus}
+      onBlur={handleBlur}
       data-nav-area="folder-view"
     >
       <div className="folder-header">

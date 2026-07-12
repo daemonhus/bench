@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { resolveNavId } from '../core/use-nav-list';
+import { resolveNavId, isFocusLeaving } from '../core/use-nav-list';
 
 // resolveNavId is the DOM-walking primitive behind useNavList's focus and
 // pointer-down handlers - it's what makes "click a card or type into one of
@@ -96,5 +96,40 @@ describe('resolveNavId', () => {
     expect(resolveNavId(cards[2].querySelector('button'), container)).toBe('c');
     // And types into the same card's textarea.
     expect(resolveNavId(cards[2].querySelector('textarea'), container)).toBe('c');
+  });
+});
+
+// isFocusLeaving decides whether the nav anchor survives a focusout. The focus
+// ring marks where arrow-keying would resume, so it has to clear the moment the
+// user's focus moves to a filter, a tab, or anywhere else outside the list.
+describe('isFocusLeaving', () => {
+  let container: HTMLElement;
+  let cards: HTMLElement[];
+
+  beforeEach(() => {
+    ({ container, cards } = buildList(['a', 'b']));
+  });
+
+  it('keeps the anchor when focus moves to another element inside the list', () => {
+    const textarea = cards[0].querySelector('textarea')!;
+    expect(isFocusLeaving(textarea, container)).toBe(false);
+  });
+
+  it('keeps the anchor when focus moves between cards', () => {
+    expect(isFocusLeaving(cards[1], container)).toBe(false);
+  });
+
+  it('drops the anchor when focus moves to a control outside the list', () => {
+    const filter = document.createElement('button');
+    document.body.appendChild(filter);
+    expect(isFocusLeaving(filter, container)).toBe(true);
+  });
+
+  it('drops the anchor when focus goes nowhere (clicking blank space)', () => {
+    expect(isFocusLeaving(null, container)).toBe(true);
+  });
+
+  it('does nothing without a container', () => {
+    expect(isFocusLeaving(null, null)).toBe(false);
   });
 });

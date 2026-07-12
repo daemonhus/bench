@@ -432,7 +432,7 @@ export const Sidebar: React.FC = () => {
   }, [fileFindings, fileComments, fileFeatures, severityFilter]);
 
   // Keyboard navigation through sidebar annotation cards
-  const { focusedId: navFocusedId, containerRef: navContainerRef, handleKeyDown: navHandleKeyDown, handleFocus: navHandleFocus, setFocusedId: setNavFocusedId } = useNavList({
+  const { focusedId: navFocusedId, containerRef: navContainerRef, handleKeyDown: navHandleKeyDown, handleFocus: navHandleFocus, handleBlur: navHandleBlur, setFocusedId: setNavFocusedId } = useNavList({
     items: activityItems,
     getId: item => item.data.id,
     onFocusChange: (item) => {
@@ -805,6 +805,7 @@ export const Sidebar: React.FC = () => {
       ref={navContainerRef}
       onKeyDown={navHandleKeyDown}
       onFocus={navHandleFocus}
+      onBlur={navHandleBlur}
       onMouseDown={(e) => {
         // Mouse-clicking a card should move keyboard-nav focus to it so Enter
         // immediately works to start a reply.

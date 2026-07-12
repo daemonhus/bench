@@ -344,7 +344,7 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
     }
   };
 
-  const { focusedId: navFocusedId, containerRef: navContainerRef, handleKeyDown: navBaseKeyDown, handleFocus: navHandleFocus } = useNavList({
+  const { focusedId: navFocusedId, containerRef: navContainerRef, handleKeyDown: navBaseKeyDown, handleFocus: navHandleFocus, handleBlur: navHandleBlur } = useNavList({
     items: activityStream,
     getId: getActivityNavId,
     onSelect: (item) => {
@@ -395,7 +395,7 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
     () => [...pastBaselines].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     [pastBaselines],
   );
-  const { focusedId: histFocusedId, containerRef: histContainerRef, handleKeyDown: histHandleKeyDown, handleFocus: histHandleFocus } = useNavList({
+  const { focusedId: histFocusedId, containerRef: histContainerRef, handleKeyDown: histHandleKeyDown, handleFocus: histHandleFocus, handleBlur: histHandleBlur } = useNavList({
     items: sortedPastBaselines,
     getId: (bl) => bl.id,
     onActivate: (bl) => {
@@ -736,6 +736,7 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
           data-nav-area="delta-history"
           onKeyDown={histHandleKeyDown}
           onFocus={histHandleFocus}
+          onBlur={histHandleBlur}
         >
           <div className="delta-sidebar-header">
             <span className="delta-sidebar-title">History</span>
@@ -861,6 +862,7 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
               data-nav-area="delta"
               onKeyDown={navHandleKeyDown}
               onFocus={navHandleFocus}
+              onBlur={navHandleBlur}
             >
             {activityStream.map((item) => {
               const navId = getActivityNavId(item);

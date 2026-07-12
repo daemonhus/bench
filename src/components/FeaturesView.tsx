@@ -417,7 +417,7 @@ export const FeaturesView: React.FC = () => {
 
   // Keyboard nav for the features list
   const pendingReplyFocusId = useRef<string | null>(null);
-  const { focusedId: navFocusedId, containerRef: navContainerRef, handleKeyDown: navHandleKeyDown, handleFocus: navHandleFocus, handlePointerDown: navHandlePointerDown } = useNavList({
+  const { focusedId: navFocusedId, containerRef: navContainerRef, handleKeyDown: navHandleKeyDown, handleFocus: navHandleFocus, handleBlur: navHandleBlur, handlePointerDown: navHandlePointerDown } = useNavList({
     items: tabFeatures,
     getId: f => f.id,
     onSelect: (f) => setCollapsedIds((prev) => {
@@ -612,6 +612,7 @@ export const FeaturesView: React.FC = () => {
           data-nav-area="features-list"
           onKeyDown={navHandleKeyDown}
           onFocus={navHandleFocus}
+          onBlur={navHandleBlur}
           onMouseDown={navHandlePointerDown}
         >
         {orphaned.length > 0 && (
