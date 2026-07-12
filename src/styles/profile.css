@@ -197,11 +197,15 @@
 /* Indicators: the unchecked state borrows the label colour at reduced
    strength; the active state fills with the accent. */
 
+/* Integer geometry throughout: a fractional border or inset puts the dot's
+   edges on half-pixels, which round to device pixels differently from the
+   ring's, and the dot drifts off-centre at 2x. Chrome rounds a 1.5px border
+   to a used 1px anyway, so say 1px and mean it. */
 .profile-choice-ind {
   flex-shrink: 0;
   width: 14px;
   height: 14px;
-  border: 1.5px solid color-mix(in srgb, currentColor 55%, transparent);
+  border: 1px solid color-mix(in srgb, currentColor 55%, transparent);
   transition: border-color var(--transition-fast), background var(--transition-fast);
   position: relative;
 }
@@ -217,7 +221,7 @@
 .profile-choice-active .profile-choice-ind-radio::after {
   content: '';
   position: absolute;
-  inset: 2.5px;
+  inset: 3px; /* integer: 12px padding box - 3px each side = a 6px dot */
   border-radius: 50%;
   background: var(--accent-blue);
 }
