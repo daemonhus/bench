@@ -2,7 +2,7 @@
 
 The Overview panel is the project dashboard: the first tab (shortcut <kbd>0</kbd>). A header band carries the project context, and three columns below it cover findings, the repository, and the annotated attack surface.
 
-**Header** names the service, its owner (linked to [Context](./context)), the description, and the profile attributes as chips - the same meta-attributes that contextualise every finding. Three KPIs sit alongside: open findings (of the total, and how many are closed), how far HEAD has drifted from the last baseline (commits and merges since it was set), and the size of the attack surface.
+**Header** names the service, its owner (linked to [Profile](./profile)), the description, and the profile attributes as chips - the same meta-attributes that contextualise every finding. Three KPIs sit alongside: open findings (of the total, and how many are closed), how far HEAD has drifted from the last baseline (commits and merges since it was set), and the size of the attack surface.
 
 **Findings** (first column) opens with the resolution strip - open, in progress, accepted, closed - then **systemic issues**: findings grouped by category, each row showing the total, how many remain open, and a severity swatch per finding, so a category holding three highs reads differently from one holding three lows. Below that, findings raised per week; hover a column for exact values.
 

@@ -422,7 +422,7 @@ bench refs batch-create --input refs.json
 
 ## profile
 
-The [service profile](/panel/context): what the code can't tell you about where it runs. Every other write is rejected with a 412 until this has been set at least once, so it is the first call of a review.
+The [service profile](/panel/profile): what the code can't tell you about where it runs. Every other write is rejected with a 412 until this has been set at least once, so it is the first call of a review.
 
 ```bash
 # See the current profile (empty fields mean "not configured")

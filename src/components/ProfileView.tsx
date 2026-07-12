@@ -164,7 +164,7 @@ function formatUpdatedAt(iso?: string): string {
   return d.toLocaleString();
 }
 
-export function ConfigView() {
+export function ProfileView() {
   const profile = useProfileStore((s) => s.profile);
   const configured = useProfileStore((s) => s.configured);
   const loaded = useProfileStore((s) => s.loaded);
@@ -262,19 +262,19 @@ export function ConfigView() {
   };
 
   if (!loaded) {
-    return <div className="config-view"><div className="config-loading">Loading profile…</div></div>;
+    return <div className="profile-view"><div className="profile-loading">Loading profile…</div></div>;
   }
 
   return (
-    <div className="config-view">
-      <div className="config-column">
-        <div className="config-header">
+    <div className="profile-view">
+      <div className="profile-column">
+        <div className="profile-header">
           <div>
-            <h2 className="config-title">Service Profile</h2>
+            <h2 className="profile-title">Service Profile</h2>
           </div>
-          <div className="config-header-actions">
+          <div className="profile-header-actions">
             <span
-              className={`config-save-status${saving || dirty ? ' config-save-status-pending' : ''}`}
+              className={`profile-save-status${saving || dirty ? ' profile-save-status-pending' : ''}`}
               role="status"
             >
               {saving || dirty ? (
@@ -292,19 +292,19 @@ export function ConfigView() {
               ) : null}
             </span>
             {profile.updatedAt && (
-              <span className="config-updated-at">Last updated {formatUpdatedAt(profile.updatedAt)}</span>
+              <span className="profile-updated-at">Last updated {formatUpdatedAt(profile.updatedAt)}</span>
             )}
           </div>
         </div>
 
-        {error && <div className="config-error">{error}</div>}
+        {error && <div className="profile-error">{error}</div>}
 
-        <div className="config-section">
-          <h3 className="config-section-title">Identity</h3>
-          <div className="config-field">
-            <label className="finding-form-label" htmlFor="config-description">Description</label>
+        <div className="profile-section">
+          <h3 className="profile-section-title">Identity</h3>
+          <div className="profile-field">
+            <label className="finding-form-label" htmlFor="profile-description">Description</label>
             <textarea
-              id="config-description"
+              id="profile-description"
               className="finding-edit-textarea"
               placeholder="What does this service do?"
               value={draft.description}
@@ -312,10 +312,10 @@ export function ConfigView() {
               rows={3}
             />
           </div>
-          <div className="config-field">
-            <label className="finding-form-label" htmlFor="config-owner">Owner</label>
+          <div className="profile-field">
+            <label className="finding-form-label" htmlFor="profile-owner">Owner</label>
             <input
-              id="config-owner"
+              id="profile-owner"
               className="finding-edit-input"
               placeholder="Team or person accountable, e.g. platform-team"
               value={draft.owner}
@@ -325,22 +325,22 @@ export function ConfigView() {
         </div>
 
         {SECTIONS.map((section) => (
-          <div className="config-section" key={section.title}>
-            <h3 className="config-section-title">{section.title}</h3>
+          <div className="profile-section" key={section.title}>
+            <h3 className="profile-section-title">{section.title}</h3>
             {section.singles?.map((field) => (
-              <div className="config-field" key={field.key}>
+              <div className="profile-field" key={field.key}>
                 <label className="finding-form-label">{field.label}</label>
-                <p className="config-hint">{field.hint}</p>
-                <div className="config-choices config-choices-radio" role="radiogroup" aria-label={field.label}>
+                <p className="profile-hint">{field.hint}</p>
+                <div className="profile-choices profile-choices-radio" role="radiogroup" aria-label={field.label}>
                   {['', ...field.options].map((opt) => (
                     <button
                       key={opt || '__unset'}
-                      className={`config-choice config-choice-radio${draft[field.key] === opt ? ' config-choice-active' : ''}`}
+                      className={`profile-choice profile-choice-radio${draft[field.key] === opt ? ' profile-choice-active' : ''}`}
                       role="radio"
                       aria-checked={draft[field.key] === opt}
                       onClick={() => setSingle(field.key, opt)}
                     >
-                      <span className="config-choice-ind config-choice-ind-radio" aria-hidden="true" />
+                      <span className="profile-choice-ind profile-choice-ind-radio" aria-hidden="true" />
                       {opt === '' ? 'Not set' : valueLabel(opt)}
                     </button>
                   ))}
@@ -348,10 +348,10 @@ export function ConfigView() {
               </div>
             ))}
             {section.multis?.map((field) => (
-              <div className="config-field" key={field.key}>
+              <div className="profile-field" key={field.key}>
                 <label className="finding-form-label">{field.label}</label>
-                <p className="config-hint">{field.hint}</p>
-                <div className="config-choices config-choices-check" role="group" aria-label={field.label}>
+                <p className="profile-hint">{field.hint}</p>
+                <div className="profile-choices profile-choices-check" role="group" aria-label={field.label}>
                   {field.options.map((opt) => {
                     const checked = draft[field.key].includes(opt);
                     const noneSelected = draft[field.key].includes('none');
@@ -359,7 +359,7 @@ export function ConfigView() {
                     return (
                       <label
                         key={opt}
-                        className={`config-choice config-choice-check${checked ? ' config-choice-active' : ''}${disabled ? ' config-choice-disabled' : ''}`}
+                        className={`profile-choice profile-choice-check${checked ? ' profile-choice-active' : ''}${disabled ? ' profile-choice-disabled' : ''}`}
                       >
                         <input
                           type="checkbox"
@@ -367,7 +367,7 @@ export function ConfigView() {
                           disabled={disabled}
                           onChange={() => toggleMulti(field.key, opt)}
                         />
-                        <span className="config-choice-ind config-choice-ind-check" aria-hidden="true" />
+                        <span className="profile-choice-ind profile-choice-ind-check" aria-hidden="true" />
                         {opt === 'none' ? 'None (confirmed absent)' : valueLabel(opt)}
                       </label>
                     );

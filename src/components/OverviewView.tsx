@@ -995,8 +995,8 @@ export function OverviewView() {
           <div className="ovp-header-info">
             <div className="ovp-header-title-row">
               <h3 className="ovp-project-title">{repoName || 'Project'}</h3>
-              <a className="ovp-header-owner" href="#/config">
-                {profile.owner ? `Owner · ${profile.owner}` : 'Context'}
+              <a className="ovp-header-owner" href="#/profile">
+                {profile.owner ? `Owner · ${profile.owner}` : 'Profile'}
                 <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <path d="M3.5 8.5l5-5M4 3.5h4.5V8" />
                 </svg>
@@ -1004,11 +1004,11 @@ export function OverviewView() {
             </div>
             {!profileConfigured ? (
               <div className="ovp-empty">
-                Service profile not configured yet. <a className="ovp-inline-link" href="#/config">Open Config</a>
+                Service profile not configured yet. <a className="ovp-inline-link" href="#/profile">Open Profile</a>
               </div>
             ) : !profile.description && !profile.owner && ctxBadges.length === 0 ? (
               <div className="ovp-empty">
-                Profile saved but no attributes set yet. <a className="ovp-inline-link" href="#/config">Open Config</a>
+                Profile saved but no attributes set yet. <a className="ovp-inline-link" href="#/profile">Open Profile</a>
               </div>
             ) : (
               <>

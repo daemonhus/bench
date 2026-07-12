@@ -1,5 +1,5 @@
 export interface Route {
-  mode: 'overview' | 'browse' | 'diff' | 'delta' | 'findings' | 'features' | 'config';
+  mode: 'overview' | 'browse' | 'diff' | 'delta' | 'findings' | 'features' | 'profile';
   from?: string;
   to?: string;
   path?: string;
@@ -46,8 +46,9 @@ export function parseRoute(hash: string): Route {
     return { mode: 'findings', findingId: parts[1] };
   }
 
-  if (parts[0] === 'config') {
-    return { mode: 'config' };
+  // 'config' is the pre-rename hash; keep parsing it so old links still land.
+  if (parts[0] === 'profile' || parts[0] === 'config') {
+    return { mode: 'profile' };
   }
 
   if (parts[0] === 'features') {
@@ -80,7 +81,7 @@ export function parseRoute(hash: string): Route {
  * Build a hash string from route parameters.
  */
 export function buildRoute(
-  mode: 'overview' | 'browse' | 'diff' | 'delta' | 'findings' | 'features' | 'config',
+  mode: 'overview' | 'browse' | 'diff' | 'delta' | 'findings' | 'features' | 'profile',
   from?: string,
   to?: string,
   path?: string,
@@ -88,7 +89,7 @@ export function buildRoute(
 ): string {
   if (mode === 'overview') return '#/overview';
   if (mode === 'findings') return '#/findings';
-  if (mode === 'config') return '#/config';
+  if (mode === 'profile') return '#/profile';
   if (mode === 'features') return featureId ? `#/features/${featureId}` : '#/features';
   if (mode === 'delta') return '#/delta';
   if (mode === 'diff' && from && to) {

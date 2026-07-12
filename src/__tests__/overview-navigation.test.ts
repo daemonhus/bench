@@ -49,9 +49,14 @@ describe('delta/browse navigation', () => {
       expect(route.findingId).toBeUndefined();
     });
 
-    it('parses #/config as config mode', () => {
+    it('parses #/profile as profile mode', () => {
+      const route = parseRoute('#/profile');
+      expect(route.mode).toBe('profile');
+    });
+
+    it('still parses the pre-rename #/config hash as profile mode', () => {
       const route = parseRoute('#/config');
-      expect(route.mode).toBe('config');
+      expect(route.mode).toBe('profile');
     });
 
     // Deep sub-routes carry state that must survive a refresh; the app's
@@ -81,13 +86,13 @@ describe('delta/browse navigation', () => {
     });
   });
 
-  describe('config route building', () => {
-    it('builds config route', () => {
-      expect(buildRoute('config')).toBe('#/config');
+  describe('profile route building', () => {
+    it('builds profile route', () => {
+      expect(buildRoute('profile')).toBe('#/profile');
     });
 
-    it('round-trips config through parse', () => {
-      expect(parseRoute(buildRoute('config')).mode).toBe('config');
+    it('round-trips profile through parse', () => {
+      expect(parseRoute(buildRoute('profile')).mode).toBe('profile');
     });
   });
 

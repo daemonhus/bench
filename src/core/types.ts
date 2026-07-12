@@ -167,7 +167,7 @@ export interface BrowseLine {
 }
 
 // UI state types
-export type ViewMode = 'overview' | 'browse' | 'diff' | 'delta' | 'findings' | 'features' | 'config';
+export type ViewMode = 'overview' | 'browse' | 'diff' | 'delta' | 'findings' | 'features' | 'profile';
 // SidebarTab removed - sidebar is now a unified activity stream
 
 // API response types (match Go backend model)
@@ -390,7 +390,7 @@ export interface BaselineDelta {
   };
 }
 
-// Service profile - singleton per-project meta-attributes (Config tab).
+// Service profile - singleton per-project meta-attributes (Profile tab).
 // Empty string / empty array = "not configured"; in multi-selects, 'none' is
 // an explicit positive claim and cannot be combined with other values.
 export interface ServiceProfile {

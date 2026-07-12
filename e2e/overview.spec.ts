@@ -6,7 +6,7 @@ test.describe('Overview page', () => {
 
     // Header band: project context + KPIs
     await expect(page.locator('.ovp-project-title')).toBeVisible();
-    await expect(page.locator('.ovp-header-owner[href="#/config"]')).toBeVisible();
+    await expect(page.locator('.ovp-header-owner[href="#/profile"]')).toBeVisible();
     await expect(page.locator('.ovp-kpi')).toHaveCount(3);
 
     // Column 1: findings (status strip + systemic + weekly chart)

@@ -28,7 +28,7 @@ Tools are organized into nine groups matching the CLI categories:
 
 ## The write gate
 
-Every review-judgment write (findings, comments, features, refs, baselines, `mark_reviewed`) is rejected with a tool error until the [service profile](/panel/context) has been set at least once. `update_service_profile` is the bootstrap path and is always allowed, and an empty update satisfies the gate.
+Every review-judgment write (findings, comments, features, refs, baselines, `mark_reviewed`) is rejected with a tool error until the [service profile](/panel/profile) has been set at least once. `update_service_profile` is the bootstrap path and is always allowed, and an empty update satisfies the gate.
 
 Start a session with `get_service_profile`: it tells you which finding classes are moot (rate limiting at the gateway, auth terminated upstream) and which are amplified (multi-tenant, PII, internet-facing). The profile is embedded in `get_summary` and `get_delta` responses, so a session that opens with either already has it.
 
@@ -515,7 +515,7 @@ Record the origin when you create the annotation, not later: the introducing cha
 
 ### get_service_profile
 
-Read the [service profile](/panel/context). Do this first: it is the deployment context the code cannot reveal, and it decides which findings matter.
+Read the [service profile](/panel/profile). Do this first: it is the deployment context the code cannot reveal, and it decides which findings matter.
 
 No parameters.
 

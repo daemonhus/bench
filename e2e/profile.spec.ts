@@ -1,9 +1,9 @@
 import { test, expect } from '@playwright/test';
 
 /**
- * Context tab (service profile) end-to-end:
- * - #/config deep link renders the form
- * - unconfigured banner shows on other tabs and links to Context
+ * Profile tab (service profile) end-to-end:
+ * - #/profile deep link renders the form
+ * - unconfigured banner shows on other tabs and links to Profile
  * - setting fields + Save persists across reload
  * - write gate: unconfigured profile blocks finding creation with 412
  *
@@ -11,17 +11,17 @@ import { test, expect } from '@playwright/test';
  * when the profile is already configured (e.g. reusing a dev DB).
  */
 
-test.describe('Context tab - service profile', () => {
-  test('config tab renders form via #/config and nav tab', async ({ page }) => {
-    await page.goto('/#/config');
-    await expect(page.locator('.config-title')).toHaveText('Service Profile');
+test.describe('Profile tab - service profile', () => {
+  test('profile tab renders form via #/profile and nav tab', async ({ page }) => {
+    await page.goto('/#/profile');
+    await expect(page.locator('.profile-title')).toHaveText('Profile');
 
     // All four multi-select groups and six radio groups present
-    await expect(page.locator('.config-choices-check')).toHaveCount(4);
-    await expect(page.locator('.config-choices-radio')).toHaveCount(6);
+    await expect(page.locator('.profile-choices-check')).toHaveCount(4);
+    await expect(page.locator('.profile-choices-radio')).toHaveCount(6);
 
     // Tab bar has the Config tab, marked active
-    const tab = page.locator('.tab-bar-tab', { hasText: 'Context' });
+    const tab = page.locator('.tab-bar-tab', { hasText: 'Profile' });
     await expect(tab).toHaveClass(/tab-bar-tab-active/);
   });
 
@@ -43,26 +43,26 @@ test.describe('Context tab - service profile', () => {
     test.skip(configured, 'profile already configured in this database');
 
     await banner.locator('.profile-banner-link').click();
-    await expect(page.locator('.config-title')).toBeVisible();
+    await expect(page.locator('.profile-title')).toBeVisible();
 
     // Fill some fields
-    await page.locator('#config-owner').fill('platform-team');
-    await page.locator('.config-choices-radio').first().locator('.config-choice', { hasText: 'Full' }).click();
+    await page.locator('#profile-owner').fill('platform-team');
+    await page.locator('.profile-choices-radio').first().locator('.profile-choice', { hasText: 'Full' }).click();
     // Multi-select: pick WAF, then None (exclusive) in Edge Protections
-    const edgeGroup = page.locator('.config-choices-check').first();
-    await edgeGroup.locator('.config-choice', { hasText: 'WAF' }).click();
-    await edgeGroup.locator('.config-choice', { hasText: 'None' }).click();
+    const edgeGroup = page.locator('.profile-choices-check').first();
+    await edgeGroup.locator('.profile-choice', { hasText: 'WAF' }).click();
+    await edgeGroup.locator('.profile-choice', { hasText: 'None' }).click();
     // 'none' is exclusive: WAF should be deselected and disabled
-    await expect(edgeGroup.locator('.config-choice-active')).toHaveCount(1);
-    await expect(edgeGroup.locator('.config-choice-disabled')).toHaveCount(4);
+    await expect(edgeGroup.locator('.profile-choice-active')).toHaveCount(1);
+    await expect(edgeGroup.locator('.profile-choice-disabled')).toHaveCount(4);
 
     // Auto-save: after the debounce the status indicator settles on Saved
-    await expect(page.locator('.config-save-status')).toHaveText(/Saved/, { timeout: 5000 });
+    await expect(page.locator('.profile-save-status')).toHaveText(/Saved/, { timeout: 5000 });
 
     // Persisted across reload
-    await page.goto('/#/config');
-    await expect(page.locator('#config-owner')).toHaveValue('platform-team');
-    await expect(page.locator('.config-updated-at')).toBeVisible();
+    await page.goto('/#/profile');
+    await expect(page.locator('#profile-owner')).toHaveValue('platform-team');
+    await expect(page.locator('.profile-updated-at')).toBeVisible();
 
     // Banner gone on other tabs
     await page.goto('/#/delta');

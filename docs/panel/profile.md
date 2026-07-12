@@ -1,6 +1,6 @@
-# Context
+# Profile
 
-The Context panel (shortcut <kbd>5</kbd>, routed at `#/config`) holds the **service profile**: meta-attributes about the service under review that the code alone can't reveal. The profile is used during investigations and to contextualise risk scores - each field can make certain vulnerability classes moot (rate limiting handled at the gateway, auth terminated upstream) or amplify them (multi-tenant, PII, internet-facing).
+The Profile panel (shortcut <kbd>5</kbd>, routed at `#/profile`) holds the **service profile**: meta-attributes about the service under review that the code alone can't reveal. The profile is used during investigations and to contextualise risk scores - each field can make certain vulnerability classes moot (rate limiting handled at the gateway, auth terminated upstream) or amplify them (multi-tenant, PII, internet-facing).
 
 This is review context, distinct from *Settings* (colours, keyboard shortcuts), which lives in the parent panel.
 

@@ -80,7 +80,7 @@ func serviceProfileIfConfigured(database *db.DB) (*model.ServiceProfile, error) 
 // profileGateMessage names every remedy so any client (human or bot) can
 // self-serve.
 const profileGateMessage = "service profile not configured - configure it before recording review annotations: " +
-	"`bench profile set` (CLI), PATCH /api/profile (REST), update_service_profile (MCP), or the Config tab (UI). " +
+	"`bench profile set` (CLI), PATCH /api/profile (REST), update_service_profile (MCP), or the Profile tab (UI). " +
 	"Call get_service_profile / GET /api/profile to see the available fields."
 
 // requireProfile wraps next and rejects review-judgment writes with 412 until

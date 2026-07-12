@@ -233,7 +233,7 @@ Nothing is written. Confirm what matters with the `PUT`.
 
 ## Profile
 
-The service profile: reviewer-configured meta-attributes of the service under review. A singleton. See [Context](/panel/context) for the fields and what they mean.
+The service profile: reviewer-configured meta-attributes of the service under review. A singleton. See [Profile](/panel/profile) for the fields and what they mean.
 
 | Method | Path | Description |
 |--------|------|-------------|
