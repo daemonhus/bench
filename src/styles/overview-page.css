@@ -953,7 +953,9 @@
 .ovp-map {
   position: relative;
   width: 100%;
-  aspect-ratio: 400 / 260;
+  /* Taller than it is busy: vertical room is what keeps labels from colliding.
+     Matches the simulation's H in feature-map-layout.ts - keep the two in step. */
+  aspect-ratio: 400 / 340;
 }
 
 .ovp-map-edges {

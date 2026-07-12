@@ -43,14 +43,34 @@ describe('buildFeatureMap (force layout)', () => {
     expect(byLabel.get('s1')!.x).toBeLessThan(byLabel.get('src1')!.x);
   });
 
-  it('places unlinked nodes to the right of the flow', () => {
+  it('parks unlinked nodes in a band below the flow', () => {
     const { nodes } = buildFeatureMap([
       feat('interface', 'i1', ['s1']),
       feat('sink', 's1'),
       feat('externality', 'isolated'),
     ]);
     const byLabel = new Map(nodes.map((n) => [n.label, n]));
-    expect(byLabel.get('isolated')!.x).toBeGreaterThan(byLabel.get('s1')!.x);
+    expect(byLabel.get('isolated')!.y).toBeGreaterThan(byLabel.get('i1')!.y);
+    expect(byLabel.get('isolated')!.y).toBeGreaterThan(byLabel.get('s1')!.y);
+  });
+
+  it('does not stack unlinked nodes on top of each other', () => {
+    // Unlinked nodes have no attractive force: before the band, repulsion
+    // flung them to a wall where the final clamp stacked them.
+    const features = [
+      feat('interface', 'i1', ['s1']),
+      feat('sink', 's1'),
+      ...['u1', 'u2', 'u3', 'u4', 'u5'].map((t) => feat('externality', t)),
+    ];
+    const { nodes } = buildFeatureMap(features);
+    const unlinked = nodes.filter((n) => n.label.startsWith('u'));
+    for (let i = 0; i < unlinked.length; i++) {
+      for (let j = i + 1; j < unlinked.length; j++) {
+        const dx = (unlinked[i].x - unlinked[j].x) / 100 * 400;
+        const dy = (unlinked[i].y - unlinked[j].y) / 100 * 260;
+        expect(Math.hypot(dx, dy)).toBeGreaterThan(unlinked[i].r + unlinked[j].r);
+      }
+    }
   });
 
   it('resolves collisions: no two nodes closer than their radii allow', () => {
