@@ -44,6 +44,7 @@ func registerFeatureTools(deps *toolDeps) []Tool {
 		toolDeleteFeature(deps),
 		toolBatchCreateFeatures(deps),
 		toolSetOrigin(deps, "feature"),
+		toolClearOrigin(deps, "feature"),
 		toolSuggestOrigin(deps, "feature"),
 		toolListFeatureParameters(deps),
 		toolGetFeatureParameter(deps),

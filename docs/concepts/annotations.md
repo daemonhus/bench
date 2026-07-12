@@ -126,7 +126,7 @@ bench findings set-origin --id <id> \
   --explanation "Added in the rush to ship SSO; the token check was never wired up."
 ```
 
-`set-origin` merges: only the flags you pass overwrite. `clear-origin` removes the record. The MCP equivalents are `suggest_finding_origin` / `set_finding_origin` and `suggest_feature_origin` / `set_feature_origin`.
+`set-origin` merges: only the flags you pass overwrite. `clear-origin` removes the record. The MCP equivalents are `suggest_finding_origin` / `set_finding_origin` / `clear_finding_origin`, and the same trio for features.
 
 **Record the origin when you create the annotation**, not later. The introducing change is one suggest call away while the anchor is fresh, and the explanation is sharpest while the surrounding code is still in front of you. An annotation without an origin answers "what is here" but not "why does this exist" - and the second question is the one that makes systemic patterns visible.
 

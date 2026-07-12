@@ -185,7 +185,7 @@ func requiresProfile(name string) bool {
 	if name == "update_service_profile" || name == "get_service_profile" {
 		return false
 	}
-	for _, prefix := range []string{"create_", "update_", "delete_", "batch_", "resolve_", "set_", "mark_"} {
+	for _, prefix := range []string{"create_", "update_", "delete_", "clear_", "batch_", "resolve_", "set_", "mark_"} {
 		if strings.HasPrefix(name, prefix) {
 			return true
 		}

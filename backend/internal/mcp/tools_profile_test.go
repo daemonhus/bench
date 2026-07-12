@@ -108,7 +108,7 @@ func TestMCPServiceProfile_RequiresProfileCoverage(t *testing.T) {
 	deps := setupMCPDeps(t)
 	tools := registerAllTools(deps)
 
-	writePrefixes := []string{"create_", "update_", "delete_", "batch_", "resolve_", "set_", "mark_"}
+	writePrefixes := []string{"create_", "update_", "delete_", "clear_", "batch_", "resolve_", "set_", "mark_"}
 	isWriteName := func(name string) bool {
 		for _, p := range writePrefixes {
 			if strings.HasPrefix(name, p) {

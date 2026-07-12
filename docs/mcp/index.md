@@ -17,9 +17,9 @@ Tools are organized into nine groups matching the CLI categories:
 | Group | Tools |
 |-------|-------|
 | `git` | `search_code`, `get_blame`, `read_file`, `read_files`, `list_files`, `get_diff`, `list_changed_files`, `list_commits`, `list_branches` |
-| `findings` | `list_findings`, `get_finding`, `create_finding`, `update_finding`, `delete_finding`, `resolve_finding`, `search_findings`, `batch_create_findings`, `set_finding_origin`, `suggest_finding_origin` |
+| `findings` | `list_findings`, `get_finding`, `create_finding`, `update_finding`, `delete_finding`, `resolve_finding`, `search_findings`, `batch_create_findings`, `set_finding_origin`, `clear_finding_origin`, `suggest_finding_origin` |
 | `comments` | `list_comments`, `get_comment`, `create_comment`, `update_comment`, `delete_comment`, `resolve_comment`, `batch_create_comments` |
-| `features` | `list_features`, `get_feature`, `create_feature`, `update_feature`, `delete_feature`, `batch_create_features`, `list_feature_parameters`, `get_feature_parameter`, `create_feature_parameter`, `update_feature_parameter`, `delete_feature_parameter`, `set_feature_origin`, `suggest_feature_origin` |
+| `features` | `list_features`, `get_feature`, `create_feature`, `update_feature`, `delete_feature`, `batch_create_features`, `list_feature_parameters`, `get_feature_parameter`, `create_feature_parameter`, `update_feature_parameter`, `delete_feature_parameter`, `set_feature_origin`, `clear_feature_origin`, `suggest_feature_origin` |
 | `baselines` | `set_baseline`, `list_baselines`, `get_delta`, `delete_baseline` |
 | `analytics` | `get_summary`, `get_coverage`, `mark_reviewed` |
 | `reconcile` | `reconcile`, `get_reconciliation_status`, `get_annotation_history` |
@@ -507,7 +507,9 @@ Record how a finding came to be. Merge semantics: only the fields provided overw
 | `actor` | string | no | Author who introduced it |
 | `branch` | string | no | Flow convention: `feature-x -> main` |
 
-`suggest_feature_origin` and `set_feature_origin` take the same shape for features, where the origin records when a route or surface was introduced.
+`clear_finding_origin` removes the record (the finding itself is untouched; clearing an origin that was never set is not an error).
+
+`suggest_feature_origin`, `set_feature_origin` and `clear_feature_origin` take the same shape for features, where the origin records when a route or surface was introduced.
 
 Record the origin when you create the annotation, not later: the introducing change is one suggest call away while the anchor is fresh.
 

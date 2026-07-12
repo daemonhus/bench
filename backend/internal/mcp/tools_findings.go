@@ -24,6 +24,7 @@ func registerFindingTools(deps *toolDeps) []Tool {
 		toolResolveFinding(deps),
 		toolBatchCreateFindings(deps),
 		toolSetOrigin(deps, "finding"),
+		toolClearOrigin(deps, "finding"),
 		toolSuggestOrigin(deps, "finding"),
 	}
 }

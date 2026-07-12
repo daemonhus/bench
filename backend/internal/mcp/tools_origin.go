@@ -116,6 +116,41 @@ func toolSetOrigin(deps *toolDeps, entityType string) Tool {
 	}
 }
 
+func toolClearOrigin(deps *toolDeps, entityType string) Tool {
+	return Tool{
+		Name:        "clear_" + entityType + "_origin",
+		Description: fmt.Sprintf("Remove the historical context of a %s. The %s itself is untouched; only its origin record is deleted. Clearing an origin that was never set is not an error.", entityType, entityType),
+		InputSchema: json.RawMessage(fmt.Sprintf(`{
+			"type": "object",
+			"properties": {
+				"id": {"type": "string", "description": "%s ID"}
+			},
+			"required": ["id"]
+		}`, entityType)),
+		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
+			var p struct {
+				ID string `json:"id"`
+			}
+			if err := json.Unmarshal(params, &p); err != nil {
+				return "", fmt.Errorf("invalid params: %w", err)
+			}
+			if p.ID == "" {
+				return "", fmt.Errorf("id is required")
+			}
+			if _, err := originEntityAnchor(deps, entityType, p.ID); err != nil {
+				return "", err
+			}
+			if err := deps.db.DeleteOrigin(entityType, p.ID); err != nil {
+				return "", err
+			}
+			if deps.broker != nil {
+				deps.broker.Publish(events.TopicAnnotations)
+			}
+			return fmt.Sprintf("Origin cleared for %s %s", entityType, p.ID), nil
+		},
+	}
+}
+
 func toolSuggestOrigin(deps *toolDeps, entityType string) Tool {
 	return Tool{
 		Name:        "suggest_" + entityType + "_origin",

@@ -83,8 +83,8 @@ Access (same shape for both entities): `PUT /api/findings/{id}/origin` and
 `PUT /api/features/{id}/origin` (merge semantics: only provided fields
 overwrite), `DELETE .../origin`, `GET .../origin/suggest`. CLI:
 `bench findings|features set-origin / clear-origin / suggest-origin`. MCP:
-`set_finding_origin` / `suggest_finding_origin` / `set_feature_origin` /
-`suggest_feature_origin`. An unresolvable `introducedCommit` is stored as-is
+`set_finding_origin` / `clear_finding_origin` / `suggest_finding_origin` /
+`set_feature_origin` / `clear_feature_origin` / `suggest_feature_origin`. An unresolvable `introducedCommit` is stored as-is
 without a pin, since the introducing commit may have been rewritten out of
 history. Writes are gated by the service profile like all review-judgment
 writes.
