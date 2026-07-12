@@ -558,6 +558,14 @@
   margin-bottom: 0;
 }
 
+/* .activity-feature-ref's margin-top separates a feature reference from the
+   comment text above it. As an activity item's own card it has no text above
+   it - only its event label - so the margin would sit it 10px lower than a
+   comment card under the same label. */
+.activity-item-wrap > .activity-feature-ref {
+  margin-top: 0;
+}
+
 .activity-event-label {
   display: flex;
   align-items: center;
