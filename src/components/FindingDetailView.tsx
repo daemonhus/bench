@@ -6,7 +6,7 @@ import { useWorkbenchExtensions } from '../core/extensions';
 import { useAnnotationStore } from '../stores/annotation-store';
 import { RefProviderIcon } from './RefProviderIcon';
 import { PageSkeleton } from './Skeleton';
-import { SelectDropdown } from './SelectDropdown';
+import { SelectDropdown, LabelledField } from './SelectDropdown';
 import { SEVERITY_OPTIONS, FINDING_STATUS_OPTIONS } from '../core/status-options';
 import { EditableText, SaveIndicator, useSaveTracker } from './EditableText';
 import { LinkManageModal } from './LinkManageModal';
@@ -18,7 +18,7 @@ import type {
 } from '../core/types';
 
 // The finding's own page, laid out like the feature detail page (FeatureDetailView): a hero card,
-// then the reconciliation trail and comments beside provenance, origin and links. Like the flow
+// then comments beside provenance, origin, links and the reconciliation trail. Like the flow
 // page, everything is editable in place and saves as soon as a field is left.
 
 const CATEGORIES: { value: string; label: string }[] = [
@@ -166,20 +166,6 @@ export function FindingDetailView({ findingId, onBack }: Props) {
 
         {/* ── Hero card ───────────────────────────────────────────── */}
         <div className="fd-card fd-hero">
-          <div className="fd-hero-top">
-            <SelectDropdown<Severity> appearance="tinted" label="Severity" options={SEVERITY_OPTIONS} value={f.severity} onChange={(severity) => patch({ severity })} />
-            <SelectDropdown<FindingStatus> appearance="tinted" label="Status" options={FINDING_STATUS_OPTIONS} value={f.status} onChange={(status) => patch({ status })} />
-            <SelectDropdown<string> appearance="tinted" label="Category" options={CATEGORIES} value={f.category ?? ''} onChange={(category) => patch({ category })} />
-            <SelectDropdown<Finding['source']> appearance="tinted" label="Source" value={f.source} onChange={(source) => patch({ source })}
-              // Keep a source written by another tool (e.g. "mcp") selectable as it is.
-              options={SOURCES.some((o) => o.value === f.source) ? SOURCES : [...SOURCES, { value: f.source, label: f.source }]} />
-            {f.confidence && (
-              <span className="fd-confidence" style={{ color: CONFIDENCE_COLORS[f.confidence] }}>
-                ● {f.confidence}
-              </span>
-            )}
-          </div>
-
           <h1 className="fd-title">
             <EditableText value={f.title} onChange={(title) => { if (title.trim()) patch({ title: title.trim() }); }} placeholder="Finding title" label="Title" plain />
           </h1>
@@ -196,6 +182,29 @@ export function FindingDetailView({ findingId, onBack }: Props) {
             <EditableText value={f.description} placeholder="Add a description…" label="Description" multiline onChange={(description) => patch({ description })} />
           </div>
 
+          {/* Severity, status and the rest, each with its caption; how sure the position is, at the end. */}
+          <div className="fd-hero-controls">
+            <LabelledField label="Severity">
+              <SelectDropdown<Severity> appearance="tinted" label="Severity" options={SEVERITY_OPTIONS} value={f.severity} onChange={(severity) => patch({ severity })} />
+            </LabelledField>
+            <LabelledField label="Status">
+              <SelectDropdown<FindingStatus> appearance="tinted" label="Status" options={FINDING_STATUS_OPTIONS} value={f.status} onChange={(status) => patch({ status })} />
+            </LabelledField>
+            <LabelledField label="Category">
+              <SelectDropdown<string> appearance="tinted" label="Category" options={CATEGORIES} value={f.category ?? ''} onChange={(category) => patch({ category })} />
+            </LabelledField>
+            <LabelledField label="Source">
+              <SelectDropdown<Finding['source']> appearance="tinted" label="Source" value={f.source} onChange={(source) => patch({ source })}
+                // Keep a source written by another tool (e.g. "mcp") selectable as it is.
+                options={SOURCES.some((o) => o.value === f.source) ? SOURCES : [...SOURCES, { value: f.source, label: f.source }]} />
+            </LabelledField>
+            {f.confidence && (
+              <span className="fd-confidence" style={{ color: CONFIDENCE_COLORS[f.confidence] }}>
+                ● {f.confidence}
+              </span>
+            )}
+          </div>
+
           <div className="overview-card-meta fd-footer">
             <LocationField anchor={f.anchor} effective={f.effectiveAnchor} onChange={move} />
             <span className="overview-card-meta-right">
@@ -207,33 +216,6 @@ export function FindingDetailView({ findingId, onBack }: Props) {
         {/* ── Two-column: main content + metadata sidebar ─────────── */}
         <div className="fd-grid">
           <div className="fd-main">
-            {/* Reconciliation trail */}
-            <div className="fd-card">
-              <h2 className="fd-card-title">Reconciliation <span className="fd-count">{history.length}</span></h2>
-              {history.length === 0 ? (
-                <div className="fd-muted">No reconciliation history recorded.</div>
-              ) : (
-                <ol className="fd-recon">
-                  {[...history].reverse().slice(0, allHistory ? undefined : RECON_SHOWN).map((p, i) => (
-                    <li key={`${p.commitId}-${i}`} className="fd-recon-row">
-                      <span className="fd-recon-dot" style={{ background: CONFIDENCE_COLORS[p.confidence] ?? 'var(--text-muted)' }} />
-                      <span className="fd-recon-commit fd-mono">{short(p.commitId)}</span>
-                      <span className="fd-recon-conf" style={{ color: CONFIDENCE_COLORS[p.confidence] }}>{p.confidence}</span>
-                      <span className="fd-recon-line">
-                        {p.lineStart != null ? `L${p.lineStart}${p.lineEnd && p.lineEnd !== p.lineStart ? `–${p.lineEnd}` : ''}` : '—'}
-                      </span>
-                      <span className="fd-recon-date">{fmtDate(p.createdAt)}</span>
-                    </li>
-                  ))}
-                </ol>
-              )}
-              {history.length > RECON_SHOWN && (
-                <button type="button" className="fd-card-action fd-recon-more" onClick={() => setAllHistory(!allHistory)}>
-                  {allHistory ? 'Show fewer' : `Show all ${history.length}`}
-                </button>
-              )}
-            </div>
-
             {/* Comments */}
             <div className="fd-card">
               <h2 className="fd-card-title">Comments <span className="fd-count">{comments.length}</span></h2>
@@ -315,6 +297,33 @@ export function FindingDetailView({ findingId, onBack }: Props) {
                     </a>
                   ))}
                 </div>
+              )}
+            </div>
+
+            {/* Reconciliation trail */}
+            <div className="fd-card">
+              <h2 className="fd-card-title">Reconciliation <span className="fd-count">{history.length}</span></h2>
+              {history.length === 0 ? (
+                <div className="fd-muted">No reconciliation history recorded.</div>
+              ) : (
+                <ol className="fd-recon">
+                  {[...history].reverse().slice(0, allHistory ? undefined : RECON_SHOWN).map((p, i) => (
+                    <li key={`${p.commitId}-${i}`} className="fd-recon-row">
+                      <span className="fd-recon-dot" style={{ background: CONFIDENCE_COLORS[p.confidence] ?? 'var(--text-muted)' }} />
+                      <span className="fd-recon-commit fd-mono">{short(p.commitId)}</span>
+                      <span className="fd-recon-conf" style={{ color: CONFIDENCE_COLORS[p.confidence] }}>{p.confidence}</span>
+                      <span className="fd-recon-line">
+                        {p.lineStart != null ? `L${p.lineStart}${p.lineEnd && p.lineEnd !== p.lineStart ? `–${p.lineEnd}` : ''}` : '—'}
+                      </span>
+                      <span className="fd-recon-date">{fmtDate(p.createdAt)}</span>
+                    </li>
+                  ))}
+                </ol>
+              )}
+              {history.length > RECON_SHOWN && (
+                <button type="button" className="fd-card-action fd-recon-more" onClick={() => setAllHistory(!allHistory)}>
+                  {allHistory ? 'Show fewer' : `Show all ${history.length}`}
+                </button>
               )}
             </div>
           </aside>

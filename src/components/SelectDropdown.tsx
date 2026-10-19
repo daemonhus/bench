@@ -151,3 +151,14 @@ export function ToneChip({ label, tone, size = 'sm', title }: { label: string; t
     </span>
   );
 }
+
+/** A control with a small grey caption beside it (detail-page headers). The caption is visual
+ *  only: the control carries its own accessible name. */
+export function LabelledField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <span className="labelled-field">
+      <span className="labelled-field-label" aria-hidden="true">{label}</span>
+      {children}
+    </span>
+  );
+}

@@ -134,3 +134,50 @@ test('a comment can be added from the finding page, and it stays', async ({ page
   const comments = await (await page.request.get(`/api/comments?findingId=${id}`)).json() as { id: string; text: string }[];
   for (const c of comments.filter((x) => x.text === 'Replying from the detail page')) await page.request.delete(`/api/comments/${c.id}`);
 });
+
+test('reconciliation sits at the foot of the right-hand column on finding and feature pages', async ({ page }) => {
+  for (const [list, item, link] of [
+    ['/#/findings', '[data-finding-id]', '.finding-title-link'],
+    ['/#/features', '[data-feature-id]', '.feature-title-link'],
+  ] as const) {
+    await openView(page, list, `[data-nav-area="${list.slice(3)}-list"]`);
+    await page.locator(item).first().locator(link).click();
+    await expect(page.locator('.fd-title')).toBeVisible();
+    // Main column: comments (and a feature's parameters); the side column ends with reconciliation.
+    await expect(page.locator('.fd-main .fd-card-title', { hasText: 'Reconciliation' })).toHaveCount(0);
+    const side = await page.locator('.fd-side > .fd-card > .fd-card-title').allTextContents();
+    expect(side[0]).toMatch(/^Provenance/);
+    expect(side[side.length - 1]).toMatch(/^Reconciliation/);
+    // Its rows fit the narrower column: nothing spills out of the card.
+    const card = page.locator('.fd-side > .fd-card', { has: page.locator('.fd-card-title', { hasText: 'Reconciliation' }) });
+    const spill = await card.evaluate((el) => el.scrollWidth - el.clientWidth);
+    expect(spill).toBeLessThanOrEqual(0);
+  }
+});
+
+test('the header controls sit under the description, each with a small grey caption beside it', async ({ page }) => {
+  for (const [list, item, link, labels] of [
+    ['/#/findings', '[data-finding-id]', '.finding-title-link', ['Severity', 'Status', 'Category', 'Source']],
+    ['/#/features', '[data-feature-id]', '.feature-title-link', ['Kind', 'Status', 'Direction']],
+  ] as const) {
+    await openView(page, list, `[data-nav-area="${list.slice(3)}-list"]`);
+    await page.locator(item).first().locator(link).click();
+    // The row sits under the description (and above a feature's tags), not above the title.
+    const top = async (sel: string) => (await page.locator(`.fd-hero ${sel}`).first().boundingBox())!.y;
+    expect(await top('.fd-hero-controls')).toBeGreaterThan(await top('.fd-description'));
+    expect(await top('.fd-hero-controls')).toBeGreaterThan(await top('.fd-title'));
+    expect(await top('.fd-hero-controls')).toBeLessThan(await top(list.includes('features') ? '.fd-tags' : '.fd-footer'));
+    const fields = page.locator('.fd-hero-controls .labelled-field');
+    await expect(fields.locator('.labelled-field-label')).toHaveText([...labels]);
+    for (let i = 0; i < labels.length; i++) {
+      const field = fields.nth(i);
+      // Caption, then its control, on one line.
+      const cap = (await field.locator('.labelled-field-label').boundingBox())!;
+      const ctl = (await field.locator('button').first().boundingBox())!;
+      expect(cap.x + cap.width).toBeLessThanOrEqual(ctl.x);
+      expect(Math.abs((cap.y + cap.height / 2) - (ctl.y + ctl.height / 2))).toBeLessThan(4);
+      // The control keeps its own name; the caption isn't read twice.
+      await expect(field.locator('button').first()).toHaveAttribute('aria-label', new RegExp(`^${labels[i]}: `));
+    }
+  }
+});

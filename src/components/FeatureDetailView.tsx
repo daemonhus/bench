@@ -4,7 +4,7 @@ import { featuresApi, reconcileApi, refsApi } from '../core/api';
 import { useWorkbenchExtensions } from '../core/extensions';
 import { useAnnotationStore } from '../stores/annotation-store';
 import { PageSkeleton } from './Skeleton';
-import { SelectDropdown } from './SelectDropdown';
+import { SelectDropdown, LabelledField } from './SelectDropdown';
 import { FEATURE_KIND_OPTIONS, FEATURE_STATUS_OPTIONS, METHOD_COLORS } from '../core/status-options';
 import { EditableText, SaveIndicator, useSaveTracker } from './EditableText';
 import { TagInput } from './TagInput';
@@ -192,18 +192,6 @@ export function FeatureDetailView({ featureId, onBack }: Props) {
 
         {/* ── Hero card ───────────────────────────────────────────── */}
         <div className="fd-card fd-hero">
-          <div className="fd-hero-top">
-            <SelectDropdown<FeatureKind> appearance="tinted" label="Kind" options={FEATURE_KIND_OPTIONS} value={f.kind} onChange={(kind) => patch({ kind })} />
-            <SelectDropdown<FeatureStatus> appearance="tinted" label="Status" options={FEATURE_STATUS_OPTIONS} value={f.status} onChange={(status) => patch({ status })} />
-            <SelectDropdown<'' | 'in' | 'out'> appearance="tinted" label="Direction" options={DIRECTIONS} value={f.direction ?? ''}
-              onChange={(d) => patch({ direction: d as Feature['direction'] })} />
-            {f.confidence && (
-              <span className="fd-confidence" style={{ color: CONFIDENCE_COLORS[f.confidence] }}>
-                ● {f.confidence}
-              </span>
-            )}
-          </div>
-
           {/* As on the list card: [METHOD] title (protocol), each editable in place. */}
           <div className="fd-title-row">
             {f.kind === 'interface' && (
@@ -223,6 +211,25 @@ export function FeatureDetailView({ featureId, onBack }: Props) {
           <div className="fd-description">
             <EditableText value={f.description ?? ''} placeholder="Add a description…" label="Description" multiline
               onChange={(description) => patch({ description })} />
+          </div>
+
+          {/* Kind, status and the rest, each with its caption; how sure the position is, at the end. */}
+          <div className="fd-hero-controls">
+            <LabelledField label="Kind">
+              <SelectDropdown<FeatureKind> appearance="tinted" label="Kind" options={FEATURE_KIND_OPTIONS} value={f.kind} onChange={(kind) => patch({ kind })} />
+            </LabelledField>
+            <LabelledField label="Status">
+              <SelectDropdown<FeatureStatus> appearance="tinted" label="Status" options={FEATURE_STATUS_OPTIONS} value={f.status} onChange={(status) => patch({ status })} />
+            </LabelledField>
+            <LabelledField label="Direction">
+              <SelectDropdown<'' | 'in' | 'out'> appearance="tinted" label="Direction" options={DIRECTIONS} value={f.direction ?? ''}
+                onChange={(d) => patch({ direction: d as Feature['direction'] })} />
+            </LabelledField>
+            {f.confidence && (
+              <span className="fd-confidence" style={{ color: CONFIDENCE_COLORS[f.confidence] }}>
+                ● {f.confidence}
+              </span>
+            )}
           </div>
 
           <div className="fd-tags">
@@ -283,33 +290,6 @@ export function FeatureDetailView({ featureId, onBack }: Props) {
                 )}
               </div>
             )}
-
-            {/* Reconciliation trail */}
-            <div className="fd-card">
-              <h2 className="fd-card-title">Reconciliation <span className="fd-count">{history.length}</span></h2>
-              {history.length === 0 ? (
-                <div className="fd-muted">No reconciliation history recorded.</div>
-              ) : (
-                <ol className="fd-recon">
-                  {[...history].reverse().slice(0, allHistory ? undefined : RECON_SHOWN).map((p, i) => (
-                    <li key={`${p.commitId}-${i}`} className="fd-recon-row">
-                      <span className="fd-recon-dot" style={{ background: CONFIDENCE_COLORS[p.confidence] ?? 'var(--text-muted)' }} />
-                      <span className="fd-recon-commit fd-mono">{short(p.commitId)}</span>
-                      <span className="fd-recon-conf" style={{ color: CONFIDENCE_COLORS[p.confidence] }}>{p.confidence}</span>
-                      <span className="fd-recon-line">
-                        {p.lineStart != null ? `L${p.lineStart}${p.lineEnd && p.lineEnd !== p.lineStart ? `–${p.lineEnd}` : ''}` : '—'}
-                      </span>
-                      <span className="fd-recon-date">{fmtDate(p.createdAt)}</span>
-                    </li>
-                  ))}
-                </ol>
-              )}
-              {history.length > RECON_SHOWN && (
-                <button type="button" className="fd-card-action fd-recon-more" onClick={() => setAllHistory(!allHistory)}>
-                  {allHistory ? 'Show fewer' : `Show all ${history.length}`}
-                </button>
-              )}
-            </div>
 
             {/* Comments */}
             <div className="fd-card">
@@ -382,6 +362,33 @@ export function FeatureDetailView({ featureId, onBack }: Props) {
                     </a>
                   ))}
                 </div>
+              )}
+            </div>
+
+            {/* Reconciliation trail */}
+            <div className="fd-card">
+              <h2 className="fd-card-title">Reconciliation <span className="fd-count">{history.length}</span></h2>
+              {history.length === 0 ? (
+                <div className="fd-muted">No reconciliation history recorded.</div>
+              ) : (
+                <ol className="fd-recon">
+                  {[...history].reverse().slice(0, allHistory ? undefined : RECON_SHOWN).map((p, i) => (
+                    <li key={`${p.commitId}-${i}`} className="fd-recon-row">
+                      <span className="fd-recon-dot" style={{ background: CONFIDENCE_COLORS[p.confidence] ?? 'var(--text-muted)' }} />
+                      <span className="fd-recon-commit fd-mono">{short(p.commitId)}</span>
+                      <span className="fd-recon-conf" style={{ color: CONFIDENCE_COLORS[p.confidence] }}>{p.confidence}</span>
+                      <span className="fd-recon-line">
+                        {p.lineStart != null ? `L${p.lineStart}${p.lineEnd && p.lineEnd !== p.lineStart ? `–${p.lineEnd}` : ''}` : '—'}
+                      </span>
+                      <span className="fd-recon-date">{fmtDate(p.createdAt)}</span>
+                    </li>
+                  ))}
+                </ol>
+              )}
+              {history.length > RECON_SHOWN && (
+                <button type="button" className="fd-card-action fd-recon-more" onClick={() => setAllHistory(!allHistory)}>
+                  {allHistory ? 'Show fewer' : `Show all ${history.length}`}
+                </button>
               )}
             </div>
           </aside>
