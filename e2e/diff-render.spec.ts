@@ -95,9 +95,11 @@ test.describe('Tab Bar Navigation', () => {
   });
 
   test('tab bar is visible with all tabs', async ({ page }) => {
-    for (const label of ['Overview', 'Browse', 'Changes', 'Findings', 'Features', 'Profile']) {
+    for (const label of ['Browse', 'Changes', 'Findings', 'Features', 'Profile']) {
       await expect(page.locator('.tab-bar-tab', { hasText: label })).toBeVisible();
     }
+    // Overview is the project name at the start of the bar, not a tab.
+    await expect(page.locator('.tab-bar-project-name')).toBeVisible();
   });
 
   test('exactly one tab is active at the root route', async ({ page }) => {
