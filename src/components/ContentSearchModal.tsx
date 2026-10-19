@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useModal } from '../hooks/useModal';
 import { gitApi } from '../core/api';
 import type { GrepMatch } from '../core/types';
 
@@ -10,6 +11,7 @@ interface ContentSearchModalProps {
 }
 
 export const ContentSearchModal: React.FC<ContentSearchModalProps> = ({ currentCommit, onSelect, onClose, initialQuery = '' }) => {
+  const modal = useModal<HTMLDivElement>({ label: 'Find in files', onClose: onClose });
   const [query, setQuery] = useState(initialQuery);
   const [caseInsensitive, setCaseInsensitive] = useState(true);
   const [results, setResults] = useState<GrepMatch[]>([]);
@@ -115,7 +117,7 @@ export const ContentSearchModal: React.FC<ContentSearchModalProps> = ({ currentC
 
   return (
     <div className="content-search-overlay" onClick={onClose}>
-      <div className="content-search-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="content-search-modal" {...modal.props} onClick={(e) => e.stopPropagation()}>
         <div className="content-search-input-row">
           <input
             ref={inputRef}

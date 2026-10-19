@@ -1,0 +1,12 @@
+/*
+ * bench-overrides.css
+ *
+ * Platform-specific overrides for bench workbench UI.
+ * Keep this file extremely minimal — only suppress or adjust bench elements
+ * that genuinely conflict with the platform shell.
+ */
+
+/* Platform provides its own theme toggle in the header */
+.platform-workbench .theme-toggle-slider {
+  display: none;
+}

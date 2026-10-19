@@ -1,89 +1,4 @@
-/* ----- Project Slug Active (overview mode) ----- */
-.project-slug-active {
-  color: var(--text-primary);
-  font-weight: 700;
-}
-
-/* ----- Overview Tree Panel (left drawer) ----- */
-.overview-tree-panel {
-  display: flex;
-  flex-direction: column;
-  background: var(--bg-secondary);
-  height: 100vh;
-  overflow: hidden;
-  border-right: 1px solid var(--border-default);
-  position: relative;
-}
-
-/* overview-tree-header removed - reuses .left-panel-header-row */
-
-.overview-tree-panel .file-tree {
-  flex: 1;
-  overflow-y: auto;
-}
-
-.overview-tree-resize-handle {
-  width: 4px;
-  cursor: col-resize;
-  background: transparent;
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  z-index: var(--z-header);
-}
-
-.overview-tree-resize-handle:hover,
-.overview-tree-resize-handle:active {
-  background: var(--accent-blue);
-  opacity: 0.5;
-}
-
 /* ----- Overview View ----- */
-.overview-view {
-  flex: 1;
-  overflow-y: auto;
-  padding: 28px 40px;
-}
-
-@media (max-width: 639px) {
-  .overview-view {
-    padding: 16px 0;
-  }
-
-  .overview-view .findings-title-row,
-  .overview-view .overview-section-title,
-  .overview-view .overview-subsection-title,
-  .overview-view .findings-metrics-toggle {
-    padding-left: 10px;
-    padding-right: 10px;
-  }
-}
-
-.overview-two-col {
-  display: grid;
-  grid-template-columns: 1fr 380px;
-  gap: 36px;
-  align-items: start;
-}
-
-.overview-col-activity {
-  min-width: 0;
-}
-
-.overview-col-findings {
-  min-width: 0;
-  position: sticky;
-  top: 0;
-  max-height: calc(100vh - 100px);
-  overflow-y: auto;
-}
-
-.overview-col-findings-header {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 12px;
-}
 
 .overview-section {
   margin-bottom: 32px;
@@ -96,30 +11,6 @@
   border-bottom: 1px solid var(--border-default);
   padding-bottom: 10px;
   margin-bottom: 16px;
-}
-
-.collapse-toggle-group {
-  display: flex;
-  gap: 2px;
-}
-
-.collapse-toggle-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-xs);
-  color: var(--text-muted);
-  cursor: pointer;
-}
-
-.collapse-toggle-btn:hover {
-  background: var(--bg-surface);
-  color: var(--text-primary);
 }
 
 .overview-section-title {
@@ -144,12 +35,6 @@
 }
 
 /* ----- Activity Controls ----- */
-.activity-controls {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-}
 
 .activity-filters {
   display: inline-flex;
@@ -162,10 +47,10 @@
 .activity-filters-label {
   font-size: var(--font-size-small);
   color: var(--text-muted);
+  /* Space before the label so each labelled group reads as its own section of the toolbar. */
+  margin-left: 12px;
   margin-right: 4px;
 }
-
-
 
 .multi-select {
   position: relative;
@@ -281,7 +166,8 @@
   transition: opacity var(--transition-fast), background var(--transition-fast);
 }
 
-.multi-select-option:hover .multi-select-only {
+.multi-select-option:hover .multi-select-only,
+.multi-select-option-focused .multi-select-only {
   opacity: 1;
 }
 
@@ -302,6 +188,42 @@
 .multi-select-option-active .multi-select-check {
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 14 14' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='7' cy='7' r='6' stroke='%23818cf8' stroke-width='1.5'/%3E%3Cpath d='M4.5 7l2 2 3-3.5' stroke='%23818cf8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
+
+/* SelectDropdown: the pick-one sibling of the multi-select, opening under its left edge. */
+.select-dropdown { display: inline-block; }
+.select-dropdown .multi-select-dropdown { left: 0; right: auto; }
+.select-dropdown-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.select-dropdown-chevron { flex-shrink: 0; opacity: 0.7; }
+
+/* Tinted: the status control. The chosen value's colour (--tone) tints the chip; a neutral tone
+   for values without one (category, source). md on pages, sm (mini) on list cards. */
+.select-tinted {
+  --tone: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid color-mix(in srgb, var(--tone) 28%, transparent);
+  background: color-mix(in srgb, var(--tone) 11%, transparent);
+  color: color-mix(in srgb, var(--tone) 80%, var(--text-primary));
+  border-radius: var(--radius-xs);
+  font-family: var(--font-sans);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+.select-tinted:hover { background: color-mix(in srgb, var(--tone) 18%, transparent); border-color: color-mix(in srgb, var(--tone) 45%, transparent); }
+.select-tinted[aria-expanded="true"] { background: color-mix(in srgb, var(--tone) 20%, transparent); border-color: color-mix(in srgb, var(--tone) 55%, transparent); }
+.select-tinted:focus-visible { outline: 2px solid var(--focus-ring, var(--accent-blue)); outline-offset: 1px; }
+.select-tinted .select-dropdown-dot { width: 7px; height: 7px; background: var(--tone); }
+.select-tinted--neutral { color: var(--text-secondary); font-weight: 500; }
+.select-tinted--static, .select-tinted--static:hover { cursor: default; background: color-mix(in srgb, var(--tone) 11%, transparent); border-color: color-mix(in srgb, var(--tone) 28%, transparent); }
+.select-tinted--md { height: 28px; padding: 0 9px 0 10px; font-size: var(--font-size-small); }
+.select-tinted--sm { height: 20px; padding: 0 5px 0 7px; gap: 5px; font-size: 11px; }
+.select-tinted--sm .select-dropdown-dot { width: 6px; height: 6px; }
+.select-tinted--sm .select-dropdown-chevron { width: 8px; height: 8px; }
+/* Phones: the mini control still meets the 24px touch target (WCAG 2.5.8). */
+@media (max-width: 639px) { .select-tinted--sm { height: 24px; } }
 
 .activity-filter-clear {
   background: none;
@@ -348,24 +270,6 @@
 .activity-show-more:hover {
   border-color: var(--text-muted);
   color: var(--text-primary);
-}
-
-/* Finding cards inside overview activity stream - match comment/merge card spacing */
-.overview-col-activity .finding-card,
-.overview-col-findings .finding-card {
-  margin-bottom: 17px;
-}
-
-.overview-col-activity .finding-card-expanded,
-.overview-col-findings .finding-card-expanded,
-.overview-col-activity .finding-card-expanded:hover,
-.overview-col-findings .finding-card-expanded:hover {
-  border-color: var(--border-default);
-}
-
-.overview-col-findings .finding-comments {
-  max-height: 200px;
-  overflow-y: auto;
 }
 
 .overview-subsection {
@@ -420,27 +324,6 @@
   margin-left: auto;
 }
 
-.overview-finding-row {
-  margin-bottom: 8px;
-}
-
-.overview-finding-meta {
-  display: flex;
-  gap: 12px;
-  padding: 4px 12px 0;
-  font-size: var(--font-size-small);
-}
-
-.overview-file-link {
-  color: var(--accent-blue);
-  font-family: var(--font-mono);
-  cursor: pointer;
-}
-
-.overview-file-link:hover {
-  text-decoration: underline;
-}
-
 .overview-commit-ref {
   color: var(--text-muted);
   font-family: var(--font-mono);
@@ -456,22 +339,6 @@
 
 .overview-section .finding-card {
   margin-bottom: 13px;
-}
-
-/* Shared card header: name + date left, actions right */
-.overview-card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-
-.overview-card-header-left {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
 }
 
 .overview-card-date {
@@ -519,13 +386,6 @@
 }
 
 /* overview-comment-time removed - date now in card header */
-
-.overview-comment-actions {
-  display: flex;
-  gap: 2px;
-  margin-left: 4px;
-  flex-shrink: 0;
-}
 
 .overview-empty {
   color: var(--text-muted);
@@ -660,20 +520,19 @@
 
 /* ----- Embedded feature reference (comment-on-feature card) ----- */
 .activity-feature-ref {
+  /* Recessed like the detail pages' in-card items (.fd-linked-item): a fill, no stripe. */
   margin-top: 10px;
-  border: 1px solid var(--border-default);
-  border-left: 3px solid var(--accent-blue);
+  border: none;
   border-radius: var(--radius-xs);
   background: var(--bg-tertiary);
   padding: 10px 12px;
   cursor: pointer;
-  transition: border-color var(--transition-base), background var(--transition-base);
+  transition: background var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .activity-feature-ref:hover {
   background: var(--bg-surface);
-  border-color: rgba(148, 163, 184, 0.22);
-  border-left-color: var(--accent-blue);
+  box-shadow: inset 0 0 0 1px var(--border-default);
 }
 
 .activity-feature-ref-header {
@@ -701,10 +560,10 @@
 
 /* ----- Merge Commit Cards ----- */
 .overview-merge-card {
+  /* A flat panel like the other activity cards; the merge icon and label carry the colour. */
   background: var(--bg-tertiary);
   border: 1px solid var(--border-default);
-  border-left: 3px solid var(--accent-purple);
-  border-radius: var(--radius-base);
+  border-radius: var(--radius-sm);
   padding: 16px 18px;
   margin-bottom: 17px;
   cursor: pointer;
@@ -712,7 +571,7 @@
 }
 
 .overview-merge-card:hover {
-  border-color: var(--accent-purple);
+  border-color: var(--text-muted);
 }
 
 /* Wrapper to attach the expandable branch commits below the card without a gap */
@@ -729,7 +588,7 @@
 .overview-merge-branch-commits {
   border: 1px solid var(--border-default);
   border-top: none;
-  border-radius: 0 0 8px 8px;
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
 }
 
 .overview-merge-branch-toggle {
@@ -774,17 +633,6 @@
 .overview-merge-author {
   color: var(--text-secondary);
   font-weight: 500;
-}
-
-.overview-merge-ref {
-  background: var(--accent-purple-subtle);
-  color: var(--accent-purple);
-  padding: 1px 6px;
-  border-radius: var(--radius-xs);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: var(--tracking-wide);
 }
 
 /* ----- Commit Groups (collapsible non-merge runs in delta) ----- */
@@ -905,14 +753,6 @@
   margin-bottom: 13px;
 }
 
-.findings-view-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-  gap: 16px;
-}
-
 /* ----- Findings Metrics Panel ----- */
 .findings-metrics {
   margin-bottom: 20px;
@@ -934,115 +774,6 @@
 .findings-metrics-toggle:hover {
   color: var(--text-primary);
 }
-
-.findings-metrics-cards {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.findings-metrics-card {
-  flex: 1;
-  min-width: 160px;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-base);
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-}
-
-.findings-metrics-card-title {
-  font-size: var(--font-size-small);
-  font-weight: 600;
-  color: var(--text-secondary);
-  margin-bottom: 8px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.findings-metrics-card-total {
-  font-family: var(--font-mono);
-  color: var(--text-muted);
-}
-
-.findings-metrics-bar {
-  display: flex;
-  height: 6px;
-  border-radius: 3px;
-  overflow: hidden;
-  margin-bottom: 8px;
-  gap: 1px;
-}
-
-.findings-metrics-bar-seg {
-  min-width: 3px;
-  border-radius: 1px;
-}
-
-.findings-metrics-legend {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.findings-metrics-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1px 0;
-}
-
-.findings-metrics-row-left {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.findings-metrics-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.findings-metrics-label {
-  font-family: var(--font-sans);
-  font-size: var(--font-size-small);
-  color: var(--text-secondary);
-  text-transform: capitalize;
-}
-
-.findings-metrics-value {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-small);
-  color: var(--text-primary);
-  font-weight: 600;
-  min-width: 24px;
-  text-align: right;
-}
-
-/* Chart layouts */
-.findings-chart-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex: 1;
-}
-
-.findings-chart-row .findings-metrics-legend {
-  margin-left: auto;
-}
-
-.findings-metrics-legend-2col {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  column-gap: 12px;
-  row-gap: 2px;
-  align-content: start;
-}
-
 
 /* Chart tooltip */
 .findings-chart-tooltip {
@@ -1080,14 +811,6 @@
   color: var(--text-primary);
   margin-left: 4px;
 }
-
-/* Status dot colors */
-.status-dot-draft { background-color: var(--status-draft); }
-.status-dot-open { background-color: var(--status-open); }
-.status-dot-in-progress { background-color: var(--status-in-progress); }
-.status-dot-false-positive { background-color: var(--status-false-positive); }
-.status-dot-accepted { background-color: var(--status-accepted); }
-.status-dot-closed { background-color: var(--status-closed); }
 
 /* ── FindingsMetrics redesign ───────────────────────────────────────────── */
 
@@ -1298,84 +1021,6 @@
   flex: 1;
 }
 
-.fmetrics-source-legend {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-}
-
-.fmetrics-source-legend-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 6px;
-}
-
-.fmetrics-source-legend-left {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  min-width: 0;
-}
-
-.fmetrics-source-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.fmetrics-source-legend-label {
-  font-size: var(--font-size-small);
-  color: var(--text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.fmetrics-source-legend-pct {
-  font-size: var(--font-size-small);
-  font-weight: 700;
-  color: var(--text-primary);
-  font-family: var(--font-mono);
-  flex-shrink: 0;
-}
-
-/* ── Category heatmap 2×N tiles ───────────────────────────────────── */
-
-.fmetrics-cat-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  flex: 1;
-}
-
-.fmetrics-cat-tile {
-  background: color-mix(in srgb, var(--cat-color) 12%, var(--bg-secondary));
-  border: 1px solid color-mix(in srgb, var(--cat-color) 22%, transparent);
-  border-radius: var(--radius-sm);
-  padding: 8px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.fmetrics-cat-tile-label {
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: var(--tracking-wider);
-  color: var(--text-muted);
-}
-
-.fmetrics-cat-tile-count {
-  font-size: 22px;
-  font-weight: 800;
-  color: var(--text-primary);
-  line-height: 1;
-  letter-spacing: var(--tracking-tight);
-}
-
 /* ----- Mobile: sharp-edged activity cards ----- */
 @media (max-width: 639px) {
   .overview-comment-card {
@@ -1420,40 +1065,7 @@
   background: var(--bg-tertiary);
 }
 
-
 /* ----- Feature Link Modal ----- */
-
-.feature-link-modal {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-lg);
-  width: 420px;
-  max-width: 92vw;
-  max-height: 80vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: var(--shadow-lg);
-}
-
-.feature-link-modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 16px 12px;
-  border-bottom: 1px solid var(--border-subtle);
-  font-size: var(--font-size-ui);
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.feature-link-modal-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 12px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
 
 .feature-link-section-label {
   font-size: var(--font-size-small);
@@ -1468,120 +1080,6 @@
   font-size: var(--font-size-small);
   color: var(--text-muted);
   font-style: italic;
-}
-
-.feature-link-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 10px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-subtle);
-  background: var(--bg-tertiary);
-  font-size: var(--font-size-ui);
-}
-
-.feature-link-row-add {
-  cursor: pointer;
-  color: var(--text-secondary);
-}
-
-.feature-link-row-add:hover {
-  background: var(--bg-surface);
-  border-color: var(--border-default);
-  color: var(--text-primary);
-}
-
-.feature-link-kind-badge {
-  font-size: 10px;
-  font-weight: 600;
-  padding: 2px 5px;
-  border-radius: 3px;
-  color: #fff;
-  flex-shrink: 0;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.feature-link-title {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.feature-link-file {
-  font-size: var(--font-size-small);
-  color: var(--text-muted);
-  flex-shrink: 0;
-  max-width: 120px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.feature-link-remove {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--text-muted);
-  font-size: 14px;
-  line-height: 1;
-  padding: 0 2px;
-  flex-shrink: 0;
-}
-
-.feature-link-remove:hover {
-  color: var(--danger, #dc2626);
-}
-
-.feature-link-add-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--text-muted);
-  font-size: 16px;
-  line-height: 1;
-  padding: 0 2px;
-  flex-shrink: 0;
-}
-
-.feature-link-add-btn:hover {
-  color: var(--text-primary);
-}
-
-.feature-link-search {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 6px 10px;
-  margin-bottom: 8px;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-sm);
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  font-size: var(--font-size-ui);
-  outline: none;
-}
-
-.feature-link-search:focus {
-  border-color: var(--accent, #2563eb);
-}
-
-.feature-link-hidden-count {
-  font-size: var(--font-size-small);
-  color: var(--text-muted);
-  font-style: italic;
-  text-align: center;
-  padding: 4px 0 2px;
-}
-
-.feature-link-modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 12px 16px;
-  border-top: 1px solid var(--border-subtle);
 }
 
 /* ----- Findings filter group (right-aligned: search + filters together) ----- */
@@ -1620,21 +1118,6 @@
    the base rule: equal specificity, so source order decides. */
 .findings-feature-chip--finding::before {
   content: 'Finding';
-}
-
-.findings-feature-chip-title {
-  font-size: var(--font-size-small);
-  font-weight: 600;
-  color: var(--accent-blue);
-  text-decoration: none;
-  max-width: 220px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.findings-feature-chip-title:hover {
-  text-decoration: underline;
-  text-underline-offset: 2px;
 }
 
 /* The id prefix, same shape as the code the cards show in their header; the

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useModal } from '../hooks/useModal';
 import type { FileEntry } from '../core/types';
 
 interface FileSearchModalProps {
@@ -32,6 +33,7 @@ function fuzzyMatch(query: string, candidate: string): { match: boolean; score: 
 }
 
 export const FileSearchModal: React.FC<FileSearchModalProps> = ({ files, onSelect, onClose }) => {
+  const modal = useModal<HTMLDivElement>({ label: 'Go to file', onClose: onClose });
   const [query, setQuery] = useState('');
   const [selectedIdx, setSelectedIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -102,7 +104,7 @@ export const FileSearchModal: React.FC<FileSearchModalProps> = ({ files, onSelec
 
   return (
     <div className="file-search-overlay" onClick={onClose}>
-      <div className="file-search-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="file-search-modal" {...modal.props} onClick={(e) => e.stopPropagation()}>
         <input
           ref={inputRef}
           className="file-search-input"

@@ -144,36 +144,6 @@
   min-width: 0;
 }
 
-.finding-cwe {
-  font-family: var(--font-mono);
-}
-
-.finding-severity-label {
-  text-transform: capitalize;
-  font-size: var(--font-size-small);
-  color: var(--text-muted);
-}
-
-.finding-line-label {
-  font-family: var(--font-mono);
-  color: var(--accent-blue);
-}
-
-.finding-line-link {
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  font-family: var(--font-mono);
-  font-size: var(--font-size-small);
-  color: var(--accent-blue);
-  line-height: 1;
-}
-
-.finding-line-link:hover {
-  text-decoration: underline;
-}
-
 .finding-confidence {
   font-size: 10px;
   padding: 1px 5px;
@@ -204,18 +174,6 @@
   margin-bottom: 8px;
 }
 
-.finding-card-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.finding-source {
-  font-size: var(--font-size-small);
-  color: var(--text-muted);
-  text-transform: capitalize;
-}
-
 .finding-id-badge {
   font-size: var(--font-size-small);
   font-family: var(--font-mono);
@@ -226,7 +184,8 @@
   gap: 2px;
 }
 
-.finding-id-badge:hover {
+.finding-id-badge:hover,
+.finding-id-badge:focus-visible {
   color: var(--text-default);
 }
 
@@ -236,7 +195,8 @@
   transition: opacity var(--transition-base);
 }
 
-.finding-id-badge:hover .finding-id-copy {
+.finding-id-badge:hover .finding-id-copy,
+.finding-id-badge:focus-visible .finding-id-copy {
   opacity: 1;
 }
 
@@ -251,93 +211,6 @@
   85%  { opacity: 1; }
   100% { opacity: 0.7; }
 }
-
-.finding-source-badge {
-  font-size: var(--font-size-small);
-  color: var(--text-muted);
-  text-transform: capitalize;
-  background: var(--bg-surface);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-xs);
-  padding: 1px 6px;
-  margin-left: auto;
-  flex-shrink: 0;
-}
-
-.finding-scroll-btn {
-  font-size: var(--font-size-small);
-  color: var(--accent-blue);
-  background: none;
-  border: 1px solid var(--accent-blue);
-  border-radius: var(--radius-xs);
-  padding: 2px 8px;
-  cursor: pointer;
-  transition: background var(--transition-base);
-}
-
-.finding-scroll-btn:hover {
-  background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
-}
-
-/* ----- Status Select (inline dropdown) ----- */
-.status-select {
-  font-size: var(--font-size-small);
-  padding: 2px 20px 2px 7px;
-  border-radius: var(--radius-xs);
-  font-weight: 600;
-  letter-spacing: 0.3px;
-  flex-shrink: 0;
-  border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
-  background-color: color-mix(in srgb, currentColor 10%, transparent);
-  cursor: pointer;
-  appearance: none;
-  -webkit-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg width='8' height='5' viewBox='0 0 8 5' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l3 3 3-3' stroke='%23ffffff' stroke-opacity='0.5' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 7px center;
-  transition: background-color var(--transition-fast), border-color var(--transition-fast);
-}
-.status-select:hover {
-  background-color: color-mix(in srgb, currentColor 18%, transparent);
-  border-color: color-mix(in srgb, currentColor 50%, transparent);
-}
-
-.status-select.status-draft { color: var(--status-draft); }
-.status-select.status-open { color: var(--status-open); }
-.status-select.status-in-progress { color: var(--status-in-progress); }
-.status-select.status-false-positive { color: var(--status-false-positive); }
-.status-select.status-accepted { color: var(--status-accepted); }
-.status-select.status-closed { color: var(--status-closed); }
-
-.status-select option {
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-}
-
-/* ----- Finding Status Toggle (edit form) ----- */
-.finding-status-toggle {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-.finding-status-toggle-btn {
-  font-size: var(--font-size-small);
-  padding: 5px 12px;
-  border-radius: 999px;
-  border: 1px solid transparent;
-  background: color-mix(in srgb, var(--status-draft) 8%, transparent);
-  color: var(--status-draft);
-  cursor: pointer;
-  font-weight: 500;
-  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
-}
-.finding-status-toggle-btn:hover { background: var(--status-draft-subtle); }
-.finding-status-toggle-btn.active.status-draft { background-color: var(--status-draft-subtle); color: var(--status-draft); border-color: var(--status-draft); }
-.finding-status-toggle-btn.active.status-open { background-color: var(--status-open-subtle); color: var(--status-open); border-color: var(--status-open); }
-.finding-status-toggle-btn.active.status-in-progress { background-color: var(--status-in-progress-subtle); color: var(--status-in-progress); border-color: var(--status-in-progress); }
-.finding-status-toggle-btn.active.status-false-positive { background-color: var(--status-draft-subtle); color: var(--status-false-positive); border-color: var(--status-false-positive); }
-.finding-status-toggle-btn.active.status-accepted { background-color: var(--status-accepted-subtle); color: var(--status-accepted); border-color: var(--status-accepted); }
-.finding-status-toggle-btn.active.status-closed { background-color: var(--status-closed-subtle); color: var(--status-closed); border-color: var(--status-closed); }
 
 /* ----- Finding Severity Toggle (edit form) ----- */
 .finding-severity-toggle {
@@ -393,60 +266,9 @@
   min-width: 0;
 }
 
-/* ----- Finding Detail Rows (expanded body) ----- */
-.finding-detail-row {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  margin-bottom: 4px;
-  font-size: var(--font-size-small);
-}
-
-.finding-detail-label {
-  color: var(--text-muted);
-  flex-shrink: 0;
-  min-width: 44px;
-}
-
-.finding-detail-value {
-  color: var(--text-secondary);
-  word-break: break-all;
-}
-
-.finding-vector-value {
-  font-family: var(--font-mono);
-  font-size: 11px;
-}
-
-.finding-commit-value {
-  font-family: var(--font-mono);
-  font-size: 11px;
-}
-
-.finding-file-parent {
-  color: var(--text-muted);
-}
-
 /* ----- Finding Action Buttons ----- */
-.finding-card-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
 
 /* Base styles for .finding-action-btn live in shared/components.css (.icon-btn) */
-
-.finding-edit-btn:hover {
-  color: var(--accent-blue);
-  border-color: var(--accent-blue);
-  background: color-mix(in srgb, var(--accent-blue) 8%, transparent);
-}
-
-.finding-delete-btn:hover {
-  color: var(--status-open);
-  border-color: var(--status-open);
-  background: color-mix(in srgb, var(--status-open) 8%, transparent);
-}
 
 .finding-delete-confirm {
   display: flex;
@@ -483,12 +305,6 @@
   background: var(--bg-surface);
 }
 
-/* ----- Finding Edit Form ----- */
-.finding-card-editing {
-  border-color: var(--accent-blue);
-  cursor: default;
-}
-
 /* ============================================================
    Form input baseline
    ----------------------------------------------------------------
@@ -498,12 +314,6 @@
    their accent colour on top via descendant selectors at the bottom
    of this file.
    ============================================================ */
-
-.finding-edit-form {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
 
 /* Shared geometry for every typed input across the form family. */
 .finding-edit-input,
@@ -630,18 +440,6 @@
 .finding-edit-cancel:hover {
   color: var(--text-primary);
   background: var(--bg-surface);
-}
-
-/* ----- Finding Comment Count Badge ----- */
-.finding-comment-count {
-  font-size: var(--font-size-small);
-  color: var(--text-muted);
-  background: var(--bg-surface);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-xs);
-  padding: 1px 6px;
-  flex-shrink: 0;
-  font-family: var(--font-mono);
 }
 
 /* ----- Finding Comments Thread ----- */
@@ -820,20 +618,6 @@
   font-size: var(--font-size-ui);
 }
 
-.comment-card-line-btn {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-small);
-  color: var(--accent-blue);
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0;
-}
-
-.comment-card-line-btn:hover {
-  text-decoration: underline;
-}
-
 .comment-card-line-label {
   font-size: var(--font-size-small);
   color: var(--accent-blue);
@@ -901,7 +685,6 @@
 }
 
 .comment-card:hover > .comment-card-header .comment-icon-btn,
-.overview-comment-card:hover > .overview-card-header .comment-icon-btn,
 .finding-card:hover > .finding-card-header .comment-icon-btn {
   opacity: 0.7;
 }
@@ -985,7 +768,6 @@
 }
 
 /* ----- Finding Form (new finding in sidebar) ----- */
-
 
 .finding-form-fields {
   display: flex;
@@ -1226,16 +1008,6 @@
   border-color: rgba(79, 70, 229, 0.3);
 }
 
-/* Metrics cards: white on cloud canvas */
-[data-theme="light"] .findings-metrics-card {
-  background: #ffffff;
-}
-
-/* Total count was too muted against white */
-[data-theme="light"] .findings-metrics-card-total {
-  color: var(--text-secondary);
-}
-
 /* Sidebar comment cards: white on cloud canvas */
 [data-theme="light"] .comment-card {
   background: #ffffff;
@@ -1411,7 +1183,6 @@
   padding-left: 2px;
 }
 
-
 .finding-edit-row-anchor {
   align-items: flex-start;
 }
@@ -1529,51 +1300,6 @@
 }
 
 /* Edit-mode section */
-.origin-edit-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 4px;
-  padding-top: 10px;
-  border-top: 1px solid var(--border-muted);
-}
-
-.origin-edit-heading {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: var(--font-size-xs);
-  font-weight: 600;
-  letter-spacing: var(--tracking-wide);
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-
-.origin-suggest-btn {
-  margin-left: auto;
-  height: var(--control-h-sm);
-  padding: 0 10px;
-  font-size: var(--font-size-xs);
-  color: var(--text-secondary);
-  background: none;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  text-transform: none;
-  letter-spacing: var(--tracking-normal);
-  transition: color var(--transition-base), border-color var(--transition-base);
-}
-
-.origin-suggest-btn:hover:not(:disabled) {
-  color: var(--accent-blue);
-  border-color: var(--accent-blue);
-}
-
-.origin-suggest-btn:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
 .origin-card-commit-link {
   display: inline-flex;
   align-items: center;

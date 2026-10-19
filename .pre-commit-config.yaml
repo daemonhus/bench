@@ -30,3 +30,15 @@ repos:
         entry: bash -c 'cd backend && go build ./...'
         language: system
         pass_filenames: false
+
+      - id: platform-go-vet-test
+        name: platform go vet + test
+        entry: bash -c 'cd platform/backend && mkdir -p dist && touch dist/.keep && go vet ./... && go test ./...'
+        language: system
+        pass_filenames: false
+
+      - id: platform-go-fmt
+        name: platform go fmt
+        entry: bash -c 'UNFORMATTED="$(gofmt -l platform/backend)"; if [ -n "$UNFORMATTED" ]; then echo "These files need gofmt:"; echo "$UNFORMATTED"; exit 1; fi'
+        language: system
+        pass_filenames: false

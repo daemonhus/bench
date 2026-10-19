@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useModal } from '../hooks/useModal';
 import { gitApi } from '../core/api';
 import type { GraphCommit, BranchInfo } from '../core/types';
 
@@ -11,6 +12,7 @@ interface Props {
 }
 
 export const SetBaselineModal: React.FC<Props> = ({ onConfirm, onClose, branches, headCommit, defaultToHead = false }) => {
+  const modal = useModal<HTMLDivElement>({ label: 'Set baseline', onClose: onClose });
   const [graphCommits, setGraphCommits] = useState<GraphCommit[]>([]);
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
   const [selectedCommit, setSelectedCommit] = useState<string>('');
@@ -27,15 +29,6 @@ export const SetBaselineModal: React.FC<Props> = ({ onConfirm, onClose, branches
       }
     }).finally(() => setLoading(false));
   }, []);
-
-  // Escape to close
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
 
   // Filter commits by branch reachability (BFS over parents)
   const filteredCommits = useMemo(() => {
@@ -102,10 +95,10 @@ export const SetBaselineModal: React.FC<Props> = ({ onConfirm, onClose, branches
 
   return (
     <div className="set-baseline-overlay" onClick={onClose}>
-      <div className="set-baseline-modal" onClick={e => e.stopPropagation()}>
+      <div className="set-baseline-modal" {...modal.props} onClick={(e) => e.stopPropagation()}>
         <div className="set-baseline-header">
           <span className="set-baseline-title">Set Baseline</span>
-          <button className="shortcuts-close" onClick={onClose}>
+          <button className="shortcuts-close" aria-label="Close" onClick={onClose}>
             <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
               <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" />
             </svg>
@@ -115,7 +108,7 @@ export const SetBaselineModal: React.FC<Props> = ({ onConfirm, onClose, branches
         <div className="set-baseline-body">
           <div className="set-baseline-branch-row">
             <label>Branch</label>
-            <select
+            <select aria-label="Branch"
               value={selectedBranch ?? ''}
               onChange={e => setSelectedBranch(e.target.value || null)}
             >

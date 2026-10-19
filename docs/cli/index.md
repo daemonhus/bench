@@ -42,6 +42,7 @@ bench baselines delta
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--url` | `http://localhost:8080` | Base URL of the bench server |
+| `--project` | | Project slug on a multi-project server (`BENCH_PROJECT`). See [multi-project CLI](/cli/platform) |
 | `--version` | | Print version and exit |
 
 Global flags go **before** the category and command:
@@ -81,6 +82,8 @@ Eight categories, mirroring the MCP tool groups:
 | `analytics` | Summaries, coverage tracking, finding search |
 | `reconcile` | Reconcile annotation positions across commits |
 | `refs` | Link findings, features, and comments to external tickets and URLs |
+
+A multi-project server adds `projects`, `baselines-all`, `flows` and `catalog`; see [multi-project CLI](/cli/platform).
 
 ### Discovering commands
 

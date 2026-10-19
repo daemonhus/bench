@@ -39,24 +39,11 @@
   z-index: var(--z-modal);
 }
 
-/* ----- Panel Header Row ----- */
-/* Flex row pinned to --header-height with a bottom divider.            */
-/* Each component adds its own padding and background.                  */
-
-.panel-header {
-  display: flex;
-  align-items: center;
-  height: var(--header-height);
-  border-bottom: 1px solid var(--border-default);
-  flex-shrink: 0;
-}
-
 /* ----- Icon Button ----- */
 /* Small bordered button for card actions (edit, delete, etc.).         */
 /* Apply intent modifier on the specific action class for hover colour. */
 
-.icon-btn,
-.finding-action-btn {
+.icon-btn {
   background: none;
   border: 1px solid var(--border-default);
   border-radius: var(--radius-xs);
@@ -69,18 +56,6 @@
   transition: color var(--transition-base), border-color var(--transition-base), background var(--transition-base);
 }
 
-.icon-btn--blue:hover {
-  color: var(--accent-blue);
-  border-color: var(--accent-blue);
-  background: color-mix(in srgb, var(--accent-blue) 8%, transparent);
-}
-
-.icon-btn--danger:hover {
-  color: var(--status-open);
-  border-color: var(--status-open);
-  background: color-mix(in srgb, var(--status-open) 8%, transparent);
-}
-
 /* ----- Unified keyboard focus ring ---------------------------------
    One treatment for every button-like control (keyboard focus only).
    Text inputs keep their border+shadow :focus styling as the editing
@@ -89,6 +64,7 @@
 
 button:focus-visible,
 a:focus-visible,
+[role="button"]:focus-visible,
 summary:focus-visible,
 label:has(> input:focus-visible) {
   outline: 1.5px solid var(--focus-ring);
@@ -98,7 +74,6 @@ label:has(> input:focus-visible) {
 /* ----- Segmented Control ----- */
 /* Pill container with a floating active pill. No borders or dividers. */
 
-.seg-control,
 .activity-kind-toggles {
   display: inline-flex;
   align-items: center;
@@ -109,7 +84,6 @@ label:has(> input:focus-visible) {
   flex-shrink: 0;
 }
 
-.seg-btn,
 .activity-kind-toggle {
   padding: 8px 14px;
   background: transparent;
@@ -130,7 +104,6 @@ label:has(> input:focus-visible) {
   gap: 8px;
 }
 
-.seg-btn:hover,
 .activity-kind-toggle:hover {
   color: var(--text-secondary);
   background: var(--hover-subtle);
@@ -140,7 +113,6 @@ label:has(> input:focus-visible) {
    active pill = --bg-secondary card surface + elevation token), not an
    accent tint - accent tinting is the "filter applied" voice elsewhere.
    The check glyph alone carries the accent. */
-.seg-btn-active,
 .activity-kind-toggle-active {
   background: var(--bg-secondary);
   color: var(--text-primary);
@@ -151,7 +123,6 @@ label:has(> input:focus-visible) {
 
 /* Glyphs are CSS masks painted with the current theme's colours, so they
    stay correct in both modes (the old data-URLs baked in dark-theme hexes). */
-.seg-btn::before,
 .activity-kind-toggle::before {
   content: '';
   display: inline-block;
@@ -165,14 +136,12 @@ label:has(> input:focus-visible) {
   mask: url("data:image/svg+xml,%3Csvg viewBox='0 0 14 14' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M4 7h6' stroke='black' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat center / 14px 14px;
 }
 
-.seg-btn-active::before,
 .activity-kind-toggle-active::before {
   background-color: var(--accent-blue);
   -webkit-mask: url("data:image/svg+xml,%3Csvg viewBox='0 0 14 14' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='7' cy='7' r='6' stroke='black' stroke-width='1.5'/%3E%3Cpath d='M4.5 7l2 2 3-3.5' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat center / 14px 14px;
   mask: url("data:image/svg+xml,%3Csvg viewBox='0 0 14 14' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='7' cy='7' r='6' stroke='black' stroke-width='1.5'/%3E%3Cpath d='M4.5 7l2 2 3-3.5' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat center / 14px 14px;
 }
 
-.seg-btn-active:hover,
 .activity-kind-toggle-active:hover {
   background: var(--bg-secondary);
   color: var(--text-primary);
@@ -213,18 +182,6 @@ label:has(> input:focus-visible) {
   color: var(--text-primary);
 }
 
-/* Compact variant - same look, less vertical padding */
-.select-sm {
-  font-size: var(--font-size-small);
-  padding: 11px 36px 11px 12px;
-  background-position: right 12px center;
-}
-
-/* Monospace variant - for commit hashes, file paths, branch names */
-.select-mono {
-  font-family: var(--font-mono);
-}
-
 /* ----- Severity dot indicator ----- */
 .severity-dot {
   display: inline-block;
@@ -252,47 +209,6 @@ label:has(> input:focus-visible) {
   border-radius: var(--radius-xs);
   background: color-mix(in srgb, var(--sev-color) 12%, transparent);
   white-space: nowrap;
-}
-
-/* ----- Status badges ----- */
-.status-badge {
-  font-size: var(--font-size-xs);
-  padding: 2px 7px;
-  border-radius: var(--radius-xs);
-  text-transform: uppercase;
-  font-weight: 700;
-  letter-spacing: var(--tracking-wide);
-  flex-shrink: 0;
-}
-
-.status-badge.status-draft {
-  background: var(--status-draft-subtle);
-  color: var(--status-draft);
-}
-
-.status-badge.status-open {
-  background: var(--status-open-subtle);
-  color: var(--status-open);
-}
-
-.status-badge.status-in-progress {
-  background: var(--status-in-progress-subtle);
-  color: var(--status-in-progress);
-}
-
-.status-badge.status-false-positive {
-  background: var(--status-false-positive-subtle);
-  color: var(--status-false-positive);
-}
-
-.status-badge.status-accepted {
-  background: var(--status-accepted-subtle);
-  color: var(--status-accepted);
-}
-
-.status-badge.status-closed {
-  background: var(--status-closed-subtle);
-  color: var(--status-closed);
 }
 
 /* ----- Keyboard nav focus ring ----- */
@@ -352,57 +268,6 @@ label:has(> input:focus-visible) {
 
 /* ----- Type picker overlay (codeview range annotation) ----- */
 
-.typepick-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: calc(var(--z-modal) - 1);
-  pointer-events: none;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  padding-bottom: 56px; /* clear shortcuts FAB */
-}
-
-.typepick-pill {
-  pointer-events: all;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 6px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-default);
-  border-radius: 20px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
-}
-
-.typepick-hint {
-  font-size: 11px;
-  color: var(--text-muted);
-  padding: 2px 6px;
-  font-variant-numeric: tabular-nums;
-}
-
-.typepick-btn {
-  padding: 4px 12px;
-  border-radius: 14px;
-  border: 1px solid transparent;
-  background: none;
-  color: var(--text-default);
-  cursor: pointer;
-  font-size: 12px;
-  transition: background var(--transition-base), border-color var(--transition-base);
-}
-
-.typepick-btn:hover {
-  background: var(--bg-hover);
-}
-
-.typepick-btn-active {
-  background: color-mix(in srgb, var(--accent-blue) 15%, transparent);
-  border-color: color-mix(in srgb, var(--accent-blue) 50%, transparent);
-  color: var(--accent-blue);
-}
-
 /* ── Light mode overrides ─────────────────────────────────────────── */
 
 /* Select hover border is more visible on light */
@@ -412,7 +277,6 @@ label:has(> input:focus-visible) {
 }
 
 /* Segmented control active pill: light-mode shadow uses correct indigo tint */
-[data-theme="light"] .seg-btn-active,
 [data-theme="light"] .activity-kind-toggle-active {
   box-shadow: var(--seg-active-shadow);
 }
@@ -918,4 +782,17 @@ label:has(> input:focus-visible) {
 .tag-input-suggestion-emphasis {
   font-family: var(--font-mono);
   color: var(--accent-blue);
+}
+
+/* Visually hidden, still exposed to assistive tech (e.g. the page's single h1). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }

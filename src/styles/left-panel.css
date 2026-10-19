@@ -91,45 +91,6 @@
   margin-bottom: 4px;
 }
 
-.commit-label {
-  font-size: var(--font-size-xs);
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: var(--tracking-wide);
-  font-weight: 600;
-}
-
-.compare-toggle-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 10px 14px;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-base);
-  color: var(--text-muted);
-  font-size: var(--font-size-small);
-  font-family: var(--font-sans);
-  cursor: pointer;
-  transition: background var(--transition-fast), color var(--transition-fast);
-}
-
-.compare-toggle-btn:hover {
-  color: var(--text-primary);
-  background: var(--hover-muted);
-}
-
-.compare-toggle-btn-active {
-  color: var(--accent-blue);
-  background: var(--accent-blue-subtle);
-  cursor: default;
-}
-
-.compare-toggle-btn-active:hover {
-  color: var(--accent-blue);
-  background: var(--accent-blue-subtle);
-}
-
 .view-mode-toggle {
   display: inline-flex;
   align-items: center;
@@ -170,34 +131,6 @@
 .view-mode-btn-active:hover {
   background: var(--bg-tertiary);
   color: var(--text-primary);
-}
-
-.commit-select {
-  width: 100%;
-  appearance: none;
-  -webkit-appearance: none;
-  background-color: var(--bg-tertiary);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2355606f'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 8px center;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-base);
-  color: var(--text-primary);
-  font-family: var(--font-mono);
-  font-size: var(--font-size-small);
-  padding: 12px 36px 12px 12px;
-  outline: none;
-  cursor: pointer;
-  transition: border-color var(--transition-base), box-shadow var(--transition-base);
-}
-
-.commit-select:hover {
-  border-color: rgba(148, 163, 184, 0.28);
-}
-
-.commit-select:focus {
-  border-color: var(--accent-blue);
-  box-shadow: var(--shadow-focus-blue);
 }
 
 /* ----- Commit Button (replaces select for git tree) ----- */
@@ -280,6 +213,16 @@
 
 .git-tree-panel-open {
   border-bottom-color: var(--border-default);
+}
+
+/* Closed: also hidden from assistive tech and the tab order (it is only clipped to height 0). */
+.git-tree-panel:not(.git-tree-panel-open) {
+  visibility: hidden;
+}
+
+.git-tree-row:focus-visible {
+  outline: 1.5px solid var(--focus-ring);
+  outline-offset: -2px;
 }
 
 .git-tree-header {
@@ -936,3 +879,9 @@
   border-radius: 3px;
 }
 
+/* Resize handles are focusable separators (click, then arrow keys). */
+.left-panel-resize-handle:focus-visible {
+  background: var(--accent-blue);
+  opacity: 0.5;
+  outline: none;
+}

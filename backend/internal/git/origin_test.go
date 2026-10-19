@@ -91,10 +91,11 @@ func TestOriginSuggestion_FindsMergeAndBranch(t *testing.T) {
 	}
 }
 
-func TestOriginSuggestion_MainlineCommitHasNoMerge(t *testing.T) {
+func TestOriginSuggestion_MainlineCommitSuggestsDefaultBranch(t *testing.T) {
 	repo := buildOriginRepo(t)
 
-	// main.go line 1 was committed directly on main: no merge to report.
+	// main.go line 1 was committed directly on main: no merge to report, and
+	// the branch it started on is the default branch.
 	s, err := repo.OriginSuggestion("main.go", "HEAD", 1, 1)
 	if err != nil {
 		t.Fatalf("OriginSuggestion: %v", err)
@@ -102,8 +103,11 @@ func TestOriginSuggestion_MainlineCommitHasNoMerge(t *testing.T) {
 	if s.Actor != "alice" {
 		t.Errorf("actor = %q, want alice", s.Actor)
 	}
-	if s.MergeCommit != "" || s.MergeSubject != "" || s.Branch != "" {
+	if s.MergeCommit != "" || s.MergeSubject != "" {
 		t.Errorf("mainline commit got merge context: %+v", s)
+	}
+	if s.Branch != "main" {
+		t.Errorf("branch = %q, want the default branch (main)", s.Branch)
 	}
 }
 

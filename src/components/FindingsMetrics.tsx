@@ -265,13 +265,13 @@ function CategoryGrid({ findings }: { findings: Finding[] }) {
               <span className="fmetrics-cat-row-label" title={categoryMeta(cat).desc}>
                 {categoryMeta(cat).label}
               </span>
-              <span className="ovp-kind-squares">
+              <span className="ovp-kind-squares" role="group" aria-label="Findings in this category" data-chrome>
                 {sorted.map(f => (
                   <a
                     key={f.id}
                     className={`ovp-kind-square${isOpenFinding(f) ? '' : ' ovp-cat-square-resolved'}`}
                     style={{ background: `var(--severity-${f.severity})` }}
-                    href={`#/findings/${f.id}`}
+                    href={`#/finding/${f.id}`}
                     aria-label={f.title}
                     onMouseEnter={e => showCard(f, e.currentTarget)}
                     onMouseLeave={scheduleClose}

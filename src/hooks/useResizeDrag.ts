@@ -21,6 +21,9 @@ export function useResizeDrag(
   return useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
+      // preventDefault above also blocks the browser's focus-on-click; give the
+      // handle focus explicitly so arrow keys work right after a mouse press.
+      (e.currentTarget as HTMLElement).focus?.({ preventScroll: true });
       dragging.current = true;
 
       const onMouseMove = (ev: MouseEvent) => {
@@ -45,4 +48,55 @@ export function useResizeDrag(
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [setter, min, max, fromRight],
   );
+}
+
+/** Pixels moved per arrow key press on a resize handle / area shortcut. */
+export const RESIZE_KEY_STEP = 24;
+
+const clampWidth = (w: number, min: number, max: number) => Math.max(min, Math.min(max, w));
+
+/**
+ * Next width for a keyboard resize, or null if `key` isn't a resize key.
+ * ArrowRight moves the divider right (grows a left-anchored pane, shrinks a
+ * right-anchored one); Home/End jump to the limits.
+ */
+export function nextResizeWidth(
+  key: string,
+  current: number,
+  { min, max, fromRight = false }: ResizeDragOptions,
+): number | null {
+  const dir = key === 'ArrowRight' ? 1 : key === 'ArrowLeft' ? -1 : 0;
+  if (dir !== 0) return clampWidth(current + (fromRight ? -dir : dir) * RESIZE_KEY_STEP, min, max);
+  if (key === 'Home') return min;
+  if (key === 'End') return max;
+  return null;
+}
+
+/**
+ * ARIA window-splitter props for a resize handle: a focusable separator that
+ * reports its pane width and resizes with the arrow keys. Spread next to the
+ * handle's onMouseDown.
+ */
+export function resizeHandleProps(
+  label: string,
+  current: number,
+  setter: (width: number) => void,
+  opts: ResizeDragOptions,
+) {
+  return {
+    role: 'separator' as const,
+    'aria-orientation': 'vertical' as const,
+    'aria-label': label,
+    'aria-valuenow': Math.round(current),
+    'aria-valuemin': opts.min,
+    'aria-valuemax': opts.max,
+    tabIndex: -1, // focusable by click; Tab stays on the nav-area cycle (App.tsx)
+    onKeyDown: (e: React.KeyboardEvent) => {
+      const next = nextResizeWidth(e.key, current, opts);
+      if (next === null) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setter(next);
+    },
+  };
 }

@@ -1,0 +1,14 @@
+/* ============================================================
+   Platform tokens.
+
+   The design tokens (colours, type, radii, focus rings, light
+   theme) are bench's, imported rather than copied: a fork here
+   also restyles the embedded workbench, since both share one
+   document. Only platform-only tokens are defined below.
+   ============================================================ */
+
+@import '@bench/styles/tokens.css';
+
+:root {
+  --platform-rail-width: 64px;
+}

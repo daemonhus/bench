@@ -66,7 +66,7 @@ export function FeatureMiniCard({ feature, openCount, links, titleById, classNam
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
-      <a className="ovp-map-card-title" href={`#/features/${feature.id}`}>
+      <a className="ovp-map-card-title" href={`#/feature/${feature.id}`}>
         {feature.title}
         <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="M3.5 8.5l5-5M4 3.5h4.5V8" />
@@ -85,7 +85,7 @@ export function FeatureMiniCard({ feature, openCount, links, titleById, classNam
       {links.length > 0 && (
         <div className="ovp-map-card-links">
           {links.slice(0, 4).map((lf) => (
-            <a key={lf.id} className="ovp-map-card-link" href={`#/features/${lf.id}`}>
+            <a key={lf.id} className="ovp-map-card-link" href={`#/feature/${lf.id}`}>
               {titleById.get(lf.id)}
             </a>
           ))}
@@ -127,7 +127,7 @@ export function FindingMiniCard({ finding, isOpen, className, style, onMouseEnte
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
-      <a className="ovp-map-card-title" href={`#/findings/${finding.id}`}>
+      <a className="ovp-map-card-title" href={`#/finding/${finding.id}`}>
         {finding.title}
         <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="M3.5 8.5l5-5M4 3.5h4.5V8" />

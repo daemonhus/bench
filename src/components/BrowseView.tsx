@@ -4,7 +4,7 @@ import { useAnnotationStore } from '../stores/annotation-store';
 import { useReconcileStore } from '../stores/reconcile-store';
 import { useUIStore } from '../stores/ui-store';
 import { useCommentDrag } from '../hooks/useCommentDrag';
-import { useBreakpoint, useIsNarrow } from '../hooks/useBreakpoint';
+import { useIsNarrow } from '../hooks/useBreakpoint';
 import { highlight, applySearchRanges } from '../core/tokenizer';
 import type { DiffChange, Token, Finding } from '../core/types';
 import { getEffectiveLineRange } from '../core/types';
@@ -43,7 +43,6 @@ export const BrowseView: React.FC = () => {
   const codeviewSelectAnchor = useUIStore((s) => s.codeviewSelectAnchor);
   const inFileSearch = useUIStore((s) => s.inFileSearch);
 
-  const isMobile = useBreakpoint() === 'mobile';
   const showInlineFindings = useIsNarrow();
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -143,7 +142,7 @@ export const BrowseView: React.FC = () => {
   }
 
   return (
-    <div className="diff-view browse-mode" ref={containerRef} style={{ position: 'relative' }}>
+    <div className="diff-view browse-mode" ref={containerRef} style={{ position: 'relative' }} tabIndex={0} role="region" aria-label="Code">
       {showToolbar && (
         <SelectionToolbar startLine={commentDrag.startLine!} endLine={commentDrag.endLine!} top={toolbarTop} />
       )}

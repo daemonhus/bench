@@ -45,4 +45,4 @@ echo ""
 REPO="$(realpath "$REPO")"
 
 # Start Go backend - blocks until killed
-cd backend && go run ./cmd/server -repo "$REPO" --db atomish.db
+cd backend && go run ./cmd/server -repo "$REPO" --db bench.db

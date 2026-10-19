@@ -12,6 +12,8 @@
 @import './styles/sidebar.css';
 @import './styles/findings.css';
 @import './styles/features.css';
+@import './styles/feature-detail.css';
+@import './styles/editable.css';
 @import './styles/syntax.css';
 @import './styles/left-panel.css';
 @import './styles/overview.css';
@@ -20,3 +22,5 @@
 @import './styles/profile.css';
 @import './styles/overview-page.css';
 @import './styles/animations.css';
+@import './styles/control-rhythm.css';
+@import './styles/responsive.css';

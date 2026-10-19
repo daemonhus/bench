@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { isRendered } from './dom';
 
 /**
  * Walk up from `target` to the nearest `[data-nav-id]` ancestor inside
@@ -29,6 +30,41 @@ export function isFocusLeaving(
   if (!container) return false;
   if (!(next instanceof Node)) return true; // null / non-node: focus went nowhere in the list
   return !container.contains(next);
+}
+
+/**
+ * Controls inside a card that the keyboard can step through. Text fields are
+ * not stops: Left/Right move their caret, and they have their own way in (Enter
+ * on an expanded card focuses the reply box; Edit autofocuses its first field).
+ */
+const ACTIONABLE =
+  'button:not([disabled]), a[href], select:not([disabled]), [role="button"][tabindex]';
+
+/**
+ * The visible, enabled controls of a card in DOM order (status, links, edit,
+ * delete, code toggles, reply box...). Tab only cycles nav areas, so these are
+ * reached with Left/Right from the card (see useNavList). Exported for testing.
+ */
+export function cardActions(card: Element | null): HTMLElement[] {
+  if (!card) return [];
+  return Array.from(card.querySelectorAll<HTMLElement>(ACTIONABLE))
+    .filter(isRendered);
+}
+
+/**
+ * The first card at least partly on screen inside `container`: where a keyboard user re-entering
+ * the list should resume, without the list moving. Exported for testing.
+ */
+export function firstVisibleNavId(container: HTMLElement | null): string | null {
+  if (!container) return null;
+  const view = container.getBoundingClientRect();
+  const top = Math.max(view.top, 0);
+  const bottom = Math.min(view.bottom, window.innerHeight);
+  for (const el of Array.from(container.querySelectorAll<HTMLElement>('[data-nav-id]'))) {
+    const r = el.getBoundingClientRect();
+    if (r.bottom > top && r.top < bottom && r.height > 0) return el.getAttribute('data-nav-id');
+  }
+  return null;
 }
 
 interface UseNavListOptions<T> {
@@ -100,6 +136,39 @@ export function useNavList<T>({
     // let the native element handle Enter/Space. We still handle arrow keys
     // and Escape so the user can navigate back to card-level.
     const target = e.target as HTMLElement;
+
+    // Card controls: from the item, Right enters its controls; Left/Right then
+    // step between them (Left past the first returns to the item) and Escape
+    // returns to the item with the anchor kept. Left/Right is intercepted on a
+    // <select> too, so stepping past the status dropdown never changes it.
+    const container = containerRef.current;
+    const plainKey = !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey;
+    if (container && plainKey) {
+      if (e.key === 'ArrowRight' && target === container && focusedId != null) {
+        const card = container.querySelector(`[data-nav-id="${CSS.escape(focusedId)}"]`);
+        const first = cardActions(card)[0];
+        if (first) { e.preventDefault(); first.focus({ preventScroll: false }); return; }
+      }
+      const cardEl = target !== container ? target.closest('[data-nav-id]') : null;
+      if (cardEl && container.contains(cardEl)) {
+        if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+          const actions = cardActions(cardEl);
+          const idx = actions.indexOf(target);
+          if (idx !== -1) {
+            e.preventDefault();
+            if (e.key === 'ArrowRight') actions[Math.min(idx + 1, actions.length - 1)].focus();
+            else if (idx === 0) container.focus({ preventScroll: true });
+            else actions[idx - 1].focus();
+            return;
+          }
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          container.focus({ preventScroll: true });
+          return;
+        }
+      }
+    }
+
     const onInteractiveChild = target !== containerRef.current
       && (tag === 'BUTTON' || tag === 'A' || tag === 'SELECT' || target.getAttribute('role') === 'button');
 
@@ -123,7 +192,7 @@ export function useNavList<T>({
       setFocusedId(null);
       onFocusChange?.(null);
     }
-  }, [focusedIndex, items, moveFocus, onSelect, onActivate, onShiftActivate, onFocusChange]);
+  }, [focusedIndex, focusedId, items, moveFocus, onSelect, onActivate, onShiftActivate, onFocusChange]);
 
   // Track focus moves inside the list so the "current" card is whichever one
   // the user last interacted with - clicking a card body, focusing its reply
@@ -146,12 +215,22 @@ export function useNavList<T>({
       }
       return;
     }
-    // Focus landed on the container itself (or a non-card child). Only seed
-    // the first item when we have no anchor yet and focus came from outside.
+    // Focus landed on something that isn't a card. Only the container itself
+    // (a Tab arriving from elsewhere) seeds the first item: other non-card
+    // children - a draft form's autofocused textarea, a toolbar button - must
+    // not, or onFocusChange(item 0) would e.g. scroll the code viewer to that
+    // item's line just because a form opened.
+    if (e.target !== container) return;
     if (focusedId != null) return;
     if (e.relatedTarget && container.contains(e.relatedTarget as Node)) return;
-    moveFocus(0);
-  }, [focusedId, items, getId, moveFocus, onFocusChange]);
+    // Resume at the first card on screen, without scrolling: seeding the first item (and
+    // scrolling to it) made a long list jump back to the top whenever focus came back.
+    const visible = firstVisibleNavId(container);
+    const item = visible != null ? items.find(it => getId(it) === visible) : items[0];
+    if (!item) return;
+    setFocusedId(getId(item));
+    onFocusChange?.(item);
+  }, [focusedId, items, getId, onFocusChange]);
 
   // The focus ring marks where arrow-keying would resume, so it has no meaning
   // once focus leaves the list: clicking a filter, a tab, or anything else

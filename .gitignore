@@ -1,5 +1,5 @@
 # Dependencies
-node_modules/
+node_modules
 
 # Build output
 /dist/
@@ -35,6 +35,7 @@ docs/.vitepress/dist/
 
 # Compiled binaries
 bench-server
+benchd
 
 # Test output
 playwright-report/
@@ -47,3 +48,14 @@ UPDATES.md
 REPO_INDEX.html
 history.py
 *.patch
+
+# Platform
+platform/backend/dist/
+platform/ui/dist/
+platform/backend/bench-platform
+/bench-platform
+bin/bench
+bin/bench-platform
+
+# Local planning docs
+plan/

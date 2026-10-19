@@ -55,12 +55,6 @@ export interface Anchor {
   lineRange?: LineRange;
 }
 
-export interface ResolvedAnchor {
-  anchor: Anchor;
-  resolvedLines: { start: number; end: number };
-  confidence: 'exact' | 'moved' | 'orphaned';
-}
-
 export type Severity = 'critical' | 'high' | 'medium' | 'low' | 'info';
 export type FindingStatus = 'draft' | 'open' | 'in-progress' | 'false-positive' | 'accepted' | 'closed';
 
@@ -69,7 +63,6 @@ export const FINDING_CATEGORIES = [
   'input-validation', 'path-traversal', 'deserialization', 'race-condition',
   'config', 'error-handling', 'logging', 'business-logic', 'dependencies',
 ] as const;
-export type FindingCategory = typeof FINDING_CATEGORIES[number];
 
 export interface Finding {
   id: string;
@@ -156,18 +149,8 @@ export interface CommentWithPosition extends Comment {
   confidence?: 'exact' | 'moved' | 'orphaned';
 }
 
-// Browse mode line (full file with interleaved diff)
-export interface BrowseLine {
-  id: string;
-  lineNumber: number | null;  // position in new file (null for deletes)
-  oldLineNumber: number | null;
-  content: string;
-  type: 'normal' | 'insert' | 'delete';
-  inHunk: boolean;            // true if within a changed region
-}
-
 // UI state types
-export type ViewMode = 'overview' | 'browse' | 'diff' | 'delta' | 'findings' | 'features' | 'profile';
+export type ViewMode = 'overview' | 'browse' | 'diff' | 'delta' | 'findings' | 'features' | 'profile' | 'feature-detail' | 'finding-detail';
 // SidebarTab removed - sidebar is now a unified activity stream
 
 // API response types (match Go backend model)

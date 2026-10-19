@@ -1,0 +1,2316 @@
+/* ─────────────────────────────────────────────────────────────────────
+   FLOWS
+
+   Typography rhythm (font-size / weight / line-height):
+     display 1   20 / 600 / 1.3     — flow name on detail
+     display 2   17 / 600 / 1.35    — section titles, picker title
+     body 1      14 / 500 / 1.5     — step title, list-card name
+     body 2      14 / 400 / 1.55    — flow description, step note
+     caption     13 / 400 / 1.55    — edge description (italic)
+     meta        12 / 500 / 1.4     — project name (mono), kind chip, tag
+     micro       11 / 500 / 1       — status chip uppercase, branch banner
+
+   Inputs share one form-control system. Inline-edit reuses the same metrics
+   on its display state so swapping in/out of edit doesn't shift the layout.
+   ───────────────────────────────────────────────────────────────────── */
+
+/* ── Form controls: bench's .finding-edit-input / -textarea, plus these modifiers ── */
+
+.flows-input-compact {
+  font-size: var(--font-size-small);
+  padding: 5px 10px;
+}
+
+/* ── List page ────────────────────────────────────────────────────── */
+
+.flows-list-page {
+  padding: 32px var(--plat-pad) 48px;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.flows-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.flows-list-header h1 { margin: 0 0 2px; }
+.flows-list-header { flex-wrap: wrap; }
+.flows-list-actions { display: flex; align-items: center; gap: 8px; }
+
+.flows-create-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+
+.flows-create-input {
+  flex: 1;
+  font-size: var(--font-size-md);
+}
+
+.flows-empty {
+  color: var(--text-muted);
+  padding: 64px 16px;
+  text-align: center;
+  font-size: var(--font-size-ui);
+  line-height: 1.6;
+  font-family: var(--font-sans);
+}
+
+.flows-empty p { margin: 0 0 16px 0; }
+
+/* ── View tabs ──────────────────────────────────────────────────────── */
+
+.flows-view-tabs { margin-bottom: 16px; }
+
+.flows-view-tab-group {
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+}
+
+/* Sibling of the tab (not nested in it): hidden until the group is hovered or
+   focused, but never display:none, so keyboard users can reach it. */
+.flows-view-tab-close {
+  position: relative; /* above the neighbouring tab, whose padding it tucks into */
+  z-index: 1;
+  font-family: var(--font-sans);
+  font-size: 10px;
+  color: var(--text-muted);
+  line-height: 1;
+  padding: 3px 4px;
+  margin: 0 6px 0 -8px;
+  border: none;
+  border-radius: 2px;
+  background: transparent;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.flows-view-tab-group:hover .flows-view-tab-close,
+.flows-view-tab-group:focus-within .flows-view-tab-close { opacity: 1; }
+.flows-view-tab-close:hover { color: var(--text-primary); background: var(--bg-tertiary); }
+
+.flows-view-tab-confirm {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  gap: 4px;
+  margin: 0 6px 0 -4px;
+}
+.flows-view-tab-confirm button {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  padding: 2px 8px;
+  border: 1px solid var(--border-default);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.flows-view-tab-confirm-yes { color: var(--accent-red, var(--severity-critical)) !important; }
+
+.flows-view-tab-save {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-small);
+  font-weight: 500;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  color: var(--accent-blue);
+  cursor: pointer;
+  white-space: nowrap;
+  opacity: 0.8;
+  transition: opacity var(--transition-base);
+}
+
+.flows-view-tab-save:hover { opacity: 1; }
+
+.flows-view-tab-save-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+}
+
+.flows-view-tab-save-row .finding-edit-input {
+  width: 160px;
+}
+
+/* ── Filter bar ─────────────────────────────────────────────────────── */
+
+.flows-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.flows-filter-bar-end {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── Filter chip dropdown ──────────────────────────────────────────── */
+
+/* ── Table ──────────────────────────────────────────────────────────── */
+
+.flows-table {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  font-family: var(--font-sans);
+  background: var(--bg-secondary);
+}
+
+.flows-table-head,
+.flows-table-row {
+  display: grid;
+  grid-template-columns: 1fr 90px 110px 60px 160px 90px;
+  align-items: center;
+  gap: 0;
+}
+
+.flows-table-head {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-default);
+  background: var(--bg-tertiary);
+}
+
+.flows-table-head > div {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-muted);
+  padding: 0 8px;
+}
+
+.flows-table-head > div:first-child { padding-left: 0; }
+
+.flows-table-row {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border-muted);
+  padding: 12px 16px;
+  text-align: left;
+  cursor: pointer;
+  color: var(--text-primary);
+  transition: background var(--transition-fast);
+}
+
+.flows-table-row:last-child { border-bottom: none; }
+
+.flows-table-row:hover { background: var(--bg-tertiary); }
+
+.flows-table-row > div {
+  padding: 0 8px;
+  min-width: 0;
+}
+
+.flows-table-row > div:first-child { padding-left: 0; }
+
+.ft-col-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ft-flow-name {
+  font-size: var(--font-size-ui);
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: -0.005em;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ft-flow-desc {
+  font-size: var(--font-size-small);
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ft-col-status { display: flex; align-items: center; }
+.ft-col-projects { display: flex; align-items: center; gap: 4px; flex-wrap: nowrap; }
+.ft-col-steps { font-size: var(--font-size-small); color: var(--text-secondary); }
+.ft-col-findings { display: flex; align-items: center; }
+.ft-col-updated { font-size: var(--font-size-small); color: var(--text-muted); white-space: nowrap; }
+
+.ft-none { color: var(--text-muted); font-size: var(--font-size-small); }
+
+/* ── Project avatar ─────────────────────────────────────────────────── */
+
+.ft-project-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  font-family: var(--font-sans);
+  font-size: 9px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+  letter-spacing: 0;
+}
+
+.ft-avatar-overflow {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* ── Severity pills ─────────────────────────────────────────────────── */
+
+.ft-sev-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.ft-sev-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xs);
+  padding: 2px 6px;
+  white-space: nowrap;
+}
+
+.ft-sev-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ── Table footer ───────────────────────────────────────────────────── */
+
+.flows-table-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 0 0;
+  font-family: var(--font-sans);
+}
+
+.flows-table-count {
+  font-size: var(--font-size-small);
+  color: var(--text-muted);
+  margin-right: auto;
+}
+
+/* ── Detail page ─────────────────────────────────────────────────── */
+
+.flow-detail-page {
+  display: grid;
+  grid-template-columns: 1fr;
+  height: 100%;
+  overflow: hidden;
+}
+
+.flow-detail-page.picker-open {
+  grid-template-columns: 1fr 380px;
+}
+
+.flow-detail-main {
+  overflow-y: auto;
+  padding: 32px var(--plat-pad) 56px;
+}
+
+.flow-detail-main--map {
+  overflow-y: hidden;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 0;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.flow-map-wrap {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.flow-card-skeleton { cursor: default; }
+
+.flow-detail-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 0;
+}
+
+/* ── Tab bar ───────────────────────────────────────────────────────── */
+
+.flow-detail-tab-bar { margin-top: 12px; }
+
+.flow-detail-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Auto-save indicator */
+.flow-detail-meta {
+  margin-top: 32px;
+  margin-bottom: 36px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.flow-detail-attrs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin-top: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-muted);
+}
+
+.flow-detail-attr {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+}
+
+.flow-detail-attr-label {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* ── Inline editable text (no-jump pattern) ───────────────────────────
+   The display state and the input state share the exact same box metrics:
+   padding, border, font, line-height. The display state uses a transparent
+   border so it claims the same horizontal/vertical space as the focused
+   input — swapping in and out of edit mode never shifts the layout.
+   ──────────────────────────────────────────────────────────────────── */
+
+/* Typography variants applied to the editable element */
+
+.flow-detail-name-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.flow-detail-name {
+  /* Matches bench's .overview-section-title, the page title everywhere else. */
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  color: var(--text-primary);
+  flex: 1;
+  min-width: 0;
+}
+
+/* In a flex-row container flex-basis is 0%, so calc(100% + 22px) → 22px.
+   Override to auto so the flex algorithm determines the width instead. */
+.flow-detail-name.editable {
+  width: auto;
+}
+
+.flow-card-shape {
+  display: block;
+}
+
+.flow-detail-shape {
+  flex-shrink: 0;
+  pointer-events: none;
+  opacity: 0.85;
+}
+
+.flow-detail-desc {
+  font-size: var(--font-size-ui);
+  font-weight: 400;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+/* ── Detail stats panel ───────────────────────────────────────────── */
+
+.flow-detail-stats {
+  display: flex;
+  gap: 0;
+  margin-bottom: 28px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.flow-detail-stat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 16px 12px;
+  border-right: 1px solid var(--border-muted);
+  background: var(--bg-tertiary);
+}
+
+.flow-detail-stat:last-child { border-right: none; }
+
+.flow-detail-stat-num {
+  font-family: var(--font-sans);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+.flow-detail-stat-label {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+/* ── Empty stepper ───────────────────────────────────────────────── */
+
+.flow-empty-stepper {
+  text-align: center;
+  padding: 64px 24px;
+  color: var(--text-muted);
+  border: 1px dashed var(--border-default);
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+}
+
+.flow-empty-stepper p {
+  margin: 0 0 16px 0;
+  font-size: var(--font-size-ui);
+  line-height: 1.6;
+}
+
+.flow-step {
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  gap: 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 18px 20px 18px 16px;
+  font-family: var(--font-sans);
+}
+
+.flow-step-pos {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-small);
+  color: var(--text-muted);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 3px;
+  font-weight: 500;
+}
+
+.flow-step-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.flow-step-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.flow-step-project {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-small);
+  color: var(--text-muted);
+  font-weight: 500;
+  letter-spacing: -0.005em;
+}
+
+.flow-step-kind {
+  font-size: var(--font-size-xs);
+  padding: 3px 8px;
+  border-radius: var(--radius-xs);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+}
+
+.kind-interface { background: color-mix(in srgb, var(--accent-blue) 16%, transparent); color: var(--accent-blue); }
+.kind-source { background: color-mix(in srgb, var(--severity-medium) 18%, transparent); color: var(--severity-medium); }
+.kind-sink { background: color-mix(in srgb, var(--severity-critical) 16%, transparent); color: var(--severity-critical); }
+.kind-dependency { background: rgba(163, 113, 247, 0.18); color: #a371f7; }
+.kind-externality { background: rgba(139, 148, 158, 0.18); color: var(--text-secondary); }
+
+.flow-step-op {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  padding: 3px 7px;
+  border-radius: var(--radius-xs);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.flow-step-title {
+  font-size: var(--font-size-ui);
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--text-primary);
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Deep-link to the feature in the embedded workbench, sits next to the title. */
+.flow-step-title-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  transition: background var(--transition-base), color var(--transition-base), border-color var(--transition-base);
+}
+
+.flow-step-title-link:hover {
+  background: var(--accent-blue-subtle);
+  color: var(--accent-blue);
+  border-color: color-mix(in srgb, var(--accent-blue) 40%, transparent);
+}
+
+.flow-step-actions {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.flow-step-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: var(--font-sans);
+  transition: background var(--transition-base), color var(--transition-base), border-color var(--transition-base);
+}
+
+.flow-step-action-glyph {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.flow-step-action-label {
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+
+.flow-step-action:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border-color: var(--border-default);
+}
+
+.flow-step-action:disabled { opacity: 0.3; cursor: default; }
+.flow-step-action-danger:hover {
+  color: var(--severity-critical);
+  border-color: color-mix(in srgb, var(--severity-critical) 40%, transparent);
+  background: color-mix(in srgb, var(--severity-critical) 8%, transparent);
+}
+
+.flow-step-note {
+  font-size: var(--font-size-small);
+  font-weight: 400;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+/* ── Step feature details (parameters / links) ────────────────────────── */
+.flow-step-details {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-muted);
+}
+.flow-step-detail-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.flow-step-detail-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+.flow-step-chips { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+
+/* Parameters: aligned name | type | required columns, one row each. */
+.flow-step-param-list {
+  display: grid;
+  grid-template-columns: max-content max-content max-content;
+  column-gap: 12px;
+  row-gap: 4px;
+  align-items: center;
+  justify-content: start;
+}
+.flow-step-param { display: contents; }
+.flow-step-param-cell { display: inline-flex; align-items: center; }
+.flow-step-param-name { font-family: var(--font-mono); font-size: var(--font-size-xs); color: var(--text-primary); }
+.flow-step-param-desc {
+  grid-column: 1 / -1;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  line-height: 1.4;
+  margin-bottom: 4px;
+}
+.flow-step-param-type {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  border: 1px solid;
+  border-radius: 3px;
+  padding: 0 4px;
+}
+.flow-step-param-req {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--accent-blue);
+  background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-blue) 25%, transparent);
+  border-radius: 3px;
+  padding: 0 4px;
+}
+
+.flow-step-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-muted);
+  border-radius: var(--radius-xs);
+  padding: 1px 6px;
+}
+.flow-step-link-btn {
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+.flow-step-link-btn:hover { border-color: var(--accent-blue); }
+.flow-step-link-title { font-size: var(--font-size-xs); color: var(--text-secondary); }
+
+.flow-step-ref {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  text-decoration: none;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-muted);
+  border-radius: var(--radius-xs);
+  padding: 1px 6px;
+  color: var(--text-secondary);
+}
+.flow-step-ref:hover { border-color: var(--accent-blue); color: var(--text-primary); }
+
+.flow-step-note code,
+.flow-detail-desc code,
+.flow-branch-condition code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.9em;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-default);
+  border-radius: 3px;
+  padding: 0 3px;
+}
+
+/* ── Edge ────────────────────────────────────────────────────────── */
+
+.flow-edge {
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  gap: 14px;
+  padding: 8px 18px;
+  align-items: center;
+  font-family: var(--font-sans);
+}
+
+.flow-edge-line {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.flow-edge-text {
+  font-size: var(--font-size-small);
+  font-weight: 400;
+  line-height: 1.55;
+  font-style: italic;
+  color: var(--text-secondary);
+}
+
+/* ── Picker ──────────────────────────────────────────────────────── */
+
+.flow-picker {
+  border-left: 1px solid var(--border-default);
+  background: var(--bg-secondary);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.flow-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.flow-picker-title {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: var(--font-size-md);
+  line-height: 1.3;
+  color: var(--text-primary);
+  letter-spacing: -0.005em;
+}
+
+.flow-picker-close {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 20px;
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-xs);
+  transition: background var(--transition-base), color var(--transition-base);
+}
+
+.flow-picker-close:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+
+.flow-picker-search {
+  /* extends .finding-edit-input */
+  margin: 16px 20px 10px;
+  width: calc(100% - 40px);
+}
+
+.flow-picker-filters {
+  display: flex;
+  gap: 10px;
+  padding: 0 20px 14px;
+}
+
+.flow-picker-results {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 10px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.flow-picker-empty {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-small);
+  line-height: 1.5;
+}
+
+.flow-picker-result {
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-base);
+  padding: 10px 12px;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  color: var(--text-primary);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: background var(--transition-base), border-color var(--transition-base);
+}
+
+.flow-picker-result:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--border-default);
+}
+
+.flow-picker-result-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.flow-picker-result-project {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.flow-picker-result-title {
+  font-size: var(--font-size-ui);
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--text-primary);
+}
+
+/* ── Tree structure: branch blocks + spine ─────────────────────────── */
+
+.flow-node {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Group of sibling branches under one parent. No card — just stacked
+   connector rows + indented contents. */
+.flow-branch-group {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 8px 0;
+}
+
+.flow-add-branch {
+  align-self: flex-start;
+  margin: 2px 0 0 50px;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-small);
+  font-weight: 500;
+  color: var(--accent-blue);
+  background: transparent;
+  border: 1px dashed color-mix(in srgb, var(--accent-blue) 35%, transparent);
+  border-radius: var(--radius-base);
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: background var(--transition-base), border-color var(--transition-base);
+  letter-spacing: 0.005em;
+}
+
+.flow-add-branch:hover {
+  background: color-mix(in srgb, var(--accent-blue) 8%, transparent);
+  border-color: var(--accent-blue);
+}
+
+.flow-branch-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Connector row: ↳ glyph in the same gutter as step numbers, condition
+   pill in the content column, count + chevron at the right. */
+.flow-branch-connector {
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  gap: 14px;
+  padding: 10px 18px;
+  align-items: center;
+  font-family: var(--font-sans);
+}
+
+.flow-branch-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--accent-blue);
+  font-weight: 500;
+}
+
+.flow-branch-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.flow-branch-condition {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-blue);
+  background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  padding: 4px 10px;
+  line-height: 1.3;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  transition: border-color var(--transition-base), background var(--transition-base);
+}
+
+.flow-branch-condition:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent-blue) 40%, transparent);
+  background: color-mix(in srgb, var(--accent-blue) 16%, transparent);
+}
+
+.flow-branch-condition:disabled { cursor: default; }
+
+.flow-branch-condition-empty {
+  font-weight: 500;
+  font-style: italic;
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+.flow-branch-condition-input {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-blue);
+  background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
+  border: 1px solid var(--accent-blue);
+  border-radius: var(--radius-xs);
+  padding: 4px 10px;
+  outline: none;
+  min-width: 220px;
+  box-shadow: var(--shadow-focus-blue);
+}
+
+.flow-branch-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  color: var(--text-muted);
+  padding: 4px 8px;
+  border-radius: var(--radius-xs);
+  transition: background var(--transition-base), color var(--transition-base);
+}
+
+.flow-branch-toggle:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.flow-branch-count {
+  font-size: var(--font-size-small);
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.flow-branch-chevron {
+  font-size: 10px;
+  line-height: 1;
+  color: var(--text-muted);
+}
+
+/* Indented contents under a branch connector. Subtle left border traces the
+   spine continuing into the branch. Works at any nesting depth — each level
+   just nests another .flow-branch-content inside the previous. */
+.flow-branch-content {
+  margin-left: 28px;
+  padding: 4px 0 8px 12px;
+  border-left: 1px solid var(--border-muted);
+}
+
+/* ── Terminal marker on a step row ─────────────────────────────────── */
+
+.flow-step-terminal {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+  padding: 3px 8px;
+  border-radius: var(--radius-xs);
+}
+
+/* ── Continue-this-path button (under each terminal step) ──────────── */
+
+.flow-step-continue {
+  align-self: flex-start;
+  margin: 8px 0 4px 50px;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-small);
+  font-weight: 500;
+  color: var(--accent-blue);
+  background: transparent;
+  border: 1px dashed color-mix(in srgb, var(--accent-blue) 35%, transparent);
+  border-radius: var(--radius-base);
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: background var(--transition-base), border-color var(--transition-base);
+  letter-spacing: 0.005em;
+}
+
+.flow-step-continue:hover {
+  background: color-mix(in srgb, var(--accent-blue) 8%, transparent);
+  border-color: var(--accent-blue);
+}
+
+/* ── Picker subtitle ───────────────────────────────────────────────── */
+
+.flow-picker-subtitle {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-small);
+  color: var(--text-secondary);
+  line-height: 1.45;
+  margin-top: 2px;
+}
+
+/* ── Anchor confidence chips ───────────────────────────────────────── */
+
+.flow-anchor-chip {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 1px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.flow-anchor-moved {
+  background: color-mix(in srgb, var(--severity-medium) 15%, transparent);
+  color: var(--severity-medium);
+  border: 1px solid color-mix(in srgb, var(--severity-medium) 30%, transparent);
+}
+
+.flow-anchor-orphaned {
+  background: color-mix(in srgb, var(--severity-critical) 12%, transparent);
+  color: var(--severity-critical);
+  border: 1px solid color-mix(in srgb, var(--severity-critical) 25%, transparent);
+}
+
+.flow-anchor-tombstoned {
+  background: rgba(139, 148, 158, 0.12);
+  color: var(--text-muted);
+  border: 1px solid rgba(139, 148, 158, 0.2);
+}
+
+.flow-step-title-tombstoned {
+  opacity: 0.45;
+}
+
+/* ── Pagination controls ──────────────────────────────────────────── */
+
+.flow-pagination-info {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-small);
+  color: var(--text-muted);
+  min-width: 90px;
+  text-align: center;
+}
+
+/* ── Baselines panel ──────────────────────────────────────────────── */
+
+.baselines-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 320px;
+  background: var(--bg-secondary);
+  border-left: 1px solid var(--border-default);
+  display: flex;
+  flex-direction: column;
+  z-index: 200;
+  overflow: hidden;
+}
+
+.baselines-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-default);
+  flex-shrink: 0;
+}
+
+.baselines-panel-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.baselines-close {
+  padding: 4px 8px;
+  font-size: 13px;
+}
+
+.baselines-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+.baselines-empty {
+  padding: 20px 16px;
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+.baseline-item {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: baseline;
+  width: 100%;
+  padding: 10px 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border-subtle);
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font-sans);
+  transition: background var(--transition-fast);
+}
+
+.baseline-item:hover {
+  background: var(--bg-tertiary);
+}
+
+.baselines-seq {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.baselines-date {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.baselines-reviewer {
+  font-size: 12px;
+  color: var(--accent-blue);
+}
+
+.baselines-item-summary {
+  font-size: 12px;
+  color: var(--text-secondary);
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.baselines-new-btn {
+  margin: 12px 16px;
+  align-self: flex-start; /* a button, not a full-width bar */
+}
+
+.baselines-create-form {
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid var(--border-default);
+}
+
+.baselines-create-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.baselines-error {
+  font-size: 12px;
+  color: var(--text-danger, var(--severity-critical));
+}
+
+/* Baseline detail view */
+
+.baselines-detail {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.baselines-back {
+  align-self: flex-start;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.baselines-detail-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.baselines-summary {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.baselines-snapshot-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.baselines-delta-loading {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 8px 0;
+}
+
+.baselines-delta {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-base);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.baselines-delta-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 2px;
+}
+
+.baselines-delta-empty {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.baselines-delta-section {
+  display: flex;
+  align-items: center;
+}
+
+.baselines-delta-label {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.baselines-delta-added { color: var(--accent-green); }
+.baselines-delta-removed { color: var(--severity-critical); }
+.baselines-delta-changed { color: var(--severity-medium); }
+
+.baselines-detail-actions {
+  margin-top: auto;
+  padding-top: 8px;
+}
+
+.flows-btn-danger {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-small);
+  font-weight: 500;
+  line-height: 1.2;
+  background: color-mix(in srgb, var(--severity-critical) 10%, transparent);
+  color: var(--severity-critical);
+  border: 1px solid color-mix(in srgb, var(--severity-critical) 30%, transparent);
+  border-radius: var(--radius-base);
+  padding: 9px 18px;
+  cursor: pointer;
+  transition: background var(--transition-base);
+}
+
+.flows-btn-danger:hover {
+  background: color-mix(in srgb, var(--severity-critical) 18%, transparent);
+}
+
+/* ── Findings panel ───────────────────────────────────────────────── */
+
+.findings-panel-count {
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 500;
+  background: color-mix(in srgb, var(--severity-critical) 15%, transparent);
+  color: var(--severity-critical);
+  border-radius: var(--radius-md);
+  padding: 1px 7px;
+}
+
+.findings-panel-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.findings-sev-chip {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: var(--radius-md);
+}
+
+.findings-sev-critical { background: color-mix(in srgb, var(--severity-critical) 15%, transparent); color: var(--severity-critical); }
+.findings-sev-high { background: rgba(255, 140, 0, 0.15);  color: #ff8c00; }
+.findings-sev-medium { background: color-mix(in srgb, var(--severity-medium) 15%, transparent); color: var(--severity-medium); }
+.findings-sev-low { background: color-mix(in srgb, var(--accent-green) 15%, transparent);  color: var(--accent-green); }
+.findings-sev-info { background: color-mix(in srgb, var(--accent-blue) 15%, transparent); color: var(--accent-blue); }
+
+.findings-panel-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.finding-item {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.finding-item-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.finding-sev-badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1px 6px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.finding-sev-critical { background: color-mix(in srgb, var(--severity-critical) 15%, transparent); color: var(--severity-critical); }
+.finding-sev-high { background: rgba(255, 140, 0, 0.15);  color: #ff8c00; }
+.finding-sev-medium { background: color-mix(in srgb, var(--severity-medium) 15%, transparent); color: var(--severity-medium); }
+.finding-sev-low { background: color-mix(in srgb, var(--accent-green) 15%, transparent);  color: var(--accent-green); }
+.finding-sev-info { background: color-mix(in srgb, var(--accent-blue) 15%, transparent); color: var(--accent-blue); }
+
+.finding-item-title {
+  font-size: 13px;
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+
+.finding-step-link {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font-mono, ui-monospace, monospace);
+}
+
+.finding-step-link:hover {
+  color: var(--accent-blue);
+  text-decoration: underline;
+}
+
+.findings-error {
+  color: var(--severity-critical);
+}
+
+/* ── Step validation warnings ─────────────────────────────────────── */
+
+.flow-step-warning {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--severity-medium);
+  background: color-mix(in srgb, var(--severity-medium) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--severity-medium) 30%, transparent);
+  border-radius: var(--radius-xs);
+  padding: 1px 5px;
+  cursor: default;
+  white-space: nowrap;
+}
+
+.flow-step-warning-dismiss {
+  background: transparent;
+  border: none;
+  color: inherit;
+  font-size: 11px;
+  padding: 0 0 0 2px;
+  cursor: pointer;
+  opacity: 0.7;
+  line-height: 1;
+}
+
+.flow-step-warning-dismiss:hover {
+  opacity: 1;
+}
+
+/* ── Better empty states ──────────────────────────────────────────── */
+
+.flows-empty-hint {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.flow-empty-primer {
+  font-size: 14px;
+  color: var(--text-secondary);
+  max-width: 400px;
+  line-height: 1.6;
+  margin-bottom: 12px;
+}
+
+.flow-picker-empty-filter {
+  font-style: italic;
+  color: var(--text-secondary);
+}
+
+.flow-picker-empty-clear {
+  display: block;
+  margin-top: 6px;
+  background: transparent;
+  border: none;
+  color: var(--accent-blue);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
+/* ─── FlowGraphView (Map tab) ─────────────────────────────────────────── */
+
+.flow-graph-view {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.flow-graph-canvas {
+  flex: 1;
+  overflow: hidden;
+  background-color: var(--bg-primary);
+  background-image: radial-gradient(circle, rgba(148, 163, 184, 0.22) 1.5px, transparent 1.5px);
+  background-size: 28px 28px;
+  user-select: none;
+}
+
+[data-theme="light"] .flow-graph-canvas {
+  background-color: #e9ecf4;
+  background-image: radial-gradient(circle, rgba(100, 116, 139, 0.32) 1.5px, transparent 1.5px);
+}
+
+.flow-graph-empty {
+  padding: 40px 24px;
+  font-size: var(--font-size-ui);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.flow-graph-controls {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  padding: 4px;
+  z-index: 10;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+}
+
+.flow-graph-ctrl-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-base);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  transition: background 0.1s, color 0.1s;
+}
+
+.flow-graph-ctrl-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.flow-graph-ctrl-sep {
+  height: 1px;
+  background: var(--border-default);
+  margin: 2px 0;
+}
+
+/* ─── Inline tab panel (Findings / Baselines as tabs) ───────────────── */
+
+.flow-tab-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.flow-tab-panel .baselines-panel-header {
+  padding: 20px 32px 16px;
+  border-bottom: 1px solid var(--border-default);
+  flex-shrink: 0;
+}
+
+.flow-tab-panel-summary {
+  padding: 16px 0 4px;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-small);
+  color: var(--text-secondary);
+}
+
+.flow-tab-panel .baselines-list,
+.flow-tab-panel .baselines-detail,
+.flow-tab-panel .baselines-empty,
+.flow-tab-panel .findings-panel-list,
+.flow-tab-panel .findings-panel-summary {
+  /* The page already insets content; as a tab the panel's rows start at the page edge. */
+  padding-left: 0;
+  padding-right: 0;
+}
+.flow-tab-panel .baselines-new-btn { margin-left: 0; margin-right: 0; }
+
+/* ─── Map step detail panel ──────────────────────────────────────────── */
+
+.map-step-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 300px;
+  background: var(--bg-secondary);
+  border-left: 1px solid var(--border-default);
+  display: flex;
+  flex-direction: column;
+  z-index: 20;
+  overflow: hidden;
+  box-shadow: -4px 0 20px rgba(0, 0, 0, 0.25);
+}
+
+.map-step-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-default);
+  flex-shrink: 0;
+}
+
+.map-step-panel-project {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-small);
+  color: var(--text-muted);
+  font-weight: 500;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.map-step-panel-close {
+  flex-shrink: 0;
+  padding: 2px 7px;
+  font-size: 13px;
+}
+
+.map-step-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.map-step-panel-title {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+
+.map-step-panel-path {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-small);
+  color: var(--text-secondary);
+}
+
+.map-step-panel-tombstoned {
+  font-size: var(--font-size-small);
+  color: var(--severity-critical);
+  font-style: italic;
+}
+
+.map-step-panel-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.map-step-panel-label {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Bench's inputs, sized for the side panel; textareas grow with their content. */
+.map-step-panel-textarea,
+.map-step-panel-input {
+  font-size: var(--font-size-small);
+  padding: 8px 10px;
+  resize: none;
+  overflow: hidden;
+  line-height: 1.55;
+}
+
+/* Drag-to-resize handle on the panel's left edge (width persisted in localStorage). */
+.map-step-panel-resize-handle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 4px;
+  cursor: col-resize;
+  background: transparent;
+  z-index: 21;
+}
+.map-step-panel-resize-handle:hover,
+.map-step-panel-resize-handle:active {
+  background: var(--accent-blue);
+  opacity: 0.5;
+}
+
+/* ── MapStepPanel feature detail (parameters / links / comments) ──────── */
+
+.map-step-panel-title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+.map-step-panel-title-row .map-step-panel-title { flex: 1; min-width: 0; }
+.map-step-panel-title-row .flow-step-title-link { flex: none; margin-top: 4px; }
+
+/* Method badge floats to the left of the title (matches the feature/finding card). */
+.map-step-method {
+  flex: none;
+  margin-top: 5px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0.03em;
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+}
+.map-step-method[data-method="GET"] { background: #16a34a; }
+.map-step-method[data-method="POST"] { background: #2563eb; }
+.map-step-method[data-method="PUT"] { background: #d97706; }
+.map-step-method[data-method="PATCH"] { background: #7c3aed; }
+.map-step-method[data-method="DELETE"] { background: #dc2626; }
+.map-step-method[data-method="HEAD"] { background: #6b7280; }
+.map-step-method[data-method="OPTIONS"] { background: #6b7280; }
+
+.map-step-count {
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+  padding: 0 5px;
+  letter-spacing: 0;
+}
+.map-step-sub { display: flex; flex-direction: column; gap: 6px; }
+
+/* Feature meta: status + reconciliation confidence */
+.map-step-panel-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.map-step-status {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: capitalize;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xs);
+  padding: 1px 6px;
+}
+.map-step-conf {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: capitalize;
+  letter-spacing: 0.02em;
+}
+.map-step-conf--exact { color: #16a34a; }
+.map-step-conf--moved { color: #d97706; }
+.map-step-conf--orphaned { color: #dc2626; }
+
+.map-step-loc {
+  align-self: flex-start;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--accent-blue);
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+.map-step-loc:hover { text-decoration: underline; }
+
+.map-step-desc {
+  margin: 0;
+  font-size: var(--font-size-small);
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.map-step-note-ro {
+  margin: 0;
+  font-size: var(--font-size-small);
+  color: var(--text-secondary);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.map-step-param { display: flex; flex-direction: column; gap: 3px; }
+.map-step-param-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.map-step-param-name {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-small);
+  font-weight: 500;
+  color: var(--text-primary);
+}
+.map-step-param-type {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  border: 1px solid;
+  border-radius: 3px;
+  padding: 1px 5px;
+}
+.map-step-param-req {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent-blue);
+  background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-blue) 25%, transparent);
+  border-radius: 3px;
+  padding: 0 5px;
+}
+.map-step-param-pattern {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-xs);
+  padding: 1px 5px;
+  align-self: flex-start;
+}
+.map-step-param-desc { font-size: var(--font-size-xs); color: var(--text-muted); line-height: 1.45; }
+
+.map-step-link {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  text-align: left;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xs);
+  padding: 5px 8px;
+  cursor: pointer;
+  color: var(--text-secondary);
+}
+.map-step-link:hover { border-color: var(--accent-blue); color: var(--text-primary); }
+.map-step-ref {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xs);
+  padding: 5px 8px;
+  color: var(--text-secondary);
+}
+.map-step-ref:hover { border-color: var(--accent-blue); color: var(--text-primary); }
+.map-step-ref-title {
+  font-size: var(--font-size-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.map-step-link-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.map-step-link-title {
+  font-size: var(--font-size-small);
+  font-weight: 500;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.map-step-link-desc { font-size: var(--font-size-xs); color: var(--text-muted); }
+
+.map-step-comment { display: flex; gap: 8px; }
+.map-step-comment-avatar {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+}
+.map-step-comment-body { min-width: 0; }
+.map-step-comment-author { font-size: var(--font-size-xs); font-weight: 600; color: var(--text-secondary); }
+.map-step-comment-text { font-size: var(--font-size-small); color: var(--text-secondary); line-height: 1.45; }
+
+.map-step-comment-form { display: flex; flex-direction: column; gap: 6px; }
+.map-step-comment ~ .map-step-comment-form {
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-default);
+}
+.map-step-comment-form-actions { display: flex; justify-content: flex-end; align-items: center; gap: 8px; }
+.map-step-comment-hint { font-size: var(--font-size-xs); color: var(--text-muted); }
+.map-step-comment-error { font-size: var(--font-size-xs); color: var(--severity-high, var(--severity-critical)); }
+
+/* ── MapLinkPanel extras ──────────────────────────────────────────────── */
+
+.map-step-panel-link-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.map-link-panel-route {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.map-link-panel-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.map-link-panel-arrow {
+  font-size: 13px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+/* Flow graph nodes are a keyboard group (roving tabindex). */
+.flow-graph-node:focus { outline: none; }
+.flow-graph-node:focus-visible .flow-graph-node-card {
+  stroke: var(--accent-blue);
+  stroke-width: 2.5px;
+}
+
+/* ── Phones: flow rows stack as cards instead of a clipped table ── */
+
+@media (max-width: 639px) {
+  .flows-table-head { display: none; }
+
+  .flows-table-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 12px;
+    padding: 12px 14px;
+  }
+
+  .flows-table-row > div { padding: 0; }
+  .flows-table-row .ft-col-flow { flex: 1 1 100%; }
+  .flows-table-row .ft-col-steps::after { content: ' steps'; }
+  .flows-table-row .ft-col-updated { margin-left: auto; }
+}
+
+/* ── Folders: path ("slug"), gallery, card menu ─────────────────────── */
+
+/* Bench's file-path header voice (header.css .path-segment / .path-sep / .path-filename),
+   in the UI font: link-blue ancestors, a muted "/", the current item bold. */
+.flow-path {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  min-width: 0;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-small);
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+.flow-path-icon { display: inline-flex; color: var(--text-muted); margin-right: 6px; }
+.flow-path-seg { display: inline-flex; align-items: center; min-width: 0; }
+.flow-path-sep { color: var(--text-muted); margin: 0 4px; }
+.flow-path-link {
+  font: inherit;
+  color: var(--accent-blue);
+  background: none;
+  border: none;
+  padding: 0;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+}
+.flow-path-link:hover { text-decoration: underline; }
+.flow-path-current {
+  color: var(--text-primary);
+  font-weight: 600;
+  max-width: 48ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.flow-path-note {
+  margin-left: 10px;
+  font-size: var(--font-size-xs);
+  font-weight: 400;
+  color: var(--text-muted);
+}
+.flows-list-header .flow-path { margin-top: 6px; }
+
+.flows-new-folder { display: inline-flex; align-items: center; gap: 6px; }
+
+.flows-layout-toggle .activity-kind-toggle::before { display: none; }
+
+.flows-move-error {
+  margin-bottom: 12px;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-small);
+  color: var(--severity-critical);
+}
+
+.flows-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 16px;
+}
+
+/* Same surface and hover voice as bench's annotation cards and the project list. */
+.flow-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  min-height: 200px;
+  padding: 18px 20px;
+  overflow: hidden;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-muted);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-family: var(--font-sans);
+  transition: background var(--transition-base), border-color var(--transition-base), box-shadow var(--transition-base);
+}
+
+.flow-card:hover,
+.flow-card:focus-within {
+  background: var(--bg-surface);
+  border-color: var(--border-default);
+  box-shadow: var(--shadow-sm);
+}
+
+[data-theme="light"] .flow-card:hover,
+[data-theme="light"] .flow-card:focus-within { background: var(--bg-secondary); }
+
+.flow-card.is-dragging { opacity: 0.45; }
+
+.flow-card.is-drop-target,
+.flows-table-row.is-drop-target,
+.flow-path-link.is-drop-target {
+  border-color: var(--accent-blue);
+  background: var(--accent-blue-subtle);
+  color: var(--text-primary);
+}
+
+.flow-card-top {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 24px;
+}
+
+.flow-card-folder-icon { color: var(--accent-blue); display: inline-flex; }
+
+.flow-card-title {
+  all: unset;
+  position: relative;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.35;
+  /* Long names wrap to two lines rather than being cut off. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  border-radius: var(--radius-xs);
+}
+.flow-card-title:focus-visible { outline-offset: 2px; } /* ring itself: bench's global rule */
+
+.flow-card-desc {
+  position: relative;
+  margin: 0;
+  max-width: 85%;
+  font-size: var(--font-size-ui);
+  color: var(--text-secondary);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.flow-card-folder-path {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.flow-card-foot {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.flow-card-meta {
+  font-size: var(--font-size-small);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.flow-card-menu-wrap { position: relative; }
+
+.flow-card-menu-btn {
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+  min-width: 28px;
+  min-height: 24px;
+  padding: 0 6px;
+  color: var(--text-muted);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+}
+.flow-card-menu-btn:hover,
+.flow-card-menu-btn[aria-expanded="true"] { color: var(--text-primary); background: var(--hover-muted); }
+
+.flow-card-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 40;
+  min-width: 200px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-base);
+  box-shadow: var(--shadow-popup);
+}
+
+.flow-card-menu [role="menuitem"] {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 7px 10px;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-small);
+  text-align: left;
+  color: var(--text-primary);
+  background: none;
+  border: none;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.flow-card-menu [role="menuitem"]:hover,
+.flow-card-menu [role="menuitem"]:focus-visible { background: var(--hover-muted); outline-offset: -2px; }
+.flow-card-menu [role="menuitem"].danger { color: var(--severity-critical); }
+
+.flow-card-menu-empty {
+  padding: 7px 10px;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-small);
+  color: var(--text-muted);
+}
+
+.flows-table-row-folder .ft-flow-name { display: inline-flex; align-items: center; gap: 6px; }
+
+.flow-folder-delete-text {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-ui);
+  line-height: 1.5;
+  color: var(--text-primary);
+}
+
+@media (max-width: 639px) {
+  .flows-gallery { grid-template-columns: 1fr; }
+  .flows-filter-bar-end { margin-left: 0; }
+}
+
+/* The flow's outline, large and faint behind the card, fading out towards the text on the left. */
+.flow-card-backdrop {
+  /* Drawn at its natural size (one cell per step), only ever scaled down to fit. */
+  position: absolute;
+  right: 22px;
+  top: 50%;
+  transform: translateY(-50%);
+  max-width: 55%;
+  max-height: calc(100% - 36px);
+  width: auto;
+  height: auto;
+  pointer-events: none;
+  color: var(--accent-blue);
+  opacity: 0.2;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 35%);
+  mask-image: linear-gradient(to right, transparent, #000 35%);
+  transition: opacity var(--transition-base);
+}
+.flow-card-backdrop path { fill: none; stroke: currentColor; stroke-width: 2.5; vector-effect: non-scaling-stroke; }
+.flow-card-backdrop circle { fill: currentColor; }
+.flow-card:hover .flow-card-backdrop,
+.flow-card:focus-within .flow-card-backdrop { opacity: 0.26; }
+[data-theme="light"] .flow-card-backdrop { opacity: 0.12; }
+[data-theme="light"] .flow-card:hover .flow-card-backdrop { opacity: 0.2; }
+
+/* Flow page header: title row above the folder path, matching the Flows list header. */
+.flow-detail-heading { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1; }
+.flow-detail-toolbar { align-items: flex-start; }
+.flow-detail-toolbar-right { align-items: flex-start; }
+.flow-detail-toolbar-right .save-indicator { margin-top: 8px; }
+
+/* Right-aligned like the Projects toolbar; the search leads the group. */
+.flows-filter-bar .activity-filters { margin-left: 0; flex-wrap: wrap; row-gap: 8px; max-width: 100%; }
+
+/* The status pill is taller than the title line; let it overhang rather than push the
+   folder path and tabs down, so the header keeps the list page's rhythm. */
+.flow-detail-status { margin-block: -8px; }

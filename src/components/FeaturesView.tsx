@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { PageSkeleton } from './Skeleton';
 import { featuresApi, findingsApi } from '../core/api';
 import { useNavList } from '../core/use-nav-list';
 import { useEvents } from '../core/use-events';
@@ -14,8 +15,8 @@ interface FindingLite {
   features?: string[];
 }
 import { SearchBox } from './SearchBox';
+import { useModal } from '../hooks/useModal';
 import { useRegexSearch } from '../hooks/useRegexSearch';
-import { parseRoute } from '../core/router';
 import type { Feature, FeatureKind, FeatureStatus, LineRange } from '../core/types';
 
 const ALL_STATUSES: FeatureStatus[] = ['draft', 'active', 'deprecated', 'removed', 'orphaned'];
@@ -60,6 +61,16 @@ const CreateFeatureModal: React.FC<CreateFeatureModalProps> = ({ onClose, onCrea
   const currentCommit = useRepoStore((s) => s.currentCommit);
   const selectedFilePath = useRepoStore((s) => s.selectedFilePath);
 
+  // Closing with typed work asks first (same as the workbench quick-add), whether the
+  // user pressed Escape or clicked outside: it used to vanish silently on Escape.
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const dirty = !!(title.trim() || description.trim() || operation.trim() || protocol.trim() || tagsInput.trim());
+  const requestClose = () => {
+    if (dirty && !confirmDiscard) { setConfirmDiscard(true); return; }
+    onClose();
+  };
+  const modal = useModal<HTMLDivElement>({ label: 'New feature', onClose: requestClose });
+
   // Pre-fill file from currently open file
   useEffect(() => {
     if (selectedFilePath) setFileId(selectedFilePath);
@@ -91,28 +102,29 @@ const CreateFeatureModal: React.FC<CreateFeatureModalProps> = ({ onClose, onCrea
     }
   };
 
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [onClose]);
-
   const showProtocol = kind === 'interface' || kind === 'source' || kind === 'sink';
   const showDirection = kind === 'source' || kind === 'sink';
 
   return (
-    <div className="quick-add-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="quick-add-popover" onClick={(e) => e.stopPropagation()}>
+    <div className="quick-add-overlay" onClick={(e) => { if (e.target === e.currentTarget) requestClose(); }}>
+      <div className="quick-add-popover" {...modal.props} onClick={(e) => e.stopPropagation()}>
         <div className="quick-add-popover-header">
           New Feature
           <span className="quick-add-scope">Project</span>
         </div>
+        {confirmDiscard && (
+          <div className="quick-add-confirm-discard" role="alert">
+            <span>You have unsaved input. Discard?</span>
+            <div className="quick-add-confirm-actions">
+              <button className="finding-delete-yes" autoFocus onClick={onClose}>Discard</button>
+              <button className="finding-delete-no" onClick={() => setConfirmDiscard(false)}>Keep editing</button>
+            </div>
+          </div>
+        )}
 
         <div className="finding-edit-row">
           <label className="finding-edit-label">Kind</label>
-          <select className="finding-edit-select" value={kind} onChange={e => setKind(e.target.value as FeatureKind)}>
+          <select aria-label="Kind" className="finding-edit-select" value={kind} onChange={e => setKind(e.target.value as FeatureKind)}>
             <option value="interface">Interface</option>
             <option value="source">Source</option>
             <option value="sink">Sink</option>
@@ -126,7 +138,7 @@ const CreateFeatureModal: React.FC<CreateFeatureModalProps> = ({ onClose, onCrea
           placeholder={kind === 'interface' ? 'e.g. GET /api/users' : kind === 'dependency' ? 'e.g. stripe-go' : kind === 'externality' ? 'e.g. Invoice sync worker' : 'e.g. User database'}
           value={title}
           onChange={e => setTitle(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSave(); if (e.key === 'Escape') onClose(); }}
+          onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSave(); }}
           autoFocus
         />
 
@@ -167,7 +179,7 @@ const CreateFeatureModal: React.FC<CreateFeatureModalProps> = ({ onClose, onCrea
         {showDirection && (
           <div className="finding-edit-row">
             <label className="finding-edit-label">Direction</label>
-            <select className="finding-edit-select" value={direction} onChange={e => setDirection(e.target.value as 'in' | 'out' | '')}>
+            <select aria-label="Direction" className="finding-edit-select" value={direction} onChange={e => setDirection(e.target.value as 'in' | 'out' | '')}>
               <option value="">-</option>
               <option value="in">← In (source)</option>
               <option value="out">→ Out (sink)</option>
@@ -188,7 +200,7 @@ const CreateFeatureModal: React.FC<CreateFeatureModalProps> = ({ onClose, onCrea
 
         <div className="finding-edit-row">
           <label className="finding-edit-label">Status</label>
-          <select className="finding-edit-select" value={status} onChange={e => setStatus(e.target.value as FeatureStatus)}>
+          <select aria-label="Status" className="finding-edit-select" value={status} onChange={e => setStatus(e.target.value as FeatureStatus)}>
             {ALL_STATUSES.filter(s => s !== 'orphaned').map(s => (
               <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
             ))}
@@ -276,30 +288,9 @@ export const FeaturesView: React.FC = () => {
   const [collapsedSnippetIds, setCollapsedSnippetIds] = useState<Set<string>>(new Set());
   const showCreate = useUIStore((s) => s.showFeatureCreate);
   const setShowCreate = useUIStore((s) => s.setShowFeatureCreate);
-  const scrollToFeature = useUIStore((s) => s.scrollToFeature);
-  const setScrollToFeature = useUIStore((s) => s.setScrollToFeature);
 
   const setScrollTargetLine = useUIStore((s) => s.setScrollTargetLine);
   const setHighlightRange = useUIStore((s) => s.setHighlightRange);
-
-  // Deep-link: #/features/{id} - select + scroll to that feature. The URL
-  // keeps the id (anchor semantics: a refresh re-anchors) and route changes
-  // while mounted re-target the scroll.
-  const [deepLinkId, setDeepLinkId] = useState(() => parseRoute(window.location.hash).featureId ?? null);
-  useEffect(() => {
-    const onHash = () => {
-      const route = parseRoute(window.location.hash);
-      if (route.mode === 'features') setDeepLinkId(route.featureId ?? null);
-    };
-    window.addEventListener('hashchange', onHash);
-    return () => window.removeEventListener('hashchange', onHash);
-  }, []);
-  useEffect(() => {
-    if (!deepLinkId || loading) return;
-    const target = features.find((f) => f.id === deepLinkId);
-    if (!target) return;
-    setScrollToFeature({ id: target.id, kind: target.kind as FeatureKind });
-  }, [deepLinkId, features, loading, setScrollToFeature]);
 
   const refreshFeatures = useCallback(() => {
     findingsApi.list()
@@ -326,35 +317,6 @@ export const FeaturesView: React.FC = () => {
   useEffect(() => {
     try { localStorage.setItem('bench-features-sort-dir', sortDir); } catch {}
   }, [sortDir]);
-
-  useEffect(() => {
-    if (!scrollToFeature) return;
-    const targetTab = TABS.find((t) => t.kinds.includes(scrollToFeature.kind));
-    if (targetTab) setActiveTab(targetTab.id);
-    setCollapsedIds((prev) => { if (!prev.has(scrollToFeature.id)) return prev; const next = new Set(prev); next.delete(scrollToFeature.id); return next; });
-    let cancelled = false;
-    const tryScroll = (attempts = 0) => {
-      if (cancelled) return;
-      const el = document.querySelector(`[data-feature-id="${scrollToFeature.id}"]`);
-      if (el) {
-        const container = el.closest('.features-view') as HTMLElement | null;
-        if (container) {
-          const targetTop = container.scrollTop + el.getBoundingClientRect().top - container.getBoundingClientRect().top;
-          container.scrollTo({ top: targetTop, behavior: 'smooth' });
-        } else {
-          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-        const card = (el.querySelector('.feature-card') ?? el) as HTMLElement;
-        card.classList.add('scroll-target-highlight');
-        card.addEventListener('animationend', () => card.classList.remove('scroll-target-highlight'), { once: true });
-        setScrollToFeature(null);
-      } else if (attempts < 30) {
-        requestAnimationFrame(() => tryScroll(attempts + 1));
-      }
-    };
-    requestAnimationFrame(() => tryScroll());
-    return () => { cancelled = true; };
-  }, [scrollToFeature, setScrollToFeature]);
 
   const scrollToRange = useCallback((range?: LineRange) => {
     if (!range) return;
@@ -508,7 +470,7 @@ export const FeaturesView: React.FC = () => {
     </div>
   );
 
-  if (loading) return <div className="empty-state">Loading...</div>;
+  if (loading) return <PageSkeleton />;
 
   const allCardsOpen = tabFeatures.every(f => !collapsedIds.has(f.id));
   const anyCardsOpen = tabFeatures.some(f => !collapsedIds.has(f.id));
@@ -565,7 +527,6 @@ export const FeaturesView: React.FC = () => {
               }
             }}
           >
-            <SearchBox value={searchQuery} onChange={setSearchQuery} invalid={!isRegexValid} shortcut={['/']} />
             <span className="features-sort-label">Sort</span>
             <div className="features-sort-toggle">
               {SORT_OPTIONS.map(opt => {
@@ -604,6 +565,8 @@ export const FeaturesView: React.FC = () => {
                 );
               })}
             </div>
+            {/* Last in the row: expands into the free space (see control-rhythm.css). */}
+            <SearchBox value={searchQuery} onChange={setSearchQuery} invalid={!isRegexValid} shortcut={['/']} expand />
           </div>
         </div>
         <div
@@ -644,7 +607,7 @@ export const FeaturesView: React.FC = () => {
             No {currentTab.label.toLowerCase()} annotated yet
           </div>
         )}
-        <div className="feed-new-pill-wrap">
+        <div className="feed-new-pill-wrap" data-chrome>
           <button className="feed-new-pill" onClick={() => setShowCreate(true)}>
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <path d="M8 3v10M3 8h10" />
@@ -664,7 +627,7 @@ export const FeaturesView: React.FC = () => {
       )}
 
       {tabFeatures.length > 0 && (
-        <div className="view-expand-fabs">
+        <div className="view-expand-fabs" role="toolbar" aria-label="Expand or collapse cards" data-chrome>
           <button
             className={`view-expand-fab-btn${allCardsOpen && collapsedSnippetIds.size > 0 ? ' view-expand-fab-btn--active' : allCardsOpen ? ' view-expand-fab-btn--disabled' : ''}`}
             title={allCardsOpen && collapsedSnippetIds.size > 0 ? 'Expand sections' : 'Expand all'}

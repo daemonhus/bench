@@ -40,10 +40,19 @@ test.describe('Overview page', () => {
     const rowTip = await page.locator('.ovp-git-tree .git-tree-row').first().getAttribute('data-tooltip');
     expect(rowTip).toBeTruthy();
 
-    // Overview is the first tab and marked active
-    const firstTab = page.locator('.tab-bar-tab').first();
-    await expect(firstTab).toContainText('Overview');
-    await expect(firstTab).toHaveClass(/tab-bar-tab-active/);
+    // No Overview tab: the project name, top left, is the link to it, marked current here.
+    await expect(page.locator('.tab-bar-tab', { hasText: 'Overview' })).toHaveCount(0);
+    await expect(page.locator('.tab-bar-project-name')).toHaveAttribute('aria-current', 'page');
+  });
+
+  test('the project name, top left, opens the Overview', async ({ page }) => {
+    await page.goto('/#/findings');
+    await page.waitForSelector('.tab-bar');
+    const name = page.locator('.tab-bar-project-name');
+    await expect(name).not.toHaveAttribute('aria-current', 'page');
+    await name.click();
+    await expect(page).toHaveURL(/#\/overview$/);
+    await expect(page.locator('.ovp-project-title')).toBeVisible();
   });
 
   test('keyboard shortcut 0 switches to overview', async ({ page }) => {

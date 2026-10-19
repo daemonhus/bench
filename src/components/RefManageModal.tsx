@@ -1,4 +1,5 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useLayoutEffect, useRef } from 'react';
+import { useModal } from '../hooks/useModal';
 import { useAnnotationStore } from '../stores/annotation-store';
 import { RefProviderIcon } from './RefProviderIcon';
 import type { Ref } from '../core/types';
@@ -62,6 +63,7 @@ export const RefManageModal: React.FC<RefManageModalProps> = ({
   onClose,
   onRefsChange,
 }) => {
+  const modal = useModal<HTMLDivElement>({ label: 'Manage web links', onClose });
   const addRef = useAnnotationStore((s) => s.addRef);
   const removeRef = useAnnotationStore((s) => s.removeRef);
   const updateRef = useAnnotationStore((s) => s.updateRef);
@@ -79,6 +81,7 @@ export const RefManageModal: React.FC<RefManageModalProps> = ({
   const [addTitle, setAddTitle] = useState('');
 
   const handleStartEdit = (ref: Ref) => {
+    lastEditedRefId.current = ref.id;
     setEditingRefId(ref.id);
     setEditProvider(ref.provider);
     setEditUrl(ref.url);
@@ -98,6 +101,17 @@ export const RefManageModal: React.FC<RefManageModalProps> = ({
   }, [editingRefId, editProvider, editUrl, editTitle, entityType, entityId, updateRef, onRefsChange]);
 
   const handleCancelEdit = () => setEditingRefId(null);
+
+  // Leaving an edit unmounts the focused field; hand focus to that row's Edit
+  // button so the keyboard user stays where they were.
+  const lastEditedRefId = useRef<string | null>(null);
+  // (Layout effect: focus must never sit on <body> between the unmount and this.)
+  useLayoutEffect(() => {
+    if (editingRefId !== null || !lastEditedRefId.current) return;
+    const id = lastEditedRefId.current;
+    lastEditedRefId.current = null;
+    modal.ref.current?.querySelector<HTMLElement>(`[data-ref-id="${CSS.escape(id)}"] button[title="Edit"]`)?.focus();
+  }, [editingRefId, modal.ref]);
 
   const handleDelete = (refId: string) => {
     setLocalRefs((prev) => {
@@ -138,10 +152,10 @@ export const RefManageModal: React.FC<RefManageModalProps> = ({
 
   return (
     <div className="overlay-backdrop" onClick={onClose}>
-      <div className="ref-manage-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="ref-manage-modal" {...modal.props} onClick={(e) => e.stopPropagation()}>
         <div className="ref-manage-modal-header">
           <span>Web Links</span>
-          <button className="shortcuts-close" onClick={onClose}>
+          <button className="shortcuts-close" aria-label="Close" onClick={onClose}>
             <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
               <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" />
             </svg>
@@ -155,8 +169,17 @@ export const RefManageModal: React.FC<RefManageModalProps> = ({
 
           {localRefs.map((ref) =>
             editingRefId === ref.id ? (
-              <div key={ref.id} className="ref-manage-edit-form">
-                <select
+              <div
+                key={ref.id}
+                className="ref-manage-edit-form"
+                onKeyDown={(e) => {
+                  // One handler for the whole form: Escape leaves the edit (not the dialog),
+                  // Enter in a text field saves. Previously only the last input did either.
+                  if (e.key === 'Escape') { e.stopPropagation(); handleCancelEdit(); }
+                  else if (e.key === 'Enter' && (e.target as HTMLElement).tagName === 'INPUT') { e.preventDefault(); handleSaveEdit(); }
+                }}
+              >
+                <select aria-label="Provider"
                   className="ref-manage-provider-select"
                   value={editProvider}
                   onChange={(e) => setEditProvider(e.target.value)}
@@ -179,10 +202,6 @@ export const RefManageModal: React.FC<RefManageModalProps> = ({
                   placeholder="Display label (optional)"
                   value={editTitle}
                   onChange={(e) => setEditTitle(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleSaveEdit();
-                    if (e.key === 'Escape') handleCancelEdit();
-                  }}
                 />
                 <div className="ref-manage-edit-actions">
                   <button className="comment-btn comment-btn-submit" onClick={handleSaveEdit} disabled={!editUrl.trim()}>Save</button>
@@ -190,7 +209,7 @@ export const RefManageModal: React.FC<RefManageModalProps> = ({
                 </div>
               </div>
             ) : (
-              <div key={ref.id} className="ref-manage-row">
+              <div key={ref.id} className="ref-manage-row" data-ref-id={ref.id}>
                 <span className="ref-manage-icon">
                   <RefProviderIcon provider={ref.provider} size={16} />
                 </span>

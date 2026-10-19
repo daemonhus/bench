@@ -184,6 +184,14 @@ export const FileTree: React.FC<FileTreeProps> = ({ files, selectedFile, onSelec
   const [focusedPath, setFocusedPath] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // A click on a file does what Enter does: select it (the tree's cursor moves there too) and
+  // open it with focus in the code view, ready to read or navigate.
+  const handleClickFile = useCallback((path: string) => {
+    setFocusedPath(path);
+    onSelectFile(path);
+    useUIStore.getState().setPendingNavFocus('codeview');
+  }, [onSelectFile]);
+
   // Pre-compute folder severity from file severity map
   const folderSeverityMap = useMemo(
     () => severityMap ? buildFolderSeverityMap(severityMap) : undefined,
@@ -309,7 +317,7 @@ export const FileTree: React.FC<FileTreeProps> = ({ files, selectedFile, onSelec
           severityMap={severityMap}
           folderSeverityMap={folderSeverityMap}
           onToggle={handleToggle}
-          onSelectFile={onSelectFile}
+          onSelectFile={handleClickFile}
         />
       ))}
     </div>

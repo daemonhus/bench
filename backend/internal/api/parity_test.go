@@ -61,6 +61,7 @@ func TestCLIAPIRouteParity(t *testing.T) {
 		// baselines
 		{"GET", "/api/baselines", ""},
 		{"GET", "/api/baselines/delta", ""},
+		{"GET", "/api/baselines/test-id", ""},
 		{"GET", "/api/baselines/test-id/delta", ""},
 		{"POST", "/api/baselines", `{}`},
 		{"DELETE", "/api/baselines/test-id", ""},

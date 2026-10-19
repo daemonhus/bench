@@ -201,6 +201,7 @@ func (h *commentsHandlers) update(w http.ResponseWriter, r *http.Request) {
 	if !validateAnchorUpdate(w, updates) {
 		return
 	}
+	reanchored := touchesAnchor(updates)
 	if err := h.db.UpdateComment(id, updates); err != nil {
 		writeDBError(w, err)
 		return
@@ -209,6 +210,18 @@ func (h *commentsHandlers) update(w http.ResponseWriter, r *http.Request) {
 		h.broker.Publish(events.TopicAnnotations)
 	}
 	updated, err := h.db.GetComment(id)
+	if reanchored && err == nil && updated != nil && updated.Anchor.LineRange != nil && updated.Anchor.CommitID != "" {
+		fileID := updated.Anchor.FileID
+		_ = h.db.InsertPosition(&model.AnnotationPosition{
+			AnnotationID:   updated.ID,
+			AnnotationType: "comment",
+			CommitID:       updated.Anchor.CommitID,
+			FileID:         &fileID,
+			LineStart:      &updated.Anchor.LineRange.Start,
+			LineEnd:        &updated.Anchor.LineRange.End,
+			Confidence:     "exact",
+		})
+	}
 	if err != nil || updated == nil {
 		w.WriteHeader(http.StatusNoContent)
 		return
@@ -223,7 +236,7 @@ func (h *commentsHandlers) delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.db.DeleteComment(id); err != nil {
-		writeInternalError(w, err)
+		writeDBError(w, err)
 		return
 	}
 	if h.broker != nil {

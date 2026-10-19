@@ -650,29 +650,8 @@
   margin-right: 8px;
 }
 
-/* Left panel header row with toggle */
-.left-panel-header-row {
-  display: flex;
-  align-items: center;
-  padding: 0 8px;
-  height: var(--header-height);
-  border-bottom: 1px solid var(--border-default);
-  flex-shrink: 0;
-}
-
-.left-panel-repo-name {
-  font-size: var(--font-size-ui);
-  font-weight: 600;
-  font-family: var(--font-mono);
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: color var(--transition-base);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-}
-
-.left-panel-repo-name:hover {
-  color: var(--accent-blue);
+.sidebar-resize-handle:focus-visible {
+  background: var(--accent-blue);
+  opacity: 0.5;
+  outline: none;
 }

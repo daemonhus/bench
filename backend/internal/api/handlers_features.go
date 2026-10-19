@@ -61,7 +61,7 @@ func (h *featuresHandlers) list(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			enriched := make([]model.FeatureWithPosition, 0, len(features))
 			for _, f := range features {
-				fp := model.FeatureWithPosition{Feature: f}
+				fp := anchorFallback(f)
 				if pos, ok := positions[f.ID]; ok {
 					fp.Confidence = pos.Confidence
 					if pos.FileID != nil && pos.LineStart != nil && pos.LineEnd != nil {
@@ -243,9 +243,24 @@ func (h *featuresHandlers) get(w http.ResponseWriter, r *http.Request) {
 				writeJSON(w, http.StatusOK, fp)
 				return
 			}
+			writeJSON(w, http.StatusOK, anchorFallback(*feature))
+			return
 		}
 	}
 	writeJSON(w, http.StatusOK, feature)
+}
+
+// anchorFallback is the effective position of a feature that has no stored
+// position rows: its own anchor, unless the feature is already orphaned.
+func anchorFallback(f model.Feature) model.FeatureWithPosition {
+	fp := model.FeatureWithPosition{Feature: f}
+	if f.Status == "orphaned" || f.Anchor.LineRange == nil {
+		return fp
+	}
+	anchor := f.Anchor
+	fp.Confidence = "exact"
+	fp.EffectiveAnchor = &anchor
+	return fp
 }
 
 func (h *featuresHandlers) update(w http.ResponseWriter, r *http.Request) {
@@ -276,10 +291,24 @@ func (h *featuresHandlers) update(w http.ResponseWriter, r *http.Request) {
 		err     error
 	)
 	if len(updates) > 0 {
+		reanchored := touchesAnchor(updates)
 		feature, err = h.db.UpdateFeature(id, updates)
 		if err != nil {
 			writeDBError(w, err)
 			return
+		}
+		// A re-anchor is an exact position at the new anchor commit, same as create.
+		if reanchored && feature.Anchor.LineRange != nil && feature.Anchor.CommitID != "" {
+			fileID := feature.Anchor.FileID
+			_ = h.db.InsertPosition(&model.AnnotationPosition{
+				AnnotationID:   feature.ID,
+				AnnotationType: "feature",
+				CommitID:       feature.Anchor.CommitID,
+				FileID:         &fileID,
+				LineStart:      &feature.Anchor.LineRange.Start,
+				LineEnd:        &feature.Anchor.LineRange.End,
+				Confidence:     "exact",
+			})
 		}
 	} else {
 		feature, err = h.db.GetFeature(id)

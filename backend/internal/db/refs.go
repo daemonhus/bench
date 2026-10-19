@@ -105,6 +105,11 @@ func (d *DB) CreateRef(r *model.Ref) error {
 	if r.CreatedAt == "" {
 		r.CreatedAt = time.Now().UTC().Format(time.RFC3339)
 	}
+	entityID, err := d.resolveRefEntity(r.EntityType, r.EntityID)
+	if err != nil {
+		return err
+	}
+	r.EntityID = entityID
 	return wq0(d.wq, func() error {
 		_, err := d.conn.Exec(
 			`INSERT INTO refs (id, project_id, entity_type, entity_id, provider, url, title, created_at)
@@ -115,7 +120,26 @@ func (d *DB) CreateRef(r *model.Ref) error {
 	})
 }
 
+// resolveRefEntity checks that the annotation a ref points at exists in this
+// project and returns its full ID (a unique ID prefix is accepted). Without
+// this a ref could dangle: pointing at a missing finding, or at one that lives
+// in another project. An unknown entity type is left to the CHECK constraint.
+func (d *DB) resolveRefEntity(entityType, entityID string) (string, error) {
+	table, ok := map[string]string{"finding": "findings", "feature": "features", "comment": "comments"}[entityType]
+	if !ok || entityID == "" {
+		return entityID, nil
+	}
+	return d.resolveID(table, entityID)
+}
+
 func (d *DB) BatchCreateRefs(refs []model.Ref) ([]string, error) {
+	for i := range refs {
+		entityID, err := d.resolveRefEntity(refs[i].EntityType, refs[i].EntityID)
+		if err != nil {
+			return nil, fmt.Errorf("ref %d: %w", i, err)
+		}
+		refs[i].EntityID = entityID
+	}
 	return wq(d.wq, func() ([]string, error) {
 		tx, err := d.conn.Begin()
 		if err != nil {

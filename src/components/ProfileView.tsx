@@ -331,13 +331,33 @@ export function ProfileView() {
               <div className="profile-field" key={field.key}>
                 <label className="finding-form-label">{field.label}</label>
                 <p className="profile-hint">{field.hint}</p>
-                <div className="profile-choices profile-choices-radio" role="radiogroup" aria-label={field.label}>
+                {/* Radio group pattern: one Tab stop (the checked option); arrows move AND select. */}
+                <div
+                  className="profile-choices profile-choices-radio"
+                  role="radiogroup"
+                  aria-label={field.label}
+                  onKeyDown={(e) => {
+                    const opts = ['', ...field.options];
+                    const cur = Math.max(0, opts.indexOf(draft[field.key] as string));
+                    let next = -1;
+                    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = (cur + 1) % opts.length;
+                    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') next = (cur - 1 + opts.length) % opts.length;
+                    else if (e.key === 'Home') next = 0;
+                    else if (e.key === 'End') next = opts.length - 1;
+                    if (next < 0) return;
+                    e.preventDefault();
+                    const group = e.currentTarget;
+                    setSingle(field.key, opts[next]);
+                    requestAnimationFrame(() => group.querySelectorAll<HTMLElement>('[role="radio"]')[next]?.focus());
+                  }}
+                >
                   {['', ...field.options].map((opt) => (
                     <button
                       key={opt || '__unset'}
                       className={`profile-choice profile-choice-radio${draft[field.key] === opt ? ' profile-choice-active' : ''}`}
                       role="radio"
                       aria-checked={draft[field.key] === opt}
+                      tabIndex={draft[field.key] === opt ? 0 : -1}
                       onClick={() => setSingle(field.key, opt)}
                     >
                       <span className="profile-choice-ind profile-choice-ind-radio" aria-hidden="true" />

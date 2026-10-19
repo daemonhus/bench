@@ -27,11 +27,9 @@
   /* Diff (bench-specific but harmless for platform to inherit) */
   --diff-insert-bg: rgba(63, 185, 80, 0.15);
   --diff-insert-text: #aff5b4;
-  --diff-insert-accent: rgba(63, 185, 80, 0.4);
 
   --diff-delete-bg: rgba(248, 81, 73, 0.15);
   --diff-delete-text: #ffd7d5;
-  --diff-delete-accent: rgba(248, 81, 73, 0.4);
 
   --diff-edit-insert-bg: rgba(63, 185, 80, 0.35);
   --diff-edit-delete-bg: rgba(248, 81, 73, 0.35);
@@ -116,9 +114,6 @@
 
   /* Layout */
   --header-height: 40px;
-  --platform-header-height: 50px;
-  --sidebar-width: 320px;
-  --file-tree-width: 260px;
   --gutter-width: 28px;
   --line-num-width: 48px;
   /* Widest a document-like page (overview, delta, findings, features) grows
@@ -180,8 +175,6 @@
   --status-in-progress-subtle: color-mix(in srgb, var(--status-in-progress) 15%, transparent);
   --status-closed-subtle: color-mix(in srgb, var(--status-closed) 15%, transparent);
   --status-draft-subtle: color-mix(in srgb, var(--status-draft) 15%, transparent);
-  --status-accepted-subtle: color-mix(in srgb, var(--status-accepted) 15%, transparent);
-  --status-false-positive-subtle: color-mix(in srgb, var(--status-false-positive) 15%, transparent);
 
   /* Accent subtle (15% tints for backgrounds) */
   --accent-blue-subtle: color-mix(in srgb, var(--accent-blue) 15%, transparent);
@@ -234,10 +227,8 @@
 
   --diff-insert-bg: rgba(40, 167, 69, 0.12);
   --diff-insert-text: #1a6830;
-  --diff-insert-accent: rgba(40, 167, 69, 0.3);
   --diff-delete-bg: rgba(203, 36, 49, 0.12);
   --diff-delete-text: #86181d;
-  --diff-delete-accent: rgba(203, 36, 49, 0.3);
   --diff-edit-insert-bg: rgba(40, 167, 69, 0.28);
   --diff-edit-delete-bg: rgba(203, 36, 49, 0.28);
 
@@ -304,26 +295,16 @@
 }
 
 /* Light-mode syntax highlighting */
-[data-theme="light"] .token.keyword,
-[data-theme="light"] span.tok-keyword { color: #d01040; }
-[data-theme="light"] .token.string,
-[data-theme="light"] span.tok-string { color: #0a7a4a; }
-[data-theme="light"] .token.comment,
-[data-theme="light"] span.tok-comment { color: #6a737d; }
-[data-theme="light"] .token.number,
-[data-theme="light"] span.tok-number { color: #005cc5; }
-[data-theme="light"] .token.builtin,
-[data-theme="light"] span.tok-builtin { color: #6f42c1; }
-[data-theme="light"] .token.class-name,
-[data-theme="light"] span.tok-class { color: #e36209; }
-[data-theme="light"] .token.function,
-[data-theme="light"] span.tok-function { color: #6f42c1; }
-[data-theme="light"] .token.operator,
-[data-theme="light"] span.tok-operator { color: #d01040; }
-[data-theme="light"] .token.type,
-[data-theme="light"] span.tok-type { color: #005cc5; }
-[data-theme="light"] .token.variable,
-[data-theme="light"] span.tok-variable { color: #24292e; }
+[data-theme="light"] .token.keyword { color: #d01040; }
+[data-theme="light"] .token.string { color: #0a7a4a; }
+[data-theme="light"] .token.comment { color: #6a737d; }
+[data-theme="light"] .token.number { color: #005cc5; }
+[data-theme="light"] .token.builtin { color: #6f42c1; }
+[data-theme="light"] .token.class-name { color: #e36209; }
+[data-theme="light"] .token.function { color: #6f42c1; }
+[data-theme="light"] .token.operator { color: #d01040; }
+[data-theme="light"] .token.type { color: #005cc5; }
+[data-theme="light"] .token.variable { color: #24292e; }
 
 @media (max-width: 639px) {
   :root {

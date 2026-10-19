@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { PageSkeleton } from './Skeleton';
 import { commentsApi, findingsApi, featuresApi, gitApi, baselinesApi } from '../core/api';
 import { useEvents } from '../core/use-events';
 import { useBranchMap } from '../core/use-branch-map';
@@ -15,7 +16,6 @@ import { COMMENT_TYPE_ICON, COMMENT_TYPE_LABEL } from '../core/types';
 import { InlineMarkdown } from '../core/markdown';
 import { useNavList } from '../core/use-nav-list';
 
-type ActivityKind = 'comment' | 'comment-on-finding' | 'comment-on-feature' | 'merge' | 'commit-group' | 'finding-opened' | 'feature-created';
 type FilterKind = 'comment' | 'merge' | 'finding-opened' | 'feature-created';
 
 type ActivityItem =
@@ -138,10 +138,6 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
 
   const commitMap = new Map(commits.map((c) => [c.hash, c.shortHash]));
   const shortHash = (hash: string) => commitMap.get(hash) ?? hash.slice(0, 7);
-  const commitSubject = (hash: string | null): string => {
-    if (!hash) return '';
-    return commits.find(c => c.hash === hash)?.subject ?? '';
-  };
 
   const branchMap = useBranchMap();
 
@@ -359,20 +355,19 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
     onActivate: (item) => {
       if (item.kind === 'finding-opened') {
         const f = item.data as Finding;
-        window.location.hash = `#/findings/${f.id}`;
+        window.location.hash = `#/finding/${f.id}`;
       } else if (item.kind === 'feature-created') {
         const feat = item.data as Feature;
-        useUIStore.getState().setScrollToFeature({ id: feat.id, kind: feat.kind });
-        useUIStore.getState().setViewMode('features');
+        window.location.hash = `#/feature/${feat.id}`;
       } else if (item.kind === 'comment-on-finding') {
         const c = item.data as Comment;
-        if (c.findingId) { window.location.hash = `#/findings/${c.findingId}`; }
+        if (c.findingId) { window.location.hash = `#/finding/${c.findingId}`; }
         else navigateToFile(c.anchor.fileId, c.anchor.lineRange ?? undefined, c.anchor.commitId);
       } else if (item.kind === 'comment-on-feature') {
         const c = item.data as Comment;
         if (c.featureId) {
           const feat = allFeatures.find((x) => x.id === c.featureId);
-          if (feat) { useUIStore.getState().setScrollToFeature({ id: feat.id, kind: feat.kind }); useUIStore.getState().setViewMode('features'); }
+          if (feat) { window.location.hash = `#/feature/${feat.id}`; }
           else navigateToFile(c.anchor.fileId, c.anchor.lineRange ?? undefined, c.anchor.commitId);
         } else navigateToFile(c.anchor.fileId, c.anchor.lineRange ?? undefined, c.anchor.commitId);
       } else if (item.kind === 'comment') {
@@ -442,7 +437,7 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
     window.location.hash = `#/diff/${parentHash}/${hash}`;
   };
 
-  const navigateToCommit = (hash: string, fileId?: string) => {
+  const navigateToCommit = (_hash: string, fileId?: string) => {
     window.location.hash = fileId ? `#/browse/${fileId}` : '#/browse';
   };
 
@@ -497,7 +492,7 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
     window.location.hash = '#/delta';
   };
 
-  if (loading) return <div className="empty-state">Loading...</div>;
+  if (loading) return <PageSkeleton />;
 
   // Empty state: no baseline
   if (!baseline || !delta) {
@@ -576,7 +571,7 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
                 <button
                   className="delta-edit-pencil"
                   onClick={handleOpenEdit}
-                  data-tooltip="Edit baseline"
+                  data-tooltip="Edit baseline" aria-label="Edit baseline"
                 >
                   <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M11.5 1.5l3 3L5 14H2v-3z" />
@@ -586,7 +581,7 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
                   <button
                     className="delta-edit-pencil"
                     onClick={() => { window.location.hash = '#/delta'; }}
-                    data-tooltip="Go to current baseline"
+                    data-tooltip="Go to current baseline" aria-label="Go to current baseline"
                   >
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M3 8h10M8 3l5 5-5 5" />
@@ -596,7 +591,7 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
                   <button
                     className="delta-edit-pencil"
                     onClick={() => setShowBaselineModal(true)}
-                    data-tooltip="Set new baseline"
+                    data-tooltip="Set new baseline" aria-label="Set new baseline"
                   >
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M13 3L6.5 9.5 3.5 6.5" />
@@ -937,7 +932,7 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
                         <span className="activity-finding-ref-label">Finding:</span>
                         <span
                           className="activity-finding-ref-title finding-title-link"
-                          onClick={(e) => { e.stopPropagation(); window.location.hash = `#/findings/${f.id}`; }}
+                          onClick={(e) => { e.stopPropagation(); window.location.hash = `#/finding/${f.id}`; }}
                           title="Open in Findings"
                         >{f.title}</span>
                       </div>
@@ -982,7 +977,7 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
                           <span className="activity-feature-ref-kind">Feature:</span>
                           <span
                             className="activity-feature-ref-title feature-title-link"
-                            onClick={(e) => { e.stopPropagation(); useUIStore.getState().setScrollToFeature({ id: feat.id, kind: feat.kind }); useUIStore.getState().setViewMode('features'); }}
+                            onClick={(e) => { e.stopPropagation(); window.location.hash = `#/feature/${feat.id}`; }}
                             title="Open in Features"
                           >{feat.title}</span>
                         </div>
@@ -1162,7 +1157,7 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
                         >{feat.kind}</span>
                         <span
                           className="activity-feature-ref-title feature-title-link"
-                          onClick={(e) => { e.stopPropagation(); useUIStore.getState().setScrollToFeature({ id: feat.id, kind: feat.kind }); useUIStore.getState().setViewMode('features'); }}
+                          onClick={(e) => { e.stopPropagation(); window.location.hash = `#/feature/${feat.id}`; }}
                           title="Open in Features"
                         >{feat.title}</span>
                       </div>

@@ -1,4 +1,5 @@
-import React, { useEffect } from 'react';
+import React from 'react';
+import { useModal } from '../hooks/useModal';
 
 interface ShortcutEntry {
   keys: string[];
@@ -44,6 +45,7 @@ const GROUPS: ShortcutGroup[] = [
       { keys: [ALT, '\u2192'], description: 'Go forward' },
       { keys: [MOD, '['], description: 'Go back' },
       { keys: [MOD, ']'], description: 'Go forward' },
+      { keys: [ALT, SHIFT, '\u2190 / \u2192'], description: 'Resize the focused panel' },
     ],
   },
   {
@@ -57,11 +59,13 @@ const GROUPS: ShortcutGroup[] = [
   {
     title: 'Panel Navigation',
     shortcuts: [
+      { keys: ['F6'], description: 'Focus the toolbar (tabs, quick add); \u2190 \u2192 move, Esc / F6 back' },
       { keys: ['\u21E5'], description: 'Focus next panel area' },
       { keys: [SHIFT, '\u21E5'], description: 'Focus previous panel area' },
       { keys: ['\u2191', '\u2193'], description: 'Move between items in list' },
       { keys: ['PgUp', 'PgDn'], description: 'Jump one page (Browse - fn+\u2191/\u2193 on Mac)' },
       { keys: ['\u2190', '\u2192'], description: 'Switch kind tabs (Features)' },
+      { keys: ['\u2192'], description: "Move into the focused item's actions; \u2190 \u2192 step, Esc back to the item" },
       { keys: [' '], description: 'Expand / collapse focused item' },
       { keys: [ENTER], description: 'Open focused finding / feature (Changes: jump to its tab)' },
       { keys: [SHIFT, ENTER], description: 'Jump to code location' },
@@ -92,29 +96,19 @@ interface KeyboardShortcutsModalProps {
 }
 
 export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({ onClose }) => {
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [onClose]);
-
+  const modal = useModal<HTMLDivElement>({ label: 'Keyboard shortcuts', onClose: onClose });
   return (
     <div className="shortcuts-overlay" onClick={onClose}>
-      <div className="shortcuts-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="shortcuts-modal" {...modal.props} onClick={(e) => e.stopPropagation()}>
         <div className="shortcuts-header">
           <span className="shortcuts-title">Keyboard Shortcuts</span>
-          <button className="shortcuts-close" onClick={onClose}>
+          <button className="shortcuts-close" aria-label="Close" onClick={onClose}>
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M4 4l8 8M12 4l-8 8" />
             </svg>
           </button>
         </div>
-        <div className="shortcuts-body">
+        <div className="shortcuts-body" tabIndex={0} role="region" aria-label="Shortcut list">
           {GROUPS.map((group) => (
             <div key={group.title} className="shortcuts-group">
               <div className="shortcuts-group-title">{group.title}</div>

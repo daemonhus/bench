@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Code Browser', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/#/browse'); // '/' lands on Overview; the tree lives in Browse
     // Wait for file tree to load (backend must be running)
     await page.waitForSelector('.tree-node', { timeout: 5000 });
   });
@@ -95,46 +95,14 @@ test.describe('Tab Bar Navigation', () => {
   });
 
   test('tab bar is visible with all tabs', async ({ page }) => {
-    const activityTab = page.locator('.tab-bar-tab', { hasText: 'Activity' });
-    const browseTab = page.locator('.tab-bar-tab', { hasText: 'Browse' });
-    const deltaTab = page.locator('.tab-bar-tab', { hasText: 'Delta' });
-    await expect(activityTab).toBeVisible();
-    await expect(browseTab).toBeVisible();
-    await expect(deltaTab).toBeVisible();
+    for (const label of ['Overview', 'Browse', 'Changes', 'Findings', 'Features', 'Profile']) {
+      await expect(page.locator('.tab-bar-tab', { hasText: label })).toBeVisible();
+    }
   });
 
-  test('browse tab is active by default', async ({ page }) => {
-    const browseTab = page.locator('.tab-bar-tab', { hasText: 'Browse' });
-    await expect(browseTab).toHaveClass(/tab-bar-tab-active/);
+  test('exactly one tab is active at the root route', async ({ page }) => {
+    // '/' resolves to Changes when a baseline exists, Overview otherwise.
+    await expect(page.locator('.tab-bar-tab-active')).toHaveCount(1);
   });
-
-  test('clicking Compare toggle shows compare controls', async ({ page }) => {
-    const compareBtn = page.locator('.compare-toggle-btn');
-    await compareBtn.click();
-    await page.waitForTimeout(200);
-
-    // In diff mode, the commit selector shows "Compare" label and two commit buttons (To/From)
-    const compareLabel = page.locator('.commit-label', { hasText: 'Compare' });
-    await expect(compareLabel).toBeVisible();
-
-    const diffButtons = page.locator('.diff-commit-buttons .commit-button');
-    expect(await diffButtons.count()).toBe(2);
-  });
-
-  test('clicking Compare toggle again returns to browse', async ({ page }) => {
-    // Switch to compare first
-    await page.locator('.compare-toggle-btn').click();
-    await page.waitForTimeout(200);
-
-    // Toggle back to browse
-    await page.locator('.compare-toggle-btn').click();
-    await page.waitForTimeout(200);
-
-    // In browse mode, should show "Ref" label, not "Compare"
-    const refLabel = page.locator('.commit-label', { hasText: 'Ref' });
-    await expect(refLabel).toBeVisible();
-
-    const compareLabel = page.locator('.commit-label', { hasText: 'Compare' });
-    expect(await compareLabel.count()).toBe(0);
-  });
+  // The Compare toggle was removed when Changes replaced diff mode; its two tests went with it.
 });

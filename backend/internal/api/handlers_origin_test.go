@@ -145,8 +145,12 @@ func TestOrigin_Suggest(t *testing.T) {
 	if _, err := time.Parse(time.RFC3339, o.IntroducedDate); err != nil {
 		t.Errorf("date = %q, want RFC3339 (blame's epoch normalised)", o.IntroducedDate)
 	}
-	if o.Explanation != "" || o.Branch != "" {
-		t.Errorf("suggestion invented fields blame cannot know: %+v", o)
+	if o.Explanation != "" {
+		t.Errorf("suggestion invented an explanation: %+v", o)
+	}
+	// The fixture's one commit is on the mainline: it started on the default branch.
+	if o.Branch == "" {
+		t.Errorf("branch empty for a mainline commit, want the default branch: %+v", o)
 	}
 }
 

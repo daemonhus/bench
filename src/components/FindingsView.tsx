@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { PageSkeleton } from './Skeleton';
 import { findingsApi, featuresApi } from '../core/api';
 import { useNavList } from '../core/use-nav-list';
 import { useEvents } from '../core/use-events';
@@ -121,7 +122,19 @@ export const FindingsView: React.FC = () => {
   }, [filterFindingId]);
 
   // Filters
-  const [filterSeverities, setFilterSeverities] = useState<Set<Severity>>(new Set(ALL_SEVERITIES));
+  // #/findings/severity/{level} (e.g. from the platform's risk table) preselects one severity.
+  const severitiesFromRoute = (hash: string): Set<Severity> => {
+    const s = parseRoute(hash).severityFilter as Severity | undefined;
+    return s && (ALL_SEVERITIES as readonly string[]).includes(s) ? new Set([s]) : new Set(ALL_SEVERITIES);
+  };
+  const [filterSeverities, setFilterSeverities] = useState<Set<Severity>>(() => severitiesFromRoute(window.location.hash));
+  useEffect(() => {
+    const onHash = () => {
+      if (parseRoute(window.location.hash).severityFilter) setFilterSeverities(severitiesFromRoute(window.location.hash));
+    };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
   const [filterActors, setFilterActors] = useState<Set<string> | null>(null); // null = all
   const { query: searchQuery, setQuery: setSearchQuery, matcher: searchMatcher, isRegexValid } =
     useRegexSearch('bench-findings-search');
@@ -284,7 +297,7 @@ export const FindingsView: React.FC = () => {
       </div>
     ));
 
-  if (loading) return <div className="empty-state">Loading...</div>;
+  if (loading) return <PageSkeleton />;
 
   const allCardsOpen = displayedFindings.every(f => !collapsedIds.has(f.id));
   const anyCardsOpen = displayedFindings.some(f => !collapsedIds.has(f.id));
@@ -335,7 +348,7 @@ export const FindingsView: React.FC = () => {
           <div className="findings-filter-group">
             {filterFeatureId && (
               <span className="findings-feature-chip" data-tooltip={filterFeatureTitle ?? 'Showing findings linked to this feature'}>
-                <a className="findings-feature-chip-code" href={`#/features/${filterFeatureId}`}>{shortCode(filterFeatureId)}</a>
+                <a className="findings-feature-chip-code" href={`#/feature/${filterFeatureId}`}>{shortCode(filterFeatureId)}</a>
                 <button
                   className="findings-feature-chip-clear"
                   aria-label="Clear feature filter"
@@ -357,16 +370,21 @@ export const FindingsView: React.FC = () => {
                 </button>
               </span>
             )}
-            <SearchBox value={searchQuery} onChange={setSearchQuery} invalid={!isRegexValid} shortcut={['/']} />
             <AnnotationFilters
               severities={filterSeverities}
-              onSeveritiesChange={setFilterSeverities}
+              onSeveritiesChange={(next) => {
+                setFilterSeverities(next);
+                // A hand-picked filter replaces a #/findings/severity/… deep link, so a reload keeps it.
+                if (parseRoute(window.location.hash).severityFilter) window.location.hash = '#/findings';
+              }}
               actors={allActors}
               selectedActors={filterActors}
               onActorsChange={setFilterActors}
               hasActiveFilter={hasActiveFilter}
               onReset={() => { setFilterSeverities(new Set(ALL_SEVERITIES)); setFilterActors(null); setSearchQuery(''); clearRouteFilters(); }}
             />
+            {/* Last in the row: expands into the free space (see control-rhythm.css). */}
+            <SearchBox value={searchQuery} onChange={setSearchQuery} invalid={!isRegexValid} shortcut={['/']} expand />
           </div>
         </div>
 
@@ -411,7 +429,7 @@ export const FindingsView: React.FC = () => {
       )}
 
       {displayedFindings.length > 0 && (
-        <div className="feed-new-pill-wrap">
+        <div className="feed-new-pill-wrap" data-chrome>
           <button className="feed-new-pill" onClick={() => useUIStore.getState().setRequestFindingCreate(true)}>
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <path d="M8 3v10M3 8h10" />
@@ -424,7 +442,7 @@ export const FindingsView: React.FC = () => {
       </section>
 
       {displayedFindings.length > 0 && (
-        <div className="view-expand-fabs">
+        <div className="view-expand-fabs" role="toolbar" aria-label="Expand or collapse cards" data-chrome>
           <button
             className={`view-expand-fab-btn${allCardsOpen && collapsedSnippetIds.size > 0 ? ' view-expand-fab-btn--active' : allCardsOpen ? ' view-expand-fab-btn--disabled' : ''}`}
             title={allCardsOpen && collapsedSnippetIds.size > 0 ? 'Expand code snippets' : 'Expand all'}

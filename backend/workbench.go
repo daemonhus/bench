@@ -147,6 +147,19 @@ func (w *Workbench) Stats() (model.ProjectStats, error) {
 	stats.CommentsTotal = len(comments)
 	stats.CommentsOpen = openComments
 
+	features, _, err := w.DB.ListFeatures("", "", 0, 0)
+	if err != nil {
+		return model.ProjectStats{}, err
+	}
+	stats.ByKind = make(map[string]int)
+	for _, f := range features {
+		stats.FeaturesTotal++
+		if f.Status == "draft" || f.Status == "active" {
+			stats.FeaturesActive++
+		}
+		stats.ByKind[f.Kind]++
+	}
+
 	return stats, nil
 }
 
@@ -157,7 +170,13 @@ func (w *Workbench) ListBaselines(limit int) ([]model.Baseline, error) {
 
 // CreateInitialBaseline creates an empty baseline at the default branch tip.
 // Used by the platform to bootstrap new projects so they start with a baseline.
+// It does nothing if the project already has a baseline: a project removed and
+// registered again keeps its database, and a second "Initial baseline" with
+// zero counts would misrepresent the review state it already holds.
 func (w *Workbench) CreateInitialBaseline() error {
+	if existing, err := w.DB.ListBaselines(1); err == nil && len(existing) > 0 {
+		return nil
+	}
 	head, err := w.Repo.BranchTip(w.Repo.DefaultBranch())
 	if err != nil {
 		head, err = w.Repo.Head()

@@ -4,13 +4,14 @@ on:
   push:
     branches: ["**"]
     paths:
-      - "backend/**/*.go"
-      - "backend/go.mod"
-      - "backend/go.sum"
+      - "backend/**"
+      - "platform/**"
+      - "go.work"
       - "src/**"
       - "*.ts"
       - "*.json"
       - "Dockerfile"
+      - ".dockerignore"
       - ".github/workflows/**"
   pull_request:
     branches: ["**"]
@@ -59,6 +60,48 @@ jobs:
       - name: Build
         run: go build ./...
 
+  platform-backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: platform/backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: platform/backend/go.mod
+          cache: true
+          cache-dependency-path: |
+            platform/backend/go.sum
+            backend/go.sum
+
+      # The binary embeds dist/ at compile time; the real UI is built in the docker job.
+      - name: Stub the embedded UI
+        run: mkdir -p dist && touch dist/.keep
+
+      - name: Verify go.mod/go.sum are tidy
+        run: go mod tidy -diff
+
+      - name: Check formatting
+        run: |
+          UNFORMATTED="$(gofmt -l .)"
+          if [ -n "$UNFORMATTED" ]; then
+            echo "These files need gofmt:"
+            echo "$UNFORMATTED"
+            exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...
+
+      - name: Build
+        run: go build ./...
+
   frontend:
     runs-on: ubuntu-latest
     steps:
@@ -73,18 +116,35 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Typecheck
+        run: npx tsc --noEmit
+
       - name: Test
         run: npm test
 
+      - name: Install platform UI dependencies
+        run: npm ci
+        working-directory: platform/ui
+
+      - name: Typecheck platform UI
+        run: npm run typecheck
+        working-directory: platform/ui
+
+      - name: Build platform UI
+        run: npm run build
+        working-directory: platform/ui
+
   docker:
-    needs: [backend, frontend]
+    needs: [backend, platform-backend, frontend]
+    name: docker (${{ matrix.image }}, ${{ matrix.platform }})
     strategy:
+      fail-fast: false
       matrix:
         include:
-          - platform: linux/amd64
-            runner: ubuntu-latest
-          - platform: linux/arm64
-            runner: ubuntu-24.04-arm
+          - { image: bench,    dockerfile: Dockerfile,          platform: linux/amd64, runner: ubuntu-latest }
+          - { image: bench,    dockerfile: Dockerfile,          platform: linux/arm64, runner: ubuntu-24.04-arm }
+          - { image: platform, dockerfile: platform/Dockerfile, platform: linux/amd64, runner: ubuntu-latest }
+          - { image: platform, dockerfile: platform/Dockerfile, platform: linux/arm64, runner: ubuntu-24.04-arm }
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -96,7 +156,8 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
+          file: ${{ matrix.dockerfile }}
           push: false
           platforms: ${{ matrix.platform }}
-          cache-from: type=gha,scope=${{ matrix.platform }}
-          cache-to: type=gha,scope=${{ matrix.platform }},mode=max
+          cache-from: type=gha,scope=${{ matrix.image }}-${{ matrix.platform }}
+          cache-to: type=gha,scope=${{ matrix.image }}-${{ matrix.platform }},mode=max

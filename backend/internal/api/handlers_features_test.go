@@ -485,3 +485,69 @@ func TestFeaturesAPI_GetWithCommit(t *testing.T) {
 		t.Errorf("id = %q, want %q", got.ID, created.ID)
 	}
 }
+
+// A PATCH that moves the anchor records an exact position at the new anchor
+// commit, matching what create does, so the feature never reads as unpositioned.
+func TestFeaturesAPI_UpdateAnchorRecordsPosition(t *testing.T) {
+	router, database := setupEnv(t)
+
+	body := `{"anchor":{"fileId":"src/api.go","commitId":"abc","lineRange":{"start":1,"end":1}},"kind":"interface","title":"POST /login"}`
+	req := httptest.NewRequest("POST", "/api/features", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	var created model.Feature
+	json.NewDecoder(w.Body).Decode(&created)
+
+	patch := `{"file":"src/routes.go","commit":"def","line_start":7,"line_end":9}`
+	req = httptest.NewRequest("PATCH", "/api/features/"+created.ID, strings.NewReader(patch))
+	req.Header.Set("Content-Type", "application/json")
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != 200 {
+		t.Fatalf("patch status = %d; body: %s", w.Code, w.Body.String())
+	}
+
+	positions, err := database.GetPositions(created.ID, "feature")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, p := range positions {
+		if p.CommitID == "def" && p.Confidence == "exact" && p.LineStart != nil && *p.LineStart == 7 && p.LineEnd != nil && *p.LineEnd == 9 {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("no exact position at new anchor commit; got %+v", positions)
+	}
+
+	// A non-anchor patch must not add positions.
+	before := len(positions)
+	req = httptest.NewRequest("PATCH", "/api/features/"+created.ID, strings.NewReader(`{"title":"renamed"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(httptest.NewRecorder(), req)
+	positions, _ = database.GetPositions(created.ID, "feature")
+	if len(positions) != before {
+		t.Errorf("non-anchor patch changed positions: %d -> %d", before, len(positions))
+	}
+}
+
+func TestAnchorFallback(t *testing.T) {
+	anchored := model.Feature{Status: "active", Anchor: model.Anchor{FileID: "a.go", CommitID: "c", LineRange: &model.LineRange{Start: 3, End: 4}}}
+	got := anchorFallback(anchored)
+	if got.Confidence != "exact" || got.EffectiveAnchor == nil || got.EffectiveAnchor.LineRange.Start != 3 {
+		t.Errorf("active+anchored: got %+v", got)
+	}
+
+	orphaned := anchored
+	orphaned.Status = "orphaned"
+	if got := anchorFallback(orphaned); got.Confidence != "" || got.EffectiveAnchor != nil {
+		t.Errorf("orphaned must not claim a position: got %+v", got)
+	}
+
+	noRange := model.Feature{Status: "active", Anchor: model.Anchor{FileID: "a.go", CommitID: "c"}}
+	if got := anchorFallback(noRange); got.Confidence != "" {
+		t.Errorf("no line range must not claim exact: got %+v", got)
+	}
+}

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { parseRoute, buildRoute } from '../core/router';
 
 describe('delta/browse navigation', () => {
@@ -61,9 +61,9 @@ describe('delta/browse navigation', () => {
 
     // Deep sub-routes carry state that must survive a refresh; the app's
     // route sync leaves these URLs alone rather than rewriting them shallow.
-    it('parses #/features/{id} with the feature deep link', () => {
+    it('parses #/features/{id} (the old list deep link) as that feature\'s page', () => {
       const route = parseRoute('#/features/feat-9');
-      expect(route.mode).toBe('features');
+      expect(route.mode).toBe('feature-detail');
       expect(route.featureId).toBe('feat-9');
     });
 

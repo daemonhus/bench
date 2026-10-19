@@ -1,6 +1,11 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { buttonProps } from './core/a11y';
 import { useBreakpoint } from './hooks/useBreakpoint';
-import { useResizeDrag } from './hooks/useResizeDrag';
+import { useResizeDrag, resizeHandleProps, nextResizeWidth } from './hooks/useResizeDrag';
+import { usePendingNavFocus } from './hooks/usePendingNavFocus';
+import { useChromeNav } from './hooks/useChromeNav';
+import { useDrawerFocus } from './hooks/useDrawerFocus';
+import { nextNavArea } from './core/nav-cycle';
 import { useRepoStore } from './stores/repo-store';
 import { useDiffStore } from './stores/diff-store';
 import { useAnnotationStore } from './stores/annotation-store';
@@ -9,7 +14,7 @@ import { useNavigationStore } from './stores/navigation-store';
 import { useReconcileStore } from './stores/reconcile-store';
 import { useBaselineStore } from './stores/baseline-store';
 import { useProfileStore } from './stores/profile-store';
-import { findingsApi, commentsApi, gitApi, reconcileApi, featuresApi } from './core/api';
+import { findingsApi, commentsApi, gitApi, featuresApi } from './core/api';
 import { useEvents } from './core/use-events';
 import { useBranchMap } from './core/use-branch-map';
 import { parseRoute, buildRoute, onRouteChange } from './core/router';
@@ -21,14 +26,17 @@ import { ConnectorOverlay } from './components/ConnectorOverlay';
 import { GitTreePanel } from './components/GitTreePanel';
 import { FileSearchModal } from './components/FileSearchModal';
 import { ContentSearchModal } from './components/ContentSearchModal';
-import { InFileSearchBar } from './components/InFileSearchBar';
+import { InFileSearchBar, InFileSearchCollapsed } from './components/InFileSearchBar';
 import { GoToLineBar } from './components/GoToLineBar';
 import { DeltaView } from './components/DeltaView';
 import { DeltaSidebar } from './components/DeltaSidebar';
 import { FindingsView } from './components/FindingsView';
 import { FeaturesView } from './components/FeaturesView';
 import { ProfileView } from './components/ProfileView';
-import { OverviewView } from './components/OverviewView';
+import { OverviewView, OverviewSkeleton } from './components/OverviewView';
+import { FindingDetailView } from './components/FindingDetailView';
+import { PageSkeleton } from './components/Skeleton';
+import { FeatureDetailView } from './components/FeatureDetailView';
 import { FolderView } from './components/FolderView';
 import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
 import { AnchorField } from './components/AnchorField';
@@ -37,6 +45,11 @@ import { FINDING_CATEGORIES } from './core/types';
 import type { ViewMode, Severity, FindingStatus, CommentType, Finding, Feature, FeatureKind } from './core/types';
 
 const FINDING_SOURCES = ['pentest', 'tool', 'manual'] as const;
+
+// Pane width limits, shared by mouse drag, handle keys and the Alt+Shift+Arrow shortcut.
+const SIDEBAR_RESIZE = { min: 200, max: 800, fromRight: true } as const;
+const LEFT_PANEL_RESIZE = { min: 180, max: 500 } as const;
+const DELTA_SIDEBAR_RESIZE = { min: 200, max: 600, fromRight: true } as const;
 
 const NAV_AREA: Partial<Record<ViewMode, string>> = {
   browse: 'filetree',
@@ -150,6 +163,8 @@ export function App() {
 
   // Delta view: optional specific baseline ID
   const [routeBaselineId, setRouteBaselineId] = useState<string | undefined>(undefined);
+  const [routeFeatureId, setRouteFeatureId] = useState<string | undefined>(undefined);
+  const [routeFindingId, setRouteFindingId] = useState<string | undefined>(undefined);
 
   // Delta sidebar
   const [deltaSidebarOpen, setDeltaSidebarOpen] = useState(true);
@@ -238,9 +253,9 @@ export function App() {
   // so updateRoute uses replaceState instead of pushState (avoids duplicate history entries).
   const isHandlingHashChange = useRef(false);
 
-  const handleResizeMouseDown = useResizeDrag(setSidebarWidth, { min: 200, max: 800, fromRight: true });
-  const handleLeftPanelResizeMouseDown = useResizeDrag(setLeftPanelWidth, { min: 180, max: 500 });
-  const handleDeltaSidebarResizeMouseDown = useResizeDrag(setDeltaSidebarWidth, { min: 200, max: 600, fromRight: true });
+  const handleResizeMouseDown = useResizeDrag(setSidebarWidth, SIDEBAR_RESIZE);
+  const handleLeftPanelResizeMouseDown = useResizeDrag(setLeftPanelWidth, LEFT_PANEL_RESIZE);
+  const handleDeltaSidebarResizeMouseDown = useResizeDrag(setDeltaSidebarWidth, DELTA_SIDEBAR_RESIZE);
 
   // Auto-close panels when switching to mobile
   useEffect(() => {
@@ -402,17 +417,10 @@ export function App() {
     setQuickConfirmDiscard(false);
   }, [quickTitle, quickText, quickConfirmDiscard]);
 
-  // Close quick-add on click outside
-  useEffect(() => {
-    if (!quickAdd) return;
-    const handler = (e: MouseEvent) => {
-      if (quickRef.current && !quickRef.current.contains(e.target as Node)) {
-        handleQuickAddCancel();
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [quickAdd, handleQuickAddCancel]);
+  // Click-outside is handled once, by the full-screen `.quick-add-overlay`
+  // onClick. A second document-level mousedown handler used to fire as well:
+  // mousedown showed the discard prompt and the following click confirmed it,
+  // so a dirty draft was thrown away without the user ever answering.
 
 
   // Keyboard shortcuts
@@ -420,6 +428,20 @@ export function App() {
     const handler = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
       const inEditable = tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement)?.isContentEditable;
+      // Alt+Shift+Left/Right: resize the pane that owns the focused area (keyboard
+      // alternative to dragging the splitter; Tab only cycles nav areas).
+      if (!inEditable && e.altKey && e.shiftKey && !e.metaKey && !e.ctrlKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+        const area = (e.target as HTMLElement)?.closest?.('[data-nav-area]')?.getAttribute('data-nav-area') ?? '';
+        const resize = area === 'filetree' ? { cur: leftPanelWidth, set: setLeftPanelWidth, opts: LEFT_PANEL_RESIZE }
+          : area === 'sidebar' ? { cur: sidebarWidth, set: setSidebarWidth, opts: SIDEBAR_RESIZE }
+          : area.startsWith('delta') ? { cur: deltaSidebarWidth, set: setDeltaSidebarWidth, opts: DELTA_SIDEBAR_RESIZE }
+          : null;
+        if (resize) {
+          const next = nextResizeWidth(e.key, resize.cur, resize.opts);
+          if (next !== null) { e.preventDefault(); resize.set(next); }
+          return;
+        }
+      }
       if (!inEditable && (e.altKey && e.key === 'ArrowLeft' || (e.metaKey || e.ctrlKey) && e.key === '[')) {
         e.preventDefault();
         handleGoBack();
@@ -452,7 +474,7 @@ export function App() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [handleGoBack, handleGoForward, viewMode, browseDir, fileContent]);
+  }, [handleGoBack, handleGoForward, viewMode, browseDir, fileContent, leftPanelWidth, sidebarWidth, deltaSidebarWidth, setLeftPanelWidth, setSidebarWidth]);
 
   // Global Tab/Shift+Tab area cycling - capture phase so it fires before
   // any component handler or browser default.
@@ -469,37 +491,25 @@ export function App() {
       // don't yank focus out to the next nav-area.
       if (t?.closest?.('.comment-card-new, .finding-card-new, .feature-card-new')) return;
 
-      const cycle = TAB_CYCLES[viewMode];
-      if (!cycle || cycle.length === 0) return;
-
-      // Filter to areas currently in DOM (e.g. sidebar may be closed)
-      const live = cycle.filter(a => document.querySelector(`[data-nav-area="${a}"]`));
-      if (live.length === 0) return;
-
-      const current = (e.target as HTMLElement)?.closest?.('[data-nav-area]');
-      const currentName = current?.getAttribute('data-nav-area');
-      const idx = currentName ? live.indexOf(currentName) : -1;
-
-      let next: number;
-      if (idx === -1) {
-        next = 0;
-      } else if (live.length <= 1) {
-        // Single-area view - suppress Tab but don't move
-        e.preventDefault();
-        e.stopPropagation();
-        return;
-      } else if (e.shiftKey) {
-        next = (idx - 1 + live.length) % live.length;
-      } else {
-        next = (idx + 1) % live.length;
-      }
+      const current = (e.target as HTMLElement)?.closest?.('[data-nav-area]')?.getAttribute('data-nav-area');
+      const { area, suppress } = nextNavArea(
+        TAB_CYCLES[viewMode],
+        (a) => !!document.querySelector(`[data-nav-area="${a}"]`),
+        current,
+        e.shiftKey,
+      );
+      if (area === null && !suppress) return;
 
       e.preventDefault();
       e.stopPropagation();
-      const target = document.querySelector(`[data-nav-area="${live[next]}"]`) as HTMLElement | null;
+      if (area === null) return; // single-area view: swallow Tab, don't move
+      const target = document.querySelector(`[data-nav-area="${area}"]`) as HTMLElement | null;
       if (target) {
         target.focus({ preventScroll: true });
-        target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        // Only bring an area into view when none of it is on screen: aligning a long list that
+        // is already visible scrolls it away from where the user was.
+        const r = target.getBoundingClientRect();
+        if (r.bottom <= 0 || r.top >= window.innerHeight) target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
     };
 
@@ -515,40 +525,95 @@ export function App() {
     useUIStore.getState().setCodeviewFocusedLine(null);
   }, [selectedFilePath, viewMode]);
 
-  // Auto-focus the primary nav area after a tab switch.
-  // Try synchronously first (element already exists for Browse/Features tabs area).
-  // If the element doesn't exist yet (view is in a loading state), watch for it via
-  // MutationObserver so we focus it the moment it appears, regardless of API latency.
-  useEffect(() => {
-    if (!pendingNavFocus) return;
-    const area = pendingNavFocus;
-    const applyPendingLine = () => {
-      const line = useUIStore.getState().pendingCodeviewLine;
-      if (line != null) {
-        useUIStore.getState().setCodeviewFocusedLine(line);
-        useUIStore.getState().setPendingCodeviewLine(null);
-      }
-    };
-    const immediate = document.querySelector(`[data-nav-area="${area}"]`) as HTMLElement | null;
-    if (immediate) {
-      immediate.focus({ preventScroll: true });
-      setPendingNavFocus(null);
-      applyPendingLine();
-      return;
-    }
-    // Element not yet in DOM - watch for it
-    const observer = new MutationObserver(() => {
-      const el = document.querySelector(`[data-nav-area="${area}"]`) as HTMLElement | null;
-      if (el) {
-        observer.disconnect();
-        el.focus({ preventScroll: true });
-        setPendingNavFocus(null);
-        applyPendingLine();
-      }
+  // Move focus to a nav area once the current render has committed (used when a
+  // transient bar/popover closes, so focus doesn't fall back to <body>).
+  const focusNavArea = useCallback((area: string) => {
+    requestAnimationFrame(() => {
+      (document.querySelector(`[data-nav-area="${area}"]`) as HTMLElement | null)?.focus({ preventScroll: true });
     });
-    observer.observe(document.body, { childList: true, subtree: true });
-    return () => observer.disconnect();
-  }, [viewMode, pendingNavFocus]);
+  }, []);
+
+  // Quick-add popover: remember where focus was before it opened and give it
+  // back when it closes (submit, discard, Escape or click-out alike).
+  const lastFocusOutsideQuickAdd = useRef<HTMLElement | null>(null);
+  const quickAddWasOpen = useRef(false);
+  useEffect(() => {
+    const onFocusIn = (e: FocusEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && !t.closest?.('.quick-add-popover')) lastFocusOutsideQuickAdd.current = t;
+    };
+    document.addEventListener('focusin', onFocusIn);
+    return () => document.removeEventListener('focusin', onFocusIn);
+  }, []);
+  useEffect(() => {
+    if (quickAddWasOpen.current && !quickAdd) {
+      const el = lastFocusOutsideQuickAdd.current;
+      if (el?.isConnected) el.focus({ preventScroll: true });
+    }
+    quickAddWasOpen.current = !!quickAdd;
+  }, [quickAdd]);
+
+  // The phone tab strip scrolls: keep the active tab in view when the view changes.
+  useEffect(() => {
+    document.querySelector<HTMLElement>('.tab-bar-tab-active')?.scrollIntoView({ inline: 'center', block: 'nearest' });
+  }, [viewMode]);
+
+  // F6 / arrows / Escape for the top chrome (tabs, quick-add, theme, shortcuts).
+  useChromeNav();
+
+  // Phone drawers (file panel, activity sidebar) act like modals over a backdrop.
+  const leftDrawerRef = useRef<HTMLDivElement | null>(null);
+  const sidebarDrawerRef = useRef<HTMLDivElement | null>(null);
+  useDrawerFocus(leftDrawerRef, { active: isMobile, open: leftPanelOpen, onClose: toggleLeftPanel });
+  useDrawerFocus(sidebarDrawerRef, { active: isMobile, open: sidebarOpen, onClose: toggleSidebar });
+
+  // On a phone only one drawer can cover the page: opening one closes the other.
+  const lastDrawer = useRef<'left' | 'sidebar' | null>(null);
+  const prevDrawers = useRef({ left: leftPanelOpen, sidebar: sidebarOpen });
+  useEffect(() => {
+    const prev = prevDrawers.current;
+    prevDrawers.current = { left: leftPanelOpen, sidebar: sidebarOpen };
+    if (!isMobile) return;
+    if (leftPanelOpen && !prev.left) lastDrawer.current = 'left';
+    if (sidebarOpen && !prev.sidebar) lastDrawer.current = 'sidebar';
+    if (leftPanelOpen && sidebarOpen) {
+      if (lastDrawer.current === 'left') toggleSidebar(); else toggleLeftPanel();
+    }
+  }, [isMobile, leftPanelOpen, sidebarOpen, toggleLeftPanel, toggleSidebar]);
+
+  // Choosing a file from the phone drawer shows it: close the drawer.
+  const prevFile = useRef(selectedFilePath);
+  useEffect(() => {
+    if (isMobile && leftPanelOpen && prevFile.current !== selectedFilePath) toggleLeftPanel();
+    prevFile.current = selectedFilePath;
+  }, [isMobile, leftPanelOpen, selectedFilePath, toggleLeftPanel]);
+
+  // Collapsing/expanding a panel unmounts the toggle that had focus, dropping it
+  // to <body>. Hand focus to the counterpart toggle ("Hide" <-> "Show") so the
+  // keyboard user can flip it straight back.
+  const prevPanels = useRef({ left: leftPanelOpen, sidebar: sidebarOpen, delta: deltaSidebarOpen });
+  useEffect(() => {
+    const prev = prevPanels.current;
+    const changed = prev.left !== leftPanelOpen ? 'left' : prev.sidebar !== sidebarOpen ? 'sidebar' : prev.delta !== deltaSidebarOpen ? 'delta' : null;
+    prevPanels.current = { left: leftPanelOpen, sidebar: sidebarOpen, delta: deltaSidebarOpen };
+    if (!changed) return;
+    const id = requestAnimationFrame(() => {
+      const a = document.activeElement;
+      if (a && a !== document.body) return; // focus is somewhere the user put it
+      document.querySelector<HTMLElement>(`[data-panel-toggle="${changed}"]`)?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [leftPanelOpen, sidebarOpen, deltaSidebarOpen]);
+
+  // Auto-focus the primary nav area after a tab switch (waits for slow views;
+  // dropped if the user acts elsewhere first - see usePendingNavFocus).
+  usePendingNavFocus(pendingNavFocus, () => setPendingNavFocus(null), viewMode, () => {
+    const line = useUIStore.getState().pendingCodeviewLine;
+    if (line != null) {
+      useUIStore.getState().setCodeviewFocusedLine(line);
+      useUIStore.getState().setPendingCodeviewLine(null);
+    }
+  });
 
   // Load commits + reconciled HEAD + review state on mount
   useEffect(() => {
@@ -557,6 +622,16 @@ export function App() {
     useBaselineStore.getState().refreshAll();
     useProfileStore.getState().load();
   }, [loadCommits, fetchReconciledHead]);
+
+  // Take the routed view (Overview, Findings, …) on the very first render, before any effect
+  // runs: the view mode lives in a shared store, so a remounted workbench (the platform opening a
+  // project again) would otherwise start in the previous project's view, show it while commits
+  // load, and the hash sync below would write that stale view over the URL. A diff route still
+  // waits for the commits it needs.
+  useState(() => {
+    const route = parseRoute(window.location.hash);
+    if (route.mode !== 'diff') useUIStore.setState({ viewMode: route.mode });
+  });
 
   // Apply initial route after commits are loaded
   useEffect(() => {
@@ -570,6 +645,12 @@ export function App() {
     }
     if (route.mode === 'delta') {
       setRouteBaselineId(route.baselineId);
+    }
+    if (route.mode === 'feature-detail') {
+      setRouteFeatureId(route.featureId);
+    }
+    if (route.mode === 'finding-detail') {
+      setRouteFindingId(route.findingId);
     }
     if (route.path) {
       handleSelectFile(route.path);
@@ -589,6 +670,12 @@ export function App() {
       } else {
         setRouteBaselineId(undefined);
       }
+      if (route.mode === 'feature-detail') {
+        setRouteFeatureId(route.featureId);
+      } else {
+        setRouteFeatureId(undefined);
+      }
+      setRouteFindingId(route.mode === 'finding-detail' ? route.findingId : undefined);
       if (route.path) {
         handleSelectFile(route.path);
       }
@@ -597,8 +684,8 @@ export function App() {
 
   // Update hash when user changes mode/file
   const updateRoute = useCallback(
-    (mode: ViewMode, from?: string, to?: string, path?: string) => {
-      const newHash = buildRoute(mode as Parameters<typeof buildRoute>[0], from, to, path);
+    (mode: ViewMode, from?: string, to?: string, path?: string, featureId?: string) => {
+      const newHash = buildRoute(mode as Parameters<typeof buildRoute>[0], from, to, path, featureId);
       if (window.location.hash !== newHash) {
         if (isHandlingHashChange.current) {
           window.history.replaceState(null, '', newHash);
@@ -621,8 +708,7 @@ export function App() {
     // them shallow (which made a refresh lose the state).
     if (current.mode === viewMode) {
       const deep =
-        (viewMode === 'findings' && (current.findingId || current.featureFilterId)) ||
-        (viewMode === 'features' && current.featureId) ||
+        (viewMode === 'findings' && (current.findingId || current.featureFilterId || current.severityFilter)) ||
         (viewMode === 'delta' && current.baselineId);
       if (deep) {
         isHandlingHashChange.current = false;
@@ -640,8 +726,9 @@ export function App() {
       viewMode === 'diff' ? compareFrom : undefined,
       viewMode === 'diff' ? compareTo : undefined,
       selectedFilePath ?? undefined,
+      viewMode === 'feature-detail' ? routeFeatureId : viewMode === 'finding-detail' ? routeFindingId : undefined,
     );
-  }, [viewMode, compareFrom, compareTo, selectedFilePath, updateRoute]);
+  }, [viewMode, compareFrom, compareTo, selectedFilePath, routeFeatureId, routeFindingId, updateRoute]);
 
   // Clear selected file when entering directory view so annotations don't persist
   useEffect(() => {
@@ -796,6 +883,8 @@ export function App() {
   );
 
   // Compute diff stats
+  // Find in file needs a file on screen: a browsed file (not a folder listing) or a diff.
+  const hasFindableFile = viewMode === 'browse' ? browseDir === null && !!fileContent : viewMode === 'diff' && changes.length > 0;
   const additions = changes.filter((c) => c.type === 'insert').length;
   const deletions = changes.filter((c) => c.type === 'delete').length;
 
@@ -842,23 +931,33 @@ export function App() {
         : '1fr 28px';
 
   return (
-    <div className="app-shell">
-      {/* Tab bar - primary view navigation */}
-      <div className="tab-bar">
+    <div className="app-shell" data-frame={viewMode === 'browse' || viewMode === 'diff' ? 'full' : 'column'}>
+      {/* One visually-hidden page heading for assistive tech (the project name is the visible title). */}
+      {/* Tab bar - primary view navigation. display:contents so the landmark wrapper doesn't affect layout. */}
+      <div role="banner" style={{ display: 'contents' }}>
+      <h1 className="sr-only">{repoName ? `${repoName} - security review workbench` : 'Security review workbench'}</h1>
+      <div className="tab-bar" role="toolbar" aria-label="Workbench" data-chrome>
         <div className="tab-bar-tabs">
-          {repoName && (
-            <span className="tab-bar-project-name">{repoName}</span>
-          )}
+          {/* The project name is the way to its Overview (key 0), as the platform's logo is to its home page. */}
+          <button
+            type="button"
+            className="tab-bar-project-name"
+            aria-current={viewMode === 'overview' ? 'page' : undefined}
+            title="Project overview (0)"
+            onClick={() => { setViewMode('overview'); setPendingNavFocus(null); }}
+          >{repoName || 'Overview'}</button>
           {([
-            { mode: 'overview' as ViewMode, label: 'Overview', shortcut: '0', icon: <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1" /><rect x="9" y="1.5" width="5.5" height="5.5" rx="1" /><rect x="1.5" y="9" width="5.5" height="5.5" rx="1" /><rect x="9" y="9" width="5.5" height="5.5" rx="1" /></svg> },
             { mode: 'browse' as ViewMode, label: 'Browse', shortcut: '1', icon: <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 2h5l1 2h6v9H2V2z" /></svg> },
             { mode: 'delta' as ViewMode, label: 'Changes', shortcut: '2', icon: <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 8H3M8 3v10M3 5l5-4 5 4" /></svg> },
             { mode: 'findings' as ViewMode, label: 'Findings', shortcut: '3', icon: <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M8 1L1 14h14L8 1z" /><line x1="8" y1="6" x2="8" y2="9" /><circle cx="8" cy="11.5" r="0.5" fill="currentColor" /></svg> },
             { mode: 'features' as ViewMode, label: 'Features', shortcut: '4', icon: <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="8" r="3" /><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.1 3.1l1.4 1.4M11.5 11.5l1.4 1.4M3.1 12.9l1.4-1.4M11.5 4.5l1.4-1.4" /></svg> },
             { mode: 'profile' as ViewMode, label: 'Profile', shortcut: '5', icon: <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 4.5h8M12.5 4.5H14M2 11.5h3M7.5 11.5H14" /><circle cx="10.5" cy="4.5" r="1.8" /><circle cx="5.5" cy="11.5" r="1.8" /></svg> },
           ]).map(({ mode, label, shortcut, icon }) => {
+            // A detail page sits under its list's tab.
             const isActive = mode === 'browse'
               ? viewMode === 'browse' || viewMode === 'diff'
+              : mode === 'findings' ? viewMode === 'findings' || viewMode === 'finding-detail'
+              : mode === 'features' ? viewMode === 'features' || viewMode === 'feature-detail'
               : viewMode === mode;
             return (
               <button
@@ -879,7 +978,7 @@ export function App() {
                 const scope = isCodeView && selectedFilePath && browseDir === null ? 'file' : 'project';
                 setQuickAdd({ kind: 'comment', scope }); setQuickTitle(''); setQuickText(''); setQuickConfirmDiscard(false);
               }}
-              data-tooltip={isCodeView && selectedFilePath && browseDir === null ? 'Add comment (file scope)' : 'Add comment (project scope)'}
+              data-tooltip={isCodeView && selectedFilePath && browseDir === null ? 'Add comment (file scope)' : 'Add comment (project scope)'} aria-label={isCodeView && selectedFilePath && browseDir === null ? 'Add comment (file scope)' : 'Add comment (project scope)'}
             >
               <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M2 2h12v9H5l-3 3V2z" />
@@ -891,7 +990,7 @@ export function App() {
                 const scope = isCodeView && selectedFilePath && browseDir === null ? 'file' : 'project';
                 setQuickAdd({ kind: 'finding', scope }); setQuickTitle(''); setQuickText(''); setQuickConfirmDiscard(false);
               }}
-              data-tooltip={isCodeView && selectedFilePath && browseDir === null ? 'Add finding (file scope)' : 'Add finding (project scope)'}
+              data-tooltip={isCodeView && selectedFilePath && browseDir === null ? 'Add finding (file scope)' : 'Add finding (project scope)'} aria-label={isCodeView && selectedFilePath && browseDir === null ? 'Add finding (file scope)' : 'Add finding (project scope)'}
             >
               <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M8 1.5l6.5 12H1.5z" />
@@ -905,7 +1004,7 @@ export function App() {
                 useUIStore.getState().setShowFeatureCreate(true);
                 setViewMode('features');
               }}
-              data-tooltip="Add feature"
+              data-tooltip="Add feature" aria-label="Add feature"
             >
               <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="8" cy="8" r="3" />
@@ -933,9 +1032,10 @@ export function App() {
           </button>
         </div>
       </div>
+      </div>{/* /banner */}
 
       {profileLoaded && !profileConfigured && !profileBannerDismissed && viewMode !== 'profile' && (
-        <div className="profile-banner" role="status">
+        <div className="profile-banner" role="status" data-chrome>
           <span className="profile-banner-icon" aria-hidden="true">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M8 1L1 14h14L8 1z" />
@@ -943,11 +1043,11 @@ export function App() {
               <circle cx="8" cy="11.5" r="0.5" fill="currentColor" />
             </svg>
           </span>
-          <span>
-            Service profile not configured. Findings, comments, features, and baselines are
-            blocked until it is.
+          <span className="profile-banner-text">
+            Service profile not configured.
+            <span className="profile-banner-detail"> Findings, comments, features, and baselines are blocked until it is.</span>
           </span>
-          <button className="baseline-action-btn baseline-action-btn-primary profile-banner-link" onClick={() => setViewMode('profile')}>
+          <button className="baseline-action-btn baseline-action-btn-soft profile-banner-link" onClick={() => setViewMode('profile')}>
             Open Profile
             <span className="profile-banner-link-arrow" aria-hidden="true">→</span>
           </button>
@@ -972,8 +1072,13 @@ export function App() {
 
       {/* Left panel: commit selector + git tree + file tree */}
       {isCodeView && (leftPanelOpen || isMobile) && (
-        <div className={`left-panel${isMobile ? ' left-panel-drawer' : ''}${isMobile && leftPanelOpen ? ' left-panel-drawer-open' : ''}`}>
-          <div className="commit-selector">
+        <div
+          role="complementary"
+          aria-label="Files and history"
+          // A closed phone drawer is parked off-canvas: keep its controls out of the tab order and the AT tree.
+          ref={(el) => { leftDrawerRef.current = el; if (el) { if (isMobile && !leftPanelOpen) el.setAttribute('inert', ''); else el.removeAttribute('inert'); } }}
+          className={`left-panel${isMobile ? ' left-panel-drawer' : ''}${isMobile && leftPanelOpen ? ' left-panel-drawer-open' : ''}`}>
+          <div className="commit-selector" role="toolbar" aria-label="File panel" data-chrome>
             {viewMode === 'browse' ? (
               <>
                 <div className="commit-label-row">
@@ -984,7 +1089,7 @@ export function App() {
                   <button
                     className="panel-drawer-btn"
                     onClick={toggleLeftPanel}
-                    data-tooltip="Hide file panel"
+                    data-tooltip="Hide file panel" aria-label="Hide file panel" data-panel-toggle="left"
                     style={{ marginLeft: 'auto' }}
                   >
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -995,6 +1100,7 @@ export function App() {
                 </div>
                 {branches.length > 1 && (
                   <select
+                    aria-label="Branch"
                     className="branch-select"
                     value={
                       branches.find((b) => {
@@ -1045,7 +1151,7 @@ export function App() {
                   <button
                     className="panel-drawer-btn"
                     onClick={toggleLeftPanel}
-                    data-tooltip="Hide file panel"
+                    data-tooltip="Hide file panel" aria-label="Hide file panel" data-panel-toggle="left"
                     style={{ marginLeft: 'auto' }}
                   >
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -1099,7 +1205,11 @@ export function App() {
 
           <FileTree files={treeFiles} selectedFile={selectedFilePath} onSelectFile={handleSelectFile} onSelectDir={setBrowseDir} severityMap={findingSeverityMap} />
           {error && <div className="error-banner">{error}</div>}
-          <div className="left-panel-resize-handle" onMouseDown={handleLeftPanelResizeMouseDown} />
+          <div
+            className="left-panel-resize-handle"
+            onMouseDown={handleLeftPanelResizeMouseDown}
+            {...resizeHandleProps('Resize file panel', leftPanelWidth, setLeftPanelWidth, LEFT_PANEL_RESIZE)}
+          />
         </div>
       )}
 
@@ -1179,13 +1289,14 @@ export function App() {
       >
         {/* File sub-header - breadcrumb + nav (browse/diff only) */}
         {(viewMode === 'browse' || viewMode === 'diff') && (
-        <header className="file-header">
+        <header className="file-header" data-chrome>
           <div className="file-header-left">
             {!leftPanelOpen && (
               <button
                 className="panel-drawer-btn"
+                data-chrome
                 onClick={toggleLeftPanel}
-                data-tooltip="Show file panel"
+                data-tooltip="Show file panel" aria-label="Show file panel" data-panel-toggle="left"
               >
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="1" y="2" width="14" height="12" rx="1" />
@@ -1209,7 +1320,7 @@ export function App() {
                         <span key={i}>
                           {i > 0 && <span className="path-sep">/</span>}
                           {i < segments.length - 1 ? (
-                            <span className="path-segment" onClick={() => setBrowseDir(dirPath)}>{seg}</span>
+                            <span className="path-segment" {...buttonProps(() => setBrowseDir(dirPath), `Open folder ${dirPath}`)}>{seg}</span>
                           ) : (
                             <span className="path-filename">{seg}</span>
                           )}
@@ -1226,7 +1337,7 @@ export function App() {
                           <span key={i}>
                             {i > 0 && <span className="path-sep">/</span>}
                             {i < segments.length - 1 ? (
-                              <span className="path-segment" onClick={() => setBrowseDir(dirPath)}>{seg}</span>
+                              <span className="path-segment" {...buttonProps(() => setBrowseDir(dirPath), `Open folder ${dirPath}`)}>{seg}</span>
                             ) : (
                               <span className="path-filename">{seg}</span>
                             )}
@@ -1234,16 +1345,27 @@ export function App() {
                         );
                       });
                     })()
-                  : <span className="no-file-hint" onClick={() => setFileSearchOpen(true)}>Go to file...</span>}
+                  : <span className="no-file-hint" {...buttonProps(() => setFileSearchOpen(true), 'Go to file')}>Go to file...</span>}
             </h1>
           </div>
           <div className="file-header-right">
+            {hasFindableFile && (inFileSearchOpen ? (
+              <InFileSearchBar
+                inline
+                content={viewMode === 'browse' ? (fileContent ?? '') : changes.map((c) => c.content).join('\n')}
+                onClose={() => { setInFileSearchOpen(false); focusNavArea('codeview'); }}
+                onDismiss={() => setInFileSearchOpen(false)}
+                initialQuery={inFileSearchInitialQuery}
+              />
+            ) : (
+              <InFileSearchCollapsed onOpen={() => { setInFileSearchInitialQuery(''); setInFileSearchOpen(true); }} />
+            ))}
             <div className="nav-buttons">
               <button
                 className="nav-btn"
                 disabled={!canGoBack}
                 onClick={handleGoBack}
-                data-tooltip="Go back (Alt+Left)"
+                data-tooltip="Go back (Alt+Left)" aria-label="Go back (Alt+Left)"
               >
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M10 3L5 8l5 5" />
@@ -1253,7 +1375,7 @@ export function App() {
                 className="nav-btn"
                 disabled={!canGoForward}
                 onClick={handleGoForward}
-                data-tooltip="Go forward (Alt+Right)"
+                data-tooltip="Go forward (Alt+Right)" aria-label="Go forward (Alt+Right)"
               >
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M6 3l5 5-5 5" />
@@ -1267,7 +1389,7 @@ export function App() {
               </div>
             )}
             {!sidebarOpen && (
-              <button className="panel-drawer-btn" onClick={toggleSidebar} data-tooltip="Open sidebar">
+              <button className="panel-drawer-btn" data-chrome onClick={toggleSidebar} data-tooltip="Open sidebar" aria-label="Open sidebar" data-panel-toggle="sidebar">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="1" y="2" width="14" height="12" rx="1" />
                   <line x1="10.5" y1="2" x2="10.5" y2="14" />
@@ -1278,27 +1400,27 @@ export function App() {
         </header>
         )}
 
-        {inFileSearchOpen && (viewMode === 'browse' || viewMode === 'diff') && (
-          <InFileSearchBar
-            content={viewMode === 'browse' ? (fileContent ?? '') : changes.map((c) => c.content).join('\n')}
-            onClose={() => setInFileSearchOpen(false)}
-            initialQuery={inFileSearchInitialQuery}
-          />
-        )}
-
         {gotoLineOpen && viewMode === 'browse' && browseDir === null && fileContent && (
           <GoToLineBar
             maxLine={Math.max(1, fileContent.split('\n').length)}
-            onClose={() => setGotoLineOpen(false)}
+            onClose={() => { setGotoLineOpen(false); focusNavArea('codeview'); }}
           />
         )}
 
-        {isLoading && <div className="empty-state">Loading...</div>}
+        {isLoading && (viewMode === 'overview' ? <OverviewSkeleton />
+          : viewMode === 'browse' || viewMode === 'diff' ? <div className="empty-state">Loading...</div>
+          : <PageSkeleton />)}
         {!isLoading && viewMode === 'findings' && <FindingsView />}
         {!isLoading && viewMode === 'delta' && <DeltaView baselineId={routeBaselineId} />}
         {!isLoading && viewMode === 'features' && <FeaturesView />}
         {!isLoading && viewMode === 'profile' && <ProfileView />}
         {!isLoading && viewMode === 'overview' && <OverviewView />}
+        {!isLoading && viewMode === 'finding-detail' && routeFindingId && (
+          <FindingDetailView findingId={routeFindingId} onBack={() => { window.location.hash = '#/findings'; }} />
+        )}
+        {!isLoading && viewMode === 'feature-detail' && routeFeatureId && (
+          <FeatureDetailView featureId={routeFeatureId} onBack={() => { window.location.hash = '#/features'; }} />
+        )}
         {!isLoading && viewMode === 'browse' && browseDir !== null && (
           <FolderView
             files={files}
@@ -1326,12 +1448,17 @@ export function App() {
       {/* Delta sidebar: changed files panel */}
       {viewMode === 'delta' && (
         deltaSidebarOpen ? (
-          <div className="delta-sidebar-wrapper">
-            <div className="delta-sidebar-resize-handle" onMouseDown={handleDeltaSidebarResizeMouseDown} />
+          <div className="delta-sidebar-wrapper" role="complementary" aria-label="Changed files">
+            <div
+              className="delta-sidebar-resize-handle"
+              onMouseDown={handleDeltaSidebarResizeMouseDown}
+              {...resizeHandleProps('Resize changes sidebar', deltaSidebarWidth, setDeltaSidebarWidth, DELTA_SIDEBAR_RESIZE)}
+            />
             <button
               className="panel-drawer-btn delta-sidebar-close"
+              data-chrome
               onClick={() => setDeltaSidebarOpen(false)}
-              data-tooltip="Hide panel"
+              data-tooltip="Hide panel" aria-label="Hide panel" data-panel-toggle="delta"
             >
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="1" y="2" width="14" height="12" rx="1" />
@@ -1344,8 +1471,9 @@ export function App() {
           <div className="sidebar-collapsed">
             <button
               className="panel-drawer-btn"
+              data-chrome
               onClick={() => setDeltaSidebarOpen(true)}
-              data-tooltip="Show changed files"
+              data-tooltip="Show changed files" aria-label="Show changed files" data-panel-toggle="delta"
             >
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="1" y="2" width="14" height="12" rx="1" />
@@ -1390,9 +1518,17 @@ export function App() {
 
       {/* Sidebar wrapper (resize handle is inside, absolutely positioned) */}
       {isCodeView && (
-        <div className={`sidebar-wrapper${isMobile ? ' sidebar-wrapper-drawer' : ''}${isMobile && sidebarOpen ? ' sidebar-wrapper-drawer-open' : ''}`}>
+        <div
+          role="complementary"
+          aria-label="Activity"
+          ref={(el) => { sidebarDrawerRef.current = el; if (el) { if (isMobile && !sidebarOpen) el.setAttribute('inert', ''); else el.removeAttribute('inert'); } }}
+          className={`sidebar-wrapper${isMobile ? ' sidebar-wrapper-drawer' : ''}${isMobile && sidebarOpen ? ' sidebar-wrapper-drawer-open' : ''}`}>
           {sidebarOpen && !isMobile && (
-            <div className="sidebar-resize-handle" onMouseDown={handleResizeMouseDown} />
+            <div
+              className="sidebar-resize-handle"
+              onMouseDown={handleResizeMouseDown}
+              {...resizeHandleProps('Resize sidebar', sidebarWidth, setSidebarWidth, SIDEBAR_RESIZE)}
+            />
           )}
           <Sidebar />
         </div>
@@ -1460,7 +1596,7 @@ export function App() {
                       </div>
                       <div className="finding-edit-row">
                         <label className="finding-edit-label">Status</label>
-                        <select
+                        <select aria-label="Status"
                           className="finding-edit-select"
                           value={quickStatus}
                           onChange={(e) => setQuickStatus(e.target.value as FindingStatus)}
@@ -1477,7 +1613,7 @@ export function App() {
                     <div className="quick-add-row-pair">
                       <div className="finding-edit-row">
                         <label className="finding-edit-label">Source</label>
-                        <select
+                        <select aria-label="Source"
                           className="finding-edit-select"
                           value={quickSource}
                           onChange={(e) => setQuickSource(e.target.value as typeof FINDING_SOURCES[number])}
@@ -1489,7 +1625,7 @@ export function App() {
                       </div>
                       <div className="finding-edit-row">
                         <label className="finding-edit-label">Category</label>
-                        <select
+                        <select aria-label="Category"
                           className="finding-edit-select"
                           value={quickCategory}
                           onChange={(e) => setQuickCategory(e.target.value)}
@@ -1577,7 +1713,7 @@ export function App() {
                     <div className="quick-add-row-pair">
                       <div className="finding-edit-row">
                         <label className="finding-edit-label">Kind</label>
-                        <select
+                        <select aria-label="Kind"
                           className="finding-edit-select"
                           value={quickFeatureKind}
                           onChange={(e) => setQuickFeatureKind(e.target.value as FeatureKind)}
@@ -1591,7 +1727,7 @@ export function App() {
                       </div>
                       <div className="finding-edit-row">
                         <label className="finding-edit-label">Direction</label>
-                        <select
+                        <select aria-label="Direction"
                           className="finding-edit-select"
                           value={quickFeatureDirection}
                           onChange={(e) => setQuickFeatureDirection(e.target.value)}
@@ -1687,6 +1823,7 @@ export function App() {
           onSelect={(path) => {
             setFileSearchOpen(false);
             handleSelectFile(path);
+            setPendingNavFocus('codeview'); // like Enter on a tree file: land in the code, not back on the opener
           }}
           onClose={() => setFileSearchOpen(false)}
         />
@@ -1702,6 +1839,7 @@ export function App() {
             useUIStore.getState().setScrollTargetLine(line);
             useUIStore.getState().setHighlightRange({ start: line, end: line });
             useUIStore.getState().setPendingCodeviewLine(line);
+            setPendingNavFocus('codeview'); // also applies the pending line once the code is focused
           }}
           onClose={() => setContentSearchOpen(false)}
           initialQuery={contentSearchInitialQuery}
@@ -1711,7 +1849,7 @@ export function App() {
       {/* Keyboard shortcuts button - fixed bottom-right */}
       <button
         className="shortcuts-fab"
-        data-tooltip="Keyboard shortcuts"
+        data-tooltip="Keyboard shortcuts" aria-label="Keyboard shortcuts"
         data-tooltip-pos="above"
         onClick={() => setShortcutsOpen(true)}
       >

@@ -1,5 +1,7 @@
 # Bench - Agent Guide
 
+> Working on this repository's code (workbench or `platform/`)? See [DEVELOPMENT.md](DEVELOPMENT.md). This file is about *using* bench.
+
 Bench is a code review workbench. This guide covers how to use it as a tool: connecting via MCP, using the CLI, and working with findings, features, comments, baselines, and reconciliation.
 
 ## Starting Bench
@@ -19,6 +21,8 @@ docker run -d -p 8080:8081 \
   <bench-image> \
   -repo /repo -db /data/bench.db
 ```
+
+On a multi-project server (`bench-platform`), pass `--project <slug>` (or set `BENCH_PROJECT`) for every per-project command; `bench projects list` shows the slugs. MCP at `/mcp` there takes a `project` param instead.
 
 ## Data Model
 
@@ -512,6 +516,8 @@ Bench exposes MCP tools and a CLI. Tool schemas and CLI `--help` are the source 
 - For CLI `batch-create`, provide `--input <file>` (not piped stdin)
 
 **Tool groups:** git, findings, comments, features, refs, baselines, analytics, reconcile, profile.
+
+**Multi-project only:** projects, baselines-all, catalog (cross-project feature search), flows (steps, links, folders, baselines, views). See `bench <category> --help`.
 
 **Always use `bench git` for code access** - do not reach around the CLI to the filesystem (`cat`, `grep`, `git -C`, etc.). Use:
 - `bench git commits` - HEAD commit and recent history

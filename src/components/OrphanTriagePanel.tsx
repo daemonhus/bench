@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useModal } from '../hooks/useModal';
 import { useAnnotationStore } from '../stores/annotation-store';
 import { useRepoStore } from '../stores/repo-store';
 import type { Finding, Comment, Feature } from '../core/types';
@@ -27,6 +28,7 @@ function shortPath(p: string | undefined): string {
 type Scope = 'repo' | 'file';
 
 export const OrphanTriagePanel: React.FC<Props> = ({ onClose }) => {
+  const modal = useModal<HTMLDivElement>({ label: 'Orphaned annotations', onClose: onClose });
   const updateFinding = useAnnotationStore((s) => s.updateFinding);
   const updateFeature = useAnnotationStore((s) => s.updateFeature);
   const updateComment = useAnnotationStore((s) => s.updateComment);
@@ -102,12 +104,6 @@ export const OrphanTriagePanel: React.FC<Props> = ({ onClose }) => {
 
   // Selection set is scope-specific - clear it when the user flips the toggle.
   useEffect(() => { setSelected(new Set()); }, [scope]);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
 
   const startEdit = (kind: EntityKind, item: Finding | Feature | Comment) => {
     setEditing({ kind, id: item.id });
@@ -231,7 +227,7 @@ export const OrphanTriagePanel: React.FC<Props> = ({ onClose }) => {
 
   return (
     <div className="orphan-overlay" onClick={onClose}>
-      <div className="orphan-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="orphan-modal" {...modal.props} onClick={(e) => e.stopPropagation()}>
         <div className="orphan-header">
           <span className="orphan-title">Orphaned annotations</span>
           <span className="orphan-subtitle">{total} item{total === 1 ? '' : 's'}</span>

@@ -10,21 +10,6 @@
   }
 }
 
-/* ----- Finding departing (status-filtered out) animation ----- */
-@keyframes finding-fade-out {
-  0% { opacity: 1; }
-  70% { opacity: 1; }
-  100% { opacity: 0; transform: translateY(-4px); }
-}
-
-.finding-departing {
-  animation: finding-fade-out 2s ease-out forwards;
-}
-
-.finding-departing .finding-card {
-  animation: none;
-}
-
 /* ----- Scroll-to highlight pulse ----- */
 @keyframes scroll-highlight {
   0%   { box-shadow: 0 0 0 0   rgba(129, 140, 248, 0.6); }
@@ -32,6 +17,32 @@
   100% { box-shadow: 0 0 0 4px rgba(129, 140, 248, 0); }
 }
 
-.scroll-target-highlight {
-  animation: scroll-highlight 2.8s ease-out;
+/* ── Skeleton (loading placeholder) ──────────────────────────────────
+   A grey block with a slow highlight sweeping across it, sized like the
+   content it stands in for so nothing jumps when the data arrives.
+   See components/Skeleton.tsx. */
+@keyframes skeleton-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+.skeleton {
+  display: block;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(90deg, var(--bg-surface) 25%, color-mix(in srgb, var(--bg-surface) 55%, var(--text-muted) 12%) 50%, var(--bg-surface) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+.skeleton-stack { display: flex; flex-direction: column; }
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; background: var(--bg-surface); }
+}
+.page-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px var(--page-gutter);
+  max-inline-size: var(--page-max);
+  margin-inline: auto;
+  width: 100%;
+  box-sizing: border-box;
 }

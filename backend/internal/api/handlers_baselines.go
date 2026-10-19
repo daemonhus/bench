@@ -57,6 +57,20 @@ func (h *baselineHandlers) latest(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, baseline)
 }
 
+// GET /api/baselines/{id} - one baseline (the CLI's delete preview reads it)
+func (h *baselineHandlers) get(w http.ResponseWriter, r *http.Request) {
+	baseline, err := h.db.GetBaselineByID(r.PathValue("id"))
+	if err != nil {
+		writeInternalError(w, err)
+		return
+	}
+	if baseline == nil {
+		writeError(w, http.StatusNotFound, "baseline not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, baseline)
+}
+
 // GET /api/baselines/delta - changes since latest baseline
 func (h *baselineHandlers) delta(w http.ResponseWriter, r *http.Request) {
 	baseline, err := h.db.GetLatestBaseline()

@@ -1,21 +1,21 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { buttonProps } from '../core/a11y';
 import { createPortal } from 'react-dom';
 import { useAnnotationStore } from '../stores/annotation-store';
 import { useRepoStore } from '../stores/repo-store';
 import { useUIStore } from '../stores/ui-store';
-import { gitApi, featuresApi } from '../core/api';
+import { gitApi } from '../core/api';
 import { useSnippetState } from '../core/use-snippet-state';
 import { detectLanguage, ensureLanguageRegistered } from '../core/language-map';
 import { highlight, renderToken } from '../core/tokenizer';
 import { InlineMarkdown } from '../core/markdown';
-import { avatarInitials, avatarColor } from '../core/avatar';
-import type { Feature, FeatureKind, FeatureStatus, FeatureParameter, Origin } from '../core/types';
+import type { Feature, FeatureKind, FeatureStatus } from '../core/types';
 import { RefProviderIcon } from './RefProviderIcon';
-import { RefManageModal } from './RefManageModal';
+import { CommentThread } from './CommentThread';
+import { SelectDropdown } from './SelectDropdown';
+import { FEATURE_STATUS_OPTIONS, METHOD_COLORS, HTTP_METHODS } from '../core/status-options';
 import { LinkManageModal } from './LinkManageModal';
-import { AnchorField } from './AnchorField';
-import { TagInput } from './TagInput';
-import { OriginHover, OriginIcon, originHasContent } from './origin';
+import { OriginHover, originHasContent } from './origin';
 
 interface FeatureCardProps {
   feature: Feature;
@@ -60,27 +60,6 @@ const KIND_LABELS: Record<FeatureKind, string> = {
   externality: 'Externality',
 };
 
-const STATUS_LABELS: Record<FeatureStatus, string> = {
-  draft:       'Draft',
-  active:      'Active',
-  deprecated:  'Deprecated',
-  removed:     'Removed',
-  orphaned:    'Orphaned',
-};
-
-const ALL_KINDS: FeatureKind[] = ['interface', 'source', 'sink', 'dependency', 'externality'];
-const ALL_STATUSES: FeatureStatus[] = ['draft', 'active', 'deprecated', 'removed', 'orphaned'];
-
-const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
-const METHOD_COLORS: Record<string, string> = {
-  GET: '#16a34a',
-  POST: '#2563eb',
-  PUT: '#d97706',
-  PATCH: '#7c3aed',
-  DELETE: '#dc2626',
-  HEAD: '#6b7280',
-  OPTIONS: '#6b7280',
-};
 
 function extractMethod(title: string): { method: string; path: string } | null {
   const upper = title.toUpperCase();
@@ -108,11 +87,8 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
   const storeFeatures = useAnnotationStore((s) => s.features);
   const allFeatures = allFeaturesProp ?? storeFeatures;
   const viewMode = useUIStore((s) => s.viewMode);
-  const updateFeature = useAnnotationStore((s) => s.updateFeature);
   const deleteFeature = useAnnotationStore((s) => s.deleteFeature);
-  const addComment = useAnnotationStore((s) => s.addComment);
-  const updateComment = useAnnotationStore((s) => s.updateComment);
-  const deleteComment = useAnnotationStore((s) => s.deleteComment);
+  const updateFeature = useAnnotationStore((s) => s.updateFeature);
   const fetchCommentsForFeature = useAnnotationStore((s) => s.fetchCommentsForFeature);
   const featureComments = useAnnotationStore((s) => s.getCommentsForFeature(feature.id));
   // Local refs state so the card header updates immediately after modal operations,
@@ -120,55 +96,10 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
   const [cardRefs, setCardRefs] = useState(feature.refs ?? []);
   const refs = cardRefs;
 
-  const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [managingRefs, setManagingRefs] = useState(false);
-  const [managingRefsCommentId, setManagingRefsCommentId] = useState<string | null>(null);
 
   // Comment state
-  const [replyText, setReplyText] = useState('');
-  const [submittingReply, setSubmittingReply] = useState(false);
-  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
-  const [editCommentText, setEditCommentText] = useState('');
-  const [showAllComments, setShowAllComments] = useState(false);
-
-  // Edit state
-  const [title, setTitle] = useState(feature.title);
-  const [description, setDescription] = useState(feature.description ?? '');
-  const [kind, setKind] = useState<FeatureKind>(feature.kind);
-  const [status, setStatus] = useState<FeatureStatus>(feature.status);
-  const [operation, setOperation] = useState(feature.operation ?? '');
-  const [direction, setDirection] = useState(feature.direction ?? '');
-  const [protocol, setProtocol] = useState(feature.protocol ?? '');
-  const [editTags, setEditTags] = useState<string[]>(feature.tags ?? []);
-  const [source, setSource] = useState(feature.source ?? '');
-  const [anchorFileId, setAnchorFileId] = useState(feature.anchor.fileId ?? '');
-  const [anchorLineStart, setAnchorLineStart] = useState(feature.anchor.lineRange?.start?.toString() ?? '');
-  const [anchorLineEnd, setAnchorLineEnd] = useState(feature.anchor.lineRange?.end?.toString() ?? '');
-  const [editParams, setEditParams] = useState<Array<{id?: string; name: string; type: string; required: boolean; description: string; pattern: string}>>(
-    (feature.parameters ?? []).map((p) => ({ id: p.id, name: p.name, type: p.type ?? '', required: p.required, description: p.description ?? '', pattern: p.pattern ?? '' })),
-  );
-  const [editLinkedFeatures, setEditLinkedFeatures] = useState<Array<{id: string; description: string}>>(
-    (feature.linkedFeatures ?? []).map((lf) => ({ id: lf.id, description: lf.description ?? '' })),
-  );
-
-  // Historical context (origin) form state
-  const [originExplanation, setOriginExplanation] = useState(feature.origin?.explanation ?? '');
-  const [originCommit, setOriginCommit] = useState(feature.origin?.introducedCommit ?? '');
-  const [originDate, setOriginDate] = useState(feature.origin?.introducedDate ?? '');
-  const [originActor, setOriginActor] = useState(feature.origin?.actor ?? '');
-  const [originBranch, setOriginBranch] = useState(feature.origin?.branch ?? '');
-  const [suggestingOrigin, setSuggestingOrigin] = useState(false);
-
-  // Suggest every tag already in use across the project so users converge on
-  // a small shared vocabulary instead of spelling "auth" five ways.
-  const tagSuggestions = useMemo(() => {
-    const seen = new Set<string>();
-    for (const f of allFeatures) {
-      for (const t of f.tags ?? []) seen.add(t);
-    }
-    return [...seen].sort();
-  }, [allFeatures]);
 
   const fp = feature as Feature & { effectiveAnchor?: { fileId?: string; commitId?: string; lineRange?: { start: number; end: number } }; confidence?: string };
   const lineRange = fp.effectiveAnchor?.lineRange ?? feature.anchor.lineRange;
@@ -242,123 +173,6 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
     }
   }, [isExpanded, feature.id, fetchCommentsForFeature]);
 
-  const sortedComments = useMemo(
-    () => [...featureComments].sort((a, b) => a.timestamp.localeCompare(b.timestamp)),
-    [featureComments],
-  );
-
-  const handleSubmitReply = () => {
-    const trimmed = replyText.trim();
-    if (!trimmed) return;
-    setSubmittingReply(true);
-    addComment({
-      id: `CMT-${Date.now()}`,
-      anchor: { ...feature.anchor },
-      author: 'you',
-      text: trimmed,
-      timestamp: new Date().toISOString(),
-      threadId: `T-${feature.id}`,
-      featureId: feature.id,
-    });
-    setReplyText('');
-    setSubmittingReply(false);
-  };
-
-  const handleSuggestOrigin = async () => {
-    setSuggestingOrigin(true);
-    try {
-      const sug = await featuresApi.suggestOrigin(feature.id);
-      // Fill only the blanks; typed values win over the suggestion.
-      if (!originCommit && sug.introducedCommit) setOriginCommit(sug.introducedCommit);
-      if (!originDate && sug.introducedDate) setOriginDate(sug.introducedDate);
-      if (!originActor && sug.actor) setOriginActor(sug.actor);
-      if (!originBranch && sug.branch) setOriginBranch(sug.branch);
-      // The merge subject usually says more than the commit; seed the
-      // explanation with it so there is something concrete to refine.
-      if (!originExplanation && sug.mergeSubject) setOriginExplanation(sug.mergeSubject);
-    } catch {
-      // No blame data (orphaned anchor, deleted file): leave the form as-is.
-    } finally {
-      setSuggestingOrigin(false);
-    }
-  };
-
-  const saveOrigin = () => {
-    const next: Origin = {
-      explanation: originExplanation.trim(),
-      introducedCommit: originCommit.trim(),
-      introducedDate: originDate.trim(),
-      actor: originActor.trim(),
-      branch: originBranch.trim(),
-    };
-    const cur = feature.origin;
-    const hasContent = Object.values(next).some((v) => v !== '');
-    const changed =
-      next.explanation !== (cur?.explanation ?? '') ||
-      next.introducedCommit !== (cur?.introducedCommit ?? '') ||
-      next.introducedDate !== (cur?.introducedDate ?? '') ||
-      next.actor !== (cur?.actor ?? '') ||
-      next.branch !== (cur?.branch ?? '');
-    if (!changed) return;
-    if (!hasContent && cur) {
-      featuresApi.clearOrigin(feature.id).catch(() => {});
-    } else if (hasContent) {
-      featuresApi.setOrigin(feature.id, next).catch(() => {});
-    }
-  };
-
-  const handleSave = () => {
-    const tags = editTags;
-    const startNum = parseInt(anchorLineStart, 10);
-    const endNum = parseInt(anchorLineEnd, 10);
-    const parameters: FeatureParameter[] = editParams
-      .filter((p) => p.name.trim())
-      .map((p) => ({
-        id: p.id ?? '',
-        featureId: feature.id,
-        name: p.name.trim(),
-        type: p.type || undefined,
-        required: p.required,
-        description: p.description.trim() || undefined,
-        pattern: p.pattern.trim() || undefined,
-      } as FeatureParameter));
-    const linkedFeatures = editLinkedFeatures.map((lf) => ({ id: lf.id, description: lf.description.trim() || undefined }));
-    const updates: Record<string, unknown> = { title, description, kind, status, operation: operation || undefined, direction: (direction || undefined) as 'in' | 'out' | undefined, protocol: protocol || undefined, tags, source: source || undefined, parameters, linkedFeatures };
-    if (anchorFileId.trim()) updates['file_id'] = anchorFileId.trim();
-    if (startNum > 0 && endNum > 0) { updates['line_start'] = startNum; updates['line_end'] = endNum; }
-    updateFeature(feature.id, updates as unknown as Partial<Feature>);
-    saveOrigin();
-    setEditing(false);
-  };
-
-  const handleCancelEdit = () => {
-    setTitle(feature.title);
-    setDescription(feature.description ?? '');
-    setKind(feature.kind);
-    setStatus(feature.status);
-    setOperation(feature.operation ?? '');
-    setDirection(feature.direction ?? '');
-    setProtocol(feature.protocol ?? '');
-    setEditTags(feature.tags ?? []);
-    setSource(feature.source ?? '');
-    setAnchorFileId(feature.anchor.fileId ?? '');
-    setAnchorLineStart(feature.anchor.lineRange?.start?.toString() ?? '');
-    setAnchorLineEnd(feature.anchor.lineRange?.end?.toString() ?? '');
-    setEditParams((feature.parameters ?? []).map((p) => ({ id: p.id, name: p.name, type: p.type ?? '', required: p.required, description: p.description ?? '', pattern: p.pattern ?? '' })));
-    setEditLinkedFeatures((feature.linkedFeatures ?? []).map((lf) => ({ id: lf.id, description: lf.description ?? '' })));
-    setOriginExplanation(feature.origin?.explanation ?? '');
-    setOriginCommit(feature.origin?.introducedCommit ?? '');
-    setOriginDate(feature.origin?.introducedDate ?? '');
-    setOriginActor(feature.origin?.actor ?? '');
-    setOriginBranch(feature.origin?.branch ?? '');
-    setEditing(false);
-  };
-
-  const handleStartEdit = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setEditing(true);
-    setConfirmDelete(false);
-  };
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -371,7 +185,7 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
     setConfirmDelete(false);
   };
 
-  const handleCommitClick = (e: React.MouseEvent) => {
+  const handleCommitClick = (e: React.SyntheticEvent) => {
     e.stopPropagation();
     if (!feature.anchor.commitId) return;
     useRepoStore.getState().selectCommit(feature.anchor.commitId);
@@ -397,9 +211,9 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
           {feature.direction === 'in' ? '← IN' : '→ OUT'}
         </span>
       )}
-      <span className={`feature-status-badge feature-status-badge--${feature.status}`}>
-        {STATUS_LABELS[feature.status] ?? feature.status}
-      </span>
+      <SelectDropdown<FeatureStatus> appearance="tinted" size="sm" label="Status" className="feature-status-control"
+        options={FEATURE_STATUS_OPTIONS} value={feature.status}
+        onChange={(status) => updateFeature(feature.id, { status })} />
       <button
         className="comment-icon-btn"
         onClick={(e) => { e.stopPropagation(); setManagingRefs(true); }}
@@ -409,7 +223,6 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
           <path d="M7.775 3.275a.75.75 0 0 0 1.06 1.06l1.25-1.25a2 2 0 1 1 2.83 2.83l-2.5 2.5a2 2 0 0 1-2.83 0 .75.75 0 0 0-1.06 1.06 3.5 3.5 0 0 0 4.95 0l2.5-2.5a3.5 3.5 0 0 0-4.95-4.95l-1.25 1.25Zm-4.69 9.64a2 2 0 0 1 0-2.83l2.5-2.5a2 2 0 0 1 2.83 0 .75.75 0 0 0 1.06-1.06 3.5 3.5 0 0 0-4.95 0l-2.5 2.5a3.5 3.5 0 0 0 4.95 4.95l1.25-1.25a.75.75 0 0 0-1.06-1.06l-1.25 1.25a2 2 0 0 1-2.83 0Z"/>
         </svg>
       </button>
-      <button className="comment-icon-btn" onClick={handleStartEdit} title="Edit">&#x270E;</button>
       {!confirmDelete ? (
         <button className="comment-icon-btn comment-icon-btn-danger" onClick={handleDelete} title="Delete">&#x2715;</button>
       ) : (
@@ -436,13 +249,13 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
     </span>
   );
 
+  // The title is the card's link to the feature's own page.
   const titleNavProps = {
     onClick: (e: React.MouseEvent) => {
       e.stopPropagation();
-      useUIStore.getState().setScrollToFeature({ id: feature.id, kind: feature.kind as import('../core/types').FeatureKind });
-      useUIStore.getState().setViewMode('features');
+      window.location.hash = `#/feature/${feature.id}`;
     },
-    title: 'Open in Features',
+    title: 'Open feature',
   };
   const titleEl = feature.kind === 'interface' ? (() => {
     const op = feature.operation?.toUpperCase();
@@ -510,8 +323,7 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
                       title={tooltipParts.join(' ')}
                       onClick={(e) => {
                         e.stopPropagation();
-                        useUIStore.getState().setScrollToFeature({ id: f.id, kind: f.kind as import('../core/types').FeatureKind });
-                        useUIStore.getState().setViewMode('features');
+                        window.location.hash = `#/feature/${f.id}`;
                       }}
                     >
                       {isInterface && method ? (
@@ -557,8 +369,7 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
 
       {isExpanded && (
         <div className="feature-card-body">
-          {!editing ? (
-            <>
+          <>
               {feature.description && (
                 <div className="feature-description">
                   <InlineMarkdown text={feature.description} />
@@ -612,8 +423,7 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
                             title={tooltipParts.join(' ')}
                             onClick={(e) => {
                               e.stopPropagation();
-                              useUIStore.getState().setScrollToFeature({ id: f.id, kind: f.kind as import('../core/types').FeatureKind });
-                              useUIStore.getState().setViewMode('features');
+                              window.location.hash = `#/feature/${f.id}`;
                             }}
                           >
                             {isInterface && method ? (
@@ -716,377 +526,15 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
                   )}
                 </div>
               )}
-            </>
-          ) : (
-            <div className="finding-edit-form">
-              <div className="finding-form-row">
-                <input
-                  className="finding-input"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Title"
-                />
-              </div>
-              <div className="finding-form-row">
-                <textarea
-                  className="finding-input"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Description"
-                  rows={3}
-                  style={{ resize: 'vertical' }}
-                />
-              </div>
-              <div className="finding-form-row" style={{ display: 'flex', gap: 6 }}>
-                <select className="finding-edit-select" value={kind} onChange={(e) => setKind(e.target.value as FeatureKind)}>
-                  {ALL_KINDS.map((k) => <option key={k} value={k}>{KIND_LABELS[k]}</option>)}
-                </select>
-                <select className="finding-edit-select" value={status} onChange={(e) => setStatus(e.target.value as FeatureStatus)}>
-                  {ALL_STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
-                </select>
-              </div>
-              {(kind === 'interface') && (
-                <div className="finding-form-row">
-                  <input
-                    className="finding-input"
-                    value={operation}
-                    onChange={(e) => setOperation(e.target.value)}
-                    placeholder="Operation (GET, POST, query, rpc GetUser…)"
-                  />
-                </div>
-              )}
-              <div className="finding-form-row" style={{ display: 'flex', gap: 6 }}>
-                <input
-                  className="finding-input"
-                  value={protocol}
-                  onChange={(e) => setProtocol(e.target.value)}
-                  placeholder="Protocol (rest, grpc, ...)"
-                  style={{ flex: 1 }}
-                />
-                <select className="finding-edit-select" value={direction} onChange={(e) => setDirection(e.target.value)}>
-                  <option value="">Direction</option>
-                  <option value="in">in</option>
-                  <option value="out">out</option>
-                </select>
-              </div>
-              {kind === 'interface' && (
-                <div className="feature-params-edit-section">
-                  <div className="feature-params-edit-header">
-                    <span className="feature-params-heading">Parameters</span>
-                    <button
-                      type="button"
-                      className="feature-params-add-row"
-                      onClick={() => setEditParams((ps) => [...ps, { name: '', type: '', required: false, description: '', pattern: '' }])}
-                    >+ Add parameter</button>
-                  </div>
-                  {editParams.map((p, i) => (
-                    <div key={i} className="feature-params-edit-row">
-                      <input
-                        className="finding-input feature-params-input-name"
-                        value={p.name}
-                        onChange={(e) => setEditParams((ps) => ps.map((x, j) => j === i ? { ...x, name: e.target.value } : x))}
-                        placeholder="Name"
-                      />
-                      <select
-                        className="finding-edit-select feature-params-input-type"
-                        value={p.type}
-                        onChange={(e) => setEditParams((ps) => ps.map((x, j) => j === i ? { ...x, type: e.target.value } : x))}
-                      >
-                        <option value="">type</option>
-                        {['string', 'integer', 'boolean', 'object', 'array', 'file'].map((t) => (
-                          <option key={t} value={t}>{t}</option>
-                        ))}
-                      </select>
-                      <label className="feature-params-req-label" title="Required">
-                        <input
-                          type="checkbox"
-                          checked={p.required}
-                          onChange={(e) => setEditParams((ps) => ps.map((x, j) => j === i ? { ...x, required: e.target.checked } : x))}
-                        />
-                        req
-                      </label>
-                      <input
-                        className="finding-input feature-params-input-desc"
-                        value={p.description}
-                        onChange={(e) => setEditParams((ps) => ps.map((x, j) => j === i ? { ...x, description: e.target.value } : x))}
-                        placeholder="Description"
-                      />
-                      <input
-                        className="finding-input feature-params-input-pattern"
-                        value={p.pattern}
-                        onChange={(e) => setEditParams((ps) => ps.map((x, j) => j === i ? { ...x, pattern: e.target.value } : x))}
-                        placeholder="pattern / constraint"
-                      />
-                      <button
-                        type="button"
-                        className="comment-icon-btn comment-icon-btn-danger"
-                        onClick={() => setEditParams((ps) => ps.filter((_, j) => j !== i))}
-                        title="Remove"
-                      >&#x2715;</button>
-                    </div>
-                  ))}
-                </div>
-              )}
+          </>
 
-              {(() => {
-                const linkedIds = new Set(editLinkedFeatures.map((lf) => lf.id));
-                const linkable = allFeatures.filter((f) => f.id !== feature.id && !linkedIds.has(f.id));
-                return (
-                  <div className="feature-params-edit-section">
-                    <div className="feature-params-edit-header">
-                      <span className="feature-params-heading">Linked features</span>
-                    </div>
-                    {editLinkedFeatures.map((lf, i) => {
-                      const feat = allFeatures.find((f) => f.id === lf.id);
-                      const label = feat
-                        ? (feat.kind === 'interface' && feat.operation
-                            ? `${feat.operation.toUpperCase()} ${feat.title}`
-                            : feat.title)
-                        : lf.id.slice(0, 8) + '\u2026';
-                      return (
-                        <div key={lf.id} className="feature-linked-edit-row">
-                          <span className="feature-linked-edit-label" title={feat?.title ?? lf.id}>{label}</span>
-                          <input
-                            className="finding-input"
-                            value={lf.description}
-                            onChange={(e) => setEditLinkedFeatures((ls) => ls.map((x, j) => j === i ? { ...x, description: e.target.value } : x))}
-                            placeholder="Relationship description"
-                          />
-                          <button
-                            type="button"
-                            className="comment-icon-btn comment-icon-btn-danger"
-                            onClick={() => setEditLinkedFeatures((ls) => ls.filter((_, j) => j !== i))}
-                            title="Remove link"
-                          >&#x2715;</button>
-                        </div>
-                      );
-                    })}
-                    {linkable.length > 0 && (
-                      <select
-                        className="finding-edit-select feature-linked-add-select"
-                        value=""
-                        onChange={(e) => {
-                          if (e.target.value) {
-                            setEditLinkedFeatures((ls) => [...ls, { id: e.target.value, description: '' }]);
-                            e.target.value = '';
-                          }
-                        }}
-                      >
-                        <option value="">+ Link a feature…</option>
-                        {linkable.map((f) => (
-                          <option key={f.id} value={f.id}>
-                            {f.kind === 'interface' && f.operation ? `${f.operation.toUpperCase()} ${f.title}` : `[${f.kind}] ${f.title}`}
-                          </option>
-                        ))}
-                      </select>
-                    )}
-                  </div>
-                );
-              })()}
-
-              <div className="finding-form-row">
-                <TagInput
-                  value={editTags}
-                  onChange={setEditTags}
-                  suggestions={tagSuggestions}
-                  placeholder="Add tag (Enter, space, or comma to confirm)"
-                />
-              </div>
-              <div className="finding-form-row">
-                <input
-                  className="finding-input"
-                  value={source}
-                  onChange={(e) => setSource(e.target.value)}
-                  placeholder="Source (e.g. manual, semgrep)"
-                />
-              </div>
-              <div className="finding-form-row">
-                <AnchorField
-                  fileId={anchorFileId}
-                  lineStart={anchorLineStart}
-                  lineEnd={anchorLineEnd}
-                  onFileIdChange={setAnchorFileId}
-                  onLineStartChange={setAnchorLineStart}
-                  onLineEndChange={setAnchorLineEnd}
-                />
-              </div>
-              <div className="origin-edit-section">
-                <div className="origin-edit-heading">
-                  <OriginIcon />
-                  Historical context
-                  <button
-                    type="button"
-                    className="origin-suggest-btn"
-                    onClick={handleSuggestOrigin}
-                    disabled={suggestingOrigin}
-                    title="Fill commit, date, actor, and branch from git blame and merge history on the anchor"
-                  >
-                    {suggestingOrigin ? 'Deriving…' : 'Suggest from git'}
-                  </button>
-                </div>
-                <textarea
-                  className="finding-edit-textarea"
-                  value={originExplanation}
-                  onChange={(e) => setOriginExplanation(e.target.value)}
-                  placeholder="How did this surface come to be? The change or merge request that introduced it."
-                  rows={2}
-                />
-                <div className="finding-edit-row">
-                  <label className="finding-edit-label">Actor</label>
-                  <input className="finding-edit-input-sm" value={originActor} onChange={(e) => setOriginActor(e.target.value)} placeholder="Author who introduced it" />
-                </div>
-                <div className="finding-edit-row">
-                  <label className="finding-edit-label">Branch</label>
-                  <input className="finding-edit-input-sm" value={originBranch} onChange={(e) => setOriginBranch(e.target.value)} placeholder="Where it started and merged to, e.g. feature-x -> main" />
-                </div>
-                <div className="finding-edit-row">
-                  <label className="finding-edit-label">Commit</label>
-                  <input className="finding-edit-input-sm" value={originCommit} onChange={(e) => setOriginCommit(e.target.value)} placeholder="Introducing commit sha" />
-                </div>
-                <div className="finding-edit-row">
-                  <label className="finding-edit-label">Date</label>
-                  <input className="finding-edit-input-sm" value={originDate} onChange={(e) => setOriginDate(e.target.value)} placeholder="ISO date, e.g. 2026-03-16" />
-                </div>
-              </div>
-
-              <div className="finding-edit-actions">
-                <button className="finding-edit-save" onClick={handleSave}>Save</button>
-                <button className="finding-edit-cancel" onClick={handleCancelEdit}>Cancel</button>
-              </div>
-            </div>
-          )}
-
-          <div className="finding-comments" onClick={(e) => e.stopPropagation()}>
-            {sortedComments.length > 0 && (
-              <div className="feature-params-heading">Comments<span className="section-count-badge">{sortedComments.length}</span></div>
-            )}
-            {(() => {
-              const hiddenCount = sortedComments.length > 1 && !showAllComments ? sortedComments.length - 1 : 0;
-              const visibleComments = hiddenCount > 0 ? sortedComments.slice(-1) : sortedComments;
-
-              const renderComment = (c: typeof sortedComments[0]) => (
-                <div key={c.id} className={`finding-comment${editingCommentId === c.id ? ' finding-comment-editing' : ''}`}>
-                  <div className="finding-comment-header">
-                    <span className="comment-avatar" style={{ backgroundColor: avatarColor(c.author) }} aria-hidden="true">{avatarInitials(c.author)}</span>
-                    <span className="finding-comment-author">{c.author}</span>
-                    <span className="finding-comment-time">
-                      {new Date(c.timestamp).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}{' '}{new Date(c.timestamp).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                    {editingCommentId !== c.id && (
-                      <div className="comment-card-header-right" style={{ marginLeft: 'auto' }}>
-                        <button
-                          className="comment-icon-btn"
-                          onClick={() => setManagingRefsCommentId(c.id)}
-                          title="Manage web links"
-                        >
-                          <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M2 10L10 2M10 2H5M10 2v5"/>
-                          </svg>
-                        </button>
-                        <button
-                          className="comment-icon-btn"
-                          onClick={() => { setEditingCommentId(c.id); setEditCommentText(c.text); }}
-                          title="Edit"
-                        >&#x270E;</button>
-                        <button
-                          className="comment-icon-btn comment-icon-btn-danger"
-                          onClick={() => deleteComment(c.id)}
-                          title="Delete"
-                        >&#x2715;</button>
-                      </div>
-                    )}
-                  </div>
-                  {c.refs && c.refs.length > 0 && editingCommentId !== c.id && (
-                    <div className="comment-ref-icons">
-                      {c.refs.map((ref) => (
-                        <a
-                          key={ref.id}
-                          href={ref.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="ref-icon-link"
-                          title={ref.title || ref.url}
-                        >
-                          <RefProviderIcon provider={ref.provider} size={11} />
-                        </a>
-                      ))}
-                    </div>
-                  )}
-                  {editingCommentId === c.id ? (
-                    <div>
-                      <textarea
-                        className="comment-textarea"
-                        value={editCommentText}
-                        onChange={(e) => setEditCommentText(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                            updateComment(editingCommentId!, editCommentText.trim());
-                            setEditingCommentId(null);
-                          }
-                          if (e.key === 'Escape') setEditingCommentId(null);
-                        }}
-                        rows={2}
-                        autoFocus
-                      />
-                      <div className="comment-form-actions">
-                        <button className="comment-btn comment-btn-cancel" onClick={() => setEditingCommentId(null)}>Cancel</button>
-                        <button
-                          className="comment-btn comment-btn-submit"
-                          onClick={() => {
-                            if (editCommentText.trim()) {
-                              updateComment(editingCommentId!, editCommentText.trim());
-                              setEditingCommentId(null);
-                            }
-                          }}
-                          disabled={!editCommentText.trim()}
-                        >Save</button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="finding-comment-text">
-                      <InlineMarkdown text={c.text} />
-                    </div>
-                  )}
-                </div>
-              );
-
-              return (
-                <>
-                  {hiddenCount > 0 && (
-                    <button className="finding-comments-toggle" onClick={() => setShowAllComments(true)}>
-                      {hiddenCount} previous {hiddenCount === 1 ? 'comment' : 'comments'}
-                    </button>
-                  )}
-                  {showAllComments && sortedComments.length > 1 && (
-                    <button className="finding-comments-toggle" onClick={() => setShowAllComments(false)}>
-                      Hide previous comments
-                    </button>
-                  )}
-                  {visibleComments.map(renderComment)}
-                </>
-              );
-            })()}
-
-            <div className="finding-comment-compose">
-              <textarea
-                placeholder={isNavFocused ? 'Reply... (⏎)' : 'Reply...'}
-                value={replyText}
-                onChange={(e) => setReplyText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && replyText.trim()) {
-                    handleSubmitReply();
-                  }
-                }}
-                rows={1}
-              />
-              <button
-                disabled={!replyText.trim() || submittingReply}
-                onClick={handleSubmitReply}
-              >
-                &rarr;
-              </button>
-            </div>
-          </div>
+          <CommentThread
+            comments={featureComments}
+            target={{ anchor: feature.anchor, featureId: feature.id }}
+            collapse
+            heading
+            placeholder={isNavFocused ? 'Reply... (⏎)' : 'Reply...'}
+          />
         </div>
       )}
 
@@ -1103,26 +551,16 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
         document.body
       )}
 
-      {managingRefsCommentId && createPortal(
-        <RefManageModal
-          entityType="comment"
-          entityId={managingRefsCommentId}
-          refs={featureComments.find((c) => c.id === managingRefsCommentId)?.refs ?? []}
-          onClose={() => setManagingRefsCommentId(null)}
-        />,
-        document.body
-      )}
-
       <div className="overview-card-meta">
         {feature.anchor.fileId && (
-          <span className="overview-comment-file" title={feature.anchor.fileId} onClick={(e) => { e.stopPropagation(); onScrollTo?.(); }}>
+          <span className="overview-comment-file" title={feature.anchor.fileId} {...buttonProps((e) => { e.stopPropagation(); onScrollTo?.(); }, `Go to ${feature.anchor.fileId}`)}>
             {feature.anchor.fileId.split('/').pop()}
             {lineRange && `:${lineRange.start}${lineRange.end !== lineRange.start ? `-${lineRange.end}` : ''}`}
           </span>
         )}
         <span className="overview-card-meta-right">
           {feature.anchor.commitId && (
-            <span className="overview-commit-ref overview-commit-link" onClick={handleCommitClick}>
+            <span className="overview-commit-ref overview-commit-link" {...buttonProps(handleCommitClick, `Open commit ${feature.anchor.commitId.slice(0, 7)}`)}>
               {feature.anchor.commitId.slice(0, 7)}
             </span>
           )}

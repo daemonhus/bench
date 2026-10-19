@@ -591,8 +591,15 @@ func (b *GoGitBackend) OriginSuggestion(file, commitish string, lineStart, lineE
 			if cur, err := repo.CommitObject(head.Hash()); err == nil {
 				if reachable, err := intro.IsAncestor(cur); err == nil && reachable {
 					for steps := 0; steps < originMergeWalkCap; steps++ {
-						if cur.Hash == intro.Hash || cur.NumParents() == 0 {
-							break // introduced directly on the mainline
+						if cur.Hash == intro.Hash {
+							// Introduced directly on the mainline (no merge, e.g. a
+							// linear or squash-merged history): that branch is where it
+							// started.
+							s.Branch = b.DefaultBranch()
+							break
+						}
+						if cur.NumParents() == 0 {
+							break
 						}
 						first, err := cur.Parent(0)
 						if err != nil {

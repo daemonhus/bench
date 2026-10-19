@@ -146,25 +146,14 @@ func (h *analyticsHandlers) coverage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	progress, err := h.db.GetReviewProgress(pathPrefix)
+	// All entries, not just those under pathPrefix: a mark on a directory
+	// above pathPrefix still covers the files below it.
+	progress, err := h.db.GetReviewProgress("")
 	if err != nil {
 		writeInternalError(w, err)
 		return
 	}
-	progressMap := make(map[string]*struct {
-		commitID   string
-		reviewer   string
-		note       string
-		reviewedAt string
-	})
-	for _, rp := range progress {
-		progressMap[rp.FileID] = &struct {
-			commitID   string
-			reviewer   string
-			note       string
-			reviewedAt string
-		}{rp.CommitID, rp.Reviewer, rp.Note, rp.ReviewedAt}
-	}
+	reviews := db.NewReviewLookup(progress)
 
 	type fileEntry struct {
 		Path       string `json:"path"`
@@ -179,13 +168,13 @@ func (h *analyticsHandlers) coverage(w http.ResponseWriter, r *http.Request) {
 		if pathPrefix != "" && !strings.HasPrefix(e.Path, pathPrefix) {
 			continue
 		}
-		rp, ok := progressMap[e.Path]
+		rp, ok := reviews.For(e.Path)
 		if !ok {
 			unreviewed++
 			files = append(files, fileEntry{Path: e.Path, Status: "unreviewed"})
 			continue
 		}
-		changed, err := h.repo.DiffFiles(rp.commitID, commit)
+		changed, err := h.repo.DiffFiles(rp.CommitID, commit)
 		if err != nil {
 			if onlyUnreviewed {
 				reviewed++
@@ -194,7 +183,7 @@ func (h *analyticsHandlers) coverage(w http.ResponseWriter, r *http.Request) {
 			reviewed++
 			files = append(files, fileEntry{
 				Path: e.Path, Status: "reviewed",
-				ReviewedAt: rp.reviewedAt, Reviewer: rp.reviewer,
+				ReviewedAt: rp.ReviewedAt, Reviewer: rp.Reviewer,
 			})
 			continue
 		}
@@ -209,7 +198,7 @@ func (h *analyticsHandlers) coverage(w http.ResponseWriter, r *http.Request) {
 			stale++
 			files = append(files, fileEntry{
 				Path: e.Path, Status: "stale",
-				ReviewedAt: rp.reviewedAt, Reviewer: rp.reviewer,
+				ReviewedAt: rp.ReviewedAt, Reviewer: rp.Reviewer,
 			})
 		} else {
 			if onlyUnreviewed {
@@ -219,7 +208,7 @@ func (h *analyticsHandlers) coverage(w http.ResponseWriter, r *http.Request) {
 			reviewed++
 			files = append(files, fileEntry{
 				Path: e.Path, Status: "reviewed",
-				ReviewedAt: rp.reviewedAt, Reviewer: rp.reviewer,
+				ReviewedAt: rp.ReviewedAt, Reviewer: rp.Reviewer,
 			})
 		}
 	}

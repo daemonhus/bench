@@ -28,23 +28,39 @@
   margin-inline: auto;
 }
 
-/* Full-width, three columns: repository (35%) | findings (30%) | surface (35%). */
+/* Desktop: two even columns, repository beside findings stacked on the attack surface (the two
+   security panels travel together). Ultrawide: three columns, repository | findings | surface.
+   Phone: one column led by findings, then attack surface, then repository. */
+.ovp-col-repo { grid-area: repo; }
+.ovp-col-findings { grid-area: findings; }
+.ovp-col-surface { grid-area: surface; }
+
 .ovp-columns {
   display: grid;
-  grid-template-columns: minmax(0, 7fr) minmax(0, 6fr) minmax(0, 7fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas:
+    "repo findings"
+    "repo surface";
+  /* The tall repository column's extra height goes below the attack surface, not between it and
+     findings. */
+  grid-template-rows: auto 1fr;
   gap: 16px;
   align-items: start;
 }
 
-@media (max-width: 1100px) {
+@media (min-width: 2400px) {
   .ovp-columns {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 7fr) minmax(0, 6fr) minmax(0, 7fr);
+    grid-template-areas: "repo findings surface";
+    grid-template-rows: auto;
   }
 }
 
 @media (max-width: 760px) {
   .ovp-columns {
     grid-template-columns: 1fr;
+    grid-template-areas: "findings" "surface" "repo";
+    grid-template-rows: auto;
   }
 }
 
@@ -74,16 +90,6 @@
 
 /* ----- Stat tiles ----- */
 
-.ovp-stat-value {
-  font-size: var(--font-size-lg);
-  font-weight: 600;
-  color: var(--text-primary);
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  white-space: nowrap;
-}
-
 .ovp-stat-when {
   font-size: var(--font-size-xs);
   font-weight: 400;
@@ -98,9 +104,6 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
-/* Severity chips under the open-findings stat */
-
 
 /* ----- Panels ----- */
 
@@ -142,12 +145,6 @@
 .ovp-panel-title-link:hover .ovp-panel-title-icon {
   opacity: 1;
   transform: translate(1px, -1px);
-}
-
-.ovp-inline-link {
-  color: var(--accent-blue);
-  text-decoration: underline;
-  text-underline-offset: 2px;
 }
 
 .ovp-subtitle {
@@ -482,7 +479,6 @@
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
-
 
 .ovp-cat-text {
   display: flex;
@@ -897,20 +893,6 @@
   cursor: default;
 }
 
-.ovp-branches {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.ovp-branch-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: var(--font-size-small);
-  min-width: 0;
-}
-
 .ovp-branch-name {
   color: var(--text-primary);
   overflow: hidden;
@@ -934,18 +916,10 @@
   white-space: nowrap;
 }
 
-.ovp-badge-current,
-.ovp-badge-head {
+.ovp-badge-current {
   color: var(--accent-green);
   border-color: color-mix(in srgb, var(--accent-green) 40%, transparent);
   background: var(--accent-green-subtle);
-}
-
-.ovp-badge-planned {
-  color: var(--accent-purple);
-  border-color: color-mix(in srgb, var(--accent-purple) 40%, transparent);
-  background: var(--accent-purple-subtle);
-  margin-bottom: 14px;
 }
 
 /* ----- Feature map (HTML nodes over an SVG edge layer) ----- */
@@ -1009,18 +983,6 @@ a.ovp-map-node-el:hover .ovp-map-node-label {
   border: 2px solid var(--bg-secondary); /* surface ring */
   flex-shrink: 0;
   transition: box-shadow var(--transition-fast);
-}
-
-/* Open-findings marker on a node */
-.ovp-map-dot-alert {
-  position: absolute;
-  top: -3px;
-  right: -3px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--status-open);
-  border: 1.5px solid var(--bg-secondary);
 }
 
 .ovp-map-node-label {
@@ -1212,3 +1174,6 @@ a.ovp-map-card-open-link:hover {
 .ovp-baseline-drift-behind {
   color: var(--severity-medium);
 }
+
+/* "Open Profile" beside the missing-profile note: the soft call to action, as on the banner. */
+.ovp-profile-cta { display: inline-flex; align-items: center; min-height: 28px; box-sizing: border-box; margin-left: 8px; padding: 3px 10px; font-size: var(--font-size-small); text-decoration: none; }

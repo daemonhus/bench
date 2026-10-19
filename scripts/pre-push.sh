@@ -5,9 +5,7 @@
 #   npm run verify          # everything
 #   scripts/pre-push.sh     # same thing
 #
-# Mirrors .github/workflows/ci.yml (backend + frontend jobs), plus a frontend
-# typecheck: CI runs only `npm test`, so `tsc` is currently unguarded there and
-# a type error would first surface in the release build.
+# Mirrors .github/workflows/ci.yml (backend, platform-backend and frontend jobs).
 #
 # Deliberately NOT run here: the Docker buildx job (multi-arch, minutes long -
 # CI covers it) and Playwright e2e (needs browsers and a live backend).
@@ -58,9 +56,29 @@ run "go vet"             go_in_backend go vet ./...
 run "go test"            go_in_backend go test ./...
 run "go build"           go_in_backend go build ./...
 
+go_in_platform() { (cd platform/backend && mkdir -p dist && touch dist/.keep && "$@"); }
+gofmt_platform() {
+  local unformatted
+  unformatted="$(gofmt -l ./platform/backend)"
+  if [ -n "$unformatted" ]; then
+    echo "These files need gofmt:"
+    echo "$unformatted"
+    return 1
+  fi
+}
+
+printf '%splatform backend%s\n' "$BOLD" "$OFF"
+run "go mod tidy -diff"  go_in_platform go mod tidy -diff
+run "gofmt"              gofmt_platform
+run "go vet"             go_in_platform go vet ./...
+run "go test"            go_in_platform go test ./...
+run "go build"           go_in_platform go build ./...
+
 printf '%sfrontend%s\n' "$BOLD" "$OFF"
 run "tsc --noEmit"       npx tsc --noEmit
 run "vitest"             npx vitest run
+run "platform tsc"       npm --prefix platform/ui run typecheck
+run "platform build"     npm --prefix platform/ui run build
 
 if [ ${#FAILED[@]} -gt 0 ]; then
   printf '\n%s%d check(s) failed:%s %s\n' "$RED" "${#FAILED[@]}" "$OFF" "${FAILED[*]}"

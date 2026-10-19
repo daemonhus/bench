@@ -18,8 +18,6 @@ The panel computes what changed since the selected baseline:
 
 Below the stats, an activity stream shows findings, comments, and commits in chronological order. Use the type toggles and filters to narrow it down by severity or author.
 
-![Changes panel showing the baseline header, delta stats, and activity stream of findings and comments](./img/changes.png)
-
 ## History
 
 Click the **History** toggle to browse past baselines (BL-1, BL-2, …) and switch between them. Select any baseline to see the delta from its predecessor - useful for reviewing what a specific round of work produced.

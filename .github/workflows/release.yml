@@ -8,6 +8,11 @@ on:
       - "v*"
     paths-ignore:
       - "docs/**"
+      - "platform/**"
+      - "site/**"
+      - "render.yaml"
+      - "go.work"
+      - "*.md"
   workflow_dispatch:
 
 permissions:
@@ -83,7 +88,7 @@ jobs:
           npm run build
 
       - name: Copy frontend dist into backend
-        run: cp -r dist backend/dist
+        run: cp -r dist/. backend/dist/
 
       - name: Build release artifacts
         env:

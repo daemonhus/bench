@@ -35,41 +35,6 @@
   background: var(--bg-surface);
 }
 
-.comment-type-badge {
-  display: inline-block;
-  padding: 1px 5px;
-  border-radius: var(--radius-xs);
-  font-size: 10px;
-  font-weight: 600;
-  margin-left: 6px;
-  text-transform: capitalize;
-  flex-shrink: 0;
-}
-
-.comment-type-feature {
-  background: var(--accent-blue-subtle);
-  color: var(--accent-blue);
-  border: 1px solid color-mix(in srgb, var(--accent-blue) 30%, transparent);
-}
-
-.comment-type-improvement {
-  background: var(--accent-green-subtle);
-  color: var(--accent-green);
-  border: 1px solid color-mix(in srgb, var(--accent-green) 30%, transparent);
-}
-
-.comment-type-question {
-  background: var(--status-in-progress-subtle);
-  color: var(--status-in-progress);
-  border: 1px solid color-mix(in srgb, var(--status-in-progress) 30%, transparent);
-}
-
-.comment-type-concern {
-  background: var(--status-open-subtle);
-  color: var(--status-open);
-  border: 1px solid color-mix(in srgb, var(--status-open) 30%, transparent);
-}
-
 .comment-textarea {
   width: 100%;
   background: var(--bg-tertiary);
@@ -135,20 +100,6 @@
 .comment-btn-submit:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-.comment-add-trigger {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  font-size: var(--font-size-small);
-  cursor: pointer;
-  padding: 4px 0;
-  margin-top: 4px;
-}
-
-.comment-add-trigger:hover {
-  color: var(--accent-blue);
 }
 
 .comment-orphan-badge {

@@ -117,7 +117,7 @@ bench findings suggest-origin --id <id>
 bench features suggest-origin --id <id>
 ```
 
-The suggestion carries `introducedCommit`, `introducedDate` and `actor` from the newest blamed line; `mergeCommit` and `mergeSubject` for the merge that landed it (the merge request message is usually the best explanation source); `branch` pre-composed as the source-to-target flow; and `context`, the recent commits touching the anchor's file. Nothing is written - confirm what matters:
+The suggestion carries `introducedCommit`, `introducedDate` and `actor` from the newest blamed line; `mergeCommit` and `mergeSubject` for the merge that landed it (the merge request message is usually the best explanation source); `branch` pre-composed as the source-to-target flow (just the default branch when the change was committed straight onto it, as in a squash-merge history); and `context`, the recent commits touching the anchor's file. Nothing is written - confirm what matters:
 
 ```bash
 bench findings set-origin --id <id> \

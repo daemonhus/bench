@@ -1,26 +1,25 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { buttonProps } from '../core/a11y';
 import { createPortal } from 'react-dom';
 import { useAnnotationStore } from '../stores/annotation-store';
 import { useRepoStore } from '../stores/repo-store';
 import { useUIStore } from '../stores/ui-store';
 import { useReconcileStore } from '../stores/reconcile-store';
-import type { Finding, Origin, Comment, Feature, Severity, FindingStatus } from '../core/types';
-import { FINDING_CATEGORIES, getEffectiveLineRange, getConfidence } from '../core/types';
-import { featuresApi, findingsApi } from '../core/api';
+import type { Finding, Feature, FindingStatus } from '../core/types';
+import { getEffectiveLineRange, getConfidence } from '../core/types';
+import { featuresApi } from '../core/api';
 import { InlineMarkdown } from '../core/markdown';
-import { avatarInitials, avatarColor } from '../core/avatar';
 import { useBranchMap } from '../core/use-branch-map';
 import { useSnippetState } from '../core/use-snippet-state';
 import { gitApi } from '../core/api';
 import { detectLanguage, ensureLanguageRegistered } from '../core/language-map';
 import { highlight, renderToken } from '../core/tokenizer';
 import { RefProviderIcon } from './RefProviderIcon';
-import { RefManageModal } from './RefManageModal';
 import { LinkManageModal } from './LinkManageModal';
-import { CommentEditor } from './CommentEditor';
-import { AnchorField } from './AnchorField';
-import { isOrphaned } from '../core/orphan';
-import { OriginHover, OriginIcon, originHasContent } from './origin';
+import { CommentThread } from './CommentThread';
+import { SelectDropdown, ToneChip } from './SelectDropdown';
+import { SEVERITY_OPTIONS, FINDING_STATUS_OPTIONS, METHOD_COLORS } from '../core/status-options';
+import { OriginHover, originHasContent } from './origin';
 
 interface FindingCardProps {
   finding: Finding;
@@ -50,36 +49,6 @@ const KIND_LABELS: Record<string, string> = {
   externality: 'Externality',
 };
 
-const METHOD_COLORS: Record<string, string> = {
-  GET: 'var(--kind-source)',
-  POST: 'var(--kind-interface)',
-  PUT: 'var(--category-config)',
-  PATCH: 'var(--kind-dependency)',
-  DELETE: 'var(--severity-critical)',
-  HEAD: 'var(--severity-info)',
-  OPTIONS: 'var(--severity-info)',
-};
-
-const SEVERITY_COLORS: Record<string, string> = {
-  critical: 'var(--severity-critical)',
-  high: 'var(--severity-high)',
-  medium: 'var(--severity-medium)',
-  low: 'var(--severity-low)',
-  info: 'var(--severity-info)',
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  draft: 'Draft',
-  open: 'Open',
-  'in-progress': 'In Progress',
-  'false-positive': 'False Positive',
-  accepted: 'Accepted',
-  closed: 'Closed',
-};
-
-const SEVERITIES: Severity[] = ['critical', 'high', 'medium', 'low', 'info'];
-const STATUSES: FindingStatus[] = ['draft', 'open', 'in-progress', 'false-positive', 'accepted', 'closed'];
-const SOURCES = ['pentest', 'tool', 'manual'] as const;
 
 export const FindingCard: React.FC<FindingCardProps> = ({
   finding,
@@ -94,13 +63,9 @@ export const FindingCard: React.FC<FindingCardProps> = ({
 }) => {
   const updateFinding = useAnnotationStore((s) => s.updateFinding);
   const deleteFinding = useAnnotationStore((s) => s.deleteFinding);
-  const addComment = useAnnotationStore((s) => s.addComment);
-  const updateComment = useAnnotationStore((s) => s.updateComment);
-  const deleteComment = useAnnotationStore((s) => s.deleteComment);
   const fetchCommentsForFinding = useAnnotationStore((s) => s.fetchCommentsForFinding);
   const findingComments = useAnnotationStore((s) => s.getCommentsForFinding(finding.id));
   const allFeatures = useAnnotationStore((s) => s.features);
-  const branches = useRepoStore((s) => s.branches);
   const viewMode = useUIStore((s) => s.viewMode);
   const reconciledHead = useReconcileStore((s) => s.head);
   const gitHead = reconciledHead?.gitHead ?? null;
@@ -110,20 +75,14 @@ export const FindingCard: React.FC<FindingCardProps> = ({
   // Local refs so the meta row updates immediately after modal operations
   const [cardRefs, setCardRefs] = useState(finding.refs ?? []);
 
-  const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [idCopied, setIdCopied] = useState(false);
   const [managingRefs, setManagingRefs] = useState(false);
-  const [managingRefsCommentId, setManagingRefsCommentId] = useState<string | null>(null);
 
   // Comment state - consume draft carried from another view (e.g. Overview → Browse)
   const draftComment = useUIStore((s) => s.draftComment);
   const setDraftComment = useUIStore((s) => s.setDraftComment);
   const consumedDraft = draftComment?.findingId === finding.id ? draftComment.text : '';
-  const [replyText, setReplyText] = useState(consumedDraft);
-  const [submittingReply, setSubmittingReply] = useState(false);
-  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
-  const [showAllComments, setShowAllComments] = useState(false);
 
   // Clear consumed draft once hydrated into local state
   useEffect(() => {
@@ -139,45 +98,11 @@ export const FindingCard: React.FC<FindingCardProps> = ({
     }
   }, [isExpanded, finding.id, fetchCommentsForFinding]);
 
-  const sortedComments = useMemo(
-    () => [...findingComments].sort((a, b) => a.timestamp.localeCompare(b.timestamp)),
-    [findingComments],
-  );
-
-  // Edit form state
-  const [title, setTitle] = useState(finding.title);
-  const [description, setDescription] = useState(finding.description);
-  const [severity, setSeverity] = useState<Severity>(finding.severity);
-  const [status, setStatus] = useState<FindingStatus>(finding.status);
-  const [source, setSource] = useState(finding.source);
-  const [cwe, setCwe] = useState(finding.cwe);
-  const [cve, setCve] = useState(finding.cve);
-  const [vector, setVector] = useState(finding.vector);
-  const [score, setScore] = useState(finding.score?.toString() ?? '');
-  const [category, setCategory] = useState(finding.category ?? '');
-  const [anchorFileId, setAnchorFileId] = useState(finding.anchor.fileId ?? '');
-  const [anchorLineStart, setAnchorLineStart] = useState(finding.anchor.lineRange?.start?.toString() ?? '');
-  const [anchorLineEnd, setAnchorLineEnd] = useState(finding.anchor.lineRange?.end?.toString() ?? '');
-
-  // Historical context (origin) form state
-  const [originExplanation, setOriginExplanation] = useState(finding.origin?.explanation ?? '');
-  const [originCommit, setOriginCommit] = useState(finding.origin?.introducedCommit ?? '');
-  const [originDate, setOriginDate] = useState(finding.origin?.introducedDate ?? '');
-  const [originActor, setOriginActor] = useState(finding.origin?.actor ?? '');
-  const [originBranch, setOriginBranch] = useState(finding.origin?.branch ?? '');
-  const [suggestingOrigin, setSuggestingOrigin] = useState(false);
 
   const lineRange = getEffectiveLineRange(finding);
   const confidence = getConfidence(finding);
-  const lineLabel = lineRange
-    ? lineRange.start === lineRange.end
-      ? `L${lineRange.start}`
-      : `L${lineRange.start}\u2013${lineRange.end}`
-    : null;
 
   const fileId = finding.anchor.fileId;
-  const fileName = fileId ? fileId.split('/').pop() : null;
-  const parentDir = fileId && fileId.includes('/') ? fileId.split('/').slice(-2, -1)[0] : null;
 
   // Snippet state
   const [fileLines, setFileLines] = useState<{ lines: string[]; lang: string } | null>(null);
@@ -251,102 +176,6 @@ export const FindingCard: React.FC<FindingCardProps> = ({
     };
   }, [fileLines, lineRange, extraBefore, extraAfter]);
 
-  const handleStartEdit = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setTitle(finding.title);
-    setDescription(finding.description);
-    setSeverity(finding.severity);
-    setStatus(finding.status);
-    setSource(finding.source);
-    setCwe(finding.cwe);
-    setCve(finding.cve);
-    setVector(finding.vector);
-    setScore(finding.score?.toString() ?? '');
-    setCategory(finding.category ?? '');
-    setAnchorFileId(finding.anchor.fileId ?? '');
-    setAnchorLineStart(finding.anchor.lineRange?.start?.toString() ?? '');
-    setAnchorLineEnd(finding.anchor.lineRange?.end?.toString() ?? '');
-    setOriginExplanation(finding.origin?.explanation ?? '');
-    setOriginCommit(finding.origin?.introducedCommit ?? '');
-    setOriginDate(finding.origin?.introducedDate ?? '');
-    setOriginActor(finding.origin?.actor ?? '');
-    setOriginBranch(finding.origin?.branch ?? '');
-    setEditing(true);
-  };
-
-  const handleSuggestOrigin = async () => {
-    setSuggestingOrigin(true);
-    try {
-      const s = await findingsApi.suggestOrigin(finding.id);
-      // Fill only the blanks; typed values win over the blame suggestion.
-      if (!originCommit && s.introducedCommit) setOriginCommit(s.introducedCommit);
-      if (!originDate && s.introducedDate) setOriginDate(s.introducedDate);
-      if (!originActor && s.actor) setOriginActor(s.actor);
-      if (!originBranch && s.branch) setOriginBranch(s.branch);
-      // The merge subject usually says more than the commit; seed the
-      // explanation with it so there is something concrete to refine.
-      if (!originExplanation && s.mergeSubject) setOriginExplanation(s.mergeSubject);
-    } catch {
-      // No blame data (orphaned anchor, deleted file): leave the form as-is.
-    } finally {
-      setSuggestingOrigin(false);
-    }
-  };
-
-  const saveOrigin = () => {
-    const next: Origin = {
-      explanation: originExplanation.trim(),
-      introducedCommit: originCommit.trim(),
-      introducedDate: originDate.trim(),
-      actor: originActor.trim(),
-      branch: originBranch.trim(),
-    };
-    const cur = finding.origin;
-    const hasContent = Object.values(next).some((v) => v !== '');
-    const changed =
-      next.explanation !== (cur?.explanation ?? '') ||
-      next.introducedCommit !== (cur?.introducedCommit ?? '') ||
-      next.introducedDate !== (cur?.introducedDate ?? '') ||
-      next.actor !== (cur?.actor ?? '') ||
-      next.branch !== (cur?.branch ?? '');
-    if (!changed) return;
-    if (!hasContent && cur) {
-      findingsApi.clearOrigin(finding.id).catch(() => {});
-    } else if (hasContent) {
-      findingsApi.setOrigin(finding.id, next).catch(() => {});
-    }
-  };
-
-  const handleSave = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const trimmedTitle = title.trim();
-    if (!trimmedTitle) return;
-    const startNum = parseInt(anchorLineStart, 10);
-    const endNum = parseInt(anchorLineEnd, 10);
-    const updates: Record<string, unknown> = {
-      title: trimmedTitle,
-      description: description.trim(),
-      severity,
-      status,
-      source,
-      cwe: cwe.trim(),
-      cve: cve.trim(),
-      vector: vector.trim(),
-      score: score !== '' ? parseFloat(score) : undefined,
-      category,
-    };
-    if (anchorFileId.trim()) updates['file_id'] = anchorFileId.trim();
-    if (startNum > 0 && endNum > 0) { updates['line_start'] = startNum; updates['line_end'] = endNum; }
-    updateFinding(finding.id, updates);
-    saveOrigin();
-    setEditing(false);
-  };
-
-  const handleCancel = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setEditing(false);
-  };
-
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!confirmDelete) {
@@ -361,270 +190,28 @@ export const FindingCard: React.FC<FindingCardProps> = ({
     setConfirmDelete(false);
   };
 
-  const handleStatusChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    updateFinding(finding.id, { status: e.target.value as FindingStatus });
-  };
-
-  const handleSubmitReply = () => {
-    const trimmed = replyText.trim();
-    if (!trimmed) return;
-    setSubmittingReply(true);
-    addComment({
-      id: `CMT-${Date.now()}`,
-      anchor: { ...finding.anchor },
-      author: 'you',
-      text: trimmed,
-      timestamp: new Date().toISOString(),
-      threadId: `T-${finding.id}`,
-      findingId: finding.id,
-    });
-    setReplyText('');
-    setDraftComment(null);
-    setSubmittingReply(false);
-  };
-
-  if (editing) {
-    return (
-      <div
-        className="finding-card finding-card-editing"
-        onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => { if (e.key === 'Escape') setEditing(false); }}
-      >
-        <div className="finding-edit-form">
-          <input
-            className="finding-edit-input"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Title"
-            autoFocus
-          />
-
-          <textarea
-            className="finding-edit-textarea"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Description"
-            rows={3}
-          />
-
-          <div className="finding-edit-row">
-            <label className="finding-edit-label">Severity</label>
-            <div className="finding-severity-toggle">
-              {SEVERITIES.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  className={`finding-severity-toggle-btn severity-${s}${severity === s ? ' active' : ''}`}
-                  onClick={() => setSeverity(s)}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="finding-edit-row">
-            <label className="finding-edit-label">Status</label>
-            <div className="finding-status-toggle">
-              {STATUSES.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  className={`finding-status-toggle-btn status-${s}${status === s ? ' active' : ''}`}
-                  onClick={() => setStatus(s)}
-                >
-                  {STATUS_LABELS[s]}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="finding-edit-row">
-            <label className="finding-edit-label">Source</label>
-            <select
-              className="finding-edit-select"
-              value={source}
-              onChange={(e) => setSource(e.target.value as typeof SOURCES[number])}
-            >
-              {SOURCES.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="finding-edit-row">
-            <label className="finding-edit-label">Category</label>
-            <select
-              className="finding-edit-select"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-            >
-              <option value="">None</option>
-              {FINDING_CATEGORIES.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="finding-edit-row">
-            <label className="finding-edit-label">CWE</label>
-            <input
-              className="finding-edit-input-sm"
-              value={cwe}
-              onChange={(e) => setCwe(e.target.value)}
-              placeholder="e.g. CWE-79"
-            />
-          </div>
-
-          <div className="finding-edit-row">
-            <label className="finding-edit-label">CVE</label>
-            <input
-              className="finding-edit-input-sm"
-              value={cve}
-              onChange={(e) => setCve(e.target.value)}
-              placeholder="e.g. CVE-2024-1234"
-            />
-          </div>
-
-          <div className="finding-edit-row">
-            <label className="finding-edit-label">Vector</label>
-            <input
-              className="finding-edit-input-sm"
-              value={vector}
-              onChange={(e) => setVector(e.target.value)}
-              placeholder="CVSS vector string"
-            />
-          </div>
-
-          <div className="finding-edit-row">
-            <label className="finding-edit-label">Score</label>
-            <input
-              className="finding-edit-input-sm"
-              type="number"
-              min="0"
-              max="10"
-              step="0.1"
-              value={score}
-              onChange={(e) => setScore(e.target.value)}
-            />
-          </div>
-
-          <div className="finding-edit-row finding-edit-row-anchor">
-            <label className="finding-edit-label">Anchor</label>
-            <div className="finding-edit-anchor-wrap">
-              <AnchorField
-                fileId={anchorFileId}
-                lineStart={anchorLineStart}
-                lineEnd={anchorLineEnd}
-                onFileIdChange={setAnchorFileId}
-                onLineStartChange={setAnchorLineStart}
-                onLineEndChange={setAnchorLineEnd}
-              />
-            </div>
-          </div>
-
-          <div className="origin-edit-section">
-            <div className="origin-edit-heading">
-              <OriginIcon />
-              Historical context
-              <button
-                type="button"
-                className="origin-suggest-btn"
-                onClick={handleSuggestOrigin}
-                disabled={suggestingOrigin}
-                title="Fill commit, date, actor, and branch from git blame and merge history on the anchor"
-              >
-                {suggestingOrigin ? 'Deriving…' : 'Suggest from git'}
-              </button>
-            </div>
-            <textarea
-              className="finding-edit-textarea"
-              value={originExplanation}
-              onChange={(e) => setOriginExplanation(e.target.value)}
-              placeholder="How did this vulnerability come to be? The change, refactor, or decision that introduced it."
-              rows={2}
-            />
-            <div className="finding-edit-row">
-              <label className="finding-edit-label">Actor</label>
-              <input
-                className="finding-edit-input-sm"
-                value={originActor}
-                onChange={(e) => setOriginActor(e.target.value)}
-                placeholder="Author who introduced it"
-              />
-            </div>
-            <div className="finding-edit-row">
-              <label className="finding-edit-label">Branch</label>
-              <input
-                className="finding-edit-input-sm"
-                value={originBranch}
-                onChange={(e) => setOriginBranch(e.target.value)}
-                placeholder="Where it started and merged to, e.g. feature-x -> main"
-              />
-            </div>
-            <div className="finding-edit-row">
-              <label className="finding-edit-label">Commit</label>
-              <input
-                className="finding-edit-input-sm"
-                value={originCommit}
-                onChange={(e) => setOriginCommit(e.target.value)}
-                placeholder="Introducing commit sha"
-              />
-            </div>
-            <div className="finding-edit-row">
-              <label className="finding-edit-label">Date</label>
-              <input
-                className="finding-edit-input-sm"
-                value={originDate}
-                onChange={(e) => setOriginDate(e.target.value)}
-                placeholder="ISO date, e.g. 2026-03-16"
-              />
-            </div>
-          </div>
-
-          <div className="finding-edit-actions">
-            <button className="finding-edit-save" onClick={handleSave}>Save</button>
-            <button className="finding-edit-cancel" onClick={handleCancel}>Cancel</button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div
       className={`finding-card ${isExpanded ? 'finding-card-expanded' : ''} ${isFocused ? 'finding-card-focused' : ''}`}
     >
       <div className="finding-card-header" onClick={onToggle}>
         <div className="finding-card-header-top">
-          <span
-            className="severity-dot"
-            style={{ backgroundColor: SEVERITY_COLORS[finding.severity] }}
-            title={finding.severity}
-          />
-          <span className="finding-severity-label">{finding.severity}</span>
-          <span className={`finding-id-badge${idCopied ? ' finding-id-copied' : ''}`} title="Click to copy ID" onClick={(e) => {
+          <ToneChip label={SEVERITY_OPTIONS.find((o) => o.value === finding.severity)?.label ?? finding.severity}
+            tone={SEVERITY_OPTIONS.find((o) => o.value === finding.severity)?.tone} title="Severity" />
+          <span className={`finding-id-badge${idCopied ? ' finding-id-copied' : ''}`} title="Copy ID" {...buttonProps((e) => {
             e.stopPropagation();
-            navigator.clipboard.writeText(finding.id);
+            navigator.clipboard?.writeText(finding.id).catch(() => {});
             setIdCopied(true);
             setTimeout(() => setIdCopied(false), 1200);
-          }}>
+          }, 'Copy finding ID')}>
             {idCopied ? 'Copied!' : finding.id.slice(0, 8)}
             {!idCopied && <span className="finding-id-copy">&#x2398;</span>}
           </span>
-          <span className="finding-source-badge">{finding.source}</span>
-          <select
-            className={`status-select status-${finding.status}`}
-            value={finding.status}
-            onChange={handleStatusChange}
-            onClick={(e) => e.stopPropagation()}
-            tabIndex={isExpanded ? 0 : -1}
-            title="Change status"
-          >
-            {STATUSES.map((s) => (
-              <option key={s} value={s}>{STATUS_LABELS[s]}</option>
-            ))}
-          </select>
+          <ToneChip label={finding.source} title="Source" />
+          <SelectDropdown<FindingStatus> appearance="tinted" size="sm" label="Status" className="finding-status-control"
+            options={FINDING_STATUS_OPTIONS} value={finding.status}
+            onChange={(status) => updateFinding(finding.id, { status })}
+            tabIndex={isExpanded ? 0 : -1} />
           <div className="comment-card-header-right">
             <button
               className="comment-icon-btn"
@@ -635,11 +222,6 @@ export const FindingCard: React.FC<FindingCardProps> = ({
                 <path d="M7.775 3.275a.75.75 0 0 0 1.06 1.06l1.25-1.25a2 2 0 1 1 2.83 2.83l-2.5 2.5a2 2 0 0 1-2.83 0 .75.75 0 0 0-1.06 1.06 3.5 3.5 0 0 0 4.95 0l2.5-2.5a3.5 3.5 0 0 0-4.95-4.95l-1.25 1.25Zm-4.69 9.64a2 2 0 0 1 0-2.83l2.5-2.5a2 2 0 0 1 2.83 0 .75.75 0 0 0 1.06-1.06 3.5 3.5 0 0 0-4.95 0l-2.5 2.5a3.5 3.5 0 0 0 4.95 4.95l1.25-1.25a.75.75 0 0 0-1.06-1.06l-1.25 1.25a2 2 0 0 1-2.83 0Z"/>
               </svg>
             </button>
-            <button
-              className="comment-icon-btn"
-              onClick={handleStartEdit}
-              title="Edit"
-            >&#x270E;</button>
             {!confirmDelete ? (
               <button
                 className="comment-icon-btn comment-icon-btn-danger"
@@ -660,9 +242,9 @@ export const FindingCard: React.FC<FindingCardProps> = ({
             className="finding-title finding-title-link"
             onClick={(e) => {
               e.stopPropagation();
-              window.location.hash = `#/findings/${finding.id}`;
+              window.location.hash = `#/finding/${finding.id}`;
             }}
-            title="Open in Findings"
+            title="Open finding"
           >{finding.title}</span>
           {originHasContent(finding.origin) && <OriginHover origin={finding.origin} />}
         </div>
@@ -757,8 +339,7 @@ export const FindingCard: React.FC<FindingCardProps> = ({
                 title={tooltipParts.join(' ')}
                 onClick={(e) => {
                   e.stopPropagation();
-                  useUIStore.getState().setScrollToFeature({ id: feat.id, kind: feat.kind });
-                  useUIStore.getState().setViewMode('features');
+                  window.location.hash = `#/feature/${feat.id}`;
                 }}
               >
                 {isInterface && method ? (
@@ -777,138 +358,16 @@ export const FindingCard: React.FC<FindingCardProps> = ({
         </div>
       )}
 
-      {isExpanded && (sortedComments.length > 0 || true) && (
-        <div className="finding-comments" onClick={(e) => e.stopPropagation()}>
-          {sortedComments.length > 0 && (
-            <div className="feature-params-heading">Comments<span className="section-count-badge">{sortedComments.length}</span></div>
-          )}
-          {(() => {
-            const hiddenCount = sortedComments.length > 1 && !showAllComments ? sortedComments.length - 1 : 0;
-            const visibleComments = hiddenCount > 0 ? sortedComments.slice(-1) : sortedComments;
-
-            const renderComment = (c: Comment) => (
-              <div key={c.id} className={`finding-comment${editingCommentId === c.id ? ' finding-comment-editing' : ''}`}>
-                <div className="finding-comment-header">
-                  <span className="comment-avatar" style={{ backgroundColor: avatarColor(c.author) }} aria-hidden="true">{avatarInitials(c.author)}</span>
-                  <span className="finding-comment-author">{c.author}</span>
-                  {isOrphaned(c) && (
-                    <span className="comment-orphan-badge" title="This comment's anchor no longer points to live code">
-                      Orphaned
-                    </span>
-                  )}
-                  <span className="finding-comment-time">
-                    {new Date(c.timestamp).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}{' '}{new Date(c.timestamp).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                  {editingCommentId !== c.id && (
-                    <div className="comment-card-header-right" style={{ marginLeft: 'auto' }}>
-                      <button
-                        className="comment-icon-btn"
-                        onClick={() => setManagingRefsCommentId(c.id)}
-                        title="Manage web links"
-                      >
-                        <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M2 10L10 2M10 2H5M10 2v5"/>
-                        </svg>
-                      </button>
-                      <button
-                        className="comment-icon-btn"
-                        onClick={() => setEditingCommentId(c.id)}
-                        title="Edit"
-                      >&#x270E;</button>
-                      <button
-                        className="comment-icon-btn comment-icon-btn-danger"
-                        onClick={() => deleteComment(c.id)}
-                        title="Delete"
-                      >&#x2715;</button>
-                    </div>
-                  )}
-                </div>
-                {c.refs && c.refs.length > 0 && editingCommentId !== c.id && (
-                  <div className="comment-ref-icons">
-                    {c.refs.map((ref) => (
-                      <a
-                        key={ref.id}
-                        href={ref.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="ref-icon-link"
-                        title={ref.title || ref.url}
-                      >
-                        <RefProviderIcon provider={ref.provider} size={11} />
-                      </a>
-                    ))}
-                  </div>
-                )}
-                {editingCommentId === c.id ? (
-                  <CommentEditor
-                    initialText={c.text}
-                    showTypeToggle={false}
-                    showAnchor={isOrphaned(c)}
-                    initialAnchor={c.anchor.fileId ? {
-                      fileId: c.anchor.fileId,
-                      lineStart: c.anchor.lineRange?.start ?? 0,
-                      lineEnd: c.anchor.lineRange?.end ?? 0,
-                    } : undefined}
-                    onSave={(text, _type, anchor) => {
-                      updateComment(c.id, text, undefined, anchor);
-                      setEditingCommentId(null);
-                    }}
-                    onCancel={() => setEditingCommentId(null)}
-                  />
-                ) : (
-                  <div className="finding-comment-text">
-                    <InlineMarkdown text={c.text} />
-                  </div>
-                )}
-              </div>
-            );
-
-            return (
-              <>
-                {hiddenCount > 0 && (
-                  <button
-                    className="finding-comments-toggle"
-                    onClick={() => setShowAllComments(true)}
-                  >
-                    {hiddenCount} previous {hiddenCount === 1 ? 'comment' : 'comments'}
-                  </button>
-                )}
-                {showAllComments && sortedComments.length > 1 && (
-                  <button
-                    className="finding-comments-toggle"
-                    onClick={() => setShowAllComments(false)}
-                  >
-                    Hide previous comments
-                  </button>
-                )}
-                {visibleComments.map(renderComment)}
-              </>
-            );
-          })()}
-
-          <div className="finding-comment-compose">
-            <textarea
-              placeholder={isNavFocused ? 'Reply... (⏎)' : 'Reply...'}
-              value={replyText}
-              onChange={(e) => {
-                setReplyText(e.target.value);
-                setDraftComment(e.target.value.trim() ? { text: e.target.value, findingId: finding.id } : null);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && replyText.trim()) {
-                  handleSubmitReply();
-                }
-              }}
-              rows={1}
-            />
-            <button
-              disabled={!replyText.trim() || submittingReply}
-              onClick={handleSubmitReply}
-            >
-              &rarr;
-            </button>
-          </div>
-        </div>
+      {isExpanded && (
+        <CommentThread
+          comments={findingComments}
+          target={{ anchor: finding.anchor, findingId: finding.id }}
+          collapse
+          heading
+          placeholder={isNavFocused ? 'Reply... (⏎)' : 'Reply...'}
+          initialReply={consumedDraft}
+          onReplyChange={(text) => setDraftComment(text.trim() ? { text, findingId: finding.id } : null)}
+        />
       )}
 
       {managingRefs && createPortal(
@@ -924,19 +383,9 @@ export const FindingCard: React.FC<FindingCardProps> = ({
         document.body
       )}
 
-      {managingRefsCommentId && createPortal(
-        <RefManageModal
-          entityType="comment"
-          entityId={managingRefsCommentId}
-          refs={findingComments.find((c) => c.id === managingRefsCommentId)?.refs ?? []}
-          onClose={() => setManagingRefsCommentId(null)}
-        />,
-        document.body
-      )}
-
       <div className="overview-card-meta">
         {fileId && (
-          <span className="overview-comment-file" title={fileId} onClick={(e) => { e.stopPropagation(); onScrollTo(); }}>
+          <span className="overview-comment-file" title={fileId} {...buttonProps((e) => { e.stopPropagation(); onScrollTo(); }, `Go to ${fileId}`)}>
             {fileId.split('/').pop()}
             {lineRange && `:${lineRange.start}${lineRange.end !== lineRange.start ? `-${lineRange.end}` : ''}`}
           </span>

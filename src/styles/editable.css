@@ -1,0 +1,75 @@
+/* ── Always-editable fields (components/EditableText.tsx) ─────────────────
+   Text that reads as text until hovered or focused; a click turns it into an
+   input that sits exactly where the text was. Used by detail pages: flows,
+   findings, features. */
+
+.editable {
+  font-family: inherit;
+  color: inherit;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  margin: -7px -11px;          /* cancel the padding + border so the text sits flush */
+  cursor: text;
+  transition: background var(--transition-base), border-color var(--transition-base), box-shadow var(--transition-base);
+  width: calc(100% + 22px);
+  box-sizing: border-box;
+  display: block;
+  min-height: 1em;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.editable:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--border-muted);
+}
+
+.editable:focus-visible {
+  outline: 1.5px solid var(--focus-ring);
+  outline-offset: 1px;
+  background: var(--bg-tertiary);
+  border-color: var(--border-default);
+}
+
+.editable-empty .editable-placeholder {
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-style: normal;
+  opacity: 0.8;
+}
+
+textarea.editable-input,
+input.editable-input {
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--accent-blue);
+  outline: none;
+  resize: vertical;
+  box-shadow: var(--shadow-focus-blue);
+}
+
+textarea.editable-input { min-height: 64px; }
+
+/* Inline variant: sizes to its text, for short values in a row (CVSS, CWE, operation). */
+.editable.editable-inline { display: inline-block; width: auto; min-width: 3ch; margin: -4px -7px; padding: 3px 6px; }
+input.editable-input.editable-inline { width: 16ch; }
+
+/* ── Save indicator ──────────────────────────────────────────────────────── */
+.save-indicator {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-small);
+  font-weight: 500;
+  line-height: 1.2;
+  padding: 0 4px;
+  min-width: 56px;
+  text-align: right;
+}
+.save-indicator--saving { color: var(--text-muted); font-style: italic; }
+.save-indicator--saved { color: var(--accent-green); }
+.save-indicator--idle { color: transparent; }

@@ -10,9 +10,14 @@ import (
 	"bench/internal/model"
 )
 
-// writeRefError returns 404 for unknown-ref errors, 500 otherwise. Used by
+// writeRefError returns 400 for a rejected ref/path, 404 for unknown-ref
+// errors, 500 otherwise. Used by
 // handlers that dereference a caller-supplied commitish.
 func writeRefError(w http.ResponseWriter, err error) {
+	if errors.Is(err, git.ErrInvalidArgument) {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	if errors.Is(err, git.ErrUnknownRef) {
 		writeError(w, http.StatusNotFound, err.Error())
 		return
@@ -93,6 +98,15 @@ func (h *gitHandlers) showFile(w http.ResponseWriter, r *http.Request) {
 	}
 	content, err := h.repo.Show(commitish, path)
 	if err != nil {
+		// The git layer reports a missing path and a missing commit with the
+		// same sentinel; tell them apart so "file not found" isn't reported
+		// as an unknown ref.
+		if errors.Is(err, git.ErrUnknownRef) {
+			if _, refErr := h.repo.ResolveRef(commitish); refErr == nil {
+				writeError(w, http.StatusNotFound, "file not found at "+commitish+": "+path)
+				return
+			}
+		}
 		writeRefError(w, err)
 		return
 	}

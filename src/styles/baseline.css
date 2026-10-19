@@ -1,92 +1,4 @@
 /* ----- Baseline Status Section ----- */
-.baseline-status-section {
-  margin-bottom: 24px;
-  padding: 16px 18px;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-}
-
-.baseline-status-empty {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.baseline-status-label {
-  color: var(--text-muted);
-  font-size: var(--font-size-ui);
-}
-
-.baseline-status-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 6px;
-  gap: 8px;
-}
-
-.baseline-status-badge {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--accent-blue);
-}
-
-.baseline-status-meta {
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-.baseline-status-detail {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  margin-bottom: 8px;
-}
-
-.baseline-commit-range {
-  font-size: 12px;
-  margin-bottom: 8px;
-}
-
-.baseline-commit-range-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  line-height: 22px;
-}
-
-.baseline-commit-range-label {
-  font-size: 11px;
-  color: var(--text-muted);
-  width: 28px;
-  flex-shrink: 0;
-}
-
-.baseline-commit-subject {
-  color: var(--text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-}
-
-.baseline-snapshot-stats {
-  color: var(--text-muted);
-  font-size: 11px;
-  margin-top: 4px;
-}
-
-.baseline-summary-text {
-  font-size: 12px;
-  color: var(--text-secondary);
-  margin-bottom: 8px;
-  font-style: italic;
-}
 
 .baseline-action-btn {
   font-size: var(--font-size-control);
@@ -134,6 +46,27 @@
   background: var(--bg-surface);
 }
 
+/* Soft call to action: an invitation rather than the page's main action. A tinted fill and a
+   faint border in one tone (--btn-tone, blue unless the context sets it, e.g. a banner's own
+   colour), no glow. Used by the unconfigured-profile banner's "Open Profile". */
+.baseline-action-btn-soft {
+  --btn-tone: var(--accent-blue);
+  /* A touch of the text colour keeps the label readable on the tint in both themes. */
+  color: color-mix(in srgb, var(--btn-tone) 75%, var(--text-primary));
+  background: color-mix(in srgb, var(--btn-tone) 12%, transparent);
+  border-color: color-mix(in srgb, var(--btn-tone) 30%, transparent);
+}
+
+.baseline-action-btn-soft:hover {
+  background: color-mix(in srgb, var(--btn-tone) 20%, transparent);
+  border-color: color-mix(in srgb, var(--btn-tone) 50%, transparent);
+}
+
+.baseline-action-btn-soft:focus-visible {
+  outline: 2px solid var(--btn-tone);
+  outline-offset: 2px;
+}
+
 .baseline-action-btn-danger {
   color: var(--severity-critical);
   border-color: var(--severity-critical);
@@ -141,67 +74,6 @@
 
 .baseline-action-btn-danger:hover {
   background: color-mix(in srgb, var(--severity-critical) 10%, transparent);
-}
-
-.baseline-delta-section {
-  margin-top: 10px;
-  border-top: 1px solid var(--border-muted);
-  padding-top: 8px;
-}
-
-.baseline-delta-toggle {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  cursor: pointer;
-  user-select: none;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin: 0;
-}
-
-.baseline-delta-toggle:hover {
-  color: var(--text-primary);
-}
-
-.baseline-delta-counts {
-  display: flex;
-  gap: 8px;
-  margin-left: auto;
-  font-weight: 400;
-}
-
-.baseline-delta-count-new {
-  color: var(--accent-green);
-  font-size: 11px;
-}
-
-.baseline-delta-count-removed {
-  color: var(--severity-high);
-  font-size: 11px;
-}
-
-.baseline-delta-count-files {
-  color: var(--text-muted);
-  font-size: 11px;
-}
-
-.baseline-delta-details {
-  margin-top: 8px;
-}
-
-.baseline-delta-group {
-  margin-bottom: 12px;
-}
-
-.baseline-delta-group-title {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin: 0 0 6px;
 }
 
 .delta-file-list {
@@ -441,10 +313,6 @@
   flex: 1;
 }
 
-.delta-history-toggle {
-  flex-shrink: 0;
-}
-
 .delta-header-left-content {
   display: flex;
   flex-direction: column;
@@ -576,16 +444,6 @@
   flex-shrink: 0;
 }
 
-.delta-at-head-label {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--accent-green, #3fb950);
-  background: color-mix(in srgb, var(--accent-green, #3fb950) 12%, transparent);
-  padding: 1px 5px;
-  border-radius: var(--radius-xs);
-}
-
-
 .delta-body-wrap {
   display: flex;
   flex: 1;
@@ -626,12 +484,6 @@
   display: flex;
   align-items: center;
   gap: 6px;
-}
-
-.baseline-action-btn-active {
-  background: var(--bg-surface);
-  border-color: var(--text-muted);
-  color: var(--text-primary);
 }
 
 /* ----- Delta Sidebar (app-level right panel) ----- */
@@ -709,15 +561,6 @@
   gap: 8px;
 }
 
-.delta-link {
-  color: var(--accent-blue);
-  cursor: pointer;
-}
-
-.delta-link:hover {
-  text-decoration: underline;
-}
-
 .delta-removed-id {
   font-family: var(--font-mono);
   font-size: 11px;
@@ -747,7 +590,6 @@
 }
 
 /* ----- Delta Header Summary ----- */
-.delta-header-summary,
 .delta-header-summary-inline {
   font-size: 12px;
   color: var(--text-muted);
@@ -951,4 +793,10 @@
 
 [data-theme="light"] .delta-header {
   background: #ffffff;
+}
+
+.delta-sidebar-resize-handle:focus-visible {
+  background: var(--accent-blue);
+  opacity: 0.5;
+  outline: none;
 }

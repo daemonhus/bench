@@ -219,6 +219,31 @@ func (h *findingsHandlers) get(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+	// ?commit= adds the finding's effective position at that commit, as features do, for the
+	// finding detail page.
+	commit := r.URL.Query().Get("commit")
+	if commit != "" && h.reconciler != nil && finding.Anchor.FileID != "" {
+		if positions, posErr := h.reconciler.GetEffectivePositions(finding.Anchor.FileID, commit); posErr == nil {
+			fp := model.FindingWithPosition{Finding: *finding}
+			if pos, ok := positions[id]; ok {
+				fp.Confidence = pos.Confidence
+				if pos.FileID != nil && pos.LineStart != nil && pos.LineEnd != nil {
+					fp.EffectiveAnchor = &model.Anchor{
+						FileID:    *pos.FileID,
+						CommitID:  pos.CommitID,
+						LineRange: &model.LineRange{Start: *pos.LineStart, End: *pos.LineEnd},
+					}
+				}
+			} else if finding.Anchor.LineRange != nil {
+				// No stored position rows yet: its own anchor is where it is.
+				anchor := finding.Anchor
+				fp.Confidence = "exact"
+				fp.EffectiveAnchor = &anchor
+			}
+			writeJSON(w, http.StatusOK, fp)
+			return
+		}
+	}
 	writeJSON(w, http.StatusOK, finding)
 }
 

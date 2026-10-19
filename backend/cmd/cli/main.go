@@ -20,6 +20,7 @@ import (
 	"net/url"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -47,6 +48,7 @@ var categories = []category{
 	{"baselines", "State snapshots: set baselines and view deltas between sessions"},
 	{"analytics", "Analytics: summaries, coverage tracking, finding search"},
 	{"reconcile", "Line tracking: reconcile annotation positions across commits"},
+	{"profile", "Service profile: exposure, data sensitivity, criticality and other meta-attributes"},
 }
 
 // endpoint describes how a CLI command maps to a REST API call.
@@ -345,10 +347,10 @@ var commands = []cmdDef{
 		Flags: []flagDef{
 			{Name: "limit", Param: "limit", Desc: "Maximum number to return (default: 20)", Type: "int"},
 		}},
-	{Cat: "baselines", Name: "delta", Desc: "Show changes since the latest baseline.",
+	{Cat: "baselines", Name: "delta", Desc: "Show changes since the latest baseline. With --id, show instead what that baseline introduced compared to the baseline before it.",
 		EP: endpoint{"GET", "/api/baselines/delta"},
 		Flags: []flagDef{
-			{Name: "id", Param: "id", Desc: "Baseline ID (default: latest)"},
+			{Name: "id", Param: "id", Desc: "Baseline ID: compare it against its predecessor (default: latest baseline vs the current state)"},
 		}},
 	{Cat: "baselines", Name: "delete", Desc: "Delete a baseline. Shows a preview by default; pass --confirm to actually delete.",
 		EP: endpoint{"DELETE", "/api/baselines/{id}"},
@@ -519,7 +521,7 @@ var commands = []cmdDef{
 	{Cat: "reconcile", Name: "history", Desc: "Get position history for an annotation.",
 		EP: endpoint{"GET", "/api/annotations/{type}/{id}/history"},
 		Flags: []flagDef{
-			{Name: "type", Param: "type", Desc: "Annotation type [finding|comment]", Required: true},
+			{Name: "type", Param: "type", Desc: "Annotation type [finding|comment|feature]", Required: true},
 			{Name: "id", Param: "id", Desc: "Annotation ID", Required: true},
 		}},
 
@@ -614,7 +616,22 @@ func parseFlags(defs []flagDef, args []string) (*parsedFlags, error) {
 
 		// Handle --name=value
 		if idx := strings.IndexByte(name, '='); idx >= 0 {
-			pf.values[name[:idx]] = name[idx+1:]
+			key, val := name[:idx], name[idx+1:]
+			def, ok := byName[key]
+			if !ok {
+				return nil, fmt.Errorf("unknown flag: --%s", key)
+			}
+			if def.Type == "bool" || def.Type == "bool-false" {
+				b, err := strconv.ParseBool(val)
+				if err != nil {
+					return nil, fmt.Errorf("flag --%s expects true or false, got %q", key, val)
+				}
+				if b {
+					pf.bools[key] = true
+				}
+				continue
+			}
+			pf.values[key] = val
 			continue
 		}
 
@@ -633,6 +650,24 @@ func parseFlags(defs []flagDef, args []string) (*parsedFlags, error) {
 		}
 		i++
 		pf.values[name] = args[i]
+	}
+
+	// Numeric flags must parse; otherwise "--start abc" silently becomes 0.
+	for name, val := range pf.values {
+		def := byName[name]
+		if def == nil || val == "" {
+			continue
+		}
+		switch def.Type {
+		case "int":
+			if _, err := strconv.Atoi(strings.TrimSpace(val)); err != nil {
+				return nil, fmt.Errorf("flag --%s expects an integer, got %q", name, val)
+			}
+		case "float":
+			if _, err := strconv.ParseFloat(strings.TrimSpace(val), 64); err != nil {
+				return nil, fmt.Errorf("flag --%s expects a number, got %q", name, val)
+			}
+		}
 	}
 
 	// Check required flags.
@@ -703,7 +738,16 @@ func buildRequest(cmd *cmdDef, pf *parsedFlags) (method, path string, body io.Re
 					continue
 				}
 			}
-			path = strings.ReplaceAll(path, placeholder, url.PathEscape(val))
+			escaped := url.PathEscape(val)
+			if fd.Param == "path" {
+				// A file path keeps its slashes: escape each segment, not the separators.
+				segs := strings.Split(val, "/")
+				for i, seg := range segs {
+					segs[i] = url.PathEscape(seg)
+				}
+				escaped = strings.Join(segs, "/")
+			}
+			path = strings.ReplaceAll(path, placeholder, escaped)
 			pathParams[fd.Name] = true
 		}
 	}
@@ -913,26 +957,44 @@ func buildRequest(cmd *cmdDef, pf *parsedFlags) (method, path string, body io.Re
 // Help printers
 // ---------------------------------------------------------------------------
 
-func printRootHelp() {
-	fmt.Fprintf(os.Stderr, "bench v%s - security review workbench CLI\n\n", cliVersion)
-	fmt.Fprintln(os.Stderr, "Usage:")
-	fmt.Fprintln(os.Stderr, "  bench [flags] <category> <command> [command-flags]")
-	fmt.Fprintln(os.Stderr)
-	fmt.Fprintln(os.Stderr, "Categories:")
-	tw := tabwriter.NewWriter(os.Stderr, 2, 4, 3, ' ', 0)
+func printRootHelp(w io.Writer) {
+	fmt.Fprintf(w, "bench v%s - security review workbench CLI\n\n", cliVersion)
+	fmt.Fprintln(w, "Usage:")
+	fmt.Fprintln(w, "  bench [global-flags] <category> <command> [command-flags]")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Project categories (single-project server, or a multi-project server with --project):")
+	tw := tabwriter.NewWriter(w, 2, 4, 3, ' ', 0)
 	for _, c := range categories {
 		fmt.Fprintf(tw, "  %s\t%s\n", c.Name, c.Desc)
 	}
 	tw.Flush()
-	fmt.Fprintln(os.Stderr)
-	fmt.Fprintln(os.Stderr, "Global Flags:")
-	fmt.Fprintf(os.Stderr, "  --url string    Server base URL (default %q)\n", defaultBaseURL)
-	fmt.Fprintln(os.Stderr, "  --version       Print version and exit")
-	fmt.Fprintln(os.Stderr)
-	fmt.Fprintln(os.Stderr, "Run 'bench <category> --help' for commands in a category.")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Multi-project categories (require a multi-project server; --project not needed):")
+	tw = tabwriter.NewWriter(w, 2, 4, 3, ' ', 0)
+	for _, g := range mpGroups {
+		if g.Parent != "" {
+			continue
+		}
+		fmt.Fprintf(tw, "  %s\t%s\n", g.Name, g.Desc)
+	}
+	tw.Flush()
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Global Flags:")
+	fmt.Fprintf(w, "  --url string       Server base URL (default %q, env BENCH_URL)\n", defaultBaseURL)
+	fmt.Fprintln(w, "  --project string   Project slug on a multi-project server (env BENCH_PROJECT);")
+	fmt.Fprintln(w, "                     routes project commands through /api/p/<slug>")
+	fmt.Fprintln(w, "  --version          Print version and exit")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Examples:")
+	fmt.Fprintln(w, "  bench findings list --severity high")
+	fmt.Fprintln(w, "  bench projects list")
+	fmt.Fprintln(w, "  bench --project my-api findings list --severity high")
+	fmt.Fprintln(w, "  bench flows list --status active")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Run 'bench <category> --help' for commands in a category.")
 }
 
-func printCategoryHelp(catName string) {
+func printCategoryHelp(w io.Writer, catName string) {
 	var desc string
 	for _, c := range categories {
 		if c.Name == catName {
@@ -940,10 +1002,10 @@ func printCategoryHelp(catName string) {
 			break
 		}
 	}
-	fmt.Fprintf(os.Stderr, "bench %s - %s\n\n", catName, strings.ToLower(desc))
-	fmt.Fprintln(os.Stderr, "Commands:")
+	fmt.Fprintf(w, "bench %s - %s\n\n", catName, strings.ToLower(desc))
+	fmt.Fprintln(w, "Commands:")
 
-	tw := tabwriter.NewWriter(os.Stderr, 2, 4, 3, ' ', 0)
+	tw := tabwriter.NewWriter(w, 2, 4, 3, ' ', 0)
 	for _, cmd := range commands {
 		if cmd.Cat != catName {
 			continue
@@ -951,18 +1013,18 @@ func printCategoryHelp(catName string) {
 		fmt.Fprintf(tw, "  %s\t%s\n", cmd.Name, firstSentence(cmd.Desc))
 	}
 	tw.Flush()
-	fmt.Fprintln(os.Stderr)
-	fmt.Fprintf(os.Stderr, "Run 'bench %s <command> --help' for details on a command.\n", catName)
+	fmt.Fprintln(w)
+	fmt.Fprintf(w, "Run 'bench %s <command> --help' for details on a command.\n", catName)
 }
 
-func printCommandHelp(cmd *cmdDef) {
-	fmt.Fprintf(os.Stderr, "bench %s %s - %s\n\n", cmd.Cat, cmd.Name, cmd.Desc)
-	fmt.Fprintf(os.Stderr, "Usage:\n  bench %s %s [flags]\n", cmd.Cat, cmd.Name)
+func printCommandHelp(w io.Writer, cmd *cmdDef) {
+	fmt.Fprintf(w, "bench %s %s - %s\n\n", cmd.Cat, cmd.Name, cmd.Desc)
+	fmt.Fprintf(w, "Usage:\n  bench %s %s [flags]\n", cmd.Cat, cmd.Name)
 
 	if len(cmd.Flags) > 0 {
-		fmt.Fprintln(os.Stderr)
-		fmt.Fprintln(os.Stderr, "Flags:")
-		tw := tabwriter.NewWriter(os.Stderr, 2, 4, 3, ' ', 0)
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "Flags:")
+		tw := tabwriter.NewWriter(w, 2, 4, 3, ' ', 0)
 
 		// Sort: required first, then alphabetical.
 		sorted := make([]flagDef, len(cmd.Flags))
@@ -1019,10 +1081,10 @@ func printCommandHelp(cmd *cmdDef) {
 		if createCmd == nil {
 			break
 		}
-		fmt.Fprintln(os.Stderr)
-		fmt.Fprintf(os.Stderr, "Input format (%s):\n", cmd.Cat)
-		fmt.Fprintln(os.Stderr, "  JSON array of objects. Flat anchor fields (file, commit, start, end)")
-		fmt.Fprintln(os.Stderr, "  are promoted to the nested anchor automatically. IDs are generated if omitted.")
+		fmt.Fprintln(w)
+		fmt.Fprintf(w, "Input format (%s):\n", cmd.Cat)
+		fmt.Fprintln(w, "  JSON array of objects. Flat anchor fields (file, commit, start, end)")
+		fmt.Fprintln(w, "  are promoted to the nested anchor automatically. IDs are generated if omitted.")
 		var req, opt []string
 		for _, fl := range createCmd.Flags {
 			if fl.Name == "id" {
@@ -1038,10 +1100,10 @@ func printCommandHelp(cmd *cmdDef) {
 		sort.Strings(req)
 		sort.Strings(opt)
 		if len(req) > 0 {
-			fmt.Fprintf(os.Stderr, "    required: %s\n", strings.Join(req, ", "))
+			fmt.Fprintf(w, "    required: %s\n", strings.Join(req, ", "))
 		}
 		if len(opt) > 0 {
-			fmt.Fprintf(os.Stderr, "    optional: %s\n", strings.Join(opt, ", "))
+			fmt.Fprintf(w, "    optional: %s\n", strings.Join(opt, ", "))
 		}
 		break
 	}
@@ -1190,12 +1252,16 @@ func formatOutput(data []byte, statusCode int) string {
 		return "OK"
 	}
 
-	// Try to pretty-print JSON.
+	// Try to pretty-print JSON. HTML escaping is off: this is terminal output,
+	// and code like `a && b` must not come out as `a \u0026\u0026 b`.
 	var raw any
 	if err := json.Unmarshal(data, &raw); err == nil {
-		pretty, err := json.MarshalIndent(raw, "", "  ")
-		if err == nil {
-			return string(pretty)
+		var buf bytes.Buffer
+		enc := json.NewEncoder(&buf)
+		enc.SetEscapeHTML(false)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(raw); err == nil {
+			return strings.TrimSuffix(buf.String(), "\n")
 		}
 	}
 
@@ -1207,17 +1273,32 @@ func formatOutput(data []byte, statusCode int) string {
 // ---------------------------------------------------------------------------
 
 func main() {
+	os.Exit(run(os.Args[1:], os.Getenv, os.Stdout, os.Stderr))
+}
+
+// projectPrefix returns the path prefix that routes per-project (bench) API
+// calls through a multi-project server's /api/p/{slug} proxy. Empty project
+// means a single-project server: no prefix.
+func projectPrefix(project string) string {
+	if project == "" {
+		return ""
+	}
+	return "/api/p/" + url.PathEscape(project)
+}
+
+// run is the CLI entry point; it returns the process exit code. getenv,
+// stdout and stderr are injected so tests can drive the CLI end to end.
+func run(args []string, getenv func(string) string, stdout, stderr io.Writer) int {
 	var (
 		serverURL = defaultBaseURL
+		project   = getenv("BENCH_PROJECT")
 		showVer   bool
 	)
 
-	// Check BENCH_URL env var.
-	if env := os.Getenv("BENCH_URL"); env != "" {
+	if env := getenv("BENCH_URL"); env != "" {
 		serverURL = env
 	}
 
-	args := os.Args[1:]
 	var positional []string
 	for i := 0; i < len(args); i++ {
 		a := args[i]
@@ -1229,6 +1310,11 @@ func main() {
 			i++
 		case strings.HasPrefix(a, "--url="):
 			serverURL = strings.TrimPrefix(a, "--url=")
+		case a == "--project" && i+1 < len(args):
+			project = args[i+1]
+			i++
+		case strings.HasPrefix(a, "--project="):
+			project = strings.TrimPrefix(a, "--project=")
 		case a == "--":
 			positional = append(positional, args[i+1:]...)
 			i = len(args)
@@ -1237,21 +1323,31 @@ func main() {
 			i = len(args)
 		}
 	}
+	project = strings.TrimSpace(project)
 
 	if showVer {
-		fmt.Printf("bench v%s\n", cliVersion)
-		os.Exit(0)
+		fmt.Fprintf(stdout, "bench v%s\n", cliVersion)
+		return 0
 	}
 
 	if len(positional) == 0 {
-		printRootHelp()
-		os.Exit(0)
+		printRootHelp(stderr)
+		return 0
 	}
 
 	catName := positional[0]
 	if catName == "help" || catName == "-h" || catName == "--help" {
-		printRootHelp()
-		os.Exit(0)
+		printRootHelp(stderr)
+		return 0
+	}
+
+	client := newAPIClient(serverURL)
+
+	// Multi-project categories talk to /api/platform/* and ignore --project
+	// for routing (some commands use it as a default, e.g. flows add-step).
+	if g := findGroup("", catName); g != nil {
+		c := &cli{client: client, project: project, stdout: stdout, stderr: stderr}
+		return c.runGroup(g, positional[1:])
 	}
 
 	// Validate category.
@@ -1263,18 +1359,15 @@ func main() {
 		}
 	}
 	if !validCat {
-		fmt.Fprintf(os.Stderr, "Error: unknown category %q\n\n", catName)
-		fmt.Fprintln(os.Stderr, "Available categories:")
-		for _, c := range categories {
-			fmt.Fprintf(os.Stderr, "  %s\n", c.Name)
-		}
-		os.Exit(1)
+		fmt.Fprintf(stderr, "Error: unknown category %q\n\n", catName)
+		printRootHelp(stderr)
+		return 1
 	}
 
 	// Category-level help.
 	if len(positional) < 2 || positional[1] == "help" || positional[1] == "--help" || positional[1] == "-h" {
-		printCategoryHelp(catName)
-		os.Exit(0)
+		printCategoryHelp(stderr, catName)
+		return 0
 	}
 
 	cmdName := positional[1]
@@ -1288,36 +1381,35 @@ func main() {
 		}
 	}
 	if matched == nil {
-		fmt.Fprintf(os.Stderr, "Error: unknown command %q in category %q\n\n", cmdName, catName)
-		printCategoryHelp(catName)
-		os.Exit(1)
+		fmt.Fprintf(stderr, "Error: unknown command %q in category %q\n\n", cmdName, catName)
+		printCategoryHelp(stderr, catName)
+		return 1
 	}
 
 	// Command-level help.
 	cmdArgs := positional[2:]
 	for _, a := range cmdArgs {
 		if a == "--help" || a == "-h" || a == "help" {
-			printCommandHelp(matched)
-			os.Exit(0)
+			printCommandHelp(stderr, matched)
+			return 0
 		}
 	}
 
 	// Parse flags.
 	pf, err := parseFlags(matched.Flags, cmdArgs)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n\n", err)
-		printCommandHelp(matched)
-		os.Exit(1)
+		fmt.Fprintf(stderr, "Error: %v\n\n", err)
+		printCommandHelp(stderr, matched)
+		return 1
 	}
 
 	// Build request.
 	method, path, body, batchItems, err := buildRequest(matched, pf)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		fmt.Fprintf(stderr, "Error: %v\n", err)
+		return 1
 	}
-
-	client := newAPIClient(serverURL)
+	path = projectPrefix(project) + path
 
 	// Batch mode: POST each item individually.
 	if len(batchItems) > 0 {
@@ -1325,38 +1417,39 @@ func main() {
 		for i, item := range batchItems {
 			normalized, err := normalizeBatchItem(item)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "[%d/%d] Error normalizing item: %v\n", i+1, len(batchItems), err)
+				fmt.Fprintf(stderr, "[%d/%d] Error normalizing item: %v\n", i+1, len(batchItems), err)
 				errors++
 				continue
 			}
 			data, status, err := client.do(method, path, bytes.NewReader(normalized))
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "[%d/%d] Error: %v\n", i+1, len(batchItems), err)
+				fmt.Fprintf(stderr, "[%d/%d] Error: %v\n", i+1, len(batchItems), err)
 				errors++
 				continue
 			}
 			if status >= 400 {
-				fmt.Fprintf(os.Stderr, "[%d/%d] %s\n", i+1, len(batchItems), formatOutput(data, status))
+				fmt.Fprintf(stderr, "[%d/%d] %s\n", i+1, len(batchItems), formatOutput(data, status))
 				errors++
 				continue
 			}
-			fmt.Fprintf(os.Stderr, "[%d/%d] created\n", i+1, len(batchItems))
+			fmt.Fprintf(stderr, "[%d/%d] created\n", i+1, len(batchItems))
 		}
-		fmt.Printf("%d/%d succeeded\n", len(batchItems)-errors, len(batchItems))
+		fmt.Fprintf(stdout, "%d/%d succeeded\n", len(batchItems)-errors, len(batchItems))
 		if errors > 0 {
-			os.Exit(1)
+			return 1
 		}
-		return
+		return 0
 	}
 
 	// Single request.
 	data, status, err := client.do(method, path, body)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		fmt.Fprintf(os.Stderr, "\nIs the workbench server running? Start it with:\n")
-		fmt.Fprintf(os.Stderr, "  cd bench && ./dev.sh /path/to/repo\n")
-		fmt.Fprintf(os.Stderr, "\nOr specify a different URL with --url.\n")
-		os.Exit(1)
+		fmt.Fprintf(stderr, "Error: %v\n", err)
+		fmt.Fprintf(stderr, "\nIs the workbench server running? Start it with:\n")
+		fmt.Fprintf(stderr, "  ./dev.sh /path/to/repo          (single project)\n")
+		fmt.Fprintf(stderr, "  ./platform/dev.sh               (multi-project; then pass --project <slug>)\n")
+		fmt.Fprintf(stderr, "\nOr specify a different URL with --url.\n")
+		return 1
 	}
 
 	// Special output for baselines delete dry-run: format the GET response as a preview.
@@ -1377,20 +1470,47 @@ func main() {
 			if len(commit) > 7 {
 				commit = commit[:7]
 			}
-			fmt.Printf("Dry run - baseline BL-%d (at %s by %s, %s) would be deleted.\n", bl.Seq, commit, bl.Reviewer, bl.CreatedAt)
-			fmt.Printf("Snapshot: %d findings (%d open), %d comments.\n", bl.FindingsTotal, bl.FindingsOpen, bl.CommentsTotal)
+			fmt.Fprintf(stdout, "Dry run - baseline BL-%d (at %s by %s, %s) would be deleted.\n", bl.Seq, commit, bl.Reviewer, bl.CreatedAt)
+			fmt.Fprintf(stdout, "Snapshot: %d findings (%d open), %d comments.\n", bl.FindingsTotal, bl.FindingsOpen, bl.CommentsTotal)
 			if bl.Summary != "" {
-				fmt.Printf("Summary: %s\n", bl.Summary)
+				fmt.Fprintf(stdout, "Summary: %s\n", bl.Summary)
 			}
-			fmt.Println("\nPass --confirm to delete.")
-			return
+			fmt.Fprintln(stdout, "\nPass --confirm to delete.")
+			return 0
 		}
 	}
 
-	output := formatOutput(data, status)
-	fmt.Println(output)
-
 	if status >= 400 {
-		os.Exit(1)
+		fmt.Fprintln(stderr, formatOutput(data, status)+notFoundHint(data, status, project))
+		return 1
 	}
+	// The bench API only returns JSON (or empty bodies). An HTML page means
+	// the request fell through to a web UI, e.g. a multi-project server's
+	// SPA handler because no --project was given.
+	if looksLikeHTML(data) {
+		fmt.Fprintf(stderr, "Error: %s returned an HTML page instead of an API response.\n", serverURL+path)
+		if project == "" {
+			fmt.Fprintln(stderr, "(hint: on a multi-project server, pass --project <slug> or set BENCH_PROJECT; see 'bench projects list'.)")
+		}
+		return 1
+	}
+	fmt.Fprintln(stdout, formatOutput(data, status))
+	return 0
+}
+
+func looksLikeHTML(data []byte) bool {
+	head := strings.ToLower(strings.TrimSpace(string(data[:min(len(data), 64)])))
+	return strings.HasPrefix(head, "<!doctype html") || strings.HasPrefix(head, "<html")
+}
+
+// notFoundHint explains a bare router 404 ("404 page not found"), which
+// usually means the server is the wrong kind for the request.
+func notFoundHint(data []byte, status int, project string) string {
+	if status != http.StatusNotFound || !strings.Contains(string(data), "404 page not found") {
+		return ""
+	}
+	if project != "" {
+		return fmt.Sprintf("\n(hint: --project %q is set; is this a multi-project server, and does the project exist? See 'bench projects list'.)", project)
+	}
+	return "\n(hint: on a multi-project server, pass --project <slug> or set BENCH_PROJECT.)"
 }

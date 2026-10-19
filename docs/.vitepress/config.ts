@@ -31,6 +31,7 @@ export default defineConfig({
           { text: "References", link: "/concepts/references" },
           { text: "Deltas", link: "/concepts/deltas" },
           { text: "Reconciling", link: "/concepts/reconciling" },
+          { text: "Projects & flows", link: "/concepts/multi-project" },
         ],
       },
       {
@@ -47,8 +48,11 @@ export default defineConfig({
         text: "Reference",
         items: [
           { text: "CLI", link: "/cli/" },
+          { text: "CLI (multi-project)", link: "/cli/platform" },
           { text: "API", link: "/api/bench" },
+          { text: "API (multi-project)", link: "/api/platform" },
           { text: "MCP", link: "/mcp/" },
+          { text: "MCP tool reference", link: "/mcp/tools" },
         ],
       },
     ],

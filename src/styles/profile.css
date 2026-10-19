@@ -261,14 +261,25 @@
   flex-shrink: 0;
 }
 
-/* Base look comes from .baseline-action-btn.baseline-action-btn-primary -
-   the canonical primary button (same as Set Baseline / Save Profile). */
+/* Base look is the soft call to action (.baseline-action-btn-soft), in white: a faint white
+   tint on the dark banner, a plain white button on the light one. */
 .profile-banner-link {
+  --btn-tone: var(--text-primary);
   display: inline-flex;
   align-items: center;
   gap: 7px;
   margin-left: 10px;
   white-space: nowrap;
+}
+
+[data-theme="light"] .profile-banner-link {
+  background: var(--bg-secondary);
+  border-color: color-mix(in srgb, var(--status-open) 25%, transparent);
+  color: var(--text-primary);
+}
+
+[data-theme="light"] .profile-banner-link:hover {
+  background: color-mix(in srgb, var(--bg-secondary) 85%, var(--status-open));
 }
 
 .profile-banner-link-arrow {

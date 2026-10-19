@@ -1,47 +1,38 @@
 /* ----- Syntax Token Colors ----- */
-.token.keyword,
-span.tok-keyword {
+.token.keyword {
   color: #ff7b72;
 }
 
-.token.string,
-span.tok-string {
+.token.string {
   color: #a5d6ff;
 }
 
-.token.comment,
-span.tok-comment {
+.token.comment {
   color: #8b949e;
   font-style: italic;
 }
 
-.token.number,
-span.tok-number {
+.token.number {
   color: #79c0ff;
 }
 
-.token.builtin,
-span.tok-builtin {
+.token.builtin {
   color: #d2a8ff;
 }
 
-.token.class-name,
-span.tok-class {
+.token.class-name {
   color: #ffa657;
 }
 
-.token.function,
-span.tok-function {
+.token.function {
   color: #d2a8ff;
 }
 
-.token.operator,
-span.tok-operator {
+.token.operator {
   color: #ff7b72;
 }
 
-.token.punctuation,
-span.tok-punctuation {
+.token.punctuation {
   color: var(--text-secondary);
 }
 

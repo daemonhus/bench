@@ -20,15 +20,30 @@
 }
 
 .tab-bar-project-name {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  min-width: 32px;
+  font-family: var(--font-sans);
   font-weight: 600;
   font-size: var(--font-size-ui);
-  color: var(--text-secondary);
+  /* The logo's colour: like the platform rail's mark, it is the way home (the Overview). */
+  color: var(--accent-blue);
   padding: 0 16px 0 4px;
   margin-right: 4px;
+  background: none;
+  border: none;
   border-right: 1px solid var(--border-default);
+  border-radius: 0;
+  height: 100%;
   white-space: nowrap;
   letter-spacing: var(--tracking-snug);
+  cursor: pointer;
+  transition: color var(--transition-fast);
 }
+
+/* A link to the project's Overview. */
+.tab-bar-project-name:hover { color: color-mix(in srgb, var(--accent-blue) 80%, var(--text-primary)); }
 
 .tab-bar-tab {
   position: relative;

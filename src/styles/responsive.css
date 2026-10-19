@@ -1,0 +1,189 @@
+/* ============================================================
+   Responsive: one product across phone, laptop and ultrawide.
+   Loaded last so it is the single place that reconciles the
+   per-view layouts. Breakpoints match useBreakpoint (639 / 799 / 1099).
+   ============================================================ */
+
+/* ----- Frame ---------------------------------------------------------------
+   Every page has a "frame": the horizontal extent its content occupies.
+     column - document pages (overview, changes, findings, features, profile):
+              a centred column up to --page-max
+     full   - the workbench panes (browse): edge to edge
+   The chrome above the page (tab bar, banner) always follows the frame, so
+   it lines up with the content below it instead of sitting in a different
+   column. App.tsx sets data-frame on .app-shell from the active view. */
+.app-shell {
+  --frame-pad: max(var(--page-gutter), calc((100% - var(--page-max)) / 2 + var(--page-gutter)));
+}
+.app-shell[data-frame="full"] {
+  --frame-pad: var(--page-gutter);
+}
+.tab-bar,
+.profile-banner {
+  padding-inline: var(--frame-pad);
+}
+
+/* ----- Phone (<= 639px) --------------------------------------------------- */
+@media (max-width: 639px) {
+  /* Tighter gutters: 24px each side was 12% of a phone screen. */
+  :root {
+    --page-gutter: 12px;
+  }
+  .app-shell,
+  .app-shell[data-frame="full"] {
+    --frame-pad: 8px; /* the same on every view, so the chrome never shifts between them */
+  }
+
+  /* Tab bar: the view tabs scroll horizontally in their own strip (the active tab is
+     scrolled into view); the actions stay put at the right, always reachable. It used to be
+     one 855px row in a 390px screen: three tabs, quick-add and the theme toggle were off-screen. */
+  .tab-bar {
+    gap: 6px;
+  }
+  .tab-bar-tabs {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    scroll-snap-type: x proximity;
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent);
+  }
+  .tab-bar-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  .tab-bar-tab {
+    flex: none;
+    scroll-snap-align: center;
+  }
+  .tab-bar-kbd {
+    display: none; /* key hints mean nothing on touch */
+  }
+  /* The project name stays: it is the way to the Overview. */
+  .tab-bar-project-name {
+    max-width: 110px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-left: 0;
+  }
+  .tab-bar-actions {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .quick-add-buttons {
+    margin: 0;
+    padding-right: 4px;
+    gap: 2px;
+  }
+  .quick-add-btn {
+    width: 32px;
+    height: 32px;
+  }
+  .theme-toggle-slider {
+    min-height: 32px;
+  }
+
+  /* Banner: one compact line (the detail moves to the Profile page it links to). */
+  .profile-banner {
+    gap: 8px;
+    padding-block: 6px;
+  }
+  .profile-banner-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .profile-banner-detail {
+    display: none;
+  }
+  .profile-banner-link {
+    flex: none;
+    min-height: 32px;
+  }
+  .profile-banner-dismiss {
+    flex: none;
+    min-width: 32px;
+    min-height: 32px;
+  }
+
+  /* Toolbars that were one fixed row clipped their controls: let them wrap. */
+  .findings-title-row,
+  .findings-filter-group,
+  .features-title-row-right,
+  .activity-filters {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+  /* A segmented control stays one pill: if it is wider than the screen it scrolls inside itself. */
+  .activity-kind-toggles {
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .activity-kind-toggles::-webkit-scrollbar {
+    display: none;
+  }
+  .activity-kind-toggle {
+    flex: none;
+  }
+  /* Card header: the status/ID/source badges and the touch-sized action buttons wrap onto a second line. */
+  .finding-card-header-top,
+  .feature-card-header-top {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+  .finding-card-header-top .comment-card-header-right,
+  .feature-card-header-top .comment-card-header-right {
+    margin-left: auto;
+  }
+  .findings-filter-group {
+    flex: 1 1 100%;
+  }
+  .annotation-search {
+    min-width: 0;
+    flex: 1 1 160px;
+  }
+
+  /* Touch targets: at least 24px both ways (WCAG 2.5.8), 32px for the controls used most. */
+  .comment-icon-btn,
+  .activity-filter-clear,
+  .multi-select-trigger {
+    min-width: 32px;
+    min-height: 32px;
+  }
+  .comment-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .ref-icon-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    min-height: 28px;
+  }
+  .finding-id-badge,
+  .overview-comment-file,
+  .overview-commit-link,
+  .feature-params-heading,
+  .feature-snippet-expand,
+  .ovp-baseline-callout-link,
+  .ovp-header-owner,
+  .ovp-panel-title-link,
+  .in-file-search-nav-btn {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    min-width: 28px;
+  }
+  .ovp-kind-square {
+    width: 24px;
+    height: 24px;
+  }
+}

@@ -181,7 +181,7 @@ export const DiffView: React.FC = () => {
   }
 
   return (
-    <div className="diff-view" ref={containerRef} style={{ position: 'relative' }}>
+    <div className="diff-view" ref={containerRef} style={{ position: 'relative' }} tabIndex={0} role="region" aria-label="Code">
       {showToolbar && (
         <SelectionToolbar startLine={commentDrag.startLine!} endLine={commentDrag.endLine!} top={toolbarTop} />
       )}

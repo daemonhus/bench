@@ -15,16 +15,26 @@ var shaRe = regexp.MustCompile(`^[0-9a-f]{40}$`)
 
 var validRef = regexp.MustCompile(`^[a-zA-Z0-9_.^~/-]+$`)
 
+// ErrInvalidArgument marks a ref or path rejected by validation before git
+// is run. Callers should map it to 400.
+var ErrInvalidArgument = errors.New("invalid argument")
+
+// invalidArg is an ErrInvalidArgument with a specific message.
+type invalidArg struct{ msg string }
+
+func (e invalidArg) Error() string        { return e.msg }
+func (e invalidArg) Is(target error) bool { return target == ErrInvalidArgument }
+
 func validateRef(ref string) error {
 	if !validRef.MatchString(ref) {
-		return fmt.Errorf("invalid git ref: %q", ref)
+		return invalidArg{fmt.Sprintf("invalid git ref: %q", ref)}
 	}
 	return nil
 }
 
 func validatePath(p string) error {
 	if strings.HasPrefix(p, "-") {
-		return fmt.Errorf("invalid path: %q", p)
+		return invalidArg{fmt.Sprintf("invalid path: %q", p)}
 	}
 	return nil
 }

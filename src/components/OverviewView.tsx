@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Skeleton, SkeletonRows } from './Skeleton';
 import type { ReactNode } from 'react';
 import type { ActivityBucket, Baseline, BranchInfo, Feature, FeatureKind, Finding, GraphCommit, ReconciledHead, ServiceProfile, Severity } from '../core/types';
 import { baselinesApi, findingsApi, featuresApi, gitApi, reconcileApi } from '../core/api';
@@ -611,7 +612,7 @@ function CategoryHeatmap({ systemic, findingsByCategory, isOpen }: {
                   key={f.id}
                   className={`ovp-kind-square${isOpen(f) ? '' : ' ovp-cat-square-resolved'}`}
                   style={{ background: `var(--severity-${f.severity})` }}
-                  href={`#/findings/${f.id}`}
+                  href={`#/finding/${f.id}`}
                   aria-label={f.title}
                   onMouseEnter={(e) => showCard(f, e.currentTarget)}
                   onMouseLeave={scheduleClose}
@@ -662,7 +663,7 @@ function KindSquares({ features, openByFeature }: {
                   key={f.id}
                   className={`ovp-kind-square${(openByFeature.get(f.id) ?? 0) > 0 ? ' ovp-kind-square-alert' : ''}`}
                   style={{ background: KIND_COLORS[kind] }}
-                  href={`#/features/${f.id}`}
+                  href={`#/feature/${f.id}`}
                   aria-label={f.title}
                   onMouseEnter={(e) => showCard(f, e.currentTarget)}
                   onMouseLeave={scheduleClose}
@@ -867,7 +868,7 @@ function FeatureMap({ features, openByFeature, worstByFeature }: {
               key={n.id}
               className={`ovp-map-node-el${dimmed ? ' ovp-map-node-dim' : ''}`}
               style={style}
-              href={`#/features/${n.id}`}
+              href={`#/feature/${n.id}`}
               onMouseEnter={() => openCard(i)}
               onMouseLeave={scheduleClose}
               onPointerDown={onPointerDown(n.id)}
@@ -1035,7 +1036,7 @@ export function OverviewView() {
 
   const derived = useMemo(() => {
     if (!data) return null;
-    const { graph, findings, features } = data;
+    const { graph, findings } = data;
 
     const head = graph[0] ?? null;
 
@@ -1086,9 +1087,7 @@ export function OverviewView() {
   if (error) {
     return <div className="ovp"><div className="ovp-loading">Failed to load overview: {error}</div></div>;
   }
-  if (!data || !derived) {
-    return <div className="ovp"><div className="ovp-loading">Loading overview…</div></div>;
-  }
+  if (!data || !derived) return <OverviewSkeleton />;
 
   const { branches, reconciled, graph, findings } = data;
   const {
@@ -1124,7 +1123,7 @@ export function OverviewView() {
         <div className="ovp-panel ovp-header">
           <div className="ovp-header-info">
             <div className="ovp-header-title-row">
-              <h3 className="ovp-project-title">{repoName || 'Project'}</h3>
+              <h2 className="ovp-project-title">{repoName || 'Project'}</h2>
               <a className="ovp-header-owner" href="#/profile">
                 {profile.owner ? `Owner · ${profile.owner}` : 'Profile'}
                 <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -1134,11 +1133,11 @@ export function OverviewView() {
             </div>
             {!profileConfigured ? (
               <div className="ovp-empty">
-                Service profile not configured yet. <a className="ovp-inline-link" href="#/profile">Open Profile</a>
+                Service profile not configured yet. <a className="baseline-action-btn baseline-action-btn-soft ovp-profile-cta" href="#/profile">Open Profile</a>
               </div>
             ) : !profile.description && !profile.owner && ctxBadges.length === 0 ? (
               <div className="ovp-empty">
-                Profile saved but no attributes set yet. <a className="ovp-inline-link" href="#/profile">Open Profile</a>
+                Profile saved but no attributes set yet. <a className="baseline-action-btn baseline-action-btn-soft ovp-profile-cta" href="#/profile">Open Profile</a>
               </div>
             ) : (
               <>
@@ -1202,7 +1201,7 @@ export function OverviewView() {
         <div className="ovp-columns">
 
           {/* ── Column 1: repository ────────────────────────────────── */}
-          <div className="ovp-col">
+          <div className="ovp-col ovp-col-repo">
             <div className="ovp-panel">
               <div className="ovp-repo-header">
                 <PanelTitle href="#/browse">Repository</PanelTitle>
@@ -1246,7 +1245,7 @@ export function OverviewView() {
               {/* Recent log - same rendering as the Browse git tree */}
               <div className="ovp-section">
                 <h4 className="ovp-subtitle">Recent log</h4>
-                <div className="ovp-git-tree">
+                <div className="ovp-git-tree" tabIndex={0} role="region" aria-label="Repository history">
                   <div className="git-tree-graph" style={{ position: 'relative' }}>
                     <svg
                       className="git-tree-svg"
@@ -1320,7 +1319,7 @@ export function OverviewView() {
           </div>
 
           {/* ── Column 2: security findings ─────────────────────────── */}
-          <div className="ovp-col">
+          <div className="ovp-col ovp-col-findings">
             <div className="ovp-panel">
               <PanelTitle href="#/findings">Findings</PanelTitle>
               {findings.length === 0 ? (
@@ -1341,7 +1340,7 @@ export function OverviewView() {
           </div>
 
           {/* ── Column 3: attack surface ────────────────────────────── */}
-          <div className="ovp-col ovp-col-wide">
+          <div className="ovp-col ovp-col-wide ovp-col-surface">
             <div className="ovp-panel">
               <PanelTitle href="#/features">Attack surface</PanelTitle>
               <div>
@@ -1359,6 +1358,31 @@ export function OverviewView() {
             </div>
           </div>
 
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** The overview's frame while it loads: header with KPI tiles, then the repository, findings and
+ *  attack-surface panels, each roughly its loaded size, so nothing jumps when the data lands. */
+export function OverviewSkeleton() {
+  return (
+    <div className="ovp" role="status" aria-label="Loading overview">
+      <div className="ovp-page" aria-hidden="true">
+        <div className="ovp-panel ovp-header">
+          <div className="ovp-header-info skeleton-stack" style={{ gap: 10, flex: 1 }}>
+            <Skeleton height={24} width="40%" />
+            <Skeleton height={13} width="70%" />
+          </div>
+          <div className="ovp-kpis">
+            {[0, 1, 2, 3].map((i) => <Skeleton key={i} width={148} height={84} radius="var(--radius-md)" />)}
+          </div>
+        </div>
+        <div className="ovp-columns">
+          <div className="ovp-col ovp-col-repo"><div className="ovp-panel"><SkeletonRows rows={10} height={22} gap={14} /></div></div>
+          <div className="ovp-col ovp-col-findings"><div className="ovp-panel"><SkeletonRows rows={5} height={18} gap={12} /></div></div>
+          <div className="ovp-col ovp-col-wide ovp-col-surface"><div className="ovp-panel"><Skeleton height={180} /></div></div>
         </div>
       </div>
     </div>

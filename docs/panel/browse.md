@@ -6,8 +6,6 @@ Browse shows a single file with its annotations. Use the file tree on the left t
 
 Select one or more lines using the gutter on the left edge. A toolbar appears with four options:
 
-![Selection toolbar showing Add comment, Add finding, Add feature, and Copy link buttons](./img/browse-toolbar.png)
-
 **Comment** - a free-form review note. Enter the text and submit.
 
 **Finding** - a vulnerability or issue. Set the title and severity; optionally add a description, status, CWE, CVE, and CVSS vector/score. The file and line range are pre-filled from your selection.
@@ -21,5 +19,3 @@ Select one or more lines using the gutter on the left edge. A toolbar appears wi
 Existing annotations appear in the sidebar. Click any entry to jump to its location in the file and expand its details.
 
 Finding severity is shown as a coloured bar spanning the annotated line range in the gutter. When multiple findings overlap, they stack horizontally.
-
-![Browse view showing middleware.go with severity bars in the gutter and findings listed in the sidebar](./img/browse.png)

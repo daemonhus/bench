@@ -54,6 +54,15 @@ async function openToolbarKeyboard(page: Page): Promise<boolean> {
 
 // Open a mouse toolbar then click the given button label.
 // Returns false if toolbar couldn't be opened.
+/** Press Tab until the last focusable of a draft card has focus (bounded). */
+async function focusLast(page: Page, focusables: import('@playwright/test').Locator, count: number) {
+  const last = focusables.nth(count - 1);
+  for (let i = 0; i < count + 1; i++) {
+    if (await last.evaluate(el => el === document.activeElement)) return;
+    await page.keyboard.press('Tab');
+  }
+}
+
 async function openDraftViaToolbar(page: Page, label: 'Comment' | 'Finding' | 'Feature'): Promise<boolean> {
   let ok = await dragGutters(page);
   if (!ok) ok = await clickGutter(page);
@@ -239,7 +248,7 @@ test.describe('3. Toolbar to draft form', () => {
   // 3.1d - sidebar opens automatically
   test('draft form opens sidebar when sidebar is closed', async ({ page }) => {
     // Close sidebar
-    const closeBtn = page.locator('.panel-drawer-btn');
+    const closeBtn = page.locator('.panel-drawer-btn[data-tooltip="Collapse sidebar"]');
     if (await closeBtn.isVisible()) {
       await closeBtn.click();
       await page.waitForTimeout(200);
@@ -304,8 +313,8 @@ test.describe('4. Draft form keyboard - finding card', () => {
       'input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled])',
     );
     const count = await focusables.count();
-    if (count < 2) { test.skip(); return; }
-    await expect(focusables.first()).toBeFocused();
+    expect(count).toBeGreaterThan(1);
+    await focusables.first().focus(); // arrange: the card autofocuses a later field
     await page.keyboard.press('Shift+Tab');
     await expect(focusables.nth(count - 1)).toBeFocused();
   });
@@ -329,10 +338,14 @@ test.describe('4. Draft form keyboard - finding card', () => {
 
   // 4.2a - ArrowDown on severity select changes value
   test('ArrowDown on severity select changes the selected option', async ({ page }) => {
+    test.skip(process.platform === 'darwin', 'native <select> arrows open a popup on macOS; run on Linux/CI');
     const sel = page.locator('.finding-card-new .finding-severity-select');
     await sel.focus();
     const before = await sel.inputValue();
     await page.keyboard.press('ArrowDown');
+    // macOS Chrome opens the native popup on arrows; Enter commits the highlighted
+    // option there. Elsewhere the value already changed and Enter is a no-op.
+    await page.keyboard.press('Enter');
     await page.waitForTimeout(50);
     const after = await sel.inputValue();
     expect(after).not.toBe(before);
@@ -340,11 +353,15 @@ test.describe('4. Draft form keyboard - finding card', () => {
 
   // 4.2b - ArrowUp on severity select changes value
   test('ArrowUp on severity select changes the selected option', async ({ page }) => {
+    test.skip(process.platform === 'darwin', 'native <select> arrows open a popup on macOS; run on Linux/CI');
     const sel = page.locator('.finding-card-new .finding-severity-select');
     await sel.selectOption('medium');
     await sel.focus();
     const before = await sel.inputValue();
     await page.keyboard.press('ArrowUp');
+    // macOS Chrome opens the native popup on arrows; Enter commits the highlighted
+    // option there. Elsewhere the value already changed and Enter is a no-op.
+    await page.keyboard.press('Enter');
     await page.waitForTimeout(50);
     const after = await sel.inputValue();
     expect(after).not.toBe(before);
@@ -531,9 +548,10 @@ test.describe('4. Draft form keyboard - comment card', () => {
       'input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled])',
     );
     const count = await focusables.count();
-    if (count < 2) { test.skip(); return; }
-    // textarea has autoFocus
-    for (let i = 0; i < count - 1; i++) await page.keyboard.press('Tab');
+    expect(count).toBeGreaterThan(1);
+    // Focus starts on the autofocused field (not necessarily the first control):
+    // Tab until the last control, then one more Tab must wrap to the first.
+    await focusLast(page, focusables, count);
     await expect(focusables.nth(count - 1)).toBeFocused();
     await page.keyboard.press('Tab');
     await expect(focusables.first()).toBeFocused();
@@ -590,8 +608,10 @@ test.describe('4. Draft form keyboard - feature card', () => {
       'input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled])',
     );
     const count = await focusables.count();
-    if (count < 2) { test.skip(); return; }
-    for (let i = 0; i < count - 1; i++) await page.keyboard.press('Tab');
+    expect(count).toBeGreaterThan(1);
+    // Focus starts on the autofocused field (not necessarily the first control):
+    // Tab until the last control, then one more Tab must wrap to the first.
+    await focusLast(page, focusables, count);
     await expect(focusables.nth(count - 1)).toBeFocused();
     await page.keyboard.press('Tab');
     await expect(focusables.first()).toBeFocused();
@@ -603,8 +623,8 @@ test.describe('4. Draft form keyboard - feature card', () => {
       'input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled])',
     );
     const count = await focusables.count();
-    if (count < 2) { test.skip(); return; }
-    await expect(focusables.first()).toBeFocused();
+    expect(count).toBeGreaterThan(1);
+    await focusables.first().focus(); // arrange: the card autofocuses a later field
     await page.keyboard.press('Shift+Tab');
     await expect(focusables.nth(count - 1)).toBeFocused();
   });
@@ -769,50 +789,71 @@ test.describe('5. Draft form side effects', () => {
   });
 
   // 5.1 - Cancel does not reset codeview scroll position
-  test('cancelling a draft does not scroll codeview back to top', async ({ page }) => {
-    const lineCount = await page.locator('[data-line-id]').count();
-    if (lineCount < 20) { test.skip(); return; }
+  /**
+ * Scroll Browse to the middle, then open a Comment draft on rows that are
+ * actually on screen. (A draft's card sits beside its anchor line, so scrolling
+ * away from it and then focusing/clicking Cancel legitimately scrolls the panes
+ * back to the card - that is focus-reveal, not the regression guarded here.)
+ * Returns the codeview scroller and its scrollTop with the card open.
+ */
+async function openDraftMidScroll(page: Page) {
+  const codeview = page.locator('[data-nav-area="codeview"] .diff-view'); // the actual scroller
+  await codeview.evaluate((el) => { el.scrollTop = el.scrollHeight / 2; });
+  await page.waitForTimeout(200);
+  const pts = await page.evaluate(() => {
+    const view = document.querySelector('[data-nav-area="codeview"] .diff-view') as HTMLElement;
+    const vr = view.getBoundingClientRect();
+    return Array.from(document.querySelectorAll('.diff-row .action-gutter'))
+      .map((g) => g.getBoundingClientRect())
+      .filter((r) => r.top > vr.top + 20 && r.bottom < vr.bottom - 20)
+      .slice(0, 2)
+      .map((r) => ({ x: r.x + 2, y: r.y + 2 }));
+  });
+  expect(pts.length).toBe(2);
+  await page.mouse.move(pts[0].x, pts[0].y);
+  await page.mouse.down();
+  await page.mouse.move(pts[1].x, pts[1].y, { steps: 4 });
+  await page.mouse.up();
+  const scrollBeforeOpen = await codeview.evaluate((el) => el.scrollTop);
+  await page.locator('.selection-toolbar button', { hasText: 'Comment' }).click();
+  await expect(page.locator('.comment-card-new')).toBeVisible();
+  await page.waitForTimeout(900); // long enough for any smooth-scroll animation to show
+  const scrollBefore = await codeview.evaluate((el) => el.scrollTop);
+  // Opening the draft (autofocusing its textarea) must not move the code viewer.
+  expect(Math.abs(scrollBefore - scrollBeforeOpen)).toBeLessThanOrEqual(2);
+  expect(scrollBefore).toBeGreaterThan(100);
+  return { codeview, scrollBefore };
+}
 
-    const codeview = page.locator('[data-nav-area="codeview"]');
-    // Scroll the codeview down to roughly the middle
-    await codeview.evaluate((el) => { el.scrollTop = el.scrollHeight / 2; });
-    await page.waitForTimeout(150);
-    const scrollBefore = await codeview.evaluate((el) => el.scrollTop);
-    if (scrollBefore < 10) { test.skip(); return; }
+const expectScrollKept = async (codeview: import('@playwright/test').Locator, before: number) => {
+  await codeview.page().waitForTimeout(400);
+  const after = await codeview.evaluate((el) => el.scrollTop);
+  expect(Math.abs(after - before)).toBeLessThanOrEqual(2);
+};
 
-    const ok = await openDraftViaToolbar(page, 'Comment');
-    if (!ok) { test.skip(); return; }
-
-    // Cancel via the Cancel button
+test('cancelling a draft (mouse click) does not scroll codeview back to top', async ({ page }) => {
+    const { codeview, scrollBefore } = await openDraftMidScroll(page);
     await page.locator('.comment-card-new .comment-btn-cancel').click();
-    await page.waitForTimeout(400);
+    await expect(page.locator('.comment-card-new')).toBeHidden();
+    await expectScrollKept(codeview, scrollBefore);
+  });
 
-    const scrollAfter = await codeview.evaluate((el) => el.scrollTop);
-    // Scroll should not have been reset to 0
-    expect(scrollAfter).toBeGreaterThan(0);
+  // 5.1a' - the same cancel, activated from the keyboard (Enter on the button)
+  test('cancelling a draft (Enter on Cancel) does not scroll codeview back to top', async ({ page }) => {
+    const { codeview, scrollBefore } = await openDraftMidScroll(page);
+    await page.locator('.comment-card-new .comment-btn-cancel').focus(); // arrange: card is on screen
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.comment-card-new')).toBeHidden();
+    await expectScrollKept(codeview, scrollBefore);
   });
 
   // 5.1b - Escape cancel also preserves scroll
   test('Escape-cancelling a draft does not scroll codeview back to top', async ({ page }) => {
-    const lineCount = await page.locator('[data-line-id]').count();
-    if (lineCount < 20) { test.skip(); return; }
-
-    const codeview = page.locator('[data-nav-area="codeview"]');
-    await codeview.evaluate((el) => { el.scrollTop = el.scrollHeight / 2; });
-    await page.waitForTimeout(150);
-    const scrollBefore = await codeview.evaluate((el) => el.scrollTop);
-    if (scrollBefore < 10) { test.skip(); return; }
-
-    const ok = await openDraftViaToolbar(page, 'Comment');
-    if (!ok) { test.skip(); return; }
-
-    // Escape from empty textarea
+    const { codeview, scrollBefore } = await openDraftMidScroll(page);
     await page.locator('.comment-card-new textarea').focus();
     await page.keyboard.press('Escape');
-    await page.waitForTimeout(400);
-
-    const scrollAfter = await codeview.evaluate((el) => el.scrollTop);
-    expect(scrollAfter).toBeGreaterThan(0);
+    await expect(page.locator('.comment-card-new')).toBeHidden();
+    await expectScrollKept(codeview, scrollBefore);
   });
 
   // 5.2 - Switching files cancels draft

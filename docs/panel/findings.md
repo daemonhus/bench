@@ -4,8 +4,6 @@ The Findings panel lists all findings across the project. A metrics section at t
 
 Findings are grouped into two sections: **Open** (draft, open, in-progress) and **Closed** (false-positive, accepted, closed).
 
-![Findings panel showing the metrics section and expanded finding cards with comment threads](./img/findings.png)
-
 ## Editing
 
 Expand a finding card and click the edit icon to open the edit form. You can change the title, description, severity, status, source, category, CWE, CVE, and CVSS vector/score.

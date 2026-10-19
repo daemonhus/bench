@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 
 	"bench/internal/db"
 	"bench/internal/git"
@@ -113,6 +114,21 @@ func (h *reconcileHandlers) history(w http.ResponseWriter, r *http.Request) {
 	}
 	if positions == nil {
 		positions = []model.AnnotationPosition{}
+		// No history: distinguish "never moved" from "no such annotation" (a
+		// typo'd ID otherwise looks like a valid, empty history).
+		var getErr error
+		switch annType {
+		case "finding":
+			_, getErr = h.db.GetFinding(annID)
+		case "comment":
+			_, getErr = h.db.GetComment(annID)
+		case "feature":
+			_, getErr = h.db.GetFeature(annID)
+		}
+		if getErr != nil && strings.Contains(getErr.Error(), "not found") {
+			writeError(w, http.StatusNotFound, annType+" not found: "+annID)
+			return
+		}
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{

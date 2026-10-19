@@ -1,0 +1,95 @@
+/* ============================================================
+   Toolbar rhythm
+   Controls that sit side by side in a toolbar (search, filter
+   dropdowns, segmented toggles, sort) share one height: each
+   item is --control-h inside a 3px track, so every track is
+   --control-h + 6px. Imported after the component sheets so the
+   height wins over their vertical padding.
+   ============================================================ */
+
+.activity-kind-toggle,
+.view-mode-btn,
+.multi-select-trigger,
+.features-sort-btn {
+  height: var(--control-h);
+  padding-top: 0;
+  padding-bottom: 0;
+  display: inline-flex;
+  align-items: center;
+}
+
+.annotation-search-input {
+  height: var(--control-h);
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+/* Expanding search (SearchBox expand): compact at rest, pushed to the end of its row; grows
+   into the row's free space while focused or holding a query. */
+.annotation-search--expand {
+  flex: 0 1 200px;
+  min-width: 150px;
+  max-width: 400px;
+  margin-left: auto;
+  margin-right: 0;
+  cursor: text;
+  transition: flex-grow 220ms cubic-bezier(0.2, 0, 0, 1), box-shadow var(--transition-fast);
+}
+.annotation-search--expand.annotation-search--open { flex-grow: 1; }
+.annotation-search--expand .annotation-search-input { width: 100%; min-width: 0; padding-left: 4px; }
+.annotation-search-icon { flex-shrink: 0; margin-left: 9px; color: var(--text-muted); transition: color var(--transition-fast); }
+.annotation-search--open .annotation-search-icon { color: var(--accent-blue); }
+@media (prefers-reduced-motion: reduce) { .annotation-search--expand { transition: none; } }
+
+/* Phones: no spare width to expand into, so the search takes its own full-width line. */
+@media (max-width: 639px) {
+  .annotation-search--expand { flex: 1 1 100%; margin-left: 0; max-width: none; }
+}
+
+/* Bench's Findings and Features title rows: the right-hand group fills the row so its expanding
+   search (last in the group) has room to grow. */
+.findings-filter-group,
+.features-title-row-right {
+  flex: 1;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+/* Find in file, in the Browse/Diff file header beside back/forward: the same expanding search,
+   compact at rest and growing toward the path while open. The header's right side takes the
+   free width so there is room to grow into. */
+.file-header-left { flex: 0 1 auto; }
+.file-header-right { flex: 1 1 auto; justify-content: flex-end; min-width: 0; }
+.in-file-find {
+  flex: 0 1 180px;
+  min-width: 0;
+  max-width: 400px;
+  margin-right: 0;
+  height: 30px; /* the file header is 40px: smaller than the toolbar controls, same shape */
+  box-sizing: border-box;
+  gap: 2px;
+}
+.in-file-find.annotation-search--open { flex-basis: 400px; }
+.in-file-search-bar--inline { padding: 3px; border-bottom: none; background: var(--bg-surface); }
+.in-file-find .annotation-search-input { flex: 1; width: auto; min-width: 60px; height: 24px; padding-right: 6px; }
+.in-file-find .in-file-search-counter { min-width: 0; font-size: 11px; padding: 0 4px; }
+.in-file-find .in-file-search-nav-btn { border-color: transparent; }
+.in-file-find .in-file-search-nav-btn:hover:not(:disabled) { background: var(--hover-muted); border-color: transparent; }
+.in-file-find--rest { border: none; font: inherit; color: var(--text-muted); text-align: left; }
+.in-file-find--rest:hover { color: var(--text-secondary); }
+.in-file-find-placeholder {
+  padding-left: 6px;
+  font-size: var(--font-size-small);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (max-width: 639px) {
+  /* Phones: an icon at rest; open, it takes the header's spare width. */
+  .in-file-find { flex: 0 0 auto; margin-left: auto; }
+  .in-file-find--rest { width: 30px; padding: 0; justify-content: center; }
+  .in-file-find--rest .annotation-search-icon { margin-left: 0; }
+  .in-file-find--rest .in-file-find-placeholder { display: none; }
+  .in-file-find.annotation-search--open { flex: 1 1 auto; }
+  .in-file-find .in-file-search-toggle { display: none; }
+}

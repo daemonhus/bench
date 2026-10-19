@@ -36,10 +36,10 @@ test.describe('View switching', () => {
   });
 
   // 2
-  test('2 switches to Changes and focuses delta', async ({ page }) => {
+  test('2 switches to Changes and focuses delta-header (NAV_AREA.delta)', async ({ page }) => {
     await page.keyboard.press('2');
-    await page.waitForSelector('[data-nav-area="delta"]', { timeout: 8000 });
-    expect(await focusedArea(page)).toBe('delta');
+    await page.waitForSelector('[data-nav-area="delta-header"]', { timeout: 8000 });
+    expect(await focusedArea(page)).toBe('delta-header');
   });
 
   // 3
@@ -132,8 +132,13 @@ test.describe('Browse: Tab cycling', () => {
 
   // 12
   test('Tab from child button inside codeview goes to next area', async ({ page }) => {
+    // Back/forward are the only buttons in codeview and start disabled; opening a
+    // second file gives the view history so "back" is enabled.
+    await page.locator('.tree-dir', { hasText: 'docs' }).click(); // expand
+    await page.locator('.tree-file', { hasText: 'notes.md' }).click();
+    await page.waitForSelector('[data-line-id]');
     const childBtn = page.locator('[data-nav-area="codeview"] button:not([disabled])').first();
-    if (await childBtn.count() === 0) { test.skip(); return; }
+    await expect(childBtn).toBeAttached({ timeout: 5000 });
     await childBtn.focus();
     await page.keyboard.press('Tab');
     await page.waitForTimeout(100);
@@ -355,12 +360,12 @@ test.describe('Findings: list navigation', () => {
   });
 
   // 28
-  test('Enter on finding navigates to Browse with codeview focused', async ({ page }) => {
+  test('Shift+Enter on finding navigates to Browse with codeview focused', async ({ page }) => {
     if (await page.locator('[data-finding-id]').count() === 0) { test.skip(); return; }
     await page.locator('[data-nav-area="findings-list"]').focus();
     await page.keyboard.press('ArrowDown');
     await page.waitForTimeout(50);
-    await page.keyboard.press('Enter');
+    await page.keyboard.press('Shift+Enter'); // plain Enter now focuses the reply box
     await page.waitForTimeout(500);
     await expect(page.locator('.tab-bar-tab', { hasText: 'Browse' })).toHaveClass(/tab-bar-tab-active/);
     expect(await focusedArea(page)).toBe('codeview');
@@ -499,12 +504,12 @@ test.describe('Features: kind tabs and list', () => {
   });
 
   // 40
-  test('Enter on feature navigates to Browse with codeview focused', async ({ page }) => {
+  test('Shift+Enter on feature navigates to Browse with codeview focused', async ({ page }) => {
     if (await page.locator('[data-feature-id]').count() === 0) { test.skip(); return; }
     await page.locator('[data-nav-area="features-list"]').focus();
     await page.keyboard.press('ArrowDown');
     await page.waitForTimeout(50);
-    await page.keyboard.press('Enter');
+    await page.keyboard.press('Shift+Enter'); // plain Enter expands / focuses reply
     await page.waitForTimeout(500);
     await expect(page.locator('.tab-bar-tab', { hasText: 'Browse' })).toHaveClass(/tab-bar-tab-active/);
     expect(await focusedArea(page)).toBe('codeview');
@@ -553,11 +558,16 @@ test.describe('Changes: navigation', () => {
 
   // 44
   test('Space on commit-group toggles it', async ({ page }) => {
-    await page.locator('[data-nav-area="delta"]').focus();
-    await page.keyboard.press('ArrowDown');
-    await page.waitForTimeout(50);
-    const navId = await page.locator('[data-nav-focused="true"]').getAttribute('data-nav-id');
-    if (!navId?.startsWith('cg-')) { test.skip(); return; }
+    await page.locator('[data-nav-area="delta"]').focus(); // seeds item 0
+    // Items are newest-first: step down until the commit group is focused.
+    const current = () => page.locator('[data-nav-focused="true"]').first().getAttribute('data-nav-id');
+    let navId = await current();
+    for (let i = 0; i < 12 && !navId?.startsWith('cg-'); i++) {
+      await page.keyboard.press('ArrowDown');
+      await page.waitForTimeout(50);
+      navId = await current();
+    }
+    expect(navId?.startsWith('cg-')).toBe(true);
     // Measure content height of the focused item - toggling changes it
     const heightBefore = await page.locator('[data-nav-focused="true"]').evaluate(el => el.clientHeight);
     await page.keyboard.press('Space');
@@ -626,23 +636,34 @@ test.describe('Cross-view scenarios', () => {
   });
 
   // 48
-  test('Enter from Changes item navigates to Browse with codeview focused', async ({ page }) => {
+  async function focusChangesFinding(page: Page) {
     await page.keyboard.press('2');
     await page.waitForSelector('[data-nav-area="delta"] [data-nav-id]', { timeout: 10000 });
-    await page.locator('[data-nav-area="delta"]').focus();
-    // Navigate to a feature or finding item (skip commit groups)
-    for (let i = 0; i < 10; i++) {
+    await page.locator('[data-nav-area="delta"]').focus(); // seeds item 0 (the commit group)
+    const current = () => page.locator('[data-nav-focused="true"]').first().getAttribute('data-nav-id');
+    let navId = await current();
+    // getActivityNavId: f- = finding, feat- = feature
+    for (let i = 0; i < 12 && !navId?.startsWith('f-'); i++) {
       await page.keyboard.press('ArrowDown');
       await page.waitForTimeout(50);
-      const navId = await page.locator('[data-nav-focused="true"]').getAttribute('data-nav-id');
-      if (navId && (navId.startsWith('feat-') || navId.startsWith('find-'))) break;
+      navId = await current();
     }
-    const navId = await page.locator('[data-nav-focused="true"]').getAttribute('data-nav-id');
-    if (!navId || (!navId.startsWith('feat-') && !navId.startsWith('find-'))) { test.skip(); return; }
+    expect(navId?.startsWith('f-')).toBe(true);
+  }
+
+  test('Enter on a Changes finding opens its detail page, under Findings', async ({ page }) => {
+    await focusChangesFinding(page);
     await page.keyboard.press('Enter');
-    await page.waitForTimeout(500);
+    await expect(page.locator('.tab-bar-tab', { hasText: 'Findings' })).toHaveClass(/tab-bar-tab-active/);
+    await expect(page).toHaveURL(/#\/finding\//);
+    await expect(page.locator('.fd-title')).toBeVisible();
+  });
+
+  test('Shift+Enter on a Changes finding navigates to Browse with codeview focused', async ({ page }) => {
+    await focusChangesFinding(page);
+    await page.keyboard.press('Shift+Enter');
     await expect(page.locator('.tab-bar-tab', { hasText: 'Browse' })).toHaveClass(/tab-bar-tab-active/);
-    expect(await focusedArea(page)).toBe('codeview');
+    await expect.poll(() => focusedArea(page)).toBe('codeview');
   });
 
   // 49
@@ -679,10 +700,11 @@ test.describe('Focus ring CSS', () => {
     await page.locator('[data-nav-area="findings-list"]').focus();
     await page.keyboard.press('ArrowDown');
     await page.waitForTimeout(100);
-    const outline = await page.locator('[data-nav-focused="true"]').first().evaluate(
-      el => getComputedStyle(el).outlineStyle
+    // The item treatment is a box-shadow ring (components.css), not an outline.
+    const ring = await page.locator('[data-nav-focused="true"]').first().evaluate(
+      el => getComputedStyle(el).boxShadow
     );
-    expect(outline).not.toBe('none');
+    expect(ring).not.toBe('none');
   });
 
   test('nav-area gets outline on keyboard focus', async ({ page }) => {
@@ -698,9 +720,9 @@ test.describe('Focus ring CSS', () => {
   });
 });
 
-// ─── 11. Finding status select ────────────────────────────────────────────────
+// ─── 11. Finding status control ────────────────────────────────────────────────
 
-test.describe('Finding status select', () => {
+test.describe('Finding status control', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/#/findings');
     await page.waitForSelector('[data-nav-area="findings-list"]', { timeout: 8000 });
@@ -708,31 +730,25 @@ test.describe('Finding status select', () => {
   });
 
   // 51
-  test('status select is visible on the finding card and has all 6 options', async ({ page }) => {
+  test('the status control (the tinted dropdown) lists all 6 statuses', async ({ page }) => {
     if (await page.locator('[data-finding-id]').count() === 0) { test.skip(); return; }
-    const select = page.locator('.status-select').first();
-    await expect(select).toBeVisible();
-    const options = await select.locator('option').allTextContents();
-    expect(options).toHaveLength(6);
+    const trigger = page.locator('.finding-status-control .select-tinted').first();
+    await expect(trigger).toBeVisible();
+    await expect(trigger).toHaveAttribute('aria-label', /^Status: (Draft|Open|In Progress|False Positive|Accepted|Closed)$/);
+    await trigger.click();
+    await expect(page.getByRole('listbox', { name: 'Status' }).getByRole('option')).toHaveCount(6);
   });
 
-  // 52
-  test('status select value reflects the current finding status', async ({ page }) => {
+  // 52-53
+  test('picking a different status updates the finding', async ({ page }) => {
     if (await page.locator('[data-finding-id]').count() === 0) { test.skip(); return; }
-    const select = page.locator('.status-select').first();
-    const value = await select.inputValue();
-    expect(['draft', 'open', 'in-progress', 'false-positive', 'accepted', 'closed']).toContain(value);
-  });
-
-  // 53
-  test('selecting a different status updates the finding', async ({ page }) => {
-    if (await page.locator('[data-finding-id]').count() === 0) { test.skip(); return; }
-    const select = page.locator('.status-select').first();
-    const before = await select.inputValue();
-    const allValues = ['draft', 'open', 'in-progress', 'false-positive', 'accepted', 'closed'];
-    const next = allValues.find((v) => v !== before) ?? 'open';
-    await select.selectOption(next);
-    await expect(select).toHaveValue(next);
+    const trigger = page.locator('.finding-status-control .select-tinted').first();
+    const before = (await trigger.getAttribute('aria-label'))!.replace('Status: ', '');
+    await trigger.click();
+    const next = page.getByRole('listbox', { name: 'Status' }).getByRole('option').filter({ hasNotText: before }).first();
+    const label = (await next.textContent())!.trim();
+    await next.click();
+    await expect(trigger).toHaveAttribute('aria-label', `Status: ${label}`);
   });
 
   // 54
@@ -740,7 +756,7 @@ test.describe('Finding status select', () => {
     if (await page.locator('[data-finding-id]').count() === 0) { test.skip(); return; }
     await page.locator('[data-finding-id]').first().click();
     await page.waitForTimeout(100);
-    const select = page.locator('.status-select').first();
+    const select = page.locator('.finding-status-control .select-tinted').first();
     await select.focus();
     await expect(select).toBeFocused();
   });
@@ -761,6 +777,6 @@ test.describe('Finding status select', () => {
     // receive focus (tabIndex should be -1).
     await page.keyboard.press('Tab');
     const focused = await page.evaluate(() => document.activeElement?.className ?? '');
-    expect(focused).not.toContain('status-select');
+    expect(focused).not.toContain('select-tinted');
   });
 });

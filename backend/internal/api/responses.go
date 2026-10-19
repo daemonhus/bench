@@ -27,9 +27,16 @@ func writeInternalError(w http.ResponseWriter, err error) {
 
 // writeDBError returns a 400 for SQLite constraint violations so callers see
 // the real reason (e.g. "CHECK constraint failed: status IN (...)") instead of
-// an opaque 500.  All other DB errors fall through to writeInternalError.
+// an opaque 500, and a 404 for the DB layer's "<thing> not found: <id>" errors
+// (an update/delete that matched no row). All other DB errors fall through to
+// writeInternalError.
 func writeDBError(w http.ResponseWriter, err error) {
-	if strings.Contains(strings.ToLower(err.Error()), "constraint") {
+	msg := strings.ToLower(err.Error())
+	if strings.Contains(msg, " not found") {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	if strings.Contains(msg, "constraint") || strings.Contains(msg, "ambiguous id prefix") {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -80,4 +87,17 @@ type PaginatedResponse struct {
 	Total  int `json:"total"`
 	Limit  int `json:"limit"`
 	Offset int `json:"offset"`
+}
+
+// anchorKeys are the update-map keys that move an annotation's anchor.
+var anchorKeys = []string{"file", "file_id", "commit", "commit_id", "line_start", "line_end"}
+
+// touchesAnchor reports whether an update map re-anchors the annotation.
+func touchesAnchor(updates map[string]any) bool {
+	for _, k := range anchorKeys {
+		if _, ok := updates[k]; ok {
+			return true
+		}
+	}
+	return false
 }

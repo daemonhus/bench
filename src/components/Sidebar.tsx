@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useLayoutEffect, useCallback } from 'react';
+import { buttonProps } from '../core/a11y';
 import ReactDOM from 'react-dom';
 import { useAnnotationStore } from '../stores/annotation-store';
 import { useUIStore } from '../stores/ui-store';
@@ -223,7 +224,17 @@ const ReconcileIndicator: React.FC<{
 
   return (
     <>
-      <span className={`reconcile-status ${cls}`} ref={triggerRef} onClick={() => setOpen(!open)}>
+      <span
+        className={`reconcile-status ${cls}`}
+        ref={triggerRef}
+        aria-haspopup="true"
+        aria-expanded={open}
+        {...buttonProps(() => setOpen(!open), 'Reconciliation status')}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape' && open) { e.stopPropagation(); setOpen(false); return; }
+          buttonProps(() => setOpen(!open)).onKeyDown(e);
+        }}
+      >
         {icon}
       </span>
       {tooltipContent}
@@ -268,7 +279,6 @@ export const Sidebar: React.FC = () => {
   const currentCommit = useRepoStore((s) => s.currentCommit);
   const isLoading = useRepoStore((s) => s.isLoading);
   const hasReconciliationData = useAnnotationStore((s) => s.hasReconciliationData);
-  const branches = useRepoStore((s) => s.branches);
   const reconciledHead = useReconcileStore((s) => s.head);
   const activeJob = useReconcileStore((s) => s.activeJob);
   const gitHead = reconciledHead?.gitHead ?? null;
@@ -780,7 +790,7 @@ export const Sidebar: React.FC = () => {
 
   if (!sidebarOpen) {
     return (
-      <div className="sidebar-collapsed" onClick={toggleSidebar}>
+      <div className="sidebar-collapsed" data-chrome data-panel-toggle="sidebar" {...buttonProps(toggleSidebar, 'Open sidebar')}>
         <span className="sidebar-collapsed-icon">&lsaquo;</span>
       </div>
     );
@@ -798,7 +808,7 @@ export const Sidebar: React.FC = () => {
   const hasItems = activityItems.length > 0 || showNewComment || showNewFinding || showNewFeature;
 
   return (
-    <aside
+    <div
       className="sidebar"
       tabIndex={0}
       data-nav-area="sidebar"
@@ -844,12 +854,12 @@ export const Sidebar: React.FC = () => {
         }));
       }}
     >
-      <div className="sidebar-header">
+      <div className="sidebar-header" role="toolbar" aria-label="Activity" data-chrome>
         <span className="sidebar-title">Activity</span>
         <span className="sidebar-count">{activityItems.length + fileFeatures.length}</span>
         <OrphanCountBadge activeJob={activeJob} onOpen={() => setShowOrphanTriage(true)} />
         <ReconcileIndicator reconciledHead={reconciledHead} activeJob={activeJob} />
-        <button className="panel-drawer-btn" onClick={toggleSidebar} data-tooltip="Collapse sidebar">
+        <button className="panel-drawer-btn" onClick={toggleSidebar} data-tooltip="Collapse sidebar" aria-label="Collapse sidebar" data-panel-toggle="sidebar">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             <rect x="1" y="2" width="14" height="12" rx="1" />
             <line x1="10.5" y1="2" x2="10.5" y2="14" />
@@ -858,7 +868,7 @@ export const Sidebar: React.FC = () => {
       </div>
 
       {fileFindings.length > 0 && (
-        <div className="sidebar-severity-filter">
+        <div className="sidebar-severity-filter" role="toolbar" aria-label="Filter by severity" data-chrome>
           {(['critical', 'high', 'medium', 'low', 'info'] as Severity[]).map((sev) => (
             <button
               key={sev}
@@ -971,7 +981,7 @@ export const Sidebar: React.FC = () => {
                     autoFocus
                   />
                   <div className="finding-form-row">
-                    <select
+                    <select aria-label="Severity"
                       className="finding-severity-select"
                       value={newFindingSeverity}
                       onChange={(e) => setNewFindingSeverity(e.target.value as Severity)}
@@ -982,7 +992,7 @@ export const Sidebar: React.FC = () => {
                       <option value="low">Low</option>
                       <option value="info">Info</option>
                     </select>
-                    <select
+                    <select aria-label="Status"
                       className="finding-status-select"
                       value={newFindingStatus}
                       onChange={(e) => setNewFindingStatus(e.target.value as FindingStatus)}
@@ -1022,7 +1032,7 @@ export const Sidebar: React.FC = () => {
                       value={newFindingScore}
                       onChange={(e) => setNewFindingScore(e.target.value)}
                     />
-                    <select
+                    <select aria-label="Category"
                       className="finding-status-select"
                       value={newFindingCategory}
                       onChange={(e) => setNewFindingCategory(e.target.value)}
@@ -1074,7 +1084,7 @@ export const Sidebar: React.FC = () => {
                 <div className="finding-form-fields">
                   <div className="finding-form-row">
                     <label className="finding-form-label">Kind</label>
-                    <select
+                    <select aria-label="Kind"
                       className="finding-edit-select"
                       value={newFeatureKind}
                       onChange={e => setNewFeatureKind(e.target.value as FeatureKind)}
@@ -1133,7 +1143,7 @@ export const Sidebar: React.FC = () => {
                   {(newFeatureKind === 'source' || newFeatureKind === 'sink') && (
                     <div className="finding-form-row">
                       <label className="finding-form-label">Direction</label>
-                      <select
+                      <select aria-label="Direction"
                         className="finding-edit-select"
                         value={newFeatureDirection}
                         onChange={e => setNewFeatureDirection(e.target.value as 'in' | 'out' | '')}
@@ -1361,6 +1371,6 @@ export const Sidebar: React.FC = () => {
       </div>
 
       {showOrphanTriage && <OrphanTriagePanel onClose={() => setShowOrphanTriage(false)} />}
-    </aside>
+    </div>
   );
 };

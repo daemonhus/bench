@@ -1,6 +1,6 @@
 # Overview
 
-The Overview panel is the project dashboard: the first tab (shortcut <kbd>0</kbd>). A header band carries the project context, and three columns below it cover findings, the repository, and the annotated attack surface.
+The Overview panel is the project dashboard: click the project name at the top left, or press <kbd>0</kbd>. A header band carries the project context, and three columns below it cover findings, the repository, and the annotated attack surface.
 
 **Header** names the service, its owner (linked to [Profile](./profile)), the description, and the profile attributes as chips - the same meta-attributes that contextualise every finding. Three KPIs sit alongside: open findings (of the total, and how many are closed), how far HEAD has drifted from the last baseline (commits and merges since it was set), and the size of the attack surface.
 

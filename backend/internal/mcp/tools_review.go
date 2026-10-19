@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"bench/internal/db"
 )
 
 func registerAnalyticsTools(deps *toolDeps) []Tool {
@@ -237,24 +239,12 @@ func toolGetCoverage(deps *toolDeps) Tool {
 			}
 
 			// Get review progress
-			progress, err := deps.db.GetReviewProgress(p.Path)
+			// All entries: a mark on a directory above p.Path still covers it.
+			progress, err := deps.db.GetReviewProgress("")
 			if err != nil {
 				return "", err
 			}
-			progressMap := make(map[string]*struct {
-				commitID   string
-				reviewer   string
-				note       string
-				reviewedAt string
-			})
-			for _, rp := range progress {
-				progressMap[rp.FileID] = &struct {
-					commitID   string
-					reviewer   string
-					note       string
-					reviewedAt string
-				}{rp.CommitID, rp.Reviewer, rp.Note, rp.ReviewedAt}
-			}
+			reviews := db.NewReviewLookup(progress)
 
 			// Build coverage
 			var files []map[string]string
@@ -264,7 +254,7 @@ func toolGetCoverage(deps *toolDeps) Tool {
 				if p.Path != "" && !strings.HasPrefix(e.Path, p.Path) {
 					continue
 				}
-				rp, ok := progressMap[e.Path]
+				rp, ok := reviews.For(e.Path)
 				if !ok {
 					unreviewed++
 					if !p.OnlyUnreviewed {
@@ -286,15 +276,15 @@ func toolGetCoverage(deps *toolDeps) Tool {
 				}
 
 				// Check staleness: was file modified since review?
-				changed, err := deps.repo.DiffFiles(rp.commitID, p.Commit)
+				changed, err := deps.repo.DiffFiles(rp.CommitID, p.Commit)
 				if err != nil {
 					// Can't check staleness - assume reviewed
 					reviewed++
 					files = append(files, map[string]string{
 						"path":        e.Path,
 						"status":      "reviewed",
-						"reviewed_at": rp.reviewedAt,
-						"reviewer":    rp.reviewer,
+						"reviewed_at": rp.ReviewedAt,
+						"reviewer":    rp.Reviewer,
 					})
 					continue
 				}
@@ -310,16 +300,16 @@ func toolGetCoverage(deps *toolDeps) Tool {
 					files = append(files, map[string]string{
 						"path":        e.Path,
 						"status":      "stale",
-						"reviewed_at": rp.reviewedAt,
-						"reviewer":    rp.reviewer,
+						"reviewed_at": rp.ReviewedAt,
+						"reviewer":    rp.Reviewer,
 					})
 				} else {
 					reviewed++
 					files = append(files, map[string]string{
 						"path":        e.Path,
 						"status":      "reviewed",
-						"reviewed_at": rp.reviewedAt,
-						"reviewer":    rp.reviewer,
+						"reviewed_at": rp.ReviewedAt,
+						"reviewer":    rp.Reviewer,
 					})
 				}
 			}

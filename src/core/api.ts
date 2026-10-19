@@ -98,6 +98,11 @@ export const findingsApi = {
     params.set('include_resolved', 'true');
     return fetchJSON(`/api/findings?${params}`);
   },
+  /** One finding; with `commit`, also its effective position there (effectiveAnchor, confidence). */
+  get(id: string, commit?: string): Promise<FindingWithPosition> {
+    const q = commit ? `?commit=${encodeURIComponent(commit)}` : '';
+    return fetchJSON(`/api/findings/${encodeURIComponent(id)}${q}`);
+  },
   create(finding: Finding): Promise<Finding> {
     return fetchJSON('/api/findings', {
       method: 'POST',
@@ -199,6 +204,10 @@ export const featuresApi = {
       body: JSON.stringify(feature),
     });
   },
+  get(id: string, commit?: string): Promise<FeatureWithPosition> {
+    const q = commit ? `?commit=${encodeURIComponent(commit)}` : '';
+    return fetchJSON(`/api/features/${encodeURIComponent(id)}${q}`);
+  },
   setOrigin(id: string, origin: Partial<Origin>): Promise<Origin> {
     return fetchJSON(`/api/features/${encodeURIComponent(id)}/origin`, {
       method: 'PUT',
@@ -271,7 +280,7 @@ export const reconcileApi = {
   fileStatus(fileId: string, commit: string): Promise<ReconcileFileStatus> {
     return fetchJSON(`/api/reconcile/status?fileId=${encodeURIComponent(fileId)}&commit=${encodeURIComponent(commit)}`);
   },
-  history(type: 'finding' | 'comment', id: string): Promise<{ id: string; type: string; positions: AnnotationPosition[] }> {
+  history(type: 'finding' | 'comment' | 'feature', id: string): Promise<{ id: string; type: string; positions: AnnotationPosition[] }> {
     return fetchJSON(`/api/annotations/${type}/${encodeURIComponent(id)}/history`);
   },
 };

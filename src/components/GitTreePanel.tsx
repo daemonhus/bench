@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { gitApi } from '../core/api';
+import { buttonProps } from '../core/a11y';
 import { computeGraphLayout, LANE_WIDTH, ROW_HEIGHT, NODE_RADIUS, laneColor, laneX, rowY, edgePath } from '../core/graph-layout';
 import type { GraphCommit, ReconciledHead } from '../core/types';
 
@@ -152,17 +153,83 @@ export const GitTreePanel: React.FC<GitTreePanelProps> = ({
     }
   };
 
+  // ── Keyboard model ─────────────────────────────────────────────────────────
+  // Rows are a roving-tabindex list: Up/Down/Home/End move, Enter/Space select,
+  // Escape closes. Opening moves focus to the current commit; closing gives it
+  // back to whatever opened the panel (the commit button), keyboard or mouse.
+  const rowEls = useRef(new Map<string, HTMLElement>());
+  const openerRef = useRef<HTMLElement | null>(null);
+  const [stopHash, setStopHash] = useState<string | null>(null);
+  const focusedOnOpen = useRef(false);
+
+  const enabledHashes = useMemo(
+    () => layout.nodes.map((n) => n.commit.hash).filter((h) => allowedHashes === null || allowedHashes.has(h)),
+    [layout, allowedHashes],
+  );
+
+  // A closed panel is clipped to height 0 but still in the DOM: keep it out of the tab order.
+  useEffect(() => {
+    const el = panelRef.current;
+    if (!el) return;
+    if (isOpen) el.removeAttribute('inert'); else el.setAttribute('inert', '');
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      const opener = openerRef.current;
+      const a = document.activeElement;
+      if (focusedOnOpen.current && opener?.isConnected && (!a || a === document.body || panelRef.current?.contains(a))) {
+        opener.focus({ preventScroll: true });
+      }
+      focusedOnOpen.current = false;
+      return;
+    }
+    if (!focusedOnOpen.current) openerRef.current = document.activeElement as HTMLElement | null;
+  }, [isOpen]);
+
+  // Once the rows exist, put focus on the current commit (or the first selectable one).
+  useEffect(() => {
+    if (!isOpen || focusedOnOpen.current || enabledHashes.length === 0) return;
+    const target = currentCommit && enabledHashes.includes(currentCommit) ? currentCommit : enabledHashes[0];
+    setStopHash(target);
+    focusedOnOpen.current = true;
+    const id = requestAnimationFrame(() => rowEls.current.get(target)?.focus({ preventScroll: true }));
+    return () => cancelAnimationFrame(id);
+  }, [isOpen, enabledHashes, currentCommit]);
+
+  const moveRow = (hash: string, delta: number | 'first' | 'last') => {
+    const i = enabledHashes.indexOf(hash);
+    const next = delta === 'first' ? 0 : delta === 'last' ? enabledHashes.length - 1
+      : Math.max(0, Math.min(enabledHashes.length - 1, (i === -1 ? 0 : i) + delta));
+    const h = enabledHashes[next];
+    if (!h) return;
+    setStopHash(h);
+    const el = rowEls.current.get(h);
+    el?.focus({ preventScroll: true });
+    el?.scrollIntoView?.({ block: 'nearest' });
+  };
+
+  const onRowKeyDown = (e: React.KeyboardEvent, hash: string) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); moveRow(hash, 1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); moveRow(hash, -1); }
+    else if (e.key === 'Home') { e.preventDefault(); moveRow(hash, 'first'); }
+    else if (e.key === 'End') { e.preventDefault(); moveRow(hash, 'last'); }
+  };
+
   return (
     <div
       ref={panelRef}
       className={`git-tree-panel ${isOpen ? 'git-tree-panel-open' : ''}`}
       style={isOpen ? { height: panelHeight } : undefined}
+      role="region"
+      aria-label="Commit history"
+      onKeyDown={(e) => { if (e.key === 'Escape' && isOpen) { e.stopPropagation(); onClose(); } }}
     >
-      <div className="git-tree-header">
+      <div className="git-tree-header" role="toolbar" aria-label="History" data-chrome>
         <span className="git-tree-title">
           {diffSelectTarget ? `Select ${diffSelectTarget} commit` : 'History'}
         </span>
-        <button className="git-tree-close-btn" onClick={onClose}>&times;</button>
+        <button className="git-tree-close-btn" aria-label="Close history" onClick={onClose}>&times;</button>
       </div>
       <div className="git-tree-scroll">
         {loading && commits.length === 0 ? (
@@ -215,9 +282,14 @@ export const GitTreePanel: React.FC<GitTreePanelProps> = ({
               return (
                 <div
                   key={node.commit.hash}
+                  ref={(el) => { if (el) rowEls.current.set(node.commit.hash, el); else rowEls.current.delete(node.commit.hash); }}
                   className={`git-tree-row ${isCurrent ? 'git-tree-row-current' : ''} ${isDisabled ? 'git-tree-row-disabled' : ''} ${isAhead ? 'git-tree-row-ahead' : ''}`}
                   style={{ height: ROW_HEIGHT, paddingLeft: graphWidth + 4 }}
-                  onClick={() => handleRowClick(node.commit)}
+                  aria-disabled={isDisabled || undefined}
+                  aria-current={isCurrent || undefined}
+                  {...buttonProps(() => handleRowClick(node.commit), `Commit ${node.commit.shortHash}${(node.commit.refs ?? []).length ? ` (${(node.commit.refs ?? []).join(', ')})` : ''}${isCurrent ? ', current' : ''}`)}
+                  tabIndex={isDisabled ? -1 : node.commit.hash === stopHash ? 0 : -1}
+                  onKeyDown={(e) => { onRowKeyDown(e, node.commit.hash); if (!e.defaultPrevented) buttonProps(() => handleRowClick(node.commit)).onKeyDown(e); }}
                 >
                   <span className="git-tree-hash">{node.commit.shortHash}</span>
                   {reconciledHead?.gitHead === node.commit.hash && (

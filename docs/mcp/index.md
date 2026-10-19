@@ -10,6 +10,20 @@ claude mcp add --transport http bench http://localhost:8080/mcp
 
 The endpoint is at `http://localhost:8080/mcp`. All tools are scoped to the single repo - no `project` parameter needed.
 
+### Multi-project server
+
+`bench-platform` serves two endpoints:
+
+| Endpoint | Scope |
+|---|---|
+| `/mcp` | Every project. Bench tools take a required `project` (slug); [multi-project tools](/mcp/tools#multi-project-tools) are added. |
+| `/api/p/{slug}/mcp` | One project, same tools as single-project bench, no `project` param. |
+
+```bash
+claude mcp add --transport http bench http://localhost:8080/mcp
+claude mcp add --transport http bench-api http://localhost:8080/api/p/api/mcp
+```
+
 ## Tool groups
 
 Tools are organized into nine groups matching the CLI categories:
@@ -36,7 +50,7 @@ Empty fields mean "not configured", never "confirmed absent". Only an explicit `
 
 ## Tool reference
 
-All tools are scoped to the single repo instance.
+All tools are scoped to the single repo instance (or to `project` on the multi-project `/mcp`).
 
 ### search_code
 
@@ -492,7 +506,7 @@ Derive a candidate [origin](/concepts/annotations#origin) for a finding from git
 |-----------|------|----------|-------------|
 | `id` | string | yes | Finding ID |
 
-Returns `introducedCommit`, `introducedDate` and `actor` from the newest blamed line; `mergeCommit` and `mergeSubject` for the merge that landed it (the merge message is usually the best explanation source); `branch` pre-composed as the `source -> target` flow; and `context`, the recent commits touching the anchor's file. Nothing is written.
+Returns `introducedCommit`, `introducedDate` and `actor` from the newest blamed line; `mergeCommit` and `mergeSubject` for the merge that landed it (the merge message is usually the best explanation source); `branch` pre-composed as the `source -> target` flow (just the default branch when the change was committed straight onto it); and `context`, the recent commits touching the anchor's file. Nothing is written.
 
 ### set_finding_origin
 

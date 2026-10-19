@@ -12,9 +12,13 @@ interface InFileSearchBarProps {
   content: string;
   onClose: () => void;
   initialQuery?: string;
+  /** Rendered in the file header as an expanding search (bench's SearchBox look) instead of a
+   *  strip under it. Leaving it with nothing typed collapses it again via onDismiss. */
+  inline?: boolean;
+  onDismiss?: () => void;
 }
 
-export const InFileSearchBar: React.FC<InFileSearchBarProps> = ({ content, onClose, initialQuery = '' }) => {
+export const InFileSearchBar: React.FC<InFileSearchBarProps> = ({ content, onClose, initialQuery = '', inline = false, onDismiss }) => {
   const [query, setQuery] = useState(initialQuery);
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
@@ -174,13 +178,31 @@ export const InFileSearchBar: React.FC<InFileSearchBarProps> = ({ content, onClo
     focusables[next].focus();
   };
 
+  // Inline: focus leaving the bar with no query collapses it (a query keeps it open, so the
+  // matches stay highlighted while reading).
+  const handleBlur = (e: React.FocusEvent) => {
+    if (!inline || !onDismiss || query) return;
+    if (barRef.current?.contains(e.relatedTarget as Node | null)) return;
+    onDismiss();
+  };
+
   return (
-    <div className="in-file-search-bar" ref={barRef} onKeyDown={handleBarKeyDown}>
+    <div
+      className={inline
+        ? 'in-file-search-bar in-file-search-bar--inline annotation-search annotation-search--expand annotation-search--open in-file-find'
+        : 'in-file-search-bar'}
+      ref={barRef}
+      onKeyDown={handleBarKeyDown}
+      onBlur={handleBlur}
+      role={inline ? 'search' : undefined}
+    >
+      {inline && <FindIcon />}
       <input
         ref={inputRef}
-        className="in-file-search-input"
+        className={inline ? 'annotation-search-input' : 'in-file-search-input'}
         type="text"
         placeholder="Find in file..."
+        aria-label="Find in file"
         value={query}
         onChange={(e) => { setQuery(e.target.value); setCurrentMatchIndex(0); }}
         onKeyDown={handleKeyDown}
@@ -227,3 +249,19 @@ export const InFileSearchBar: React.FC<InFileSearchBarProps> = ({ content, onClo
     </div>
   );
 };
+
+export const FindIcon: React.FC = () => (
+  <svg className="annotation-search-icon" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
+    <circle cx="7" cy="7" r="4.75" />
+    <path d="M10.5 10.5 14 14" />
+  </svg>
+);
+
+/** The collapsed find-in-file box in the file header: looks like the search at rest, opens the
+ *  real bar on click or focus. */
+export const InFileSearchCollapsed: React.FC<{ onOpen: () => void }> = ({ onOpen }) => (
+  <button type="button" className="annotation-search annotation-search--expand in-file-find in-file-find--rest" onClick={onOpen} aria-label="Find in file (Ctrl+F)" data-tooltip="Find in file (Ctrl+F)">
+    <FindIcon />
+    <span className="in-file-find-placeholder">Find in file...</span>
+  </button>
+);

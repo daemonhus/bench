@@ -55,7 +55,7 @@ claude mcp add --transport http bench http://localhost:8080/mcp
 ## Docker
 
 ```bash
-docker build -f Dockerfile -t bench ..   # context is repo root (needs shared/)
+docker build -t bench .
 docker run -p 8080:8080 -v /path/to/repo:/repo:ro -v bench-data:/data bench
 ```
 
@@ -75,13 +75,25 @@ docker run -p 8080:8080 \
 
 The project name shown in the UI is derived from the last component of the `-repo` path, so `/project` → **project**.
 
+## Multiple projects
+
+`bench-platform` hosts several repositories behind one UI and adds flows: feature walkthroughs that span projects. The same `bench` CLI drives it (`--project <slug>`), and MCP is at `/mcp` (all projects) or `/api/p/<slug>/mcp`.
+
+```bash
+docker build -f platform/Dockerfile -t bench-platform .
+docker run -p 8080:8080 -v /path/to/repos:/repos:ro -v bench-platform-data:/data bench-platform
+bench projects create --name api --repo-path /repos/api
+```
+
+For development: `npm install && (cd platform/ui && npm install) && ./platform/dev.sh` (Vite 3000 + backend 8080). `bin/build.sh` builds `bench`, `benchd` and `bench-platform`.
+
 ## Development
 
 Install dependencies, and start the server with:
 
 ```bash
 npm install
-./dev.sh /path/to/git/repo    # starts Vite (5173) + Go backend (8080)
+./dev.sh /path/to/git/repo    # starts Vite (5173) + Go backend (8081)
 ```
 
 ## License

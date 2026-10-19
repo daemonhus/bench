@@ -25,3 +25,12 @@ body,
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
+
+/* Form controls don't inherit the page font by default, so any button or field without its
+   own font-family fell back to the browser's (Arial). */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}

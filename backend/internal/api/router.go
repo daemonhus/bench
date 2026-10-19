@@ -91,6 +91,7 @@ func NewRouter(repo *git.Repo, database *db.DB, broker *events.Broker, opts ...R
 	mux.HandleFunc("GET /api/baselines", bh.list)
 	mux.HandleFunc("GET /api/baselines/latest", bh.latest)
 	mux.HandleFunc("GET /api/baselines/delta", bh.delta)
+	mux.HandleFunc("GET /api/baselines/{id}", bh.get)
 	mux.HandleFunc("GET /api/baselines/{id}/delta", bh.deltaFor)
 	mux.HandleFunc("POST /api/baselines", bh.create)
 	mux.HandleFunc("PATCH /api/baselines/{id}", bh.update)

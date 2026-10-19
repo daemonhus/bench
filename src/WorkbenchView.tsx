@@ -1,6 +1,7 @@
 import { useLayoutEffect, useMemo } from 'react';
 import { setApiBase } from './core/api';
 import { App } from './App';
+import { WorkbenchExtensionsProvider, type WorkbenchExtensions } from './core/extensions';
 
 /** Editor configuration that affects the code viewer. */
 export interface EditorConfig {
@@ -19,14 +20,18 @@ export interface WorkbenchProps {
   className?: string;
   /** Editor configuration - overrides CSS custom properties for the code viewer. */
   editorConfig?: EditorConfig;
+  /** Host-supplied content for workbench pages (see core/extensions). */
+  extensions?: WorkbenchExtensions;
 }
+
+const NO_EXTENSIONS: WorkbenchExtensions = {};
 
 /**
  * Embeddable workbench component. Wraps the full App with API base URL injection.
  * In standalone mode, render as <WorkbenchView apiBase="" />.
  * In platform mode, render as <WorkbenchView apiBase="/api/p/project-slug" />.
  */
-export function WorkbenchView({ apiBase, className, editorConfig }: WorkbenchProps) {
+export function WorkbenchView({ apiBase, className, editorConfig, extensions }: WorkbenchProps) {
   // useLayoutEffect fires before any regular useEffect (including App's
   // data-loading effects), so apiBase is always set before fetches start.
   // This also survives StrictMode's mount→cleanup→mount cycle.
@@ -54,8 +59,10 @@ export function WorkbenchView({ apiBase, className, editorConfig }: WorkbenchPro
   }, [editorConfig]);
 
   return (
-    <div className={className} style={style}>
-      <App />
-    </div>
+    <WorkbenchExtensionsProvider value={extensions ?? NO_EXTENSIONS}>
+      <div className={className} style={style}>
+        <App />
+      </div>
+    </WorkbenchExtensionsProvider>
   );
 }

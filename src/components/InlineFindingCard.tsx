@@ -1,4 +1,5 @@
 import React, { useState, useRef, useMemo } from 'react';
+import { buttonProps } from '../core/a11y';
 import { useAnnotationStore } from '../stores/annotation-store';
 import type { Finding } from '../core/types';
 import { InlineMarkdown } from '../core/markdown';
@@ -68,7 +69,7 @@ export const InlineFindingCard: React.FC<InlineFindingCardProps> = ({ finding })
       className={`inline-finding-card${expanded ? ' inline-finding-card-expanded' : ''}`}
       style={{ background: `color-mix(in srgb, ${color} 5%, var(--bg-secondary))` }}
     >
-      <div className="inline-finding-header" onClick={handleToggle}>
+      <div className="inline-finding-header" aria-expanded={expanded} {...buttonProps(handleToggle, `${finding.severity}: ${finding.title}`)}>
         <span className="inline-finding-bar" style={{ background: color }} />
         <span className="inline-finding-sev" style={{ color }}>
           {finding.severity}

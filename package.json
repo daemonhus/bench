@@ -12,7 +12,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "dev:backend": "cd backend && go run ./cmd/server -repo .",
-    "build:backend": "npm run build && cp -r dist backend/dist && touch backend/dist/.gitkeep && cd backend && go build -o bench-server ./cmd/server"
+    "build:backend": "npm run build && cp -r dist/. backend/dist/ && touch backend/dist/.gitkeep && cd backend && go build -o benchd ./cmd/server"
   },
   "dependencies": {
     "@visx/hierarchy": "^3.12.0",
@@ -25,6 +25,7 @@
     "zustand": "^4.5.5"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.10.2",
     "@playwright/test": "^1.48.0",
     "@types/d3-force": "^3.0.10",
     "@types/diff-match-patch": "^1.0.36",

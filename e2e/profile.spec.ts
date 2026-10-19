@@ -42,7 +42,15 @@ test.describe('Profile tab - service profile', () => {
     const configured = !(await banner.isVisible().catch(() => false));
     test.skip(configured, 'profile already configured in this database');
 
-    await banner.locator('.profile-banner-link').click();
+    // "Open Profile" is the soft call to action in white, not a filled blue primary.
+    const cta = banner.locator('.profile-banner-link');
+    await expect(cta).toHaveClass(/baseline-action-btn-soft/);
+    const { tone, text } = await cta.evaluate((e) => ({
+      tone: getComputedStyle(e).getPropertyValue('--btn-tone').trim(),
+      text: getComputedStyle(e).getPropertyValue('--text-primary').trim(),
+    }));
+    expect(tone).toBe(text);
+    await cta.click();
     await expect(page.locator('.profile-title')).toBeVisible();
 
     // Fill some fields

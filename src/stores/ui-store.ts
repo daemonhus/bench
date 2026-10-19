@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ViewMode, CommentDragState, CommentType, FeatureKind } from '../core/types';
+import type { ViewMode, CommentDragState, CommentType } from '../core/types';
 
 type AnnotationAction = 'comment' | 'finding' | 'feature' | null;
 type Theme = 'dark' | 'light';
@@ -58,10 +58,6 @@ interface UIState {
   /** Line to focus in codeview after a view transition (consumed by App.tsx after pendingNavFocus). */
   pendingCodeviewLine: number | null;
   setPendingCodeviewLine: (line: number | null) => void;
-  /** Navigate to Findings view and scroll to this finding id. */
-  scrollToFindingId: string | null;
-  /** Navigate to Features view and scroll to this feature. */
-  scrollToFeature: { id: string; kind: FeatureKind } | null;
   setViewMode: (mode: ViewMode) => void;
   setPendingNavFocus: (area: string | null) => void;
   setCommentDrag: (drag: Partial<CommentDragState>) => void;
@@ -79,12 +75,15 @@ interface UIState {
   setDraftComment: (draft: DraftComment | null) => void;
   setShowFeatureCreate: (show: boolean) => void;
   setRequestFindingCreate: (req: boolean) => void;
-  setScrollToFindingId: (id: string | null) => void;
-  setScrollToFeature: (target: { id: string; kind: FeatureKind } | null) => void;
+}
+
+/** The saved theme, tolerating a missing or unexpected stored value. */
+function readTheme(raw: string | null): Theme {
+  return raw === 'light' || raw === 'dark' ? raw : 'dark';
 }
 
 export const useUIStore = create<UIState>((set) => ({
-  theme: (localStorage.getItem('bench-theme') as Theme) ?? 'dark',
+  theme: readTheme(localStorage.getItem('bench-theme')),
   toggleTheme: () =>
     set((state) => {
       const next: Theme = state.theme === 'dark' ? 'light' : 'dark';
@@ -122,8 +121,6 @@ export const useUIStore = create<UIState>((set) => ({
   setCodeviewTypePick: (pick) => set({ codeviewTypePick: pick }),
   pendingCodeviewLine: null,
   setPendingCodeviewLine: (line) => set({ pendingCodeviewLine: line }),
-  scrollToFindingId: null,
-  scrollToFeature: null,
 
   setViewMode: (mode) => set({ viewMode: mode }),
   setPendingNavFocus: (area) => set({ pendingNavFocus: area }),
@@ -164,6 +161,12 @@ export const useUIStore = create<UIState>((set) => ({
   setShowFeatureCreate: (show) => set({ showFeatureCreate: show }),
 
   setRequestFindingCreate: (req) => set({ requestFindingCreate: req }),
-  setScrollToFindingId: (id) => set({ scrollToFindingId: id }),
-  setScrollToFeature: (target) => set({ scrollToFeature: target }),
 }));
+
+// The theme is one setting shared by every owner of the page (the workbench and, when embedded,
+// the platform shell, which reads this store): another tab changing it updates this one too.
+window.addEventListener('storage', (e) => {
+  if (e.key !== 'bench-theme') return;
+  const next = readTheme(e.newValue);
+  if (useUIStore.getState().theme !== next) useUIStore.setState({ theme: next });
+});

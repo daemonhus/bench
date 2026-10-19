@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { JobSnapshot, ReconcileResult, ReconcileSummary } from '../core/types';
+import type { JobSnapshot } from '../core/types';
 
 // These JSON fixtures represent the EXACT shape the Go backend produces.
 // They are the TypeScript side of the contract - if either side changes
