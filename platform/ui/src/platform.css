@@ -1120,7 +1120,46 @@
   gap: 16px;
 }
 
-.home-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.home-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+
+/* Search everything: top right of the home page, results in a raised panel under it. */
+/* Bigger than the toolbar searches: it's the way into everything from here. */
+.home-search { position: relative; flex: 0 1 560px; min-width: 0; }
+.home-search-box { width: 100%; margin-right: 0; padding: 4px; }
+.home-search-box .annotation-search-input { width: 100%; min-width: 0; height: 40px; font-size: var(--font-size-ui); text-overflow: ellipsis; }
+.home-search-box .annotation-search-icon { width: 18px; height: 18px; margin-left: 10px; }
+.home-search-box .annotation-search-kbd { font-size: var(--font-size-xs); padding: 2px 7px; }
+.home-search-panel {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: var(--z-overlay);
+  max-height: min(70vh, 640px); overflow-y: auto;
+  padding: 8px; background: var(--bg-secondary); border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm); box-shadow: var(--shadow-popup);
+}
+.home-search-section {
+  padding: 12px 12px 6px; font-size: var(--font-size-xs); font-weight: 600;
+  letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--text-muted);
+}
+.home-search-row {
+  display: flex; align-items: flex-start; gap: 12px; padding: 10px 12px;
+  border-radius: var(--radius-sm); cursor: pointer;
+}
+.home-search-row--active { background: var(--bg-tertiary); }
+.home-search-icon { flex-shrink: 0; display: inline-flex; margin-top: 2px; color: var(--text-muted); }
+.home-search-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+.home-search-title { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--text-primary); font-size: var(--font-size-ui); line-height: 1.35; }
+.home-search-title .home-dot, .home-search-title .feature-method-badge { flex-shrink: 0; }
+.home-search-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-search-sub { font-size: var(--font-size-small); color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-search-mark { background: none; color: var(--accent-blue); font-weight: 600; }
+.home-search-empty, .home-search-note { padding: 12px; font-size: var(--font-size-body); color: var(--text-muted); }
+.home-search-note { padding-top: 4px; font-size: var(--font-size-xs); }
+@media (max-width: 639px) {
+  .home-header { flex-wrap: wrap; }
+  .home-search { flex: 1 1 100%; }
+  /* No keyboard to press "/" on: give the placeholder the room. */
+  .home-search-box .annotation-search-hint { display: none; }
+  .home-search-box .annotation-search-input--hinted { padding-right: 24px; }
+}
 .home-empty { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; color: var(--text-muted); }
 
 .home-metric-label { display: inline-flex; align-items: center; gap: 6px; font-size: var(--font-size-xs); font-weight: 600; letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--text-muted); }

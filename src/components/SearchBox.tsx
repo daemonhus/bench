@@ -13,6 +13,10 @@ interface SearchBoxProps {
   /** Expanding search: compact at rest with a leading icon, grows to fill the free space in
    *  its row while focused or holding a query. Put it last in a flex row (it pushes right). */
   expand?: boolean;
+  /** Show the leading magnifying glass without expanding (expanding search always has it). */
+  icon?: boolean;
+  /** Extra attributes for the input, e.g. to make it a combobox driving a results list. */
+  inputProps?: React.InputHTMLAttributes<HTMLInputElement>;
 }
 
 export const SearchBox: React.FC<SearchBoxProps> = ({
@@ -24,6 +28,8 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
   className,
   ariaLabel,
   expand = false,
+  icon = false,
+  inputProps,
 }) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [focused, setFocused] = useState(false);
@@ -48,16 +54,18 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
 
   return (
     <div
-      className={`annotation-search${invalid ? ' annotation-search-invalid' : ''}${expand ? ' annotation-search--expand' : ''}${expand && (focused || value) ? ' annotation-search--open' : ''}${className ? ` ${className}` : ''}`}
-      onMouseDown={expand ? (e) => { if (e.target === e.currentTarget) { e.preventDefault(); inputRef.current?.focus(); } } : undefined}
+      className={`annotation-search${invalid ? ' annotation-search-invalid' : ''}${expand ? ' annotation-search--expand' : ''}${expand && (focused || value) ? ' annotation-search--open' : ''}${icon && !expand ? ' annotation-search--icon' : ''}${className ? ` ${className}` : ''}`}
+      // A press on the box's padding or the glass focuses the input (not on the input or ✕ themselves).
+      onMouseDown={expand || icon ? (e) => { if (!(e.target as Element).closest('input, button')) { e.preventDefault(); inputRef.current?.focus(); } } : undefined}
     >
-      {expand && (
+      {(expand || icon) && (
         <svg className="annotation-search-icon" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
           <circle cx="7" cy="7" r="4.75" />
           <path d="M10.5 10.5 14 14" />
         </svg>
       )}
       <input
+        {...inputProps}
         ref={inputRef}
         type="search"
         className={`annotation-search-input${showHint ? ' annotation-search-input--hinted' : ''}`}
@@ -65,8 +73,8 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
         aria-label={ariaLabel ?? placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
+        onFocus={(e) => { setFocused(true); inputProps?.onFocus?.(e); }}
+        onBlur={(e) => { setFocused(false); inputProps?.onBlur?.(e); }}
       />
       {showHint && (
         <span className="annotation-search-hint" aria-hidden>

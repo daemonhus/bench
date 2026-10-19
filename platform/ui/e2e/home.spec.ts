@@ -116,11 +116,18 @@ test('attack surface: share of features on a documented flow, one square each wi
   await expect(page.locator('.fd-title')).toBeVisible();
 });
 
-test('the header is just the title: no subtitle, no Projects control (the rail has Projects)', async ({ page }) => {
+test('the header is the title and search: no subtitle, no Projects control (the rail has Projects)', async ({ page }) => {
   await page.goto('/');
   await expect(panel(page, 'Next actions').locator('.home-action').first()).toBeVisible();
-  await expect(page.locator('.home-header')).toHaveText('Bench');
+  await expect(page.locator('.home-header h1')).toHaveText('Bench');
+  await expect(page.locator('.home-header > *')).toHaveCount(2); // the title, then search
+  await expect(page.locator('.home-header > .home-search')).toBeVisible();
   await expect(page.locator('.home-header button')).toHaveCount(0);
+  // Search sits top right, level with the title.
+  const title = (await page.locator('.home-header h1').boundingBox())!;
+  const search = (await page.locator('.home-search').boundingBox())!;
+  expect(search.x).toBeGreaterThan(title.x + title.width);
+  expect(Math.abs((search.y + search.height / 2) - (title.y + title.height / 2))).toBeLessThan(8);
 });
 
 test('axe: overview', async ({ page }) => {
@@ -183,4 +190,92 @@ test('the home page has no per-project risk table: that lives on the project car
   await page.goto('/');
   await expect(panel(page, 'Next actions').locator('.home-action').first()).toBeVisible();
   await expect(page.locator('.ovp-panel-title', { hasText: 'Risk by project' })).toHaveCount(0);
+});
+
+test.describe('search everything (top right)', () => {
+  const box = (page: Page) => page.getByRole('combobox', { name: 'Search everything' });
+  const results = (page: Page) => page.locator('#home-search-results');
+  const sections = (page: Page) => results(page).locator('.home-search-section').allTextContents();
+
+  test('"/" focuses it; the three best hits lead, then up to three per kind, empty kinds skipped', async ({ page }) => {
+    await page.goto('/');
+    await expect(panel(page, 'Next actions').locator('.home-action').first()).toBeVisible(); // data loaded
+    // Bigger than the toolbar searches, with a magnifying glass that focuses it.
+    const wrap = page.locator('.home-search-box');
+    expect((await wrap.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    expect((await wrap.boundingBox())!.width).toBeGreaterThanOrEqual(480);
+    await wrap.locator('.annotation-search-icon').click();
+    await expect(box(page)).toBeFocused();
+    await box(page).blur();
+    await page.keyboard.press('/');
+    await expect(box(page)).toBeFocused();
+    await page.keyboard.type('alpha');
+    // The project named exactly "alpha" beats findings that start with it; ties go alphabetically.
+    const top = results(page).locator('[role="group"]').first().getByRole('option');
+    await expect(top).toHaveCount(3);
+    await expect(top.nth(0).locator('.home-search-label')).toHaveText('alpha');
+    await expect(top.nth(1).locator('.home-search-label')).toHaveText('alpha finding 1');
+    await expect(top.nth(2).locator('.home-search-label')).toHaveText('alpha finding 2');
+    // What the top three didn't show: the third finding. Nothing else matches, so no other kinds.
+    expect(await sections(page)).toEqual(['Top results', 'Findings']);
+    await expect(results(page).getByRole('option')).toHaveCount(4);
+    await expect(top.nth(0).locator('.home-search-mark')).toHaveText('alpha');
+    expect((await new AxeBuilder({ page }).include('.home-search').analyze()).violations).toEqual([]);
+  });
+
+  test('fuzzy: letters in order still find a feature; each kind holds at most three', async ({ page }) => {
+    await page.goto('/');
+    await expect(panel(page, 'Next actions').locator('.home-action').first()).toBeVisible();
+    await box(page).fill('sesion');
+    await expect(results(page).getByRole('option').first().locator('.home-search-label')).toHaveText('session reaper');
+    await expect(results(page).getByRole('option')).toHaveCount(2); // one per project
+    await box(page).fill('finding');
+    // Six findings match: three lead, three more under Findings, the rest left out.
+    expect(await sections(page)).toEqual(['Top results', 'Findings']);
+    await expect(results(page).getByRole('option')).toHaveCount(6);
+    await box(page).fill('qqqzzz');
+    await expect(page.locator('.home-search-empty')).toHaveText(/No matches/);
+  });
+
+  test('keyboard: arrows move, Enter opens the hit in its project, Escape closes', async ({ page }) => {
+    await page.goto('/');
+    await expect(panel(page, 'Next actions').locator('.home-action').first()).toBeVisible();
+    await box(page).fill('beta finding');
+    const options = results(page).getByRole('option');
+    await expect(options.first()).toHaveAttribute('aria-selected', 'true');
+    await page.keyboard.press('ArrowDown');
+    await expect(options.nth(1)).toHaveAttribute('aria-selected', 'true');
+    await expect(box(page)).toHaveAttribute('aria-activedescendant', (await options.nth(1).getAttribute('id'))!);
+    await page.keyboard.press('Escape');
+    await expect(results(page)).toHaveCount(0);
+    await expect(box(page)).toHaveValue('beta finding');
+    await page.keyboard.press('ArrowDown'); // reopens
+    await expect(options.first()).toBeVisible();
+    await page.keyboard.press('ArrowDown');
+    const title = (await options.nth(1).locator('.home-search-label').textContent())!;
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL(/\/p\/beta#\/finding\//);
+    await expect(page.locator('.fd-title')).toHaveText(title);
+  });
+
+  test('comments are searched too, and open where they live', async ({ page, request }) => {
+    const findings = await (await request.get('/api/p/alpha/api/findings')).json() as { id: string; anchor: unknown }[];
+    const c = await (await request.post('/api/p/alpha/api/comments', {
+      data: { anchor: findings[0].anchor, author: 'e2e', text: 'Rotate the zebra signing key before release', findingId: findings[0].id },
+    })).json() as { id: string };
+    try {
+      await page.goto('/');
+      await expect(panel(page, 'Next actions').locator('.home-action').first()).toBeVisible();
+      await box(page).fill('zebra');
+      const hit = results(page).getByRole('option');
+      await expect(hit).toHaveCount(1);
+      await expect(hit.locator('.home-search-label')).toContainText('zebra signing key');
+      await expect(hit.locator('.home-search-sub')).toHaveText('alpha · e2e');
+      expect(await sections(page)).toEqual(['Top results']); // a kind already shown in full isn't repeated
+      await hit.click();
+      await expect(page).toHaveURL(new RegExp(`/p/alpha#/finding/${findings[0].id}$`));
+    } finally {
+      await request.delete(`/api/p/alpha/api/comments/${c.id}`);
+    }
+  });
 });

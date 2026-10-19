@@ -71,7 +71,7 @@ function riskBreakdown(p: Project, w: RiskWeights): { label: string; value: numb
 }
 
 /** Convert a git remote URL (SSH or HTTPS) to an HTTP browse URL. */
-function remoteToHttp(raw: string): string | null {
+export function remoteToHttp(raw: string): string | null {
   if (!raw) return null;
   // SSH: git@github.com:org/repo.git
   const sshMatch = raw.match(/^git@([^:]+):(.+?)(?:\.git)?$/);
@@ -307,7 +307,7 @@ function ProjectCard({ project: p, weights, onSelect, onOpen, onEdit }: {
 }
 
 /** Show the repository's own name (and its parent) rather than a long absolute path; the full path is in the tooltip. */
-function repoLabel(path: string): string {
+export function repoLabel(path: string): string {
   const parts = path.replace(/\/+$/, '').split('/').filter(Boolean);
   return parts.length > 1 ? `…/${parts.slice(-2).join('/')}` : path;
 }

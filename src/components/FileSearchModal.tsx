@@ -1,35 +1,12 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useModal } from '../hooks/useModal';
 import type { FileEntry } from '../core/types';
+import { fuzzyMatch } from '../core/fuzzy';
 
 interface FileSearchModalProps {
   files: FileEntry[];
   onSelect: (path: string) => void;
   onClose: () => void;
-}
-
-/** Simple fuzzy match: all query chars must appear in order (case-insensitive). */
-function fuzzyMatch(query: string, candidate: string): { match: boolean; score: number } {
-  const q = query.toLowerCase();
-  const c = candidate.toLowerCase();
-  let qi = 0;
-  let score = 0;
-  let prevMatchIdx = -2;
-
-  for (let ci = 0; ci < c.length && qi < q.length; ci++) {
-    if (c[ci] === q[qi]) {
-      // Bonus for consecutive matches
-      if (ci === prevMatchIdx + 1) score += 5;
-      // Bonus for match at segment boundary (after / or at start)
-      if (ci === 0 || c[ci - 1] === '/') score += 10;
-      // Bonus for matching near end (filename part)
-      score += ci / c.length;
-      prevMatchIdx = ci;
-      qi++;
-    }
-  }
-
-  return { match: qi === q.length, score };
 }
 
 export const FileSearchModal: React.FC<FileSearchModalProps> = ({ files, onSelect, onClose }) => {

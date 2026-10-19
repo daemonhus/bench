@@ -1,28 +1,5 @@
 import { describe, it, expect } from 'vitest';
-
-/**
- * Extracted fuzzyMatch - mirrors FileSearchModal's implementation.
- * All query chars must appear in order (case-insensitive).
- */
-function fuzzyMatch(query: string, candidate: string): { match: boolean; score: number } {
-  const q = query.toLowerCase();
-  const c = candidate.toLowerCase();
-  let qi = 0;
-  let score = 0;
-  let prevMatchIdx = -2;
-
-  for (let ci = 0; ci < c.length && qi < q.length; ci++) {
-    if (c[ci] === q[qi]) {
-      if (ci === prevMatchIdx + 1) score += 5;
-      if (ci === 0 || c[ci - 1] === '/') score += 10;
-      score += ci / c.length;
-      prevMatchIdx = ci;
-      qi++;
-    }
-  }
-
-  return { match: qi === q.length, score };
-}
+import { fuzzyMatch } from '../core/fuzzy';
 
 /**
  * Simulate the filtered + sorted results list that FileSearchModal produces.

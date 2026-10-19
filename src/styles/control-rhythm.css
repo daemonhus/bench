@@ -39,6 +39,9 @@
 .annotation-search--expand .annotation-search-input { width: 100%; min-width: 0; padding-left: 4px; }
 .annotation-search-icon { flex-shrink: 0; margin-left: 9px; color: var(--text-muted); transition: color var(--transition-fast); }
 .annotation-search--open .annotation-search-icon { color: var(--accent-blue); }
+/* A plain search with the glass (SearchBox icon): the input starts after it; it lights up on focus. */
+.annotation-search--icon .annotation-search-input { padding-left: 6px; }
+.annotation-search--icon:focus-within .annotation-search-icon { color: var(--accent-blue); }
 @media (prefers-reduced-motion: reduce) { .annotation-search--expand { transition: none; } }
 
 /* Phones: no spare width to expand into, so the search takes its own full-width line. */

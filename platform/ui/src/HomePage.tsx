@@ -12,6 +12,7 @@ import { listAllFlows, type FlowSummary } from './flows';
 import { computeRiskScore } from './risk';
 import { SLA_DAYS, ageDays, type Profile } from './projectInsight';
 import { FindingsTrendChart, SurfaceChart, type FindingsWeek } from './charts';
+import { HomeSearch } from './HomeSearch';
 
 // ─── Security overview ──────────────────────────────────────────────────
 // Written for whoever owns security across these projects. It answers, in order:
@@ -275,6 +276,7 @@ export function HomePage({ onOpenProject, onOpenFlow, onOpenProjects }: {
     <div className="home-page">
       <div className="home-header">
         <h1 className="overview-section-title">Bench</h1>
+        <HomeSearch projects={projects} data={data} onOpen={onOpenProject} />
       </div>
 
       {/* 1 + 2: posture hero and next actions */}
