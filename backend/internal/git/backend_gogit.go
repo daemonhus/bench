@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"sort"
@@ -12,11 +14,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-git/go-billy/v5/osfs"
 	gogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/cache"
 	"github.com/go-git/go-git/v5/plumbing/format/diff"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/storer"
+	"github.com/go-git/go-git/v5/storage/filesystem"
 
 	"bench/internal/model"
 )
@@ -31,6 +36,25 @@ type GoGitBackend struct {
 	repo     *gogit.Repository
 	openOnce sync.Once
 	openErr  error
+
+	// walkRepo is a second handle that keeps packfile descriptors open, for the
+	// long history walks (Graph, Activity). go-git's kept-open packfiles share
+	// one file position and unguarded maps, so walkMu lets one walk use it at a
+	// time; everything else uses repo, whose default storage is safe to share.
+	walkRepo *gogit.Repository
+	walkOnce sync.Once
+	walkErr  error
+	walkMu   sync.Mutex
+
+	// lineStats memoises each commit's diffstat for Activity. Commits are
+	// immutable, so entries never go stale.
+	lineStatsMu sync.Mutex
+	lineStats   map[plumbing.Hash]lineStat
+}
+
+// lineStat is a commit's total added and deleted lines across all files.
+type lineStat struct {
+	additions, deletions int
 }
 
 // NewGoGitBackend returns a go-git-backed Backend rooted at path.
@@ -48,6 +72,66 @@ func (b *GoGitBackend) open() (*gogit.Repository, error) {
 		b.repo = r
 	})
 	return b.repo, b.openErr
+}
+
+// openWalk returns the kept-descriptors handle for a history walk, holding
+// walkMu until the returned unlock is called.
+func (b *GoGitBackend) openWalk() (*gogit.Repository, func(), error) {
+	b.walkOnce.Do(func() {
+		r, err := openKeepDescriptors(b.path)
+		if err != nil {
+			b.walkErr = fmt.Errorf("gogit open %s: %w", b.path, err)
+			return
+		}
+		b.walkRepo = r
+	})
+	if b.walkErr != nil {
+		return nil, func() {}, b.walkErr
+	}
+	b.walkMu.Lock()
+	return b.walkRepo, b.walkMu.Unlock, nil
+}
+
+// openKeepDescriptors opens a standard checkout with packfile descriptors kept
+// open. PlainOpen's default storage reopens the packfile on every object read,
+// which dominates history walks and is far worse on a Docker bind mount. Bare
+// repos, linked worktrees and submodules (.git is not a directory) use
+// PlainOpen. The descriptors live as long as the process, as the repo is
+// opened once. Not safe for concurrent use: see walkMu.
+func openKeepDescriptors(path string) (*gogit.Repository, error) {
+	dot := filepath.Join(path, ".git")
+	if info, err := os.Stat(dot); err != nil || !info.IsDir() {
+		return gogit.PlainOpen(path)
+	}
+	st := filesystem.NewStorageWithOptions(osfs.New(dot), cache.NewObjectLRUDefault(),
+		filesystem.Options{KeepDescriptors: true})
+	return gogit.Open(st, osfs.New(path))
+}
+
+// commitLineStat returns c's diffstat totals, computing them once per commit.
+// A failed Stats call yields zeros and is not cached.
+func (b *GoGitBackend) commitLineStat(c *object.Commit) lineStat {
+	b.lineStatsMu.Lock()
+	s, ok := b.lineStats[c.Hash]
+	b.lineStatsMu.Unlock()
+	if ok {
+		return s
+	}
+	stats, err := c.Stats()
+	if err != nil {
+		return lineStat{}
+	}
+	for _, fs := range stats {
+		s.additions += fs.Addition
+		s.deletions += fs.Deletion
+	}
+	b.lineStatsMu.Lock()
+	if b.lineStats == nil {
+		b.lineStats = map[plumbing.Hash]lineStat{}
+	}
+	b.lineStats[c.Hash] = s
+	b.lineStatsMu.Unlock()
+	return s
 }
 
 // classifyGoGitErr wraps go-git's ref/object-lookup errors as ErrUnknownRef,
@@ -282,10 +366,11 @@ func (b *GoGitBackend) Graph(limit int) ([]model.GraphCommit, error) {
 	if limit <= 0 {
 		limit = 100
 	}
-	repo, err := b.open()
+	repo, unlock, err := b.openWalk()
 	if err != nil {
 		return nil, err
 	}
+	defer unlock()
 
 	// Build commit → []refName index. Skip HEAD and refs/remotes/*, matching
 	// the CLI's %D output with the remote-prefix filter in backend_cli.go.
@@ -397,10 +482,11 @@ func (b *GoGitBackend) Activity(scale string, periods int) ([]model.ActivityBuck
 	if periods <= 0 {
 		periods = 52
 	}
-	repo, err := b.open()
+	repo, unlock, err := b.openWalk()
 	if err != nil {
 		return nil, err
 	}
+	defer unlock()
 	iter, err := repo.Log(&gogit.LogOptions{All: true, Order: gogit.LogOrderCommitterTime})
 	if err != nil {
 		return nil, err
@@ -464,12 +550,9 @@ func (b *GoGitBackend) Activity(scale string, periods int) ([]model.ActivityBuck
 			w.Merges++
 			continue // a merge's diffstat would double-count the branch's work
 		}
-		if stats, err := c.Stats(); err == nil {
-			for _, fs := range stats {
-				w.Additions += fs.Addition
-				w.Deletions += fs.Deletion
-			}
-		}
+		s := b.commitLineStat(c)
+		w.Additions += s.additions
+		w.Deletions += s.deletions
 	}
 
 	for i := range out {

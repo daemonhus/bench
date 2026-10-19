@@ -180,3 +180,56 @@ func TestActivityMonths(t *testing.T) {
 		}
 	}
 }
+
+func TestActivityCachesLineStats(t *testing.T) {
+	repo := buildActivityRepo(t)
+
+	first, err := repo.Activity("week", 8)
+	if err != nil {
+		t.Fatalf("Activity: %v", err)
+	}
+	b := repo.backend.(*GoGitBackend)
+	// Five non-merge commits carry a diffstat; the merge and stash do not.
+	if got := len(b.lineStats); got != 5 {
+		t.Fatalf("cached %d commits, want 5", got)
+	}
+
+	second, err := repo.Activity("week", 8)
+	if err != nil {
+		t.Fatalf("Activity: %v", err)
+	}
+	if len(second) != len(first) {
+		t.Fatalf("second call: got %d weeks, want %d", len(second), len(first))
+	}
+	for i := range first {
+		if second[i].Additions != first[i].Additions || second[i].Deletions != first[i].Deletions {
+			t.Errorf("week %d: cached %+v, fresh %+v", i, second[i], first[i])
+		}
+	}
+}
+
+func TestOpenRepoBare(t *testing.T) {
+	f := newFixture(t)
+	bare := filepath.Join(t.TempDir(), "bare.git")
+	cmd := exec.Command("git", "clone", "--bare", f.Dir, bare)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git clone --bare: %v\n%s", err, out)
+	}
+
+	// A bare repo has no .git directory, so openKeepDescriptors falls back to PlainOpen.
+	r, err := openKeepDescriptors(bare)
+	if err != nil {
+		t.Fatalf("open bare repo: %v", err)
+	}
+	head, err := r.Head()
+	if err != nil {
+		t.Fatalf("Head on bare repo: %v", err)
+	}
+	if got := head.Hash().String(); got != f.C3 {
+		t.Errorf("Head = %s, want %s", got, f.C3)
+	}
+	// The history walks go through it too.
+	if _, err := NewRepo(bare).Graph(10); err != nil {
+		t.Fatalf("Graph on bare repo: %v", err)
+	}
+}
