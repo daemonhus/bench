@@ -731,3 +731,23 @@ func keys(m map[string]any) []string {
 
 // Suppress "declared and not used" for fmt in files that don't use it directly.
 var _ = fmt.Sprintf
+
+// A batch item with only a start line keeps it as a one-line range; it used to be dropped.
+func TestNormalizeBatchItem_StartOnly(t *testing.T) {
+	for _, key := range []string{"start", "line_start", "lineStart"} {
+		out, err := normalizeBatchItem(json.RawMessage(`{"file":"a.go","commit":"abc","` + key + `":12,"title":"t"}`))
+		if err != nil {
+			t.Fatalf("normalize: %v", err)
+		}
+		var m map[string]any
+		json.Unmarshal(out, &m)
+		anchor, _ := m["anchor"].(map[string]any)
+		lr, ok := anchor["lineRange"].(map[string]any)
+		if !ok {
+			t.Fatalf("%s only: no lineRange in %v", key, anchor)
+		}
+		if lr["start"] != float64(12) || lr["end"] != float64(12) {
+			t.Errorf("%s only: lineRange = %v, want start=12 end=12", key, lr)
+		}
+	}
+}

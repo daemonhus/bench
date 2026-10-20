@@ -232,8 +232,8 @@ func TestFindingsAPI_BodyTooLarge(t *testing.T) {
 	}
 }
 
-// TestFindingsAPI_LineRangeEndOmitted verifies that lineRange.end absent
-// (deserializes as 0) does not panic the server.
+// TestFindingsAPI_LineRangeEndOmitted: a lineRange without an end is stored as its one
+// start line (and does not panic the server, the original bug).
 func TestFindingsAPI_LineRangeEndOmitted(t *testing.T) {
 	router, _ := setupEnv(t)
 
@@ -246,9 +246,12 @@ func TestFindingsAPI_LineRangeEndOmitted(t *testing.T) {
 	if w.Code != 201 {
 		t.Fatalf("status = %d, want 201; body: %s", w.Code, w.Body.String())
 	}
+	// Stored as the one start line, not as lines 1-0.
+	assertStoredRange(t, router, "/api/findings/f1", &model.LineRange{Start: 1, End: 1})
 }
 
-// TestFindingsAPI_LineRangeInverted verifies that start > end does not panic.
+// TestFindingsAPI_LineRangeInverted: a range that ends before it starts is rejected
+// with a 400 and nothing is stored.
 func TestFindingsAPI_LineRangeInverted(t *testing.T) {
 	router, _ := setupEnv(t)
 
@@ -258,7 +261,8 @@ func TestFindingsAPI_LineRangeInverted(t *testing.T) {
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
-	if w.Code != 201 {
-		t.Fatalf("status = %d, want 201; body: %s", w.Code, w.Body.String())
+	if w.Code != 400 {
+		t.Fatalf("status = %d, want 400; body: %s", w.Code, w.Body.String())
 	}
+	assertNotStored(t, router, "/api/findings/f1")
 }

@@ -6,6 +6,8 @@ import (
 	"log"
 	"net/http"
 	"strings"
+
+	"bench/internal/model"
 )
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
@@ -31,6 +33,10 @@ func writeInternalError(w http.ResponseWriter, err error) {
 // (an update/delete that matched no row). All other DB errors fall through to
 // writeInternalError.
 func writeDBError(w http.ResponseWriter, err error) {
+	if errors.Is(err, model.ErrInvalidLineRange) {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	msg := strings.ToLower(err.Error())
 	if strings.Contains(msg, " not found") {
 		writeError(w, http.StatusNotFound, err.Error())

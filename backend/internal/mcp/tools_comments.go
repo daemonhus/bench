@@ -252,13 +252,17 @@ func toolCreateComment(deps *toolDeps) Tool {
 				c.FeatureID = &p.FeatureID
 			}
 
-			if p.LineStart > 0 && p.LineEnd > 0 {
-				c.Anchor.LineRange = &model.LineRange{Start: p.LineStart, End: p.LineEnd}
+			lr, err := model.ParseLineRange(p.LineStart, p.LineEnd)
+			if err != nil {
+				return "", err
+			}
+			if lr != nil {
+				c.Anchor.LineRange = lr
 				content, err := deps.repo.Show(p.Commit, p.File)
 				if err == nil {
 					lines := strings.Split(content, "\n")
-					start := p.LineStart - 1
-					end := p.LineEnd
+					start := lr.Start - 1
+					end := lr.End
 					if start >= 0 && start < end && end <= len(lines) {
 						c.LineHash = reconcile.LineHash(lines[start:end])
 					}
@@ -286,8 +290,11 @@ func toolCreateComment(deps *toolDeps) Tool {
 			if deps.broker != nil {
 				deps.broker.Publish(events.TopicAnnotations)
 			}
-			return fmt.Sprintf("Created comment %s on %s:%d-%d by %s",
-				c.ID, p.File, p.LineStart, p.LineEnd, p.Author), nil
+			where := p.File
+			if lr := c.Anchor.LineRange; lr != nil {
+				where = fmt.Sprintf("%s:%d-%d", p.File, lr.Start, lr.End)
+			}
+			return fmt.Sprintf("Created comment %s on %s by %s", c.ID, where, p.Author), nil
 		},
 	}
 }
@@ -379,6 +386,10 @@ func toolUpdateComment(deps *toolDeps) Tool {
 					}
 					if v, ok := raw["line_end"]; ok {
 						newEnd = v.(int)
+					}
+					// As the store does: a start moved past the end leaves just that line.
+					if _, ok := raw["line_end"]; !ok && newEnd < newStart {
+						newEnd = newStart
 					}
 
 					// Recompute lineHash
@@ -585,13 +596,17 @@ func toolBatchCreateComments(deps *toolDeps) Tool {
 					c.FeatureID = &pc.FeatureID
 				}
 
-				if pc.LineStart > 0 && pc.LineEnd > 0 {
-					c.Anchor.LineRange = &model.LineRange{Start: pc.LineStart, End: pc.LineEnd}
+				lr, err := model.ParseLineRange(pc.LineStart, pc.LineEnd)
+				if err != nil {
+					return "", fmt.Errorf("item %d: %w", i+1, err)
+				}
+				if lr != nil {
+					c.Anchor.LineRange = lr
 					content, err := deps.repo.Show(pc.Commit, pc.File)
 					if err == nil {
 						lines := strings.Split(content, "\n")
-						start := pc.LineStart - 1
-						end := pc.LineEnd
+						start := lr.Start - 1
+						end := lr.End
 						if start >= 0 && start < end && end <= len(lines) {
 							c.LineHash = reconcile.LineHash(lines[start:end])
 						}

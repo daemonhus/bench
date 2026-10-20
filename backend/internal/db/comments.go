@@ -102,6 +102,9 @@ func (d *DB) ListComments(fileID, findingID string, limit, offset int, featureID
 }
 
 func (d *DB) CreateComment(c *model.Comment) error {
+	if err := checkAnchors(&c.Anchor); err != nil {
+		return err
+	}
 	var lineStart, lineEnd *int
 	if c.Anchor.LineRange != nil {
 		lineStart = &c.Anchor.LineRange.Start
@@ -166,6 +169,9 @@ func (d *DB) UpdateComment(id string, updates map[string]any) error {
 	if err != nil {
 		return err
 	}
+	if err := d.mergeLineRangeUpdate("comments", id, updates); err != nil {
+		return err
+	}
 	allowed := map[string]string{
 		"text":              "text",
 		"author":            "author",
@@ -212,6 +218,13 @@ func (d *DB) UpdateComment(id string, updates map[string]any) error {
 // BatchCreateComments inserts multiple comments in a single transaction.
 // Returns the IDs of created comments. All-or-nothing - rolls back on any error.
 func (d *DB) BatchCreateComments(comments []model.Comment) ([]string, error) {
+	anchors := make([]*model.Anchor, len(comments))
+	for i := range comments {
+		anchors[i] = &comments[i].Anchor
+	}
+	if err := checkAnchors(anchors...); err != nil {
+		return nil, err
+	}
 	return wq(d.wq, func() ([]string, error) {
 		tx, err := d.conn.Begin()
 		if err != nil {

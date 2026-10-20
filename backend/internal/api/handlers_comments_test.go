@@ -161,9 +161,8 @@ func TestCommentsAPI_FilterByFinding(t *testing.T) {
 	}
 }
 
-// TestCommentsAPI_LineRangeEndOmitted verifies that creating a comment with
-// lineRange.end absent (deserializes as 0) does not panic the server.
-// This was the original bug: lines[start:0] when start > 0.
+// TestCommentsAPI_LineRangeEndOmitted: a lineRange without an end is stored as its one
+// start line. (It first surfaced as a panic: lines[start:0] when start > 0.)
 func TestCommentsAPI_LineRangeEndOmitted(t *testing.T) {
 	router, _ := setupEnv(t)
 
@@ -177,6 +176,8 @@ func TestCommentsAPI_LineRangeEndOmitted(t *testing.T) {
 	if w.Code != 201 {
 		t.Fatalf("status = %d, want 201; body: %s", w.Code, w.Body.String())
 	}
+	// Stored as the one start line, not as lines 1-0.
+	assertStoredRange(t, router, "/api/comments/c1", &model.LineRange{Start: 1, End: 1})
 }
 
 // TestCommentsAPI_RapidConcurrentCreation fires many comment POSTs simultaneously
@@ -218,8 +219,8 @@ func TestCommentsAPI_RapidConcurrentCreation(t *testing.T) {
 	}
 }
 
-// TestCommentsAPI_LineRangeInverted verifies that start > end does not panic.
-// The guard should skip lineHash computation and let the create succeed.
+// TestCommentsAPI_LineRangeInverted: a range that ends before it starts is rejected
+// with a 400 and nothing is stored.
 func TestCommentsAPI_LineRangeInverted(t *testing.T) {
 	router, _ := setupEnv(t)
 
@@ -229,7 +230,8 @@ func TestCommentsAPI_LineRangeInverted(t *testing.T) {
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
-	if w.Code != 201 {
-		t.Fatalf("status = %d, want 201; body: %s", w.Code, w.Body.String())
+	if w.Code != 400 {
+		t.Fatalf("status = %d, want 400; body: %s", w.Code, w.Body.String())
 	}
+	assertNotStored(t, router, "/api/comments/c1")
 }

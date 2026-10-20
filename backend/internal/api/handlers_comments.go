@@ -101,6 +101,10 @@ func (h *commentsHandlers) create(w http.ResponseWriter, r *http.Request) {
 	if !decodeBody(w, r, &c) {
 		return
 	}
+	if err := c.Anchor.NormalizeLineRange(); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	if c.ID == "" {
 		c.ID = uuid.New().String()
 	}

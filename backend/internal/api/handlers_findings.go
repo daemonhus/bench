@@ -129,6 +129,10 @@ func (h *findingsHandlers) create(w http.ResponseWriter, r *http.Request) {
 	if !decodeBody(w, r, &f) {
 		return
 	}
+	if err := f.Anchor.NormalizeLineRange(); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	if f.ID == "" {
 		f.ID = uuid.New().String()
 	}

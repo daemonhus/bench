@@ -145,6 +145,9 @@ func (d *DB) ListFindings(fileID string, limit, offset int) ([]model.Finding, in
 }
 
 func (d *DB) CreateFinding(f *model.Finding) error {
+	if err := checkAnchors(&f.Anchor); err != nil {
+		return err
+	}
 	if f.Severity == "informational" {
 		f.Severity = "info"
 	}
@@ -194,6 +197,9 @@ func isTerminalStatus(status string) bool {
 func (d *DB) UpdateFinding(id string, updates map[string]any) (*model.Finding, error) {
 	id, err := d.resolveID("findings", id)
 	if err != nil {
+		return nil, err
+	}
+	if err := d.mergeLineRangeUpdate("findings", id, updates); err != nil {
 		return nil, err
 	}
 	allowed := map[string]string{
@@ -359,6 +365,13 @@ func (d *DB) GetFinding(id string) (*model.Finding, error) {
 // BatchCreateFindings inserts multiple findings in a single transaction.
 // Returns the IDs of created findings. All-or-nothing - rolls back on any error.
 func (d *DB) BatchCreateFindings(findings []model.Finding) ([]string, error) {
+	anchors := make([]*model.Anchor, len(findings))
+	for i := range findings {
+		anchors[i] = &findings[i].Anchor
+	}
+	if err := checkAnchors(anchors...); err != nil {
+		return nil, err
+	}
 	return wq(d.wq, func() ([]string, error) {
 		tx, err := d.conn.Begin()
 		if err != nil {

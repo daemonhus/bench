@@ -1175,13 +1175,19 @@ func normalizeBatchItem(raw json.RawMessage) (json.RawMessage, error) {
 			delete(obj, k)
 		}
 	}
-	if lineStart != nil && lineEnd != nil {
+	// Pass on whatever was given: a start alone becomes a one-line range (below), and an end
+	// alone reaches the server, which rejects it like any other caller's.
+	if lineStart != nil || lineEnd != nil {
 		lr, _ := anchor["lineRange"].(map[string]any)
 		if lr == nil {
 			lr = make(map[string]any)
 		}
-		lr["start"] = *lineStart
-		lr["end"] = *lineEnd
+		if lineStart != nil {
+			lr["start"] = *lineStart
+		}
+		if lineEnd != nil {
+			lr["end"] = *lineEnd
+		}
 		anchor["lineRange"] = lr
 	}
 

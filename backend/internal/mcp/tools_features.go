@@ -265,13 +265,17 @@ func toolCreateFeature(deps *toolDeps) Tool {
 				Source:      p.Source,
 				CreatedAt:   time.Now().UTC().Format(time.RFC3339),
 			}
-			if p.LineStart > 0 && p.LineEnd > 0 {
-				f.Anchor.LineRange = &model.LineRange{Start: p.LineStart, End: p.LineEnd}
+			lr, err := model.ParseLineRange(p.LineStart, p.LineEnd)
+			if err != nil {
+				return "", err
+			}
+			if lr != nil {
+				f.Anchor.LineRange = lr
 				content, err := deps.repo.Show(p.Commit, p.File)
 				if err == nil {
 					lines := strings.Split(content, "\n")
-					start := p.LineStart - 1
-					end := p.LineEnd
+					start := lr.Start - 1
+					end := lr.End
 					if start >= 0 && start < end && end <= len(lines) {
 						f.LineHash = reconcile.LineHash(lines[start:end])
 					}
@@ -427,6 +431,10 @@ func toolUpdateFeature(deps *toolDeps) Tool {
 					}
 					if v, ok := raw["line_end"]; ok {
 						newEnd = v.(int)
+					}
+					// As the store does: a start moved past the end leaves just that line.
+					if _, ok := raw["line_end"]; !ok && newEnd < newStart {
+						newEnd = newStart
 					}
 
 					// Recompute lineHash
@@ -699,13 +707,17 @@ func toolBatchCreateFeatures(deps *toolDeps) Tool {
 					Source:      source,
 					CreatedAt:   now,
 				}
-				if pf.LineStart > 0 && pf.LineEnd > 0 {
-					f.Anchor.LineRange = &model.LineRange{Start: pf.LineStart, End: pf.LineEnd}
+				lr, err := model.ParseLineRange(pf.LineStart, pf.LineEnd)
+				if err != nil {
+					return "", fmt.Errorf("item %d: %w", i+1, err)
+				}
+				if lr != nil {
+					f.Anchor.LineRange = lr
 					content, err := deps.repo.Show(pf.Commit, pf.File)
 					if err == nil {
 						lines := strings.Split(content, "\n")
-						start := pf.LineStart - 1
-						end := pf.LineEnd
+						start := lr.Start - 1
+						end := lr.End
 						if start >= 0 && start < end && end <= len(lines) {
 							f.LineHash = reconcile.LineHash(lines[start:end])
 						}

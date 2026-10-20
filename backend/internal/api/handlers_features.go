@@ -100,6 +100,10 @@ func (h *featuresHandlers) create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid JSON")
 		return
 	}
+	if err := f.Anchor.NormalizeLineRange(); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	// Also parse as raw map so extractLinkedFeatures handles both
 	// "linkedFeatures" (new) and "linkedFeatureIds" (legacy string array).
 	var rawBody map[string]any

@@ -1,6 +1,8 @@
 package model
 
 import (
+	"errors"
+	"fmt"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -46,6 +48,44 @@ type Anchor struct {
 type LineRange struct {
 	Start int `json:"start"`
 	End   int `json:"end"`
+}
+
+// ErrInvalidLineRange marks a line range that can't be stored: one without a
+// start line, or one that ends before it starts. API layers report it as a bad
+// request.
+var ErrInvalidLineRange = errors.New("invalid line range")
+
+// ParseLineRange is the one rule for line ranges given to any create or update
+// (REST, MCP or CLI). Zero means "not given": no start and no end is no range (a
+// file-level anchor); an end alone, or an end before the start, is an error; a
+// start alone covers just that line.
+func ParseLineRange(start, end int) (*LineRange, error) {
+	if start == 0 && end == 0 {
+		return nil, nil
+	}
+	if start <= 0 {
+		return nil, fmt.Errorf("%w: a line range needs a start line (1 or more), got %d", ErrInvalidLineRange, start)
+	}
+	if end == 0 {
+		end = start
+	}
+	if end < start {
+		return nil, fmt.Errorf("%w: it ends at line %d, before it starts at line %d", ErrInvalidLineRange, end, start)
+	}
+	return &LineRange{Start: start, End: end}, nil
+}
+
+// NormalizeLineRange applies ParseLineRange to an anchor as decoded from JSON.
+func (a *Anchor) NormalizeLineRange() error {
+	if a.LineRange == nil {
+		return nil
+	}
+	lr, err := ParseLineRange(a.LineRange.Start, a.LineRange.End)
+	if err != nil {
+		return err
+	}
+	a.LineRange = lr
+	return nil
 }
 
 // Ref is an external reference linked to an annotation (finding, feature, or comment).

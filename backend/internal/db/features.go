@@ -223,6 +223,9 @@ func (d *DB) ReplaceLinkedFeatures(featureID string, links []model.LinkedFeature
 }
 
 func (d *DB) CreateFeature(f *model.Feature) error {
+	if err := checkAnchors(&f.Anchor); err != nil {
+		return err
+	}
 	var lineStart, lineEnd *int
 	if f.Anchor.LineRange != nil {
 		lineStart = &f.Anchor.LineRange.Start
@@ -245,6 +248,9 @@ func (d *DB) CreateFeature(f *model.Feature) error {
 func (d *DB) UpdateFeature(id string, updates map[string]any) (*model.Feature, error) {
 	id, err := d.resolveID("features", id)
 	if err != nil {
+		return nil, err
+	}
+	if err := d.mergeLineRangeUpdate("features", id, updates); err != nil {
 		return nil, err
 	}
 	allowed := map[string]string{
@@ -362,6 +368,13 @@ func (d *DB) DeleteFeature(id string) error {
 }
 
 func (d *DB) BatchCreateFeatures(features []model.Feature) ([]string, error) {
+	anchors := make([]*model.Anchor, len(features))
+	for i := range features {
+		anchors[i] = &features[i].Anchor
+	}
+	if err := checkAnchors(anchors...); err != nil {
+		return nil, err
+	}
 	return wq(d.wq, func() ([]string, error) {
 		tx, err := d.conn.Begin()
 		if err != nil {
