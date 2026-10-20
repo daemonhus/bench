@@ -33,7 +33,7 @@ func writeInternalError(w http.ResponseWriter, err error) {
 // (an update/delete that matched no row). All other DB errors fall through to
 // writeInternalError.
 func writeDBError(w http.ResponseWriter, err error) {
-	if errors.Is(err, model.ErrInvalidLineRange) {
+	if errors.Is(err, model.ErrInvalidLineRange) || errors.Is(err, model.ErrUnknownFeature) || errors.Is(err, model.ErrUnknownParent) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}

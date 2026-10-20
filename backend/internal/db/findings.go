@@ -52,6 +52,14 @@ func setFeatureIDs(tx *sql.Tx, projectID, findingID string, featureIDs []string)
 		return fmt.Errorf("delete finding_features: %w", err)
 	}
 	for _, fid := range featureIDs {
+		// The join table has no foreign key, so check here rather than store a dangling link.
+		var exists int
+		if err := tx.QueryRow(`SELECT COUNT(*) FROM features WHERE id = ? AND project_id = ?`, fid, projectID).Scan(&exists); err != nil {
+			return fmt.Errorf("check feature %s: %w", fid, err)
+		}
+		if exists == 0 {
+			return fmt.Errorf("%w: %q is not a feature in this project", model.ErrUnknownFeature, fid)
+		}
 		if _, err := tx.Exec(`INSERT INTO finding_features (finding_id, feature_id, project_id) VALUES (?, ?, ?)`, findingID, fid, projectID); err != nil {
 			return fmt.Errorf("insert finding_features: %w", err)
 		}

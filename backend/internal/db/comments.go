@@ -101,6 +101,47 @@ func (d *DB) ListComments(fileID, findingID string, limit, offset int, featureID
 	return comments, total, nil
 }
 
+// rowQuerier is what threadReply reads with: the connection, or the batch's transaction
+// (so a reply can follow a parent created earlier in the same batch).
+type rowQuerier interface {
+	QueryRow(query string, args ...any) *sql.Row
+}
+
+// threadReply places a comment in its thread before it is stored. A reply joins its
+// parent's thread and, unless it names its own, the parent's finding and feature; a
+// parent that doesn't exist is refused rather than leaving the reply in a thread of its
+// own. A top-level comment without a thread starts one, named by its own ID.
+func (d *DB) threadReply(q rowQuerier, c *model.Comment) error {
+	if c.ParentID == nil || *c.ParentID == "" {
+		if c.ThreadID == "" {
+			c.ThreadID = c.ID
+		}
+		return nil
+	}
+	var thread, finding, feature sql.NullString
+	err := q.QueryRow(`SELECT thread_id, finding_id, feature_id FROM comments WHERE id = ? AND project_id = ?`,
+		*c.ParentID, d.projectID).Scan(&thread, &finding, &feature)
+	if err == sql.ErrNoRows {
+		return fmt.Errorf("%w: %q", model.ErrUnknownParent, *c.ParentID)
+	}
+	if err != nil {
+		return fmt.Errorf("look up parent comment: %w", err)
+	}
+	c.ThreadID = thread.String
+	if c.ThreadID == "" { // a parent stored before threads were always set roots its own
+		c.ThreadID = *c.ParentID
+	}
+	if (c.FindingID == nil || *c.FindingID == "") && finding.Valid && finding.String != "" {
+		v := finding.String
+		c.FindingID = &v
+	}
+	if (c.FeatureID == nil || *c.FeatureID == "") && feature.Valid && feature.String != "" {
+		v := feature.String
+		c.FeatureID = &v
+	}
+	return nil
+}
+
 func (d *DB) CreateComment(c *model.Comment) error {
 	if err := d.checkAnchors(&c.Anchor); err != nil {
 		return err
@@ -111,6 +152,9 @@ func (d *DB) CreateComment(c *model.Comment) error {
 		lineEnd = &c.Anchor.LineRange.End
 	}
 	return wq0(d.wq, func() error {
+		if err := d.threadReply(d.conn, c); err != nil {
+			return err
+		}
 		_, err := d.conn.Exec(
 			`INSERT INTO comments (project_id, id, anchor_file_id, anchor_commit_id, anchor_line_start, anchor_line_end,
 			author, text, comment_type, timestamp, thread_id, parent_id, finding_id, feature_id, resolved_commit, line_hash)
@@ -246,6 +290,9 @@ func (d *DB) BatchCreateComments(comments []model.Comment) ([]string, error) {
 		ids := make([]string, 0, len(comments))
 		for i := range comments {
 			c := &comments[i]
+			if err := d.threadReply(tx, c); err != nil {
+				return nil, fmt.Errorf("comment %d: %w", i, err)
+			}
 			var lineStart, lineEnd *int
 			if c.Anchor.LineRange != nil {
 				lineStart = &c.Anchor.LineRange.Start

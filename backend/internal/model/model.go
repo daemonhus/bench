@@ -55,6 +55,14 @@ type LineRange struct {
 // request.
 var ErrInvalidLineRange = errors.New("invalid line range")
 
+// ErrUnknownParent marks a reply to a comment that doesn't exist in the project.
+// API layers report it as a bad request.
+var ErrUnknownParent = errors.New("unknown parent comment")
+
+// ErrUnknownFeature marks a finding linked to a feature that doesn't exist in
+// the project. API layers report it as a bad request.
+var ErrUnknownFeature = errors.New("unknown feature")
+
 // ParseLineRange is the one rule for line ranges given to any create or update
 // (REST, MCP or CLI). Zero means "not given": no start and no end is no range (a
 // file-level anchor); an end alone, or an end before the start, is an error; a
