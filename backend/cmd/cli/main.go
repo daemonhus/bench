@@ -1071,13 +1071,7 @@ func printCommandHelp(w io.Writer, cmd *cmdDef) {
 		if f.Type != "batch" {
 			continue
 		}
-		var createCmd *cmdDef
-		for i := range commands {
-			if commands[i].Cat == cmd.Cat && commands[i].Name == "create" {
-				createCmd = &commands[i]
-				break
-			}
-		}
+		createCmd := createCommandFor(cmd.Cat)
 		if createCmd == nil {
 			break
 		}
@@ -1109,10 +1103,23 @@ func printCommandHelp(w io.Writer, cmd *cmdDef) {
 	}
 }
 
+// createCommandFor returns the create command of a category: the source of the
+// keys its batch-create accepts (see the batch help).
+func createCommandFor(cat string) *cmdDef {
+	for i := range commands {
+		if commands[i].Cat == cat && commands[i].Name == "create" {
+			return &commands[i]
+		}
+	}
+	return nil
+}
+
 // normalizeBatchItem transforms a batch JSON item into the REST API format.
 // It promotes flat anchor fields (file/commit/line_start/line_end) into the
-// nested anchor object the API expects, and auto-generates an id if absent.
-func normalizeBatchItem(raw json.RawMessage) (json.RawMessage, error) {
+// nested anchor object the API expects, renames every other key the batch help
+// documents (the create command's flag names, kebab or snake case) to the field
+// the API reads, and auto-generates an id if absent. create may be nil.
+func normalizeBatchItem(raw json.RawMessage, create *cmdDef) (json.RawMessage, error) {
 	var obj map[string]any
 	if err := json.Unmarshal(raw, &obj); err != nil {
 		return nil, err
@@ -1200,6 +1207,36 @@ func normalizeBatchItem(raw json.RawMessage) (json.RawMessage, error) {
 
 	if len(anchor) > 0 {
 		obj["anchor"] = anchor
+	}
+
+	// Every other documented key: external_id → externalId, thread → threadId, entity → entityId, ...
+	if create != nil {
+		for _, f := range create.Flags {
+			switch f.Param {
+			case "id", "fileId", "commitId", "lineStart", "lineEnd", "_input":
+				continue // the id and the anchor are handled above
+			}
+			for _, k := range []string{f.Name, strings.ReplaceAll(f.Name, "-", "_")} {
+				v, ok := obj[k]
+				if !ok || k == f.Param {
+					continue
+				}
+				if _, set := obj[f.Param]; !set {
+					obj[f.Param] = v
+				}
+				delete(obj, k)
+			}
+			// A list given as one comma-separated string, as the flag takes it.
+			if s, ok := obj[f.Param].(string); ok && f.Type == "list" {
+				parts := []string{}
+				for _, p := range strings.Split(s, ",") {
+					if p = strings.TrimSpace(p); p != "" {
+						parts = append(parts, p)
+					}
+				}
+				obj[f.Param] = parts
+			}
+		}
 	}
 
 	return json.Marshal(obj)
@@ -1421,7 +1458,7 @@ func run(args []string, getenv func(string) string, stdout, stderr io.Writer) in
 	if len(batchItems) > 0 {
 		var errors int
 		for i, item := range batchItems {
-			normalized, err := normalizeBatchItem(item)
+			normalized, err := normalizeBatchItem(item, createCommandFor(matched.Cat))
 			if err != nil {
 				fmt.Fprintf(stderr, "[%d/%d] Error normalizing item: %v\n", i+1, len(batchItems), err)
 				errors++

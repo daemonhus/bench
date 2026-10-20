@@ -372,7 +372,7 @@ func TestNormalizeBatchItem_FlatToAnchor(t *testing.T) {
 		"title": "SQLi",
 		"severity": "high"
 	}`)
-	out, err := normalizeBatchItem(raw)
+	out, err := normalizeBatchItem(raw, nil)
 	if err != nil {
 		t.Fatalf("normalize: %v", err)
 	}
@@ -406,7 +406,7 @@ func TestNormalizeBatchItem_FlatToAnchor(t *testing.T) {
 
 func TestNormalizeBatchItem_AutoGeneratesID(t *testing.T) {
 	raw := json.RawMessage(`{"title":"x","severity":"low"}`)
-	out, _ := normalizeBatchItem(raw)
+	out, _ := normalizeBatchItem(raw, nil)
 	var m map[string]any
 	json.Unmarshal(out, &m)
 	if id, ok := m["id"].(string); !ok || id == "" {
@@ -416,7 +416,7 @@ func TestNormalizeBatchItem_AutoGeneratesID(t *testing.T) {
 
 func TestNormalizeBatchItem_PreservesExistingID(t *testing.T) {
 	raw := json.RawMessage(`{"id":"my-id","title":"x"}`)
-	out, _ := normalizeBatchItem(raw)
+	out, _ := normalizeBatchItem(raw, nil)
 	var m map[string]any
 	json.Unmarshal(out, &m)
 	if m["id"] != "my-id" {
@@ -427,7 +427,7 @@ func TestNormalizeBatchItem_PreservesExistingID(t *testing.T) {
 func TestNormalizeBatchItem_CamelCaseAliases(t *testing.T) {
 	// Some tools may send camelCase field names
 	raw := json.RawMessage(`{"fileId":"a.go","commitId":"abc","lineStart":5,"lineEnd":6}`)
-	out, _ := normalizeBatchItem(raw)
+	out, _ := normalizeBatchItem(raw, nil)
 	var m map[string]any
 	json.Unmarshal(out, &m)
 	anchor := m["anchor"].(map[string]any)
@@ -735,7 +735,7 @@ var _ = fmt.Sprintf
 // A batch item with only a start line keeps it as a one-line range; it used to be dropped.
 func TestNormalizeBatchItem_StartOnly(t *testing.T) {
 	for _, key := range []string{"start", "line_start", "lineStart"} {
-		out, err := normalizeBatchItem(json.RawMessage(`{"file":"a.go","commit":"abc","` + key + `":12,"title":"t"}`))
+		out, err := normalizeBatchItem(json.RawMessage(`{"file":"a.go","commit":"abc","`+key+`":12,"title":"t"}`), nil)
 		if err != nil {
 			t.Fatalf("normalize: %v", err)
 		}
@@ -748,6 +748,66 @@ func TestNormalizeBatchItem_StartOnly(t *testing.T) {
 		}
 		if lr["start"] != float64(12) || lr["end"] != float64(12) {
 			t.Errorf("%s only: lineRange = %v, want start=12 end=12", key, lr)
+		}
+	}
+}
+
+// Every key a batch command's --help documents reaches the server under the name the API reads:
+// the help lists each create flag (kebab case turned to snake), and those used to arrive
+// unrenamed and be dropped (external_id, thread/parent/finding on comments, entity on refs).
+func TestBatchCreate_EveryDocumentedKeyReachesTheAPI(t *testing.T) {
+	for _, cat := range []string{"findings", "comments", "features", "refs"} {
+		create := createCommandFor(cat)
+		if create == nil {
+			t.Fatalf("%s: no create command", cat)
+		}
+		item := map[string]any{}
+		want := map[string]bool{} // top-level API fields expected in the request
+		for _, f := range create.Flags {
+			key := strings.ReplaceAll(f.Name, "-", "_") // as the batch help spells it
+			switch f.Param {
+			case "id":
+				continue
+			case "fileId", "commitId", "lineStart", "lineEnd":
+				item[key] = map[string]any{"fileId": "a.go", "commitId": "abc", "lineStart": 3, "lineEnd": 4}[f.Param]
+				continue // promoted into the anchor
+			}
+			switch f.Type {
+			case "int":
+				item[key] = 2
+			case "float":
+				item[key] = 1.5
+			case "list", "linked-features":
+				item[key] = []string{"x"}
+			case "bool":
+				item[key] = true
+			default:
+				item[key] = "v-" + key
+			}
+			want[f.Param] = true
+		}
+		b, _ := json.Marshal([]any{item})
+		in := filepath.Join(t.TempDir(), "batch.json")
+		if err := os.WriteFile(in, b, 0644); err != nil {
+			t.Fatal(err)
+		}
+		r := newRecorder(t)
+		if code, _, stderr := runCLI(t, r, nil, cat, "batch-create", "--input", in); code != 0 {
+			t.Fatalf("%s batch-create: exit %d: %s", cat, code, stderr)
+		}
+		var body map[string]any
+		if err := json.Unmarshal([]byte(r.last(t).Body), &body); err != nil {
+			t.Fatalf("%s: body %q: %v", cat, r.last(t).Body, err)
+		}
+		for field := range want {
+			if _, ok := body[field]; !ok {
+				t.Errorf("%s batch-create: %s missing from the request (sent %v)", cat, field, keys(body))
+			}
+		}
+		for k := range body {
+			if !want[k] && k != "id" && k != "anchor" {
+				t.Errorf("%s batch-create: unexpected key %q reached the API", cat, k)
+			}
 		}
 	}
 }
