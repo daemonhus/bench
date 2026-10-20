@@ -2,7 +2,7 @@ import { createContext, useContext, type ReactNode } from 'react';
 
 /**
  * Optional content a host (e.g. the platform) can contribute to workbench pages.
- * Standalone bench provides none, so every slot renders nothing.
+ * A host that provides none leaves every slot empty.
  */
 export interface WorkbenchExtensions {
   /** Extra cards for the feature detail page's side column, under Provenance. */
