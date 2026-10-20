@@ -1,7 +1,9 @@
 package api
 
 import (
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 
 	"bench/internal/db"
@@ -27,33 +29,33 @@ func (h *profileHandlers) get(w http.ResponseWriter, r *http.Request) {
 // PATCH /api/profile - partial update: only fields present in the body are
 // overlaid onto the stored profile. Array fields replace the full list.
 func (h *profileHandlers) update(w http.ResponseWriter, r *http.Request) {
-	p, err := h.db.GetServiceProfile()
+	raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
 	if err != nil {
-		writeInternalError(w, err)
+		writeDecodeError(w, err)
 		return
 	}
-	// Decoding into the current profile overlays only the provided fields.
-	// updatedAt is server-stamped on write, so a client-supplied value is
-	// harmless.
-	if !decodeBody(w, r, &p) {
+	// Read, overlay and write in one step, so overlapping PATCHes (the UI saves
+	// each edit as it's made) can't overwrite each other's fields. Decoding into
+	// the current profile overlays only the provided fields; updatedAt is
+	// server-stamped on write, so a client-supplied value is harmless.
+	var decodeErr error
+	updated, err := h.db.UpdateServiceProfile(func(p *model.ServiceProfile) error {
+		if decodeErr = json.Unmarshal(raw, p); decodeErr != nil {
+			return decodeErr
+		}
+		return p.Validate()
+	})
+	if decodeErr != nil {
+		writeDecodeError(w, decodeErr)
 		return
 	}
-	if err := p.Validate(); err != nil {
+	if err != nil {
 		var verr *model.ProfileValidationError
 		if errors.As(err, &verr) {
 			writeError(w, http.StatusBadRequest, verr.Error())
 			return
 		}
-		writeInternalError(w, err)
-		return
-	}
-	if err := h.db.PutServiceProfile(p); err != nil {
 		writeDBError(w, err)
-		return
-	}
-	updated, err := h.db.GetServiceProfile()
-	if err != nil {
-		writeInternalError(w, err)
 		return
 	}
 	if h.broker != nil {

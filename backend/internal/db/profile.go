@@ -51,6 +51,39 @@ func (d *DB) GetServiceProfile() (model.ServiceProfile, error) {
 // PutServiceProfile upserts the full service profile document and stamps
 // updated_at. Validation is the caller's responsibility (model.Validate).
 func (d *DB) PutServiceProfile(p model.ServiceProfile) error {
+	err := wq0(d.wq, func() error { return d.putServiceProfile(p) })
+	if err == nil {
+		d.profileConfigured.Store(true)
+	}
+	return err
+}
+
+// UpdateServiceProfile reads the profile, lets apply change it, and writes it
+// back as one step on the write queue, so two overlapping partial updates can't
+// each overwrite the other's fields with what they read. An error from apply
+// (e.g. validation) leaves the profile untouched and is returned as is.
+func (d *DB) UpdateServiceProfile(apply func(p *model.ServiceProfile) error) (model.ServiceProfile, error) {
+	updated, err := wq(d.wq, func() (model.ServiceProfile, error) {
+		p, err := d.GetServiceProfile()
+		if err != nil {
+			return p, err
+		}
+		if err := apply(&p); err != nil {
+			return p, err
+		}
+		if err := d.putServiceProfile(p); err != nil {
+			return p, err
+		}
+		return d.GetServiceProfile()
+	})
+	if err == nil {
+		d.profileConfigured.Store(true)
+	}
+	return updated, err
+}
+
+// putServiceProfile writes the profile; callers run it on the write queue.
+func (d *DB) putServiceProfile(p model.ServiceProfile) error {
 	p.Normalize()
 	arrays := make([]string, 4)
 	for i, vals := range [][]string{p.EdgeProtections, p.ComplianceScope, p.AuthenticationModel, p.ConsumerType} {
@@ -60,8 +93,7 @@ func (d *DB) PutServiceProfile(p model.ServiceProfile) error {
 		}
 		arrays[i] = string(b)
 	}
-	err := wq0(d.wq, func() error {
-		_, err := d.conn.Exec(`INSERT INTO service_profile (
+	_, err := d.conn.Exec(`INSERT INTO service_profile (
 			id, description, owner, externally_facing, compute,
 			data_sensitivity, criticality, tenancy, lifecycle,
 			edge_protections, compliance_scope, authentication_model, consumer_type,
@@ -81,15 +113,10 @@ func (d *DB) PutServiceProfile(p model.ServiceProfile) error {
 				authentication_model = excluded.authentication_model,
 				consumer_type = excluded.consumer_type,
 				updated_at = excluded.updated_at`,
-			p.Description, p.Owner, p.ExternallyFacing, p.Compute,
-			p.DataSensitivity, p.Criticality, p.Tenancy, p.Lifecycle,
-			arrays[0], arrays[1], arrays[2], arrays[3],
-		)
-		return err
-	})
-	if err == nil {
-		d.profileConfigured.Store(true)
-	}
+		p.Description, p.Owner, p.ExternallyFacing, p.Compute,
+		p.DataSensitivity, p.Criticality, p.Tenancy, p.Lifecycle,
+		arrays[0], arrays[1], arrays[2], arrays[3],
+	)
 	return err
 }
 

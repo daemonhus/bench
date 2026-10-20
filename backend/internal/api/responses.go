@@ -54,18 +54,23 @@ func writeDBError(w http.ResponseWriter, err error) {
 func decodeBody(w http.ResponseWriter, r *http.Request, v any) bool {
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	if err := json.NewDecoder(r.Body).Decode(v); err != nil {
-		var maxErr *http.MaxBytesError
-		var typeErr *json.UnmarshalTypeError
-		if errors.As(err, &maxErr) {
-			writeError(w, http.StatusRequestEntityTooLarge, "request body too large")
-		} else if errors.As(err, &typeErr) {
-			writeError(w, http.StatusBadRequest, "invalid field type: "+typeErr.Field+" must be "+typeErr.Type.String()+", got "+typeErr.Value)
-		} else {
-			writeError(w, http.StatusBadRequest, "invalid JSON")
-		}
+		writeDecodeError(w, err)
 		return false
 	}
 	return true
+}
+
+// writeDecodeError reports why a request body couldn't be decoded.
+func writeDecodeError(w http.ResponseWriter, err error) {
+	var maxErr *http.MaxBytesError
+	var typeErr *json.UnmarshalTypeError
+	if errors.As(err, &maxErr) {
+		writeError(w, http.StatusRequestEntityTooLarge, "request body too large")
+	} else if errors.As(err, &typeErr) {
+		writeError(w, http.StatusBadRequest, "invalid field type: "+typeErr.Field+" must be "+typeErr.Type.String()+", got "+typeErr.Value)
+	} else {
+		writeError(w, http.StatusBadRequest, "invalid JSON")
+	}
 }
 
 // validateAnchorUpdate rejects PATCH bodies that set an empty commit id on an
