@@ -12,9 +12,10 @@ import { LinkManageModal } from './LinkManageModal';
 import { CommentThread } from './CommentThread';
 import { RefProviderIcon } from './RefProviderIcon';
 import { OriginCard } from './OriginCard';
+import { LinkedFindingsCard } from './LinkedFindingsCard';
 import { LocationField, type LocationChange } from './LocationField';
 import type {
-  Feature, FeatureWithPosition, FeatureKind, FeatureStatus, FeatureParameter, AnnotationPosition, Origin, Ref,
+  Feature, FeatureWithPosition, FeatureKind, FeatureStatus, FeatureParameter, AnnotationPosition, Origin, Ref, Finding,
 } from '../core/types';
 
 // The feature's own page. Like the flow page, everything is editable in place and saves as soon
@@ -57,9 +58,11 @@ const toDrafts = (ps: FeatureParameter[] | undefined): ParamDraft[] =>
 interface Props {
   featureId: string;
   onBack: () => void;
+  /** Every finding in the project (the app's list), for the ones linked to this feature. */
+  findings: Finding[];
 }
 
-export function FeatureDetailView({ featureId, onBack }: Props) {
+export function FeatureDetailView({ featureId, onBack, findings }: Props) {
   const extensions = useWorkbenchExtensions();
   const [feature, setFeature] = useState<FeatureWithPosition | null>(null);
   // Comments come from the annotation store, shared with the list cards, so a reply here shows there.
@@ -330,6 +333,8 @@ export function FeatureDetailView({ featureId, onBack }: Props) {
 
             {/* Host-contributed cards (the platform adds "Used in flows") */}
             {extensions.featureDetailAside?.(f.id)}
+
+            <LinkedFindingsCard featureId={f.id} findings={findings} />
 
 
             <OriginCard origin={f.origin ?? {}} onChange={patchOrigin} suggest={() => featuresApi.suggestOrigin(f.id)} />

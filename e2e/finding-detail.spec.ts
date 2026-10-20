@@ -181,3 +181,43 @@ test('the header controls sit under the description, each with a small grey capt
     }
   }
 });
+
+test('a feature\'s page lists its linked findings in the side column: open first, closed dimmed', async ({ page }) => {
+  await openView(page, '/#/features', '[data-nav-area="features-list"]');
+  const featureId = (await page.locator('[data-feature-id]').first().getAttribute('data-feature-id'))!;
+  const feature = await (await page.request.get(`/api/features/${featureId}`)).json();
+  const make = async (title: string, severity: string, status: string) =>
+    (await (await page.request.post('/api/findings', { data: { title, severity, status, anchor: feature.anchor, features: [featureId] } })).json()).id as string;
+  const closedId = await make('Linked closed finding', 'critical', 'closed');
+  const openId = await make('Linked open finding', 'low', 'open');
+  try {
+    await page.goto(`/#/feature/${featureId}`);
+    const card = page.locator('.fd-side .fd-findings-card');
+    await expect(card.locator('.fd-card-title')).toContainText('Findings');
+    const rows = card.locator('.fd-finding-row');
+    // Created over the API with the page open: the card picks them up from the live refresh.
+    await expect(rows.filter({ hasText: 'Linked closed finding' })).toHaveCount(1);
+    await expect(rows.filter({ hasText: 'Linked open finding' })).toHaveCount(1);
+    const titles = await rows.locator('.fd-finding-title').allTextContents();
+    // Open before closed, even though the closed one is more severe; closed is dimmed.
+    expect(titles.indexOf('Linked open finding')).toBeLessThan(titles.indexOf('Linked closed finding'));
+    const closed = rows.filter({ hasText: 'Linked closed finding' });
+    await expect(closed).toHaveClass(/fd-finding-row--closed/);
+    await expect(closed.locator('.select-tinted')).toHaveText('Closed');
+    expect(Number(await closed.evaluate((e) => getComputedStyle(e).opacity))).toBeLessThan(1);
+    // It sits under Provenance, before origin and links; the side column is 410px wide.
+    const side = await page.locator('.fd-side > .fd-card > .fd-card-title').allTextContents();
+    expect(side[0]).toMatch(/^Provenance/);
+    expect(side[1]).toMatch(/^Findings/);
+    const width = (await page.locator('.fd-side').boundingBox())!.width;
+    if ((page.viewportSize()?.width ?? 0) > 940) expect(Math.round(width)).toBe(410);
+    // The count's link opens the filtered list; a row opens the finding.
+    await expect(card.locator('a.fd-card-action')).toHaveAttribute('href', `#/findings/feature/${featureId}`);
+    await rows.filter({ hasText: 'Linked open finding' }).click();
+    await expect(page).toHaveURL(new RegExp(`#/finding/${openId}$`));
+    await expect(page.locator('.fd-title')).toHaveText('Linked open finding');
+  } finally {
+    await page.request.delete(`/api/findings/${openId}`);
+    await page.request.delete(`/api/findings/${closedId}`);
+  }
+});

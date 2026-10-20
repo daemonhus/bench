@@ -1419,7 +1419,7 @@ export function App() {
           <FindingDetailView findingId={routeFindingId} onBack={() => { window.location.hash = '#/findings'; }} />
         )}
         {!isLoading && viewMode === 'feature-detail' && routeFeatureId && (
-          <FeatureDetailView featureId={routeFeatureId} onBack={() => { window.location.hash = '#/features'; }} />
+          <FeatureDetailView featureId={routeFeatureId} findings={allFindings} onBack={() => { window.location.hash = '#/features'; }} />
         )}
         {!isLoading && viewMode === 'browse' && browseDir !== null && (
           <FolderView
