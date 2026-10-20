@@ -24,10 +24,12 @@ sudo mv bench /usr/local/bin/
 ## Quick start
 
 ```bash
-# Start the server first
-benchd --repo /path/to/project --db /path/to/review.db &
+# Start the server first (project databases go in ./data)
+benchd -data ./data -addr :8080 &
 
-# Then use the CLI (defaults to http://localhost:8080)
+# Register a repository as a project, then use the CLI (defaults to http://localhost:8080)
+bench projects create --name api --repo-path /path/to/project
+export BENCH_PROJECT=api
 bench findings list --severity high
 
 # Set a baseline after a review session
@@ -41,8 +43,8 @@ bench baselines delta
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--url` | `http://localhost:8080` | Base URL of the bench server |
-| `--project` | | Project slug on a multi-project server (`BENCH_PROJECT`). See [multi-project CLI](/cli/platform) |
+| `--url` | `http://localhost:8080` | Base URL of the benchd server |
+| `--project` | | Project slug (`BENCH_PROJECT`). Required by the project categories below; `bench projects list` shows the slugs. See [projects & flows CLI](/cli/platform) |
 | `--version` | | Print version and exit |
 
 Global flags go **before** the category and command:
@@ -83,7 +85,7 @@ Eight categories, mirroring the MCP tool groups:
 | `reconcile` | Reconcile annotation positions across commits |
 | `refs` | Link findings, features, and comments to external tickets and URLs |
 
-A multi-project server adds `projects`, `baselines-all`, `flows` and `catalog`; see [multi-project CLI](/cli/platform).
+The server-wide categories `projects`, `baselines-all`, `flows` and `catalog` need no project; see [projects & flows CLI](/cli/platform).
 
 ### Discovering commands
 

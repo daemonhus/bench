@@ -8,10 +8,8 @@ on:
       - "v*"
     paths-ignore:
       - "docs/**"
-      - "platform/**"
       - "site/**"
       - "render.yaml"
-      - "go.work"
       - "*.md"
   workflow_dispatch:
 
@@ -85,10 +83,11 @@ jobs:
       - name: Build frontend
         run: |
           npm ci
-          npm run build
+          npm ci --prefix platform/ui
+          npm run build --prefix platform/ui
 
-      - name: Copy frontend dist into backend
-        run: cp -r dist/. backend/dist/
+      - name: Copy frontend dist into benchd's embed dir
+        run: cp -r platform/ui/dist/. backend/internal/server/dist/
 
       - name: Build release artifacts
         env:
@@ -123,7 +122,7 @@ jobs:
 
           for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
             GOOS="${target%/*}" GOARCH="${target#*/}"
-            build_and_package benchd ./cmd/server "$GOOS" "$GOARCH"
+            build_and_package benchd ./cmd/benchd "$GOOS" "$GOARCH"
             build_and_package bench  ./cmd/cli    "$GOOS" "$GOARCH"
           done
 

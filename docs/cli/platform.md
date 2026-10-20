@@ -1,13 +1,13 @@
-# Multi-project CLI
+# Projects & flows CLI
 
-The same `bench` binary drives a multi-project server (`bench-platform`). Project categories (git, findings, comments, features, refs, baselines, analytics, reconcile, profile) take a project slug; the multi-project categories below don't.
+Project categories (git, findings, comments, features, refs, baselines, analytics, reconcile, profile) need a project slug; the server-wide categories below (`projects`, `baselines-all`, `flows`, `catalog`) don't.
 
 ## Global flags
 
 | Flag | Default | Env var | Description |
 |------|---------|---------|-------------|
 | `--url` | `http://localhost:8080` | `BENCH_URL` | Server URL |
-| `--project` | | `BENCH_PROJECT` | Project slug; routes project categories through `/api/p/{slug}` |
+| `--project` | | `BENCH_PROJECT` | Project slug; required by the project categories |
 
 ```bash
 bench --project auth-service findings list --severity high
@@ -16,7 +16,7 @@ export BENCH_PROJECT=auth-service
 bench git search-code --pattern "TODO"
 ```
 
-Every command from the [CLI reference](/cli/) works this way. Without `--project`, project categories talk to the server root, which is what a single-project server expects.
+Every command from the [CLI reference](/cli/) works this way. Without a project, a project command exits with an error that lists the available slugs.
 
 ## projects
 

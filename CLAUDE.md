@@ -1,6 +1,6 @@
 # Bench - Agent Guide
 
-> Working on this repository's code (workbench or `platform/`)? See [DEVELOPMENT.md](DEVELOPMENT.md). This file is about *using* bench.
+> Working on this repository's code? See [DEVELOPMENT.md](DEVELOPMENT.md). This file is about *using* bench.
 
 Bench is a code review workbench. This guide covers how to use it as a tool: connecting via MCP, using the CLI, and working with findings, features, comments, baselines, and reconciliation.
 
@@ -9,20 +9,20 @@ Bench is a code review workbench. This guide covers how to use it as a tool: con
 Always verify bench is running before any operations:
 
 ```bash
-bench findings list          # health check - returns [] if up
+bench projects list          # health check - returns the registered projects if up
 ```
 
-Start if not running (mounts the current git repo read-only):
+Start if not running (mounts the current git repo read-only, registers it as a project):
 
 ```bash
-docker run -d -p 8080:8081 \
+docker run -d -p 8080:8080 \
   -v $(pwd):/repo:ro \
   -v bench:/data \
-  <bench-image> \
-  -repo /repo -db /data/bench.db
+  <bench-image>
+bench projects create --name my-repo --repo-path /repo
 ```
 
-On a multi-project server (`bench-platform`), pass `--project <slug>` (or set `BENCH_PROJECT`) for every per-project command; `bench projects list` shows the slugs. MCP at `/mcp` there takes a `project` param instead.
+Every per-project command needs `--project <slug>` (or `BENCH_PROJECT`); `bench projects list` shows the slugs. MCP at `/mcp` takes a `project` param instead; `/api/projects/<slug>/mcp` is scoped to one project.
 
 ## Data Model
 

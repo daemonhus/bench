@@ -3,8 +3,6 @@ node_modules
 
 # Build output
 /dist/
-/backend/dist/*
-!/backend/dist/.gitkeep
 
 # Database files
 *.db
@@ -35,7 +33,8 @@ docs/.vitepress/dist/
 
 # Compiled binaries
 bench-server
-benchd
+/benchd
+/backend/benchd
 
 # Test output
 playwright-report/

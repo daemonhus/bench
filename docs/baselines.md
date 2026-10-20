@@ -64,18 +64,20 @@ Delta computation:
 **Practical implication:** if you create a finding, then set a baseline, then delete the finding, then call `get_delta` - the finding appears as "removed" even though it was never in the codebase after the baseline. The delta reflects what changed in the *database*, not what changed in the *code*.
 
 There are two delta modes:
-- **Since latest** (`GET /api/baselines/delta`) - compares current state against the most recent baseline
-- **Between two** (`GET /api/baselines/{id}/delta`) - compares the given baseline against its predecessor (the baseline before it by sequence)
+- **Since latest** (`GET /baselines/delta`) - compares current state against the most recent baseline
+- **Between two** (`GET /baselines/{id}/delta`) - compares the given baseline against its predecessor (the baseline before it by sequence)
 
 ## API
 
+Paths are relative to the project root, `/api/projects/{slug}`.
+
 ```
-GET    /api/baselines              → Baseline[]       most recent first, limit 50
-GET    /api/baselines/latest       → Baseline | 404
-GET    /api/baselines/delta        → BaselineDelta    since latest baseline
-GET    /api/baselines/{id}/delta   → BaselineDelta    between this baseline and its predecessor
-POST   /api/baselines              → Baseline         create new baseline
-DELETE /api/baselines/{id}         → 204
+GET    /baselines              → Baseline[]       most recent first, limit 50
+GET    /baselines/latest       → Baseline | 404
+GET    /baselines/delta        → BaselineDelta    since latest baseline
+GET    /baselines/{id}/delta   → BaselineDelta    between this baseline and its predecessor
+POST   /baselines              → Baseline         create new baseline
+DELETE /baselines/{id}         → 204
 ```
 
 POST body (all fields optional):

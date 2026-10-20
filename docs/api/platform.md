@@ -1,17 +1,18 @@
-# Multi-project API
+# Server API
 
-REST API served by `bench-platform` (default `:8080`). It manages projects and flows under `/api/platform/*` and serves each project's bench API under `/api/p/{slug}/*`.
+REST API served by `benchd` (default `:8080`). It manages projects and flows at `/api/projects`, `/api/flows` and friends, and serves each project's [bench API](/api/bench) under `/api/projects/{slug}/*`.
 
 ## Projects
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/platform/projects` | List all projects |
-| `POST` | `/api/platform/projects` | Register a project |
-| `PATCH` | `/api/platform/projects/{slug}` | `{name?, repoPath?}`; the slug stays the same |
-| `DELETE` | `/api/platform/projects/{slug}` | Remove a project |
+| `GET` | `/api/projects` | List all projects |
+| `GET` | `/api/projects/{slug}` | One project, with stats |
+| `POST` | `/api/projects` | Register a project |
+| `PATCH` | `/api/projects/{slug}` | `{name?, repoPath?}`; the slug stays the same |
+| `DELETE` | `/api/projects/{slug}` | Remove a project |
 
-### GET /api/platform/projects
+### GET /api/projects
 
 Returns `Project[]` with per-project stats:
 
@@ -32,7 +33,7 @@ Returns `Project[]` with per-project stats:
 ]
 ```
 
-### POST /api/platform/projects
+### POST /api/projects
 
 ```json
 {
@@ -43,45 +44,45 @@ Returns `Project[]` with per-project stats:
 
 Returns the created `Project`. The slug is derived from the name (lowercased, hyphenated).
 
-### DELETE /api/platform/projects/{slug}
+### DELETE /api/projects/{slug}
 
 Returns `204 No Content`. Removes the project registration and its bench instance - does not delete the underlying repository or database file.
 
-## Platform baselines
+## Baselines across projects
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/platform/baselines` | Baselines across all projects |
+| `GET` | `/api/baselines` | Baselines across all projects |
 
 Returns `PlatformBaseline[]` - all baselines from every project, sorted by date descending.
 
 ## Settings
 
-`GET` / `PUT` `/api/platform/settings`: server settings as a JSON object of string values.
+`GET` / `PUT` `/api/settings`: server settings as a JSON object of string values.
 
-## Bench proxy
+## Per-project API
 
 All bench API routes are available per-project at:
 
 ```
-/api/p/{slug}/*
+/api/projects/{slug}/*
 ```
 
-The platform strips the prefix and forwards to the appropriate bench handler. For example:
+The server strips the prefix and forwards to that project's bench handler. For example:
 
 ```
-GET /api/p/my-application/api/findings
-→ bench GET /api/findings (for my-application)
+GET /api/projects/my-application/findings
+→ bench GET /findings (for my-application)
 ```
 
-This means the full [Bench API](/api/bench) is available for each project - just prefix with `/api/p/{slug}`. The project's MCP endpoint is `/api/p/{slug}/mcp`.
+This means the full [Bench API](/api/bench) is available for each project. The project's MCP endpoint is `/api/projects/{slug}/mcp`.
 
 ## Feature catalog
 
 | Method | Path | Notes |
 |---|---|---|
-| `GET` | `/api/platform/features/search` | `?q=&kind=&project=&limit=` (repeat `project` for several; default all, limit 50, max 200). Each result carries `projectSlug` and `projectName`. |
-| `GET` | `/api/platform/features` | `?refs=slug:id,slug:id` resolves features from any projects; unresolvable refs come back with `tombstoned: true`. |
+| `GET` | `/api/features/search` | `?q=&kind=&project=&limit=` (repeat `project` for several; default all, limit 50, max 200). Each result carries `projectSlug` and `projectName`. |
+| `GET` | `/api/features` | `?refs=slug:id,slug:id` resolves features from any projects; unresolvable refs come back with `tombstoned: true`. |
 
 ## Flows
 
@@ -89,28 +90,28 @@ See [Projects & flows](/concepts/multi-project).
 
 | Method | Path | Notes |
 |---|---|---|
-| `GET` | `/api/platform/flows` | Summaries, paginated `{items, total, offset, limit}`. Filters: `q`, `status`, `tag`, `project`, `owner`, `folder`; `sort` (`updated`, `created`, `name`, `stepCount`, `risk`), `order`, `limit` (default 50, max 200), `offset`. |
-| `GET` | `/api/platform/flows/facets` | Filter values with counts; takes the same filters. |
-| `POST` | `/api/platform/flows` | `{name, description?, tags?, status?, owner?, folderId?}` |
-| `GET` / `PATCH` / `DELETE` | `/api/platform/flows/{id}` | `GET` includes the step tree and `links`. |
-| `POST` | `/api/platform/flows/{id}/steps` | Add a step (a feature on some project). |
-| `PUT` | `/api/platform/flows/{id}/steps` | Replace the whole tree and links atomically. |
-| `PATCH` / `DELETE` | `/api/platform/flows/{id}/steps/{stepId}` | Update note or branch condition / remove with children. |
-| `POST` | `/api/platform/flows/{id}/steps/{stepId}/move` | `?dir=-1` or `1`. |
-| `PUT` / `DELETE` | `/api/platform/flows/{id}/links/{fromId}/{toId}` | `{description?, comment?, tags?}`. Both steps must belong to this flow (they may be on different projects); a self-link is a 400. |
-| `GET` / `POST` | `/api/platform/flows/{id}/baselines` | List / snapshot `{reviewer?, summary?}`. |
-| `GET` | `/api/platform/flows/{id}/baselines/latest` | |
-| `GET` / `DELETE` | `/api/platform/flows/{id}/baselines/{bId}` | |
-| `GET` | `/api/platform/flows/{id}/delta` | Changes since the latest baseline, or `?since={bId}`. |
-| `GET` | `/api/platform/flows/{id}/findings` | Open findings on the flow's features, by severity. |
+| `GET` | `/api/flows` | Summaries, paginated `{items, total, offset, limit}`. Filters: `q`, `status`, `tag`, `project`, `owner`, `folder`; `sort` (`updated`, `created`, `name`, `stepCount`, `risk`), `order`, `limit` (default 50, max 200), `offset`. |
+| `GET` | `/api/flows/facets` | Filter values with counts; takes the same filters. |
+| `POST` | `/api/flows` | `{name, description?, tags?, status?, owner?, folderId?}` |
+| `GET` / `PATCH` / `DELETE` | `/api/flows/{id}` | `GET` includes the step tree and `links`. |
+| `POST` | `/api/flows/{id}/steps` | Add a step (a feature on some project). |
+| `PUT` | `/api/flows/{id}/steps` | Replace the whole tree and links atomically. |
+| `PATCH` / `DELETE` | `/api/flows/{id}/steps/{stepId}` | Update note or branch condition / remove with children. |
+| `POST` | `/api/flows/{id}/steps/{stepId}/move` | `?dir=-1` or `1`. |
+| `PUT` / `DELETE` | `/api/flows/{id}/links/{fromId}/{toId}` | `{description?, comment?, tags?}`. Both steps must belong to this flow (they may be on different projects); a self-link is a 400. |
+| `GET` / `POST` | `/api/flows/{id}/baselines` | List / snapshot `{reviewer?, summary?}`. |
+| `GET` | `/api/flows/{id}/baselines/latest` | |
+| `GET` / `DELETE` | `/api/flows/{id}/baselines/{bId}` | |
+| `GET` | `/api/flows/{id}/delta` | Changes since the latest baseline, or `?since={bId}`. |
+| `GET` | `/api/flows/{id}/findings` | Open findings on the flow's features, by severity. |
 
 ## Flow views
 
 | Method | Path | Notes |
 |---|---|---|
-| `GET` | `/api/platform/flow-views` | Saved flow list queries, newest first. |
-| `POST` | `/api/platform/flow-views` | `{name, query?, owner?, isShared?}` |
-| `PATCH` / `DELETE` | `/api/platform/flow-views/{id}` | |
+| `GET` | `/api/flow-views` | Saved flow list queries, newest first. |
+| `POST` | `/api/flow-views` | `{name, query?, owner?, isShared?}` |
+| `PATCH` / `DELETE` | `/api/flow-views/{id}` | |
 
 ## Flow folders
 
@@ -118,10 +119,10 @@ Flows can be organised into nested folders. A flow is in at most one folder; flo
 
 | Method | Path | Notes |
 |---|---|---|
-| `GET` | `/api/platform/flow-folders` | Every folder, flat: `{id, name, parentId?, flowCount, folderCount, createdAt, updatedAt}`. Counts are direct children. |
-| `POST` | `/api/platform/flow-folders` | `{name, parentId?}` → 201 folder. 409 if a sibling has that name. |
-| `PATCH` | `/api/platform/flow-folders/{id}` | `{name?, parentId?}`; `parentId: ""` moves it to the top level. Moving a folder into itself or a descendant is a 400. |
-| `DELETE` | `/api/platform/flow-folders/{id}` | Without `?confirm=true` returns a preview `{folders, flows, confirmRequired}` and deletes nothing. With it, deletes the folder, every subfolder **and every flow inside them**. |
-| `POST` | `/api/platform/flows/move` | `{flowIds?, folderIds?, targetFolderId}` (`""` = top level). All-or-nothing. |
+| `GET` | `/api/flow-folders` | Every folder, flat: `{id, name, parentId?, flowCount, folderCount, createdAt, updatedAt}`. Counts are direct children. |
+| `POST` | `/api/flow-folders` | `{name, parentId?}` → 201 folder. 409 if a sibling has that name. |
+| `PATCH` | `/api/flow-folders/{id}` | `{name?, parentId?}`; `parentId: ""` moves it to the top level. Moving a folder into itself or a descendant is a 400. |
+| `DELETE` | `/api/flow-folders/{id}` | Without `?confirm=true` returns a preview `{folders, flows, confirmRequired}` and deletes nothing. With it, deletes the folder, every subfolder **and every flow inside them**. |
+| `POST` | `/api/flows/move` | `{flowIds?, folderIds?, targetFolderId}` (`""` = top level). All-or-nothing. |
 
-Flows gain `folderId` (omitted at the top level). `POST /api/platform/flows` and `PATCH /api/platform/flows/{id}` accept `folderId`; `GET /api/platform/flows?folder=<id>` lists one folder's direct flows (`folder=root` for the top level). Without `folder`, listing and search span every folder.
+Flows gain `folderId` (omitted at the top level). `POST /api/flows` and `PATCH /api/flows/{id}` accept `folderId`; `GET /api/flows?folder=<id>` lists one folder's direct flows (`folder=root` for the top level). Without `folder`, listing and search span every folder.

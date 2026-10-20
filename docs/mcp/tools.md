@@ -1,6 +1,6 @@
 # MCP Tool Reference
 
-Bench tools, then the [multi-project tools](#multi-project-tools). On a multi-project server's aggregate `/mcp`, every bench tool also takes a required `project` parameter (the project slug).
+Bench tools, then the [multi-project tools](#multi-project-tools). On the aggregate `/mcp`, every bench tool also takes a required `project` parameter (the project slug).
 
 ## git
 
@@ -260,7 +260,7 @@ Returns the current reconciliation head state. No parameters.
 
 ## Multi-project tools
 
-Only on a multi-project server's aggregate `/mcp`. They take project slugs explicitly where needed, never the injected `project` param. Concepts: [Projects & flows](/concepts/multi-project).
+Only on the aggregate `/mcp`. They take project slugs explicitly where needed, never the injected `project` param. Concepts: [Projects & flows](/concepts/multi-project).
 
 ### projects
 

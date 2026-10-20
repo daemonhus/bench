@@ -102,10 +102,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { image: bench,    dockerfile: Dockerfile,          platform: linux/amd64, runner: ubuntu-latest }
-          - { image: bench,    dockerfile: Dockerfile,          platform: linux/arm64, runner: ubuntu-24.04-arm }
-          - { image: platform, dockerfile: platform/Dockerfile, platform: linux/amd64, runner: ubuntu-latest }
-          - { image: platform, dockerfile: platform/Dockerfile, platform: linux/arm64, runner: ubuntu-24.04-arm }
+          - { image: bench, dockerfile: Dockerfile, platform: linux/amd64, runner: ubuntu-latest }
+          - { image: bench, dockerfile: Dockerfile, platform: linux/arm64, runner: ubuntu-24.04-arm }
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4

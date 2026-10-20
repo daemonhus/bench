@@ -31,10 +31,14 @@ Ships with a full-parity CLI and MCP to supercharge reviews.
 ## Quick Start
 
 ```bash
-docker run -p 8080:8080 -v /path/to/repo:/repo:ro -v bench-data:/data ghcr.io/daemonhus/bench:latest
+docker run -p 8080:8080 -v /path/to/repos:/repos:ro -v bench-data:/data ghcr.io/daemonhus/bench:latest
 ```
 
-Open **http://localhost:8080**.
+Open **http://localhost:8080** and add a project (a git repository on the server, e.g. `/repos/api`), or with the CLI below:
+
+```bash
+bench projects create --name api --repo-path /repos/api
+```
 
 ## CLI
 To install the CLI (Mac, see Releases for all platforms):
@@ -44,9 +48,15 @@ curl -L https://github.com/daemonhus/bench/releases/latest/download/bench_<versi
 sudo mv bench /usr/local/bin/
 ```
 
+Project commands take `--project <slug>` (or `BENCH_PROJECT`); `bench projects list` shows the slugs.
+
+```bash
+bench --project api findings list --severity high
+```
+
 ## MCP
 
-All tools are available over Streamable HTTP (JSON-RPC 2.0):
+All tools are available over Streamable HTTP (JSON-RPC 2.0). `/mcp` covers every project (bench tools take a `project` argument); `/api/projects/<slug>/mcp` serves one project without it:
 
 ```bash
 claude mcp add --transport http bench http://localhost:8080/mcp
@@ -56,45 +66,25 @@ claude mcp add --transport http bench http://localhost:8080/mcp
 
 ```bash
 docker build -t bench .
-docker run -p 8080:8080 -v /path/to/repo:/repo:ro -v bench-data:/data bench
+docker run -p 8080:8080 -v /path/to/repos:/repos:ro -v bench-data:/data bench
 ```
 
-The container's entrypoint is `benchd`. The default flags are `-repo /repo -db /data/bench.db`. You can override them by appending flags directly - do **not** repeat the binary name:
+The container's entrypoint is `benchd`; the default flags are `-data /data -addr :8080`. Project databases (`platform.db` plus one `<slug>.db` per project) live in `/data`. Repositories are mounted wherever you like and registered by their path inside the container.
 
-```bash
-# Default: mounts repo at /repo, project name shows as "repo"
-docker run -p 8080:8080 -v /path/to/repo:/repo:ro -v bench-data:/data bench
+## Flows
 
-# Named project: mount at a path whose last component is the project name
-docker run -p 8080:8080 \
-  -v /path/to/project:/project:ro \
-  -v bench-data:/data \
-  ghcr.io/daemonhus/bench:latest \
-  -repo /project -db /data/bench.db
-```
-
-The project name shown in the UI is derived from the last component of the `-repo` path, so `/project` → **project**.
-
-## Multiple projects
-
-`bench-platform` hosts several repositories behind one UI and adds flows: feature walkthroughs that span projects. The same `bench` CLI drives it (`--project <slug>`), and MCP is at `/mcp` (all projects) or `/api/p/<slug>/mcp`.
-
-```bash
-docker build -f platform/Dockerfile -t bench-platform .
-docker run -p 8080:8080 -v /path/to/repos:/repos:ro -v bench-platform-data:/data bench-platform
-bench projects create --name api --repo-path /repos/api
-```
-
-For development: `npm install && (cd platform/ui && npm install) && ./platform/dev.sh` (Vite 3000 + backend 8080). `bin/build.sh` builds `bench`, `benchd` and `bench-platform`.
+Flows are feature walkthroughs that span projects: ordered steps that each point at a feature in some project. They live next to the projects in the same UI, and the CLI drives them with `bench flows ...`.
 
 ## Development
 
-Install dependencies, and start the server with:
+Install dependencies, and start the server and UI with:
 
 ```bash
-npm install
-./dev.sh /path/to/git/repo    # starts Vite (5173) + Go backend (8081)
+npm install && (cd platform/ui && npm install)
+./platform/dev.sh              # Vite (3000) + benchd (8080)
 ```
+
+`bin/build.sh` builds `bench` and `benchd`.
 
 ## License
 

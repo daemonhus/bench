@@ -24,10 +24,6 @@ rm -rf "$EMBED_DIR"
 cp -r "$PLATFORM_DIR/ui/dist" "$EMBED_DIR"
 touch "$EMBED_DIR/.gitkeep"
 
-# backend/embed.go requires a non-empty dist/ dir at compile time even in library mode
-mkdir -p "$PLATFORM_DIR/../backend/dist"
-touch "$PLATFORM_DIR/../backend/dist/.keep"
-
 # Project databases (platform.db plus one <slug>.db per project)
 DATA_DIR="${BENCH_DATA:-$PLATFORM_DIR/backend}"
 mkdir -p "$DATA_DIR"

@@ -1,6 +1,6 @@
 # Projects & flows
 
-A multi-project server (`bench-platform`) hosts several repositories at once and adds flows on top.
+The server (`benchd`) hosts several repositories at once and adds flows on top.
 
 ## Projects
 

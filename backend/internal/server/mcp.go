@@ -61,7 +61,7 @@ func (m *platformMCP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		mcpResult(w, req.ID, map[string]any{
 			"protocolVersion": "2025-03-26",
 			"capabilities":    map[string]any{"tools": map[string]any{}},
-			"serverInfo":      map[string]any{"name": "bench-platform", "version": "0.1.0"},
+			"serverInfo":      map[string]any{"name": "benchd", "version": "0.1.0"},
 		})
 	case "notifications/initialized":
 		w.WriteHeader(204)

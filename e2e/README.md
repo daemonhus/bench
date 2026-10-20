@@ -1,24 +1,24 @@
 # bench e2e
 
 Playwright suites for the workbench UI, run against an **isolated stack** (own ports, a throwaway
-git repo + SQLite DB, deterministic seed data) so they never touch a dev server or real data.
+data dir with one project, `e2e`, on a throwaway git repo, deterministic seed data) so they never touch a dev server or real data.
 
 ```bash
 cd bench
-npx playwright test -c playwright.e2e.config.ts      # Vite dev server  (5183 -> 8091, profile gate: 5185 -> 8093)
-npx playwright test -c playwright.prod.config.ts     # PRODUCTION build embedded in the Go binary (8095 / 8096)
+npx playwright test -c playwright.e2e.config.ts      # platform UI on Vite (5183 -> 8091, profile gate: 5185 -> 8093)
+npx playwright test -c playwright.prod.config.ts     # PRODUCTION platform build embedded in benchd (8095 / 8096)
 npx vitest run                                       # unit tests (hooks, nav list, helpers)
 ```
 
-The prod config runs the *same* suites against `npm run build` + `go:embed` (minified, no Vite, no
-StrictMode double effects) - the way users run bench. Both configs should stay green.
+The prod config runs the *same* suites against the platform UI build embedded in `benchd` (minified, no Vite, no
+StrictMode double effects) - the way users run bench. Specs open `/p/e2e#/...` and call `/api/projects/e2e/...` through `appUrl()` / `api()` in `helpers/input.ts`. Both configs should stay green.
 
 ## Fixture (`e2e/support/`)
 - `fixture-repo.mjs` - deterministic repo: folders to expand, `CLAUDE.md` first in the tree (long, so it scrolls),
   later commits that rewrite part of it (-> an orphaned feature after reconcile).
-- `fixture-server.mjs` - builds the backend, starts it, seeds findings/features/comments/refs, a baseline,
+- `fixture-server.mjs` - builds `benchd`, starts it, registers the `e2e` project, seeds findings/features/comments/refs, a baseline,
   activity after the baseline, then reconciles. `E2E_FRESH=1` = no seed, write gate ON (for `profile.spec.ts`).
-  `E2E_PROD=1` = build + embed the frontend first.
+  `E2E_PROD=1` = build + embed the platform UI first.
 
 ## Conventions
 - **Trusted input only** (`page.keyboard`, `page.mouse`). `.focus()` is for *arranging* a starting point, never the

@@ -48,9 +48,9 @@ export default defineConfig({
         text: "Reference",
         items: [
           { text: "CLI", link: "/cli/" },
-          { text: "CLI (multi-project)", link: "/cli/platform" },
+          { text: "CLI (projects & flows)", link: "/cli/platform" },
           { text: "API", link: "/api/bench" },
-          { text: "API (multi-project)", link: "/api/platform" },
+          { text: "API (server)", link: "/api/platform" },
           { text: "MCP", link: "/mcp/" },
           { text: "MCP tool reference", link: "/mcp/tools" },
         ],

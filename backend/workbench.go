@@ -3,10 +3,7 @@ package workbench
 import (
 	"database/sql"
 	"fmt"
-	"io/fs"
-	"log"
 	"net/http"
-	"strings"
 
 	"bench/internal/api"
 	"bench/internal/db"
@@ -215,31 +212,8 @@ func RunMigrations(conn *sql.DB) error {
 	return db.RunMigrations(conn)
 }
 
-// SPAHandler serves the embedded dist/ directory with SPA fallback to index.html.
-func SPAHandler() http.Handler {
-	dist, err := fs.Sub(distFS, "dist")
-	if err != nil {
-		log.Fatal(err)
-	}
-	fileServer := http.FileServer(http.FS(dist))
-
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := strings.TrimPrefix(r.URL.Path, "/")
-		if path == "" {
-			path = "index.html"
-		}
-		if f, err := dist.Open(path); err == nil {
-			f.Close()
-			fileServer.ServeHTTP(w, r)
-			return
-		}
-		r.URL.Path = "/"
-		fileServer.ServeHTTP(w, r)
-	})
-}
-
 // WithMiddleware wraps a handler with CORS and logging middleware.
-// Convenience re-export for standalone mode.
+// Convenience re-export for the server.
 func WithMiddleware(h http.Handler) http.Handler {
 	return api.WithMiddleware(h)
 }

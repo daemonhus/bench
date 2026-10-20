@@ -1,6 +1,6 @@
 # Bench API
 
-REST API served by the bench backend on `:8080`.
+Per-project REST API served by `benchd` (default `:8080`). Every path below is relative to a project's root, `/api/projects/{slug}`: `GET /findings` is `GET /api/projects/{slug}/findings`. Projects themselves, flows and the other cross-project routes are in the [server API](/api/platform).
 
 All endpoints return JSON. Error responses use standard HTTP status codes.
 
@@ -8,20 +8,20 @@ All endpoints return JSON. Error responses use standard HTTP status codes.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/git/info` | Repository name |
-| `GET` | `/api/git/commits` | Commit history |
-| `GET` | `/api/git/tree/{commitish}` | File tree at a commit |
-| `GET` | `/api/git/show/{commitish}/{path}` | File content |
-| `GET` | `/api/git/diff` | Diff between two commits |
-| `GET` | `/api/git/diff-files` | Files changed between two commits |
-| `GET` | `/api/git/branches` | Branch list |
-| `GET` | `/api/git/graph` | Commit graph |
-| `GET` | `/api/git/activity` | Commits bucketed over time, with authors |
-| `GET` | `/api/git/range-stats` | Commit and merge counts between two refs |
-| `GET` | `/api/git/blame` | Git blame for a file |
-| `GET` | `/api/git/search` | Regex search across file contents |
+| `GET` | `/git/info` | Repository name |
+| `GET` | `/git/commits` | Commit history |
+| `GET` | `/git/tree/{commitish}` | File tree at a commit |
+| `GET` | `/git/show/{commitish}/{path}` | File content |
+| `GET` | `/git/diff` | Diff between two commits |
+| `GET` | `/git/diff-files` | Files changed between two commits |
+| `GET` | `/git/branches` | Branch list |
+| `GET` | `/git/graph` | Commit graph |
+| `GET` | `/git/activity` | Commits bucketed over time, with authors |
+| `GET` | `/git/range-stats` | Commit and merge counts between two refs |
+| `GET` | `/git/blame` | Git blame for a file |
+| `GET` | `/git/search` | Regex search across file contents |
 
-### GET /api/git/activity
+### GET /git/activity
 
 Query params:
 - `scale` - bucket size: `day`, `week`, `month`, or `year` (default `week`)
@@ -29,7 +29,7 @@ Query params:
 
 Returns `ActivityBucket[]`, each bucket carrying its commit count, insertions and deletions, and the authors who committed in it (by commits descending, then name). Powers the activity timeline on the Overview.
 
-### GET /api/git/range-stats
+### GET /git/range-stats
 
 Query params:
 - `from` - base ref, exclusive (omit for the whole history)
@@ -41,7 +41,7 @@ Query params:
 
 The same range semantics as a log walk from `to` back to `from`. Stash entries are skipped. Used by the Overview to say how far HEAD has drifted from the last baseline.
 
-### GET /api/git/commits
+### GET /git/commits
 
 Query params:
 - `limit` - max commits to return (default 50)
@@ -51,21 +51,21 @@ Returns `CommitInfo[]`:
 [{ "hash": "abc123", "message": "...", "author": "...", "date": "..." }]
 ```
 
-### GET /api/git/tree/{commitish}
+### GET /git/tree/{commitish}
 
 Returns `FileEntry[]`:
 ```json
 [{ "path": "src/main.go", "type": "blob" }]
 ```
 
-### GET /api/git/show/{commitish}/{path}
+### GET /git/show/{commitish}/{path}
 
 Returns:
 ```json
 { "content": "..." }
 ```
 
-### GET /api/git/diff
+### GET /git/diff
 
 Query params:
 - `from` - base commit (required)
@@ -77,7 +77,7 @@ Returns:
 { "raw": "...", "fullContent": "..." }
 ```
 
-### GET /api/git/diff-files
+### GET /git/diff-files
 
 Query params:
 - `from` - base commit (required)
@@ -85,7 +85,7 @@ Query params:
 
 Returns `string[]` of changed file paths.
 
-### GET /api/git/graph
+### GET /git/graph
 
 Query params:
 - `limit` - max commits (default 100)
@@ -96,20 +96,20 @@ Returns `GraphCommit[]` for rendering a commit graph.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/findings` | List findings |
-| `GET` | `/api/findings/{id}` | Get a finding |
-| `POST` | `/api/findings` | Create a finding |
-| `PATCH` | `/api/findings/{id}` | Update a finding |
-| `DELETE` | `/api/findings/{id}` | Delete a finding |
+| `GET` | `/findings` | List findings |
+| `GET` | `/findings/{id}` | Get a finding |
+| `POST` | `/findings` | Create a finding |
+| `PATCH` | `/findings/{id}` | Update a finding |
+| `DELETE` | `/findings/{id}` | Delete a finding |
 
-### GET /api/findings
+### GET /findings
 
 Query params:
 - `fileId` - filter by file path
 
 Returns `Finding[]`.
 
-### POST /api/findings
+### POST /findings
 
 ```json
 {
@@ -135,7 +135,7 @@ Returns `Finding[]`.
 
 Returns the created `Finding`.
 
-### PATCH /api/findings/{id}
+### PATCH /findings/{id}
 
 Partial update - only supplied fields are changed:
 ```json
@@ -152,19 +152,19 @@ Partial update - only supplied fields are changed:
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/comments` | List comments |
-| `POST` | `/api/comments` | Create a comment |
-| `PATCH` | `/api/comments/{id}` | Update a comment |
-| `DELETE` | `/api/comments/{id}` | Delete a comment |
+| `GET` | `/comments` | List comments |
+| `POST` | `/comments` | Create a comment |
+| `PATCH` | `/comments/{id}` | Update a comment |
+| `DELETE` | `/comments/{id}` | Delete a comment |
 
-### GET /api/comments
+### GET /comments
 
 Query params:
 - `fileId` - filter by file path
 
 Returns `Comment[]`.
 
-### POST /api/comments
+### POST /comments
 
 ```json
 {
@@ -188,16 +188,16 @@ The historical context of a finding or feature: how it came to be, and the git c
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `PUT` | `/api/findings/{id}/origin` | Set a finding's origin (merge semantics) |
-| `DELETE` | `/api/findings/{id}/origin` | Remove a finding's origin |
-| `GET` | `/api/findings/{id}/origin/suggest` | Derive a candidate origin from git |
-| `PUT` | `/api/features/{id}/origin` | Set a feature's origin |
-| `DELETE` | `/api/features/{id}/origin` | Remove a feature's origin |
-| `GET` | `/api/features/{id}/origin/suggest` | Derive a candidate origin from git |
+| `PUT` | `/findings/{id}/origin` | Set a finding's origin (merge semantics) |
+| `DELETE` | `/findings/{id}/origin` | Remove a finding's origin |
+| `GET` | `/findings/{id}/origin/suggest` | Derive a candidate origin from git |
+| `PUT` | `/features/{id}/origin` | Set a feature's origin |
+| `DELETE` | `/features/{id}/origin` | Remove a feature's origin |
+| `GET` | `/features/{id}/origin/suggest` | Derive a candidate origin from git |
 
-The origin is enriched inline on the parent annotation, so a `GET /api/findings/{id}` already carries it.
+The origin is enriched inline on the parent annotation, so a `GET /findings/{id}` already carries it.
 
-### PUT /api/findings/{id}/origin
+### PUT /findings/{id}/origin
 
 Only the fields you send are overwritten:
 
@@ -213,7 +213,7 @@ Only the fields you send are overwritten:
 
 A resolvable `introducedCommit` is normalised to its full SHA and pinned. One that no longer exists (rewritten out by a force push) is stored as-is rather than rejected, since the introducing commit may legitimately be gone.
 
-### GET /api/findings/{id}/origin/suggest
+### GET /findings/{id}/origin/suggest
 
 Read-only. Blames the anchor's lines, then walks first-parent history for the merge that brought the change into the mainline:
 
@@ -237,10 +237,10 @@ The service profile: reviewer-configured meta-attributes of the service under re
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/profile` | Get the profile |
-| `PATCH` | `/api/profile` | Partial update (arrays replace wholesale; `[]` clears) |
+| `GET` | `/profile` | Get the profile |
+| `PATCH` | `/profile` | Partial update (arrays replace wholesale; `[]` clears) |
 
-Until the profile has been written at least once, every review-judgment write (findings, comments, features, refs, baselines, mark-reviewed) is rejected with **412 Precondition Failed**. `PATCH /api/profile` is always allowed, and an empty patch satisfies the gate. Disable it with the server flag `-require-profile=false`.
+Until the profile has been written at least once, every review-judgment write (findings, comments, features, refs, baselines, mark-reviewed) is rejected with **412 Precondition Failed**. `PATCH /profile` is always allowed, and an empty patch satisfies the gate. Disable it with the server flag `-require-profile=false`.
 
 Empty string and empty array mean "not configured", never "confirmed absent". In the multi-select fields, `none` is the explicit claim that a control is absent, and is exclusive.
 
@@ -250,15 +250,15 @@ Baselines are immutable snapshots of the review state at a specific git commit. 
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/baselines` | List baselines (most recent first, default limit 20) |
-| `GET` | `/api/baselines/latest` | Most recent baseline or 404 |
-| `GET` | `/api/baselines/delta` | Delta since the latest baseline |
-| `GET` | `/api/baselines/{id}/delta` | Delta between this baseline and its predecessor |
-| `POST` | `/api/baselines` | Create a new baseline |
-| `PATCH` | `/api/baselines/{id}` | Update reviewer or summary |
-| `DELETE` | `/api/baselines/{id}` | Delete a baseline (dry-run by default; pass `?confirm=true` to delete) |
+| `GET` | `/baselines` | List baselines (most recent first, default limit 20) |
+| `GET` | `/baselines/latest` | Most recent baseline or 404 |
+| `GET` | `/baselines/delta` | Delta since the latest baseline |
+| `GET` | `/baselines/{id}/delta` | Delta between this baseline and its predecessor |
+| `POST` | `/baselines` | Create a new baseline |
+| `PATCH` | `/baselines/{id}` | Update reviewer or summary |
+| `DELETE` | `/baselines/{id}` | Delete a baseline (dry-run by default; pass `?confirm=true` to delete) |
 
-### POST /api/baselines
+### POST /baselines
 
 All fields optional:
 
@@ -312,8 +312,8 @@ If `commitId` is omitted, defaults to the tip of the default branch (main/master
 
 Two delta modes:
 
-- **Since latest** (`GET /api/baselines/delta`) - compares current state against the most recent baseline.
-- **Between two** (`GET /api/baselines/{id}/delta`) - compares the given baseline against its predecessor.
+- **Since latest** (`GET /baselines/delta`) - compares current state against the most recent baseline.
+- **Between two** (`GET /baselines/{id}/delta`) - compares the given baseline against its predecessor.
 
 ## Data model
 

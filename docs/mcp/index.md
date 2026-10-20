@@ -8,20 +8,20 @@ Bench exposes its tools over [Model Context Protocol](https://modelcontextprotoc
 claude mcp add --transport http bench http://localhost:8080/mcp
 ```
 
-The endpoint is at `http://localhost:8080/mcp`. All tools are scoped to the single repo - no `project` parameter needed.
+The endpoint is at `http://localhost:8080/mcp`.
 
-### Multi-project server
+### Endpoints
 
-`bench-platform` serves two endpoints:
+`benchd` serves two:
 
 | Endpoint | Scope |
 |---|---|
 | `/mcp` | Every project. Bench tools take a required `project` (slug); [multi-project tools](/mcp/tools#multi-project-tools) are added. |
-| `/api/p/{slug}/mcp` | One project, same tools as single-project bench, no `project` param. |
+| `/api/projects/{slug}/mcp` | One project, the bench tools without a `project` param. |
 
 ```bash
 claude mcp add --transport http bench http://localhost:8080/mcp
-claude mcp add --transport http bench-api http://localhost:8080/api/p/api/mcp
+claude mcp add --transport http bench-api http://localhost:8080/api/projects/api/mcp
 ```
 
 ## Tool groups
@@ -50,7 +50,7 @@ Empty fields mean "not configured", never "confirmed absent". Only an explicit `
 
 ## Tool reference
 
-All tools are scoped to the single repo instance (or to `project` on the multi-project `/mcp`).
+All tools are scoped to one project: the one in the URL on `/api/projects/{slug}/mcp`, or the `project` argument on `/mcp`.
 
 ### search_code
 

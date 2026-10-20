@@ -2,24 +2,29 @@
 
 ## Docker
 
-The quickest way to run bench against a local repo:
+The quickest way to run bench:
 
 ```bash
 docker run -d \
   -p 8080:8080 \
-  -v /path/to/git/repo:/repo \
+  -v /path/to/repos:/repos:ro \
   -v bench-data:/data \
   ghcr.io/daemonhus/bench:latest
 ```
 
-Open **http://localhost:8080**.
+Open **http://localhost:8080** and add a project: a git repository, given by its path inside the container. Or from the CLI:
+
+```bash
+bench projects create --name api --repo-path /repos/api
+```
 
 ## CLI
 
-Install the `bench` CLI ([install options](/cli/#install)); it talks to the running server:
+Install the `bench` CLI ([install options](/cli/#install)); it talks to the running server. Project commands take `--project` (or `BENCH_PROJECT`):
 
 ```bash
-bench findings list --severity high
+bench projects list
+bench --project api findings list --severity high
 ```
 
 ## MCP
@@ -30,21 +35,7 @@ Register bench as an MCP server with Claude:
 claude mcp add --transport http bench http://localhost:8080/mcp
 ```
 
-See [MCP overview](/mcp/) for the full tool list.
-
-## Multiple projects
-
-`bench-platform` hosts several repositories behind one UI, and adds [flows](/concepts/multi-project) across them:
-
-```bash
-docker build -f platform/Dockerfile -t bench-platform .
-docker run -d -p 8080:8080 -v /path/to/repos:/repos:ro -v bench-platform-data:/data bench-platform
-
-bench projects create --name api --repo-path /repos/api
-bench --project api findings list
-```
-
-See [multi-project CLI](/cli/platform) and [MCP](/mcp/#multi-project-server).
+See [MCP overview](/mcp/) for the full tool list. Several projects share one server, and [flows](/concepts/multi-project) span them.
 
 ## Development
 
@@ -52,12 +43,8 @@ See [multi-project CLI](/cli/platform) and [MCP](/mcp/#multi-project-server).
 
 ```bash
 cd bench
-npm install
-./dev.sh /path/to/git/repo
+npm install && (cd platform/ui && npm install)
+./platform/dev.sh
 ```
 
-Open **http://localhost:5173** (Vite dev server with HMR).
-
-The backend listens on `:8081` and serves the REST API, MCP endpoint, and embedded SPA.
-
-For the multi-project server: `(cd platform/ui && npm install) && ./platform/dev.sh` (Vite on `:3000`, backend on `:8080`).
+Open **http://localhost:3000** (Vite dev server with HMR, proxying to `benchd` on `:8080`). Project databases go to `platform/backend/`; set `BENCH_DATA` to use another directory.
