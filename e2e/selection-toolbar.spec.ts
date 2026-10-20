@@ -1,9 +1,10 @@
 import { test, expect, type Page } from '@playwright/test';
+import { appUrl } from './helpers/input';
 
 // ── Shared helpers ─────────────────────────────────────────────────────────────
 
 async function openFirstFile(page: Page) {
-  await page.goto('/#/browse');
+  await page.goto(appUrl('/#/browse'));
   await page.waitForSelector('.tree-node', { timeout: 15000 });
   await page.locator('.tree-file').first().click();
   await page.waitForSelector('[data-line-id]', { timeout: 8000 });

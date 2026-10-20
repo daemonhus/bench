@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { appUrl } from './helpers/input';
 
 /**
  * Visual verification of CSS fixes:
@@ -12,7 +13,7 @@ import { test, expect } from '@playwright/test';
 test.describe('Browse view CSS fixes', () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to browse mode via hash route
-    await page.goto('/#/browse/CLAUDE.md');
+    await page.goto(appUrl('/#/browse/CLAUDE.md'));
     await page.waitForSelector('[data-line-id]', { timeout: 10000 });
   });
 
@@ -74,7 +75,7 @@ test.describe('Browse view CSS fixes', () => {
 
 test.describe('Overview and Delta views', () => {
   test('screenshot: overview view', async ({ page }) => {
-    await page.goto('/#/overview');
+    await page.goto(appUrl('/#/overview'));
     await page.waitForTimeout(1000);
     // Verify muted text color is correct on overview too
     const body = page.locator('body');
@@ -86,13 +87,13 @@ test.describe('Overview and Delta views', () => {
   });
 
   test('screenshot: delta view', async ({ page }) => {
-    await page.goto('/#/delta');
+    await page.goto(appUrl('/#/delta'));
     await page.waitForTimeout(1000);
     await page.screenshot({ path: 'e2e/screenshots/delta-view.png' });
   });
 
   test('Fix 4: z-index tokens resolve correctly on root', async ({ page }) => {
-    await page.goto('/#/overview');
+    await page.goto(appUrl('/#/overview'));
     await page.waitForTimeout(500);
     const body = page.locator('body');
     const values = await body.evaluate(el => {
@@ -117,7 +118,7 @@ test.describe('Overview and Delta views', () => {
   });
 
   test('Fix 3: color tokens resolve correctly', async ({ page }) => {
-    await page.goto('/#/overview');
+    await page.goto(appUrl('/#/overview'));
     await page.waitForTimeout(500);
     const body = page.locator('body');
     const values = await body.evaluate(el => {

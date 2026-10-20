@@ -1,4 +1,4 @@
-import { test, expect, openView, isPhone, primaryPane } from './helpers/input';
+import { test, expect, openView, isPhone, primaryPane, appUrl } from './helpers/input';
 import AxeBuilder from '@axe-core/playwright';
 import type { Page } from '@playwright/test';
 
@@ -42,7 +42,7 @@ for (const v of VIEWS) {
 test('axe: feature detail', async ({ page }) => {
   await openView(page, '/#/features', '[data-nav-area="features-list"]');
   const id = await page.locator('[data-feature-id]').first().getAttribute('data-feature-id');
-  await page.goto(`/#/feature/${id}`);
+  await page.goto(appUrl(`/#/feature/${id}`));
   await page.waitForSelector('.feature-detail');
   expect(await scan(page)).toEqual([]);
 });
@@ -50,7 +50,7 @@ test('axe: feature detail', async ({ page }) => {
 test('axe: finding detail', async ({ page }) => {
   await openView(page, '/#/findings', '[data-nav-area="findings-list"]');
   const id = await page.locator('[data-finding-id]').first().getAttribute('data-finding-id');
-  await page.goto(`/#/finding/${id}`);
+  await page.goto(appUrl(`/#/finding/${id}`));
   await page.waitForSelector('.feature-detail .fd-title');
   expect(await scan(page)).toEqual([]);
 });
@@ -63,7 +63,7 @@ test('axe: expanded finding card with its reply box', async ({ page }) => {
 test('axe: the finding page with a field open for editing', async ({ page }) => {
   await openView(page, '/#/findings', '[data-nav-area="findings-list"]');
   const id = await page.locator('[data-finding-id]').first().getAttribute('data-finding-id');
-  await page.goto(`/#/finding/${id}`);
+  await page.goto(appUrl(`/#/finding/${id}`));
   await page.getByRole('textbox', { name: 'Description' }).click();
   await expect(page.locator('textarea.editable-input')).toBeVisible();
   expect(await scan(page)).toEqual([]);

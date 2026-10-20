@@ -29,6 +29,15 @@ export const test = base.extend({
 });
 export { expect };
 
+/** The project every spec runs against (registered by support/fixture-server.mjs). */
+export const PROJECT = 'e2e';
+
+/** App URL for a workbench hash route: '/#/findings' opens `/p/e2e#/findings`; '/' is the project's landing route. */
+export const appUrl = (hash: string) => `/p/${PROJECT}${hash.replace(/^\//, '')}`;
+
+/** The project's REST path for a workbench endpoint: '/api/findings' is `/api/projects/e2e/findings`. */
+export const api = (path: string) => `/api/projects/${PROJECT}${path.replace(/^\/api/, '')}`;
+
 /** Park the mouse in a corner so a stale :hover can't leak into assertions. */
 export async function parkMouse(page: Page) {
   await page.mouse.move(0, 1);
@@ -36,7 +45,7 @@ export async function parkMouse(page: Page) {
 
 /** Navigate to a hash route and wait for a nav area to exist. */
 export async function openView(page: Page, hash: string, areaSelector: string) {
-  await page.goto(hash);
+  await page.goto(appUrl(hash));
   await page.waitForSelector(areaSelector, { timeout: 10_000 });
   await parkMouse(page);
 }
@@ -89,7 +98,7 @@ export const primaryPane = (page: Page) =>
 
 /** Open /#/browse with a file showing, without clicking the tree (it is a closed drawer on a phone). */
 export async function openBrowseFile(page: Page, file = 'CLAUDE.md') {
-  await page.goto(`/#/browse/${file}`);
+  await page.goto(appUrl(`/#/browse/${file}`));
   await page.waitForSelector('[data-line-id]', { timeout: 10_000 });
   await page.waitForTimeout(400);
 }

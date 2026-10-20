@@ -1,4 +1,4 @@
-import { test, expect, openView, activeArea, isPhone } from './helpers/input';
+import { test, expect, openView, activeArea, isPhone, appUrl } from './helpers/input';
 import type { Locator, Page } from '@playwright/test';
 
 // Controls that used to be mouse-only (a <span>/<div> with onClick): each must
@@ -188,7 +188,7 @@ test.describe('Inline finding card', () => {
     // Inline cards replace the sidebar in the narrow (mobile) layout.
     await page.setViewportSize({ width: 560, height: 900 });
     // The file tree is a drawer on narrow screens; open the file by URL instead.
-    await page.goto('/#/browse/CLAUDE.md');
+    await page.goto(appUrl('/#/browse/CLAUDE.md'));
     await page.waitForSelector('[data-line-id]', { timeout: 10_000 });
     const header = page.locator('.inline-finding-header').first();
     await expect(header).toBeVisible();

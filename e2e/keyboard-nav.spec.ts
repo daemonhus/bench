@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { appUrl } from './helpers/input';
 
 // Helper: get the data-nav-area of the currently focused element
 async function focusedArea(page: Page): Promise<string | null> {
@@ -21,7 +22,7 @@ async function focusedItemCount(page: Page): Promise<number> {
 
 test.describe('View switching', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
+    await page.goto(appUrl('/'));
     await page.waitForSelector('.tab-bar', { timeout: 8000 });
     await page.waitForTimeout(300);
   });
@@ -77,7 +78,7 @@ test.describe('View switching', () => {
 
 test.describe('Browse: Tab cycling', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/#/browse');
+    await page.goto(appUrl('/#/browse'));
     await page.waitForSelector('.tree-node', { timeout: 15000 });
     // Open a file so codeview + sidebar are active
     await page.locator('.tree-file').first().click();
@@ -158,7 +159,7 @@ test.describe('Browse: Tab cycling', () => {
 
 test.describe('Browse: file tree navigation', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/#/browse');
+    await page.goto(appUrl('/#/browse'));
     await page.waitForSelector('.tree-node', { timeout: 15000 });
   });
 
@@ -276,7 +277,7 @@ test.describe('Browse: file tree navigation', () => {
 
 test.describe('Findings: Tab cycling', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/#/findings');
+    await page.goto(appUrl('/#/findings'));
     await page.waitForSelector('[data-nav-area="findings-filter"]', { timeout: 8000 });
   });
 
@@ -320,7 +321,7 @@ test.describe('Findings: Tab cycling', () => {
 
 test.describe('Findings: list navigation', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/#/findings');
+    await page.goto(appUrl('/#/findings'));
     await page.waitForSelector('[data-nav-area="findings-list"]', { timeout: 8000 });
     await page.waitForTimeout(500);
   });
@@ -402,7 +403,7 @@ test.describe('Findings: list navigation', () => {
 
 test.describe('Features: Tab cycling', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/#/features');
+    await page.goto(appUrl('/#/features'));
     await page.waitForSelector('[data-nav-area="features-tabs"]', { timeout: 8000 });
   });
 
@@ -454,7 +455,7 @@ test.describe('Features: Tab cycling', () => {
 
 test.describe('Features: kind tabs and list', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/#/features');
+    await page.goto(appUrl('/#/features'));
     await page.waitForSelector('[data-nav-area="features-tabs"]', { timeout: 8000 });
     await page.waitForTimeout(500);
   });
@@ -531,7 +532,7 @@ test.describe('Features: kind tabs and list', () => {
 
 test.describe('Changes: navigation', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/#/delta');
+    await page.goto(appUrl('/#/delta'));
     await page.waitForSelector('[data-nav-area="delta"]', { timeout: 10000 });
     await page.waitForSelector('[data-nav-area="delta"] [data-nav-id]', { timeout: 10000 });
   });
@@ -620,7 +621,7 @@ test.describe('Changes: navigation', () => {
 
 test.describe('Cross-view scenarios', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
+    await page.goto(appUrl('/'));
     await page.waitForSelector('.tab-bar', { timeout: 8000 });
     await page.waitForTimeout(300);
   });
@@ -693,7 +694,7 @@ test.describe('Cross-view scenarios', () => {
 
 test.describe('Focus ring CSS', () => {
   test('nav-focused item gets an outline', async ({ page }) => {
-    await page.goto('/#/findings');
+    await page.goto(appUrl('/#/findings'));
     await page.waitForSelector('[data-nav-area="findings-list"]', { timeout: 8000 });
     await page.waitForTimeout(500);
     if (await page.locator('[data-finding-id]').count() === 0) { test.skip(); return; }
@@ -708,7 +709,7 @@ test.describe('Focus ring CSS', () => {
   });
 
   test('nav-area gets outline on keyboard focus', async ({ page }) => {
-    await page.goto('/#/findings');
+    await page.goto(appUrl('/#/findings'));
     await page.waitForSelector('[data-nav-area="findings-filter"]', { timeout: 8000 });
     await page.locator('[data-nav-area="findings-filter"]').focus();
     await page.keyboard.press('Tab');
@@ -724,7 +725,7 @@ test.describe('Focus ring CSS', () => {
 
 test.describe('Finding status control', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/#/findings');
+    await page.goto(appUrl('/#/findings'));
     await page.waitForSelector('[data-nav-area="findings-list"]', { timeout: 8000 });
     await page.waitForTimeout(500);
   });

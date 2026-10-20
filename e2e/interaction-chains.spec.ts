@@ -1,4 +1,4 @@
-import { test, expect, openView, activeArea, isPhone, primaryPane, openBrowseFile } from './helpers/input';
+import { test, expect, openView, activeArea, isPhone, primaryPane, openBrowseFile, appUrl } from './helpers/input';
 import type { Page } from '@playwright/test';
 
 // End-to-end keyboard chains for the interactions not covered elsewhere:
@@ -179,7 +179,7 @@ test.describe('Tag input', () => {
     // Tags are edited on the feature's page.
     await openView(page, '/#/features', '[data-nav-area="features-list"]');
     const id = await page.locator('[data-feature-id]').first().getAttribute('data-feature-id');
-    await page.goto(`/#/feature/${id}`);
+    await page.goto(appUrl(`/#/feature/${id}`));
     const form = page.locator('.fd-tags');
     await expect(form).toBeVisible();
     const tagInput = form.locator('.tag-input-chip-row input').first();

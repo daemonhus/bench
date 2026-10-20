@@ -1,4 +1,4 @@
-import { test, expect, openView } from './helpers/input';
+import { test, expect, openView, appUrl } from './helpers/input';
 import type { Page } from '@playwright/test';
 
 // The same expectations at three canvas sizes. A user on a phone, a laptop and an ultrawide monitor
@@ -342,7 +342,7 @@ test.describe('overview column order as the page narrows', () => {
 
   test('phone: findings first, directly above the attack surface; repository last', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto('/#/overview');
+    await page.goto(appUrl('/#/overview'));
     await page.waitForSelector('.ovp-col-findings');
     const t = await tops(page);
     expect(t.findings.y).toBeLessThan(t.surface.y);
@@ -351,7 +351,7 @@ test.describe('overview column order as the page narrows', () => {
 
   for (const width of [1000, 1440, 1920]) test(`desktop ${width}px: two even columns, findings stacked on the attack surface beside the repository`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
-    await page.goto('/#/overview');
+    await page.goto(appUrl('/#/overview'));
     await page.waitForSelector('.ovp-col-findings');
     const t = await tops(page);
     expect(Math.round(t.findings.x)).toBe(Math.round(t.surface.x));
@@ -367,7 +367,7 @@ test.describe('overview column order as the page narrows', () => {
 
   test('ultrawide: three columns side by side', async ({ page }) => {
     await page.setViewportSize({ width: 3440, height: 1440 });
-    await page.goto('/#/overview');
+    await page.goto(appUrl('/#/overview'));
     await page.waitForSelector('.ovp-col-findings');
     const t = await tops(page);
     expect(t.repo.x).toBeLessThan(t.findings.x);
@@ -380,7 +380,7 @@ test.describe('expanding search in the workbench toolbars', () => {
   for (const [hash, row] of [['#/findings', '.findings-title-row'], ['#/features', '.features-title-row-right']]) {
     test(`${hash}: the search is last in its row and grows into the free space when focused`, async ({ page }) => {
       await page.setViewportSize({ width: 1440, height: 900 });
-      await page.goto('/' + hash);
+      await page.goto(appUrl('/' + hash));
       const box = page.locator(`${row} .annotation-search--expand`);
       await expect(box).toBeVisible();
       const idle = (await box.boundingBox())!.width;

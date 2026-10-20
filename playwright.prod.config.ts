@@ -1,8 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 
 // The same e2e suite against the PRODUCTION build embedded in the Go server
-// (minified, no Vite, no StrictMode double effects): `npm run build` + go:embed,
-// served by the backend itself on :8095. Run: npx playwright test -c playwright.prod.config.ts
+// (minified, no Vite, no StrictMode double effects): the platform UI build embedded in
+// benchd, served by benchd itself on :8095. Run: npx playwright test -c playwright.prod.config.ts
 const API = 8095;
 const FRESH_API = 8096;
 
@@ -20,19 +20,23 @@ export default defineConfig({
   ],
   webServer: [
     {
-      // Builds the frontend, embeds it, seeds data. (Builds once; the fresh server reuses the binary's dist.)
+      // Builds the platform UI, embeds it, seeds data. (Builds once; the fresh server reuses the binary's dist.)
       command: 'node e2e/support/fixture-server.mjs',
-      url: `http://localhost:${API}/api/git/info`,
+      url: `http://localhost:${API}/api/projects`,
       env: { E2E_API_PORT: String(API), E2E_PROD: '1' },
-      stdout: 'ignore',
+      // Ready once seeded (benchd answers well before that).
+      stdout: 'pipe',
+      wait: { stdout: /\[fixture\] ready/ },
       reuseExistingServer: false,
       timeout: 300_000,
     },
     {
       command: 'node e2e/support/fixture-server.mjs',
-      url: `http://localhost:${FRESH_API}/api/git/info`,
+      url: `http://localhost:${FRESH_API}/api/projects`,
       env: { E2E_API_PORT: String(FRESH_API), E2E_FRESH: '1', E2E_PROD: '1' },
-      stdout: 'ignore',
+      // Ready once seeded (benchd answers well before that).
+      stdout: 'pipe',
+      wait: { stdout: /\[fixture\] ready/ },
       reuseExistingServer: false,
       timeout: 300_000,
     },

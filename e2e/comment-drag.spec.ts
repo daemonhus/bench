@@ -1,8 +1,9 @@
 import { test, expect } from '@playwright/test';
+import { appUrl } from './helpers/input';
 
 test.describe('Comment Drag-to-Select', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/#/browse'); // '/' lands on Overview
+    await page.goto(appUrl('/#/browse')); // '/' lands on Overview
     // Wait for tree, then click first file to load content
     await page.waitForSelector('.tree-node', { timeout: 5000 });
     const file = page.locator('.tree-file').first();
@@ -47,7 +48,7 @@ test.describe('Comment Drag-to-Select', () => {
 
 test.describe('Sidebar Activity Stream', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/#/browse');
+    await page.goto(appUrl('/#/browse'));
     await page.waitForSelector('.tree-node', { timeout: 5000 });
   });
 

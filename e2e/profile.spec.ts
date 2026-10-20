@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { api, appUrl } from './helpers/input';
 
 /**
  * Profile tab (service profile) end-to-end:
@@ -13,7 +14,7 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Profile tab - service profile', () => {
   test('profile tab renders form via #/profile and nav tab', async ({ page }) => {
-    await page.goto('/#/profile');
+    await page.goto(appUrl('/#/profile'));
     await expect(page.locator('.profile-title')).toHaveText('Profile');
 
     // All four multi-select groups and six radio groups present
@@ -26,16 +27,16 @@ test.describe('Profile tab - service profile', () => {
   });
 
   test('write gate: unconfigured profile rejects finding creation with 412', async ({ request }) => {
-    const profile = await (await request.get('/api/profile')).json();
+    const profile = await (await request.get(api('/api/profile'))).json();
     test.skip(!!profile.updatedAt, 'profile already configured in this database');
 
-    const res = await request.post('/api/findings', { data: {} });
+    const res = await request.post(api('/api/findings'), { data: {} });
     expect(res.status()).toBe(412);
     expect((await res.json()).error).toContain('service profile not configured');
   });
 
   test('unconfigured banner links to config; save persists and clears it', async ({ page }) => {
-    await page.goto('/#/delta');
+    await page.goto(appUrl('/#/delta'));
     await page.waitForSelector('.tab-bar');
 
     const banner = page.locator('.profile-banner');
@@ -68,12 +69,12 @@ test.describe('Profile tab - service profile', () => {
     await expect(page.locator('.profile-save-status')).toHaveText(/Saved/, { timeout: 5000 });
 
     // Persisted across reload
-    await page.goto('/#/profile');
+    await page.goto(appUrl('/#/profile'));
     await expect(page.locator('#profile-owner')).toHaveValue('platform-team');
     await expect(page.locator('.profile-updated-at')).toBeVisible();
 
     // Banner gone on other tabs
-    await page.goto('/#/delta');
+    await page.goto(appUrl('/#/delta'));
     await page.waitForSelector('.tab-bar');
     await expect(page.locator('.profile-banner')).toHaveCount(0);
   });

@@ -1,8 +1,9 @@
 import { test, expect } from '@playwright/test';
+import { appUrl } from './helpers/input';
 
 test.describe('Code Browser', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/#/browse'); // '/' lands on Overview; the tree lives in Browse
+    await page.goto(appUrl('/#/browse')); // '/' lands on Overview; the tree lives in Browse
     // Wait for file tree to load (backend must be running)
     await page.waitForSelector('.tree-node', { timeout: 5000 });
   });
@@ -90,7 +91,7 @@ test.describe('Code Browser', () => {
 
 test.describe('Tab Bar Navigation', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
+    await page.goto(appUrl('/'));
     await page.waitForSelector('.tab-bar', { timeout: 5000 });
   });
 

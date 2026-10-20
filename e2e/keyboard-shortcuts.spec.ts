@@ -1,8 +1,9 @@
 import { test, expect } from '@playwright/test';
+import { appUrl } from './helpers/input';
 
 test.describe('Keyboard Shortcuts Button & Modal', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/#/browse');
+    await page.goto(appUrl('/#/browse'));
     // Wait for the app layout to render
     await page.waitForSelector('.app-layout', { timeout: 5000 });
   });

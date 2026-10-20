@@ -1,4 +1,4 @@
-import { test, expect, openView } from './helpers/input';
+import { test, expect, openView, api, appUrl } from './helpers/input';
 
 // A finding's own page (#/finding/{id}), laid out like the feature detail page: reached from a
 // card's title (the card's one link to it, no separate button), and by a deep link.
@@ -25,7 +25,7 @@ test('cards have no separate detail button; a deep link lands on the page direct
   const card = page.locator('[data-finding-id]').first();
   const id = await card.getAttribute('data-finding-id');
   await expect(page.locator('button[title="Open detail page"]')).toHaveCount(0);
-  await page.goto(`/#/finding/${id}`);
+  await page.goto(appUrl(`/#/finding/${id}`));
   await expect(page.locator('.fd-title')).toBeVisible();
   // The hero carries severity and status (as dropdowns), and the file it is anchored to.
   await expect(page.getByRole('button', { name: /^Severity: / })).toBeVisible();
@@ -45,7 +45,7 @@ test('a feature card\'s title opens the feature\'s page, under the Features tab'
 });
 
 test('an unknown finding id says so, with a way back', async ({ page }) => {
-  await page.goto('/#/finding/does-not-exist');
+  await page.goto(appUrl('/#/finding/does-not-exist'));
   await expect(page.locator('.feature-detail .empty-state')).toContainText(/not found/i);
   await expect(page.locator('.fd-back')).toHaveText('← Findings');
 });
@@ -54,8 +54,8 @@ test('an unknown finding id says so, with a way back', async ({ page }) => {
 test('the finding page is editable in place and saves as you go', async ({ page }) => {
   await openView(page, '/#/findings', '[data-nav-area="findings-list"]');
   const id = await page.locator('[data-finding-id]').first().getAttribute('data-finding-id');
-  const original = await (await page.request.get(`/api/findings/${id}`)).json();
-  await page.goto(`/#/finding/${id}`);
+  const original = await (await page.request.get(api(`/api/findings/${id}`))).json();
+  await page.goto(appUrl(`/#/finding/${id}`));
   await expect(page.locator('.fd-title')).toBeVisible();
 
   // Title: click, type, Enter.
@@ -82,14 +82,14 @@ test('the finding page is editable in place and saves as you go', async ({ page 
   await expect(page.getByRole('textbox', { name: 'CWE' })).toHaveText('CWE-79');
   await expect(page.getByRole('textbox', { name: 'Description' })).toHaveText('Edited on the detail page.');
   // Leave the shared fixture as it was.
-  await page.request.patch(`/api/findings/${id}`, { data: { title: original.title, severity: original.severity, cwe: original.cwe, description: original.description } });
+  await page.request.patch(api(`/api/findings/${id}`), { data: { title: original.title, severity: original.severity, cwe: original.cwe, description: original.description } });
 });
 
 test('the feature page is editable in place: title, kind, tags and parameters', async ({ page }) => {
   await openView(page, '/#/features', '[data-nav-area="features-list"]');
   const id = await page.locator('[data-feature-id]').first().getAttribute('data-feature-id');
-  const original = await (await page.request.get(`/api/features/${id}`)).json();
-  await page.goto(`/#/feature/${id}`);
+  const original = await (await page.request.get(api(`/api/features/${id}`))).json();
+  await page.goto(appUrl(`/#/feature/${id}`));
   await expect(page.locator('.fd-title')).toBeVisible();
 
   await page.getByRole('textbox', { name: 'Title' }).click();
@@ -115,14 +115,14 @@ test('the feature page is editable in place: title, kind, tags and parameters', 
   await expect(page.locator('.fd-title-row .feature-method-badge')).toHaveText('POST');
   await expect(page.getByRole('textbox', { name: 'Parameter name' }).first()).toHaveText('token');
   // Leave the shared fixture as it was.
-  await page.request.patch(`/api/features/${id}`, { data: { title: original.title, kind: original.kind, operation: original.operation ?? '', parameters: original.parameters ?? [] } });
+  await page.request.patch(api(`/api/features/${id}`), { data: { title: original.title, kind: original.kind, operation: original.operation ?? '', parameters: original.parameters ?? [] } });
 });
 
 test('a comment can be added from the finding page, and it stays', async ({ page }) => {
   await openView(page, '/#/findings', '[data-nav-area="findings-list"]');
   // The last finding: other specs open the first card's latest comment.
   const id = await page.locator('[data-finding-id]').last().getAttribute('data-finding-id');
-  await page.goto(`/#/finding/${id}`);
+  await page.goto(appUrl(`/#/finding/${id}`));
   const box = page.getByRole('textbox', { name: 'Reply' });
   await box.fill('Replying from the detail page');
   await page.getByRole('button', { name: 'Send reply' }).click();
@@ -131,8 +131,8 @@ test('a comment can be added from the finding page, and it stays', async ({ page
   await page.reload();
   await expect(page.locator('.finding-comment-text', { hasText: 'Replying from the detail page' })).toBeVisible();
   // Leave the shared fixture as it was.
-  const comments = await (await page.request.get(`/api/comments?findingId=${id}`)).json() as { id: string; text: string }[];
-  for (const c of comments.filter((x) => x.text === 'Replying from the detail page')) await page.request.delete(`/api/comments/${c.id}`);
+  const comments = await (await page.request.get(api(`/api/comments?findingId=${id}`))).json() as { id: string; text: string }[];
+  for (const c of comments.filter((x) => x.text === 'Replying from the detail page')) await page.request.delete(api(`/api/comments/${c.id}`));
 });
 
 test('reconciliation sits at the foot of the right-hand column on finding and feature pages', async ({ page }) => {
@@ -185,13 +185,13 @@ test('the header controls sit under the description, each with a small grey capt
 test('a feature\'s page lists its linked findings in the side column: open first, closed dimmed', async ({ page }) => {
   await openView(page, '/#/features', '[data-nav-area="features-list"]');
   const featureId = (await page.locator('[data-feature-id]').first().getAttribute('data-feature-id'))!;
-  const feature = await (await page.request.get(`/api/features/${featureId}`)).json();
+  const feature = await (await page.request.get(api(`/api/features/${featureId}`))).json();
   const make = async (title: string, severity: string, status: string) =>
-    (await (await page.request.post('/api/findings', { data: { title, severity, status, anchor: feature.anchor, features: [featureId] } })).json()).id as string;
+    (await (await page.request.post(api('/api/findings'), { data: { title, severity, status, anchor: feature.anchor, features: [featureId] } })).json()).id as string;
   const closedId = await make('Linked closed finding', 'critical', 'closed');
   const openId = await make('Linked open finding', 'low', 'open');
   try {
-    await page.goto(`/#/feature/${featureId}`);
+    await page.goto(appUrl(`/#/feature/${featureId}`));
     const card = page.locator('.fd-side .fd-findings-card');
     await expect(card.locator('.fd-card-title')).toContainText('Findings');
     const rows = card.locator('.fd-finding-row');
@@ -217,7 +217,7 @@ test('a feature\'s page lists its linked findings in the side column: open first
     await expect(page).toHaveURL(new RegExp(`#/finding/${openId}$`));
     await expect(page.locator('.fd-title')).toHaveText('Linked open finding');
   } finally {
-    await page.request.delete(`/api/findings/${openId}`);
-    await page.request.delete(`/api/findings/${closedId}`);
+    await page.request.delete(api(`/api/findings/${openId}`));
+    await page.request.delete(api(`/api/findings/${closedId}`));
   }
 });

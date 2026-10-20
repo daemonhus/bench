@@ -1,7 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 // Isolated e2e: own ports, throwaway repo + DB, deterministic seed data.
-// Leaves any dev servers on 5173/8081 alone. Run: npx playwright test -c playwright.e2e.config.ts
+// Runs the platform UI (Vite) against benchd with one project, "e2e". Leaves any dev servers alone. Run: npx playwright test -c playwright.e2e.config.ts
 const WEB = 5183;
 const API = 8091;
 // Suites whose behaviour must hold at every canvas size.
@@ -32,32 +32,36 @@ export default defineConfig({
   webServer: [
     {
       command: 'node e2e/support/fixture-server.mjs',
-      url: `http://localhost:${API}/api/git/info`,
+      url: `http://localhost:${API}/api/projects`,
       env: { E2E_API_PORT: String(API) },
-      stdout: 'ignore',
+      // Ready once seeded (benchd answers well before that).
+      stdout: 'pipe',
+      wait: { stdout: /\[fixture\] ready/ },
       reuseExistingServer: false,
       timeout: 120_000,
     },
     {
       command: 'node e2e/support/fixture-server.mjs',
-      url: `http://localhost:${FRESH_API}/api/git/info`,
+      url: `http://localhost:${FRESH_API}/api/projects`,
       env: { E2E_API_PORT: String(FRESH_API), E2E_FRESH: '1' },
-      stdout: 'ignore',
+      // Ready once seeded (benchd answers well before that).
+      stdout: 'pipe',
+      wait: { stdout: /\[fixture\] ready/ },
       reuseExistingServer: false,
       timeout: 120_000,
     },
     {
-      command: 'npm run dev',
+      command: 'npm --prefix platform/ui run dev',
       url: `http://localhost:${FRESH_WEB}`,
-      env: { VITE_PORT: String(FRESH_WEB), BENCH_API: `http://localhost:${FRESH_API}` },
+      env: { VITE_PORT: String(FRESH_WEB), PLATFORM_API: `http://localhost:${FRESH_API}` },
       stdout: 'ignore',
       reuseExistingServer: false,
       timeout: 60_000,
     },
     {
-      command: 'npm run dev',
+      command: 'npm --prefix platform/ui run dev',
       url: `http://localhost:${WEB}`,
-      env: { VITE_PORT: String(WEB), BENCH_API: `http://localhost:${API}` },
+      env: { VITE_PORT: String(WEB), PLATFORM_API: `http://localhost:${API}` },
       stdout: 'ignore',
       reuseExistingServer: false,
       timeout: 60_000,

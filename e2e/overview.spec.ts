@@ -1,8 +1,9 @@
 import { test, expect } from '@playwright/test';
+import { appUrl } from './helpers/input';
 
 test.describe('Overview page', () => {
   test('renders via #/overview with all three columns', async ({ page }) => {
-    await page.goto('/#/overview');
+    await page.goto(appUrl('/#/overview'));
 
     // Header band: project context + KPIs
     await expect(page.locator('.ovp-project-title')).toBeVisible();
@@ -46,7 +47,7 @@ test.describe('Overview page', () => {
   });
 
   test('the project name, top left, opens the Overview', async ({ page }) => {
-    await page.goto('/#/findings');
+    await page.goto(appUrl('/#/findings'));
     await page.waitForSelector('.tab-bar');
     const name = page.locator('.tab-bar-project-name');
     await expect(name).not.toHaveAttribute('aria-current', 'page');
@@ -56,7 +57,7 @@ test.describe('Overview page', () => {
   });
 
   test('keyboard shortcut 0 switches to overview', async ({ page }) => {
-    await page.goto('/#/findings');
+    await page.goto(appUrl('/#/findings'));
     await page.waitForSelector('.tab-bar');
     await page.keyboard.press('0');
     await expect(page.locator('.ovp-columns')).toBeVisible();

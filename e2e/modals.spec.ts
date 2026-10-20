@@ -1,4 +1,4 @@
-import { test, expect, openView, activeArea, isPhone, primaryPane } from './helpers/input';
+import { test, expect, openView, activeArea, isPhone, primaryPane, api } from './helpers/input';
 import type { Locator, Page } from '@playwright/test';
 
 // Modal chain: for every overlay, the same expected behaviour.
@@ -161,7 +161,7 @@ for (const m of [
         // The finding whose card we open from (first card).
         entityId = await page.locator('[data-finding-id]').first().getAttribute('data-finding-id');
       }
-      const res = await page.request.post('/api/refs', {
+      const res = await page.request.post(api('/api/refs'), {
         data: { entityType: m.entity[0], entityId, provider: 'url', url: 'https://example.com/original', title: 'Original' },
       });
       expect(res.ok()).toBe(true);

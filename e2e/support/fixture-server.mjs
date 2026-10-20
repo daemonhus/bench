@@ -1,8 +1,9 @@
-// Starts an isolated bench backend for e2e: a throwaway git repo, a fresh
-// SQLite DB, and deterministic seed data. Stays alive until killed.
+// Starts an isolated benchd for e2e: a throwaway data dir, one project ("e2e", see
+// PROJECT in helpers/input.ts) on a throwaway git repo, and deterministic seed data.
+// Stays alive until killed.
 // Used as a Playwright webServer (see playwright.e2e.config.ts).
 import { spawn } from 'node:child_process';
-import { mkdtempSync, existsSync, writeFileSync, rmSync, readdirSync, cpSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, existsSync, writeFileSync, rmSync, readdirSync, cpSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,6 +13,8 @@ const PORT = process.env.E2E_API_PORT ?? '8091';
 // E2E_FRESH: no seed data and the profile write gate left ON (profile.spec needs an unconfigured DB).
 const FRESH = !!process.env.E2E_FRESH;
 const API = `http://localhost:${PORT}`;
+const PROJECT = 'e2e';
+const P = `/api/projects/${PROJECT}`;
 const here = dirname(fileURLToPath(import.meta.url));
 const backendDir = join(here, '..', '..', 'backend');
 
@@ -20,43 +23,52 @@ const work = mkdtempSync(join(tmpdir(), 'bench-e2e-'));
 // ── fixture repo ──────────────────────────────────────────────────────────────
 const { repo, head, laterCommits } = createFixtureRepo(work);
 
-// ── build + start backend ──────────────────────────────────────────────────
-// E2E_PROD: serve the PRODUCTION frontend build embedded in the Go binary (what
-// users run), instead of the Vite dev server. Same suite, different bundle.
+// ── build + start benchd ─────────────────────────────────────────────────────
+// benchd embeds the platform UI build from internal/server/dist (a clean checkout has only .gitkeep).
+// E2E_PROD: embed the PRODUCTION UI build (what users run) and have benchd serve it, instead of
+// the Vite dev server. Same suite, different bundle.
+const embedDir = join(backendDir, 'internal', 'server', 'dist');
 if (process.env.E2E_PROD) {
   const root = join(here, '..', '..');
-  const marker = join(backendDir, 'dist', '.e2e-built');
+  const ui = join(root, 'platform', 'ui');
+  const marker = join(embedDir, '.e2e-built');
   if (process.env.E2E_FRESH) {
     // The primary server builds + embeds the frontend once; wait for it.
     for (let i = 0; i < 1200 && !existsSync(marker); i++) await new Promise(r => setTimeout(r, 250));
   } else {
     rmSync(marker, { force: true }); // a stale marker from an earlier run must not release the other server early
-    sh(root, 'npm', 'run', 'build');
+    sh(ui, 'npm', 'run', 'build');
     // Replace the built assets but keep the tracked dist/.gitkeep (go:embed needs the dir to exist).
-    const dist = join(backendDir, 'dist');
-    for (const f of readdirSync(dist)) if (f !== '.gitkeep') rmSync(join(dist, f), { recursive: true, force: true });
-    for (const f of readdirSync(join(root, 'dist'))) cpSync(join(root, 'dist', f), join(dist, f), { recursive: true });
+    for (const f of readdirSync(embedDir)) if (f !== '.gitkeep') rmSync(join(embedDir, f), { recursive: true, force: true });
+    for (const f of readdirSync(join(ui, 'dist'))) cpSync(join(ui, 'dist', f), join(embedDir, f), { recursive: true });
     writeFileSync(marker, 'built');
   }
+} else if (!existsSync(embedDir)) {
+  mkdirSync(embedDir, { recursive: true });
+  writeFileSync(join(embedDir, '.gitkeep'), '');
 }
-const bin = join(work, 'bench-e2e');
-sh(backendDir, 'go', 'build', '-o', bin, './cmd/server');
-const server = spawn(bin, ['-repo', repo, '-db', join(work, 'e2e.db'), '-addr', `:${PORT}`, `-require-profile=${FRESH ? 'true' : 'false'}`], { stdio: process.env.E2E_VERBOSE ? 'inherit' : 'ignore' });
+const bin = join(work, 'benchd-e2e');
+sh(backendDir, 'go', 'build', '-o', bin, './cmd/benchd');
+const server = spawn(bin, ['-data', join(work, 'data'), '-addr', `:${PORT}`], { stdio: process.env.E2E_VERBOSE ? 'inherit' : 'ignore' });
 const stop = () => { server.kill(); process.exit(0); };
 process.on('SIGTERM', stop); process.on('SIGINT', stop); server.on('exit', () => process.exit(1));
 
 for (let i = 0; i < 100; i++) {
-  try { if ((await fetch(`${API}/api/git/info`)).ok) break; } catch { /* not up yet */ }
+  try { if ((await fetch(`${API}/api/projects`)).ok) break; } catch { /* not up yet */ }
   await new Promise(r => setTimeout(r, 200));
 }
 
+const call = async (method, path, body) => {
+  const r = await fetch(`${API}${path}`, { method, headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
+  if (!r.ok) throw new Error(`${method} ${path}: ${r.status} ${await r.text()}`);
+  return r.json();
+};
+await call('POST', '/api/projects', { name: PROJECT, repoPath: repo });
+
 if (!FRESH) {
+  await call('PATCH', `${P}/profile`, {}); // open the write gate
   // ── seed ────────────────────────────────────────────────────────────────────
-  const post = async (path, body) => {
-    const r = await fetch(`${API}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    if (!r.ok) throw new Error(`${path}: ${r.status} ${await r.text()}`);
-    return r.json();
-  };
+  const post = (path, body) => call('POST', `${P}${path.replace(/^\/api/, '')}`, body);
   const anchor = (fileId, start) => ({ fileId, commitId: head, lineRange: { start, end: start } });
   const severities = ['critical', 'high', 'medium', 'low', 'info', 'high', 'medium', 'low'];
   const findingFiles = ['src/api.go', 'src/auth/login.go', 'src/auth/session.go', 'src/store/db.go'];
@@ -101,5 +113,5 @@ if (!FRESH) {
   await post('/api/reconcile', { targetCommit: 'HEAD' });
   await new Promise(r => setTimeout(r, 1500));
 }
-console.log(`[fixture] ready on ${API} repo=${repo} head=${head}`);
+console.log(`[fixture] ready on ${API} project=${PROJECT} repo=${repo} head=${head}`);
 await new Promise(() => {});
