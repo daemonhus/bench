@@ -13,7 +13,6 @@ import (
 	"strings"
 	"testing"
 
-	workbench "bench"
 	"bench/internal/model"
 )
 
@@ -92,18 +91,19 @@ func setupParity(t *testing.T) *parityEnv {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Wired exactly as the servers wire a project: REST and MCP over one database.
-	wb, err := workbench.Open(dir, filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { wb.DB.Close() })
-	if err := wb.DB.PutServiceProfile(model.ServiceProfile{}); err != nil {
-		t.Fatal(err)
-	}
-	srv := httptest.NewServer(wb.Handler())
-	t.Cleanup(srv.Close)
+	// The real server with the repo as its one project: REST, both MCP endpoints and the
+	// CLI all reach the same database.
+	srv := startServer(t, dir, false)
 	return &parityEnv{srv: srv, head: strings.TrimSpace(string(head)), first: strings.TrimSpace(string(first)), dir: dir}
+}
+
+// route maps the workbench paths the tests spell (/api/findings) to the project's routes on
+// the server; paths that already name a project or an MCP endpoint pass through.
+func (e *parityEnv) route(path string) string {
+	if strings.HasPrefix(path, "/api/") && !strings.HasPrefix(path, "/api/projects/") {
+		return projectREST(path)
+	}
+	return path
 }
 
 func (e *parityEnv) http(t *testing.T, method, path string, body any) (int, []byte) {
@@ -113,7 +113,7 @@ func (e *parityEnv) http(t *testing.T, method, path string, body any) (int, []by
 		b, _ := json.Marshal(body)
 		r = bytes.NewReader(b)
 	}
-	req, _ := http.NewRequest(method, e.srv.URL+path, r)
+	req, _ := http.NewRequest(method, e.srv.URL+e.route(path), r)
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -124,10 +124,23 @@ func (e *parityEnv) http(t *testing.T, method, path string, body any) (int, []by
 	return resp.StatusCode, data
 }
 
-// mcpCall runs an MCP tool and reports whether it succeeded, with its message.
+// mcpCall runs an MCP tool on the project's own endpoint (/api/projects/{slug}/mcp) and
+// reports whether it succeeded, with its message.
 func (e *parityEnv) mcpCall(t *testing.T, tool string, args map[string]any) (bool, string) {
 	t.Helper()
-	code, data := e.http(t, "POST", "/mcp", map[string]any{
+	return e.mcpAt(t, "/api/projects/"+testProject+"/mcp", tool, args)
+}
+
+// mcpAggregateCall runs the same tool on the aggregate endpoint (/mcp), where bench tools
+// take the project as an argument.
+func (e *parityEnv) mcpAggregateCall(t *testing.T, tool string, args map[string]any) (bool, string) {
+	t.Helper()
+	return e.mcpAt(t, "/mcp", tool, with(args, map[string]any{"project": testProject}))
+}
+
+func (e *parityEnv) mcpAt(t *testing.T, path, tool string, args map[string]any) (bool, string) {
+	t.Helper()
+	code, data := e.http(t, "POST", path, map[string]any{
 		"jsonrpc": "2.0", "id": 1, "method": "tools/call",
 		"params": map[string]any{"name": tool, "arguments": args},
 	})
@@ -158,8 +171,11 @@ func (e *parityEnv) cli(t *testing.T, args ...string) (bool, string) {
 	t.Helper()
 	var stdout, stderr bytes.Buffer
 	getenv := func(k string) string {
-		if k == "BENCH_URL" {
+		switch k {
+		case "BENCH_URL":
 			return e.srv.URL
+		case "BENCH_PROJECT":
+			return testProject
 		}
 		return ""
 	}
@@ -245,6 +261,13 @@ func TestLineRangeParity_Create(t *testing.T) {
 			item := lines(with(k.extra, map[string]any{k.textField: text, "file": "main.go", "commit": e.head}), "start", "end", c)
 			return e.mcpCall(t, "batch_create_"+k.plural, map[string]any{k.plural: []any{item}})
 		}},
+		{"MCP aggregate", func(t *testing.T, k kindSpec, text string, c lineCase) (bool, string) {
+			return e.mcpAggregateCall(t, "create_"+k.name, lines(with(k.extra, map[string]any{k.textField: text, "file": "main.go", "commit": e.head}), "start", "end", c))
+		}},
+		{"MCP aggregate batch", func(t *testing.T, k kindSpec, text string, c lineCase) (bool, string) {
+			item := lines(with(k.extra, map[string]any{k.textField: text, "file": "main.go", "commit": e.head}), "start", "end", c)
+			return e.mcpAggregateCall(t, "batch_create_"+k.plural, map[string]any{k.plural: []any{item}})
+		}},
 		{"CLI", func(t *testing.T, k kindSpec, text string, c lineCase) (bool, string) {
 			args := append([]string{k.plural, "create", "--" + k.textField, text, "--file", "main.go", "--commit", e.head}, k.cliExtra...)
 			if c.start != 0 {
@@ -311,6 +334,13 @@ func TestLineRangeParity_Update(t *testing.T) {
 				args["author"] = "a"
 			}
 			return e.mcpCall(t, "update_"+k.name, args)
+		}},
+		{"MCP aggregate", func(t *testing.T, k kindSpec, id string, c lineCase) (bool, string) {
+			args := lines(map[string]any{"id": id}, "start", "end", c)
+			if k.name == "comment" {
+				args["author"] = "a"
+			}
+			return e.mcpAggregateCall(t, "update_"+k.name, args)
 		}},
 		{"CLI", func(t *testing.T, k kindSpec, id string, c lineCase) (bool, string) {
 			args := []string{k.plural, "update", "--id", id}
@@ -607,6 +637,12 @@ func TestCreateContractParity(t *testing.T) {
 		},
 		"MCP batch": func(k kindSpec, item map[string]any, _ []string) (bool, string) {
 			return e.mcpCall(t, "batch_create_"+k.plural, map[string]any{k.plural: []any{item}})
+		},
+		"MCP aggregate": func(k kindSpec, item map[string]any, _ []string) (bool, string) {
+			return e.mcpAggregateCall(t, "create_"+k.name, item)
+		},
+		"MCP aggregate batch": func(k kindSpec, item map[string]any, _ []string) (bool, string) {
+			return e.mcpAggregateCall(t, "batch_create_"+k.plural, map[string]any{k.plural: []any{item}})
 		},
 		"CLI": func(k kindSpec, _ map[string]any, cliArgs []string) (bool, string) {
 			return e.cli(t, append([]string{k.plural, "create"}, cliArgs...)...)

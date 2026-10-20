@@ -962,14 +962,14 @@ func printRootHelp(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
 	fmt.Fprintln(w, "  bench [global-flags] <category> <command> [command-flags]")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Project categories (single-project server, or a multi-project server with --project):")
+	fmt.Fprintln(w, "Project categories (need --project <slug>):")
 	tw := tabwriter.NewWriter(w, 2, 4, 3, ' ', 0)
 	for _, c := range categories {
 		fmt.Fprintf(tw, "  %s\t%s\n", c.Name, c.Desc)
 	}
 	tw.Flush()
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Multi-project categories (require a multi-project server; --project not needed):")
+	fmt.Fprintln(w, "Server-wide categories (--project not needed):")
 	tw = tabwriter.NewWriter(w, 2, 4, 3, ' ', 0)
 	for _, g := range mpGroups {
 		if g.Parent != "" {
@@ -981,12 +981,11 @@ func printRootHelp(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Global Flags:")
 	fmt.Fprintf(w, "  --url string       Server base URL (default %q, env BENCH_URL)\n", defaultBaseURL)
-	fmt.Fprintln(w, "  --project string   Project slug on a multi-project server (env BENCH_PROJECT);")
-	fmt.Fprintln(w, "                     routes project commands through /api/projects/<slug>")
+	fmt.Fprintln(w, "  --project string   Project slug (env BENCH_PROJECT); required by project categories,")
+	fmt.Fprintln(w, "                     see 'bench projects list'")
 	fmt.Fprintln(w, "  --version          Print version and exit")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Examples:")
-	fmt.Fprintln(w, "  bench findings list --severity high")
 	fmt.Fprintln(w, "  bench projects list")
 	fmt.Fprintln(w, "  bench --project my-api findings list --severity high")
 	fmt.Fprintln(w, "  bench flows list --status active")
@@ -1320,12 +1319,8 @@ func main() {
 }
 
 // projectPath turns a command's workbench endpoint (/api/findings) into the
-// multi-project server's per-project route (/api/projects/{slug}/findings).
-// Empty project leaves the path as is.
+// server's per-project route (/api/projects/{slug}/findings).
 func projectPath(project, path string) string {
-	if project == "" {
-		return path
-	}
 	return "/api/projects/" + url.PathEscape(project) + strings.TrimPrefix(path, "/api")
 }
 
@@ -1452,6 +1447,9 @@ func run(args []string, getenv func(string) string, stdout, stderr io.Writer) in
 		fmt.Fprintf(stderr, "Error: %v\n", err)
 		return 1
 	}
+	if project == "" {
+		return missingProject(client, matched, stderr)
+	}
 	path = projectPath(project, path)
 
 	// Batch mode: POST each item individually. stdout gets the created IDs as JSON
@@ -1502,9 +1500,8 @@ func run(args []string, getenv func(string) string, stdout, stderr io.Writer) in
 	data, status, err := client.do(method, path, body)
 	if err != nil {
 		fmt.Fprintf(stderr, "Error: %v\n", err)
-		fmt.Fprintf(stderr, "\nIs the workbench server running? Start it with:\n")
-		fmt.Fprintf(stderr, "  ./dev.sh /path/to/repo          (single project)\n")
-		fmt.Fprintf(stderr, "  ./platform/dev.sh               (multi-project; then pass --project <slug>)\n")
+		fmt.Fprintf(stderr, "\nIs benchd running? Start it with:\n")
+		fmt.Fprintf(stderr, "  benchd -data ./data -addr :8080\n")
 		fmt.Fprintf(stderr, "\nOr specify a different URL with --url.\n")
 		return 1
 	}
@@ -1542,13 +1539,9 @@ func run(args []string, getenv func(string) string, stdout, stderr io.Writer) in
 		return 1
 	}
 	// The bench API only returns JSON (or empty bodies). An HTML page means
-	// the request fell through to a web UI, e.g. a multi-project server's
-	// SPA handler because no --project was given.
+	// the request fell through to the web UI, e.g. --url points at the wrong server.
 	if looksLikeHTML(data) {
 		fmt.Fprintf(stderr, "Error: %s returned an HTML page instead of an API response.\n", serverURL+path)
-		if project == "" {
-			fmt.Fprintln(stderr, "(hint: on a multi-project server, pass --project <slug> or set BENCH_PROJECT; see 'bench projects list'.)")
-		}
 		return 1
 	}
 	fmt.Fprintln(stdout, formatOutput(data, status))
@@ -1561,13 +1554,39 @@ func looksLikeHTML(data []byte) bool {
 }
 
 // notFoundHint explains a bare router 404 ("404 page not found"), which
-// usually means the server is the wrong kind for the request.
+// means the project in the path does not exist on the server.
 func notFoundHint(data []byte, status int, project string) string {
 	if status != http.StatusNotFound || !strings.Contains(string(data), "404 page not found") {
 		return ""
 	}
-	if project != "" {
-		return fmt.Sprintf("\n(hint: --project %q is set; is this a multi-project server, and does the project exist? See 'bench projects list'.)", project)
+	return fmt.Sprintf("\n(hint: --project %q is set; does the project exist? See 'bench projects list'.)", project)
+}
+
+// missingProject is the error for a project command run without --project /
+// BENCH_PROJECT: it asks the server which projects exist so the message can
+// list their slugs.
+func missingProject(client *apiClient, cmd *cmdDef, stderr io.Writer) int {
+	fmt.Fprintf(stderr, "Error: 'bench %s %s' needs a project: pass --project <slug> or set BENCH_PROJECT.\n", cmd.Cat, cmd.Name)
+	data, status, err := client.do("GET", "/api/projects", nil)
+	if err != nil {
+		fmt.Fprintf(stderr, "\n%v\n\nIs benchd running? Start it with 'benchd -data ./data -addr :8080', or pass --url.\n", err)
+		return 1
 	}
-	return "\n(hint: on a multi-project server, pass --project <slug> or set BENCH_PROJECT.)"
+	var projects []struct {
+		Slug string `json:"slug"`
+	}
+	if status >= 400 || json.Unmarshal(data, &projects) != nil {
+		fmt.Fprintf(stderr, "(could not list projects: %s)\n", strings.TrimSpace(formatOutput(data, status)))
+		return 1
+	}
+	if len(projects) == 0 {
+		fmt.Fprintln(stderr, "No projects yet. Add one with: bench projects create --name <name> --repo-path <path>")
+		return 1
+	}
+	slugs := make([]string, len(projects))
+	for i, p := range projects {
+		slugs[i] = p.Slug
+	}
+	fmt.Fprintf(stderr, "Available projects: %s\n", strings.Join(slugs, ", "))
+	return 1
 }

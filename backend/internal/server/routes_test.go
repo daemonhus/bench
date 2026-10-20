@@ -9,7 +9,7 @@ import (
 // that live beside them.
 func TestRoutes_ProjectMountAndCrossProject(t *testing.T) {
 	p, _ := newTestPlatform(t)
-	h := p.routes()
+	h := p.Routes()
 	repo, _ := newGitRepo(t)
 
 	if w := do(t, h, "POST", "/api/projects", `{"name":"Svc","repoPath":"`+repo+`"}`); w.Code != 201 {

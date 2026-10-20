@@ -24,8 +24,11 @@ func TestBatchCreate_PrintsCreatedIDs(t *testing.T) {
 	os.WriteFile(in, b, 0644)
 	var stdout, stderr bytes.Buffer
 	getenv := func(k string) string {
-		if k == "BENCH_URL" {
+		switch k {
+		case "BENCH_URL":
 			return e.srv.URL
+		case "BENCH_PROJECT":
+			return testProject
 		}
 		return ""
 	}

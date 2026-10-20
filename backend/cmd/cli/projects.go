@@ -8,7 +8,7 @@ import (
 	"text/tabwriter"
 )
 
-// projects + baselines-all: multi-project server administration.
+// projects + baselines-all: project administration across the server.
 
 func init() {
 	mpCommands = append(mpCommands,

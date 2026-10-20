@@ -109,14 +109,53 @@ func jsonEqual(t *testing.T, got, want string) bool {
 // --project routing
 // ---------------------------------------------------------------------------
 
-func TestProject_NoProject_Unprefixed(t *testing.T) {
+func TestProject_Required_ListsSlugs(t *testing.T) {
 	r := newRecorder(t)
-	code, _, stderr := runCLI(t, r, nil, "findings", "list", "--severity", "high")
-	if code != 0 {
-		t.Fatalf("exit %d: %s", code, stderr)
+	r.responses["GET /api/projects"] = cannedResp{200, `[{"slug":"alpha","name":"Alpha"},{"slug":"beta","name":"Beta"}]`}
+	code, stdout, stderr := runCLI(t, r, nil, "findings", "list", "--severity", "high")
+	if code != 1 || stdout != "" {
+		t.Fatalf("exit %d, stdout %q, stderr %q", code, stdout, stderr)
 	}
-	if got := r.last(t).URI; got != "/api/findings?severity=high" {
-		t.Errorf("path = %q", got)
+	for _, want := range []string{"'bench findings list' needs a project", "--project", "BENCH_PROJECT", "Available projects: alpha, beta"} {
+		if !strings.Contains(stderr, want) {
+			t.Errorf("stderr %q missing %q", stderr, want)
+		}
+	}
+	// Only the project lookup went out; the command itself was never sent.
+	if len(r.reqs) != 1 || r.reqs[0].Method != "GET" || r.reqs[0].URI != "/api/projects" {
+		t.Errorf("requests = %+v, want just GET /api/projects", r.reqs)
+	}
+}
+
+func TestProject_Required_NoProjectsYet(t *testing.T) {
+	r := newRecorder(t)
+	r.responses["GET /api/projects"] = cannedResp{200, `[]`}
+	code, _, stderr := runCLI(t, r, nil, "comments", "list")
+	if code != 1 || !strings.Contains(stderr, "No projects yet") || !strings.Contains(stderr, "bench projects create") {
+		t.Errorf("exit %d, stderr %q", code, stderr)
+	}
+}
+
+func TestProject_Required_ServerDown(t *testing.T) {
+	r := newRecorder(t)
+	r.srv.Close()
+	code, _, stderr := runCLI(t, r, map[string]string{"BENCH_URL": r.srv.URL}, "git", "branches")
+	if code != 1 || !strings.Contains(stderr, "needs a project") || !strings.Contains(stderr, "Is benchd running?") {
+		t.Errorf("exit %d, stderr %q", code, stderr)
+	}
+}
+
+// Help and flag errors come first: neither needs a project, so they never ask the server.
+func TestProject_NotRequiredForHelpOrFlagErrors(t *testing.T) {
+	r := newRecorder(t)
+	if code, _, _ := runCLI(t, r, nil, "findings", "list", "--help"); code != 0 {
+		t.Errorf("command help: exit %d", code)
+	}
+	if code, _, stderr := runCLI(t, r, nil, "findings", "create", "--severity", "high"); code != 1 || strings.Contains(stderr, "needs a project") {
+		t.Errorf("missing required flag: exit %d, stderr %q", code, stderr)
+	}
+	if len(r.reqs) != 0 {
+		t.Errorf("requests = %+v, want none", r.reqs)
 	}
 }
 
@@ -223,20 +262,20 @@ func TestProject_NotFoundHint(t *testing.T) {
 
 func TestProject_HTMLFallthroughIsAnError(t *testing.T) {
 	r := newRecorder(t)
-	r.responses["GET /api/findings"] = cannedResp{200, "<!doctype html>\n<html><body>app</body></html>"}
-	code, _, stderr := runCLI(t, r, nil, "findings", "list")
-	if code != 1 || !strings.Contains(stderr, "HTML page") || !strings.Contains(stderr, "--project") {
+	r.responses["GET /api/projects/svc/findings"] = cannedResp{200, "<!doctype html>\n<html><body>app</body></html>"}
+	code, _, stderr := runCLI(t, r, nil, "--project", "svc", "findings", "list")
+	if code != 1 || !strings.Contains(stderr, "HTML page") {
 		t.Errorf("exit %d, stderr %q", code, stderr)
 	}
 }
 
-func TestRootHelp_ListsMultiProjectSection(t *testing.T) {
+func TestRootHelp_ListsServerWideSection(t *testing.T) {
 	r := newRecorder(t)
 	code, _, stderr := runCLI(t, r, nil, "--help")
 	if code != 0 {
 		t.Fatalf("exit %d", code)
 	}
-	for _, want := range []string{"Multi-project categories", "projects", "baselines-all", "flows", "catalog", "--project", "BENCH_PROJECT", "profile"} {
+	for _, want := range []string{"Project categories (need --project", "Server-wide categories", "projects", "baselines-all", "flows", "catalog", "--project", "BENCH_PROJECT", "profile"} {
 		if !strings.Contains(stderr, want) {
 			t.Errorf("root help missing %q", want)
 		}

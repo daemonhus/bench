@@ -1,6 +1,6 @@
 package main
 
-// Multi-project commands. These talk to a multi-project server's
+// Multi-project commands. These talk to the server's
 // /api/* API (projects, cross-project baselines, flows, flow folders,
 // saved flow views, the cross-project feature catalog). They are not routed
 // through --project; a few use it as a default value (e.g. flows add-step).
@@ -290,7 +290,7 @@ func (c *cli) req(method, path string, body any) ([]byte, int, error) {
 	}
 	data, status, err := c.client.do(method, path, r)
 	if err != nil {
-		return nil, 0, fmt.Errorf("%v\n\nIs the multi-project server running? Start it with ./platform/dev.sh, or pass --url.", err)
+		return nil, 0, fmt.Errorf("%v\n\nIs benchd running? Start it with 'benchd -data ./data -addr :8080', or pass --url.", err)
 	}
 	if status >= 400 {
 		msg := formatOutput(data, status)
@@ -339,7 +339,6 @@ func (c *cli) readInput(file string) ([]byte, error) {
 func (c *cli) printGroupHelp(g *mpGroup) {
 	w := c.stderr
 	fmt.Fprintf(w, "bench %s - %s\n\n", g.path(), strings.ToLower(g.Desc[:1])+g.Desc[1:])
-	fmt.Fprintln(w, "Requires a multi-project server.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Commands:")
 	tw := tabwriter.NewWriter(w, 2, 4, 3, ' ', 0)
@@ -395,7 +394,6 @@ func (c *cli) printMPCommandHelp(cmd *mpCmd) {
 		}
 		fmt.Fprintln(w, ").")
 	}
-	fmt.Fprintln(w, "Requires a multi-project server.")
 	if len(cmd.Flags) == 0 {
 		return
 	}

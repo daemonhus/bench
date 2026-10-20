@@ -52,7 +52,7 @@ benchd (:8081)
 - **Workbench REST endpoint:** a handler in `backend/internal/api/`, registered in `router.go`. The platform forwards it with no change.
 - **Platform REST endpoint:** a handler in `backend/internal/server/`, registered in `registerPlatformRoutes` (`server.go`; folders in `registerFolderRoutes`, `flow_folders.go`). Cross-project routes sit directly under `/api/`; per-project ones under `/api/projects/{slug}/`.
 - **Platform MCP tool:** `platformToolDefs()` in `backend/internal/server/mcp.go`.
-- **Per-project CLI command:** the declarative command table in `backend/cmd/cli/main.go`; it works against both servers.
+- **Per-project CLI command:** the declarative command table in `backend/cmd/cli/main.go`.
 - **Multi-project CLI command:** an `mpCmd` in `mpCommands` in `backend/cmd/cli/{projects,flows,folders,catalog}.go`; shared machinery in `multiproject.go`, tests in `multiproject_test.go`. These hit the cross-project `/api/*` routes.
 
 The CLI is an HTTP client only: it never imports `workbench` or `internal/*` or opens a database. Env vars `BENCH_URL` and `BENCH_PROJECT`; flags take precedence.

@@ -5,7 +5,7 @@ package main
 //  1. Unit tests for parseFlags and buildRequest - pure functions that build
 //     HTTP requests from CLI arguments. No server needed.
 //
-//  2. Integration tests that spin up a real API server and verify that each
+//  2. Integration tests that spin up the real server (one project, "svc") and verify that each
 //     CLI command's flag→param mapping actually reaches the server correctly.
 //     These catch the class of bug where a flag is named "fileId" in the table
 //     but the API expects "file_id", or a required field is silently dropped.
@@ -21,11 +21,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"bench/internal/api"
-	"bench/internal/db"
-	"bench/internal/git"
-	"bench/internal/model"
 )
 
 // ---------------------------------------------------------------------------
@@ -477,23 +472,9 @@ func setupIntegrationServerWithProfile(t *testing.T, configureProfile bool) (*ht
 		}
 	}
 
-	database, err := db.Open(filepath.Join(dir, "test.db"), "test")
-	if err != nil {
-		t.Fatalf("open db: %v", err)
-	}
-	t.Cleanup(func() { database.Close() })
-
-	repo := git.NewRepo(dir)
-	if configureProfile {
-		// Configure the profile so the write gate (on by default) passes;
-		// gate behaviour is covered in TestCLIIntegration_Profile_WriteGate.
-		if err := database.PutServiceProfile(model.ServiceProfile{}); err != nil {
-			t.Fatalf("configure profile: %v", err)
-		}
-	}
-	router := api.NewRouter(repo, database, nil)
-	srv := httptest.NewServer(router)
-	t.Cleanup(srv.Close)
+	// Configure the profile so the write gate (on by default) passes;
+	// gate behaviour is covered in TestCLIIntegration_Profile_WriteGate.
+	srv := startServer(t, dir, !configureProfile)
 
 	// Get HEAD commit hash
 	out, err := exec.Command("git", "-C", dir, "rev-parse", "HEAD").Output()
@@ -520,7 +501,7 @@ func cliDo(t *testing.T, srv *httptest.Server, cat, name string, flagArgs []stri
 	}
 
 	client := newAPIClient(srv.URL)
-	data, code, err := client.do(method, path, body)
+	data, code, err := client.do(method, projectREST(path), body)
 	if err != nil {
 		t.Fatalf("do %s %s: %v", method, path, err)
 	}
@@ -792,7 +773,7 @@ func TestBatchCreate_EveryDocumentedKeyReachesTheAPI(t *testing.T) {
 			t.Fatal(err)
 		}
 		r := newRecorder(t)
-		if code, _, stderr := runCLI(t, r, nil, cat, "batch-create", "--input", in); code != 0 {
+		if code, _, stderr := runCLI(t, r, map[string]string{"BENCH_PROJECT": testProject}, cat, "batch-create", "--input", in); code != 0 {
 			t.Fatalf("%s batch-create: exit %d: %s", cat, code, stderr)
 		}
 		var body map[string]any

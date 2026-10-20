@@ -50,9 +50,9 @@ type Project struct {
 	Activity *workbench.BranchActivity `json:"activity,omitempty"`
 }
 
-// routes is the whole server: project and cross-project REST, each project's workbench under
+// Routes is the whole server: project and cross-project REST, each project's workbench under
 // /api/projects/{slug}/, the aggregate MCP at /mcp and the UI for everything else.
-func (p *Platform) routes() http.Handler {
+func (p *Platform) Routes() http.Handler {
 	mux := http.NewServeMux()
 	p.registerPlatformRoutes(mux)
 	mux.Handle("/api/projects/{slug}/", p.workbenchRouter())
@@ -74,7 +74,7 @@ func Run(dataDir, addr string) error {
 	defer p.Close()
 
 	log.Printf("benchd listening on %s (data=%s)", addr, dataDir)
-	return http.ListenAndServe(addr, workbench.WithMiddleware(p.routes()))
+	return http.ListenAndServe(addr, workbench.WithMiddleware(p.Routes()))
 }
 
 func NewPlatform(dataDir string) (*Platform, error) {
