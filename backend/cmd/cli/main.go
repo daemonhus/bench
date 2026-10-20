@@ -1454,8 +1454,15 @@ func run(args []string, getenv func(string) string, stdout, stderr io.Writer) in
 	}
 	path = projectPrefix(project) + path
 
-	// Batch mode: POST each item individually.
+	// Batch mode: POST each item individually. stdout gets the created IDs as JSON
+	// ([{"index":0,"id":"…"}], failed items left out) for scripts to pipe on;
+	// progress and the summary go to stderr.
 	if len(batchItems) > 0 {
+		type createdItem struct {
+			Index int    `json:"index"`
+			ID    string `json:"id"`
+		}
+		created := []createdItem{}
 		var errors int
 		for i, item := range batchItems {
 			normalized, err := normalizeBatchItem(item, createCommandFor(matched.Cat))
@@ -1475,9 +1482,16 @@ func run(args []string, getenv func(string) string, stdout, stderr io.Writer) in
 				errors++
 				continue
 			}
-			fmt.Fprintf(stderr, "[%d/%d] created\n", i+1, len(batchItems))
+			var resp struct {
+				ID string `json:"id"`
+			}
+			_ = json.Unmarshal(data, &resp)
+			created = append(created, createdItem{Index: i, ID: resp.ID})
+			fmt.Fprintf(stderr, "[%d/%d] created %s\n", i+1, len(batchItems), resp.ID)
 		}
-		fmt.Fprintf(stdout, "%d/%d succeeded\n", len(batchItems)-errors, len(batchItems))
+		out, _ := json.MarshalIndent(created, "", "  ")
+		fmt.Fprintln(stdout, string(out))
+		fmt.Fprintf(stderr, "%d/%d succeeded\n", len(batchItems)-errors, len(batchItems))
 		if errors > 0 {
 			return 1
 		}

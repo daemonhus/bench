@@ -185,8 +185,13 @@ func TestProject_PrefixesBatchCreate(t *testing.T) {
 	if len(r.reqs) != 2 || r.reqs[0].URI != "/api/p/svc/api/findings" || r.reqs[1].URI != "/api/p/svc/api/findings" {
 		t.Errorf("requests = %+v", r.reqs)
 	}
-	if !strings.Contains(stdout, "2/2 succeeded") {
-		t.Errorf("stdout = %q", stdout)
+	// stdout lists what was created (as JSON); the summary goes to stderr.
+	var created []map[string]any
+	if err := json.Unmarshal([]byte(stdout), &created); err != nil || len(created) != 2 {
+		t.Errorf("stdout = %q, want a JSON list of the 2 created items", stdout)
+	}
+	if !strings.Contains(stderr, "2/2 succeeded") {
+		t.Errorf("stderr = %q", stderr)
 	}
 }
 
