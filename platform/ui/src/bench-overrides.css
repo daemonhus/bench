@@ -10,3 +10,8 @@
 .platform-workbench .theme-toggle-slider {
   display: none;
 }
+
+/* The tab bar's tooltips overhang the right edge on phones; clip them so the shell cannot be scrolled sideways by them. */
+.platform-workbench .app-shell {
+  overflow: clip;
+}

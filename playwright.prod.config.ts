@@ -15,8 +15,8 @@ export default defineConfig({
   reporter: [['list']],
   use: { baseURL: `http://localhost:${API}`, trace: 'retain-on-failure' },
   projects: [
-    { name: 'chromium', testIgnore: /profile\.spec/, use: { ...devices['Desktop Chrome'] } },
-    { name: 'fresh-profile', testMatch: /profile\.spec/, use: { ...devices['Desktop Chrome'], baseURL: `http://localhost:${FRESH_API}` } },
+    { name: 'chromium', testIgnore: /profile(-banner)?\.spec/, use: { ...devices['Desktop Chrome'] } },
+    { name: 'fresh-profile', testMatch: /profile(-banner)?\.spec/, use: { ...devices['Desktop Chrome'], baseURL: `http://localhost:${FRESH_API}` } },
   ],
   webServer: [
     {

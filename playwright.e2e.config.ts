@@ -18,14 +18,14 @@ export default defineConfig({
   reporter: [['list']],
   use: { baseURL: `http://localhost:${WEB}`, trace: 'retain-on-failure' },
   projects: [
-    { name: 'chromium', testIgnore: /profile\.spec/, use: { ...devices['Desktop Chrome'] } },
+    { name: 'chromium', testIgnore: /profile(-banner)?\.spec/, use: { ...devices['Desktop Chrome'] } },
     // The behaviour suites again at the other canvas sizes (the responsive.spec layout checks set their own).
     // Run: npx playwright test -c playwright.e2e.config.ts --project=ultrawide --project=phone
     { name: 'ultrawide', testMatch: BEHAVIOUR, use: { ...devices['Desktop Chrome'], viewport: { width: 3440, height: 1440 } } },
     { name: 'phone', testMatch: BEHAVIOUR, use: { ...devices['Desktop Chrome'], viewport: { width: 390, height: 844 } } },
     {
       name: 'fresh-profile',
-      testMatch: /profile\.spec/,
+      testMatch: /profile(-banner)?\.spec/,
       use: { ...devices['Desktop Chrome'], baseURL: `http://localhost:${FRESH_WEB}` },
     },
   ],

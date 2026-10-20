@@ -145,7 +145,8 @@ test('reconciliation sits at the foot of the right-hand column on finding and fe
     await expect(page.locator('.fd-title')).toBeVisible();
     // Main column: comments (and a feature's parameters); the side column ends with reconciliation.
     await expect(page.locator('.fd-main .fd-card-title', { hasText: 'Reconciliation' })).toHaveCount(0);
-    const side = await page.locator('.fd-side > .fd-card > .fd-card-title').allTextContents();
+    // (The platform shell adds its own "Used in flows" card to this column; the workbench's cards keep their order.)
+    const side = (await page.locator('.fd-side > .fd-card > .fd-card-title').allTextContents()).filter((t) => !/^Used in flows/.test(t));
     expect(side[0]).toMatch(/^Provenance/);
     expect(side[side.length - 1]).toMatch(/^Reconciliation/);
     // Its rows fit the narrower column: nothing spills out of the card.
@@ -206,7 +207,8 @@ test('a feature\'s page lists its linked findings in the side column: open first
     await expect(closed.locator('.select-tinted')).toHaveText('Closed');
     expect(Number(await closed.evaluate((e) => getComputedStyle(e).opacity))).toBeLessThan(1);
     // It sits under Provenance, before origin and links; the side column is 410px wide.
-    const side = await page.locator('.fd-side > .fd-card > .fd-card-title').allTextContents();
+    // (The platform shell adds its own "Used in flows" card to this column; the workbench's cards keep their order.)
+    const side = (await page.locator('.fd-side > .fd-card > .fd-card-title').allTextContents()).filter((t) => !/^Used in flows/.test(t));
     expect(side[0]).toMatch(/^Provenance/);
     expect(side[1]).toMatch(/^Findings/);
     const width = (await page.locator('.fd-side').boundingBox())!.width;

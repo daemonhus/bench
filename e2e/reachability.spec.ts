@@ -28,6 +28,8 @@ async function unreachable(page: Page): Promise<string[]> {
       if (el.getClientRects().length === 0) continue;
       if (el.closest('[data-chrome]') || el.classList.contains('shortcuts-fab')) continue;
       if (el.closest('[data-nav-id]')) continue;
+      // The platform shell's rail is the host app's own navigation (native Tab), outside the workbench areas.
+      if (el.closest('.platform-rail')) continue;
       if (el.closest('[role=dialog]')) continue;
       const area = el.closest('[data-nav-area]')?.getAttribute('data-nav-area') ?? '';
       if (roving.includes(area)) continue;
