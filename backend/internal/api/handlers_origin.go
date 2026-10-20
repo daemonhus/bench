@@ -33,6 +33,9 @@ func (h *featuresHandlers) featureAnchor(id string) (model.Anchor, error) {
 func (h *findingsHandlers) putOrigin(w http.ResponseWriter, r *http.Request) {
 	originPut(h.db, h.repo, h.broker, "finding", h.findingAnchor, w, r)
 }
+func (h *findingsHandlers) getOrigin(w http.ResponseWriter, r *http.Request) {
+	originGet(h.db, "finding", h.findingAnchor, w, r)
+}
 func (h *findingsHandlers) deleteOrigin(w http.ResponseWriter, r *http.Request) {
 	originDelete(h.db, h.broker, "finding", h.findingAnchor, w, r)
 }
@@ -41,6 +44,9 @@ func (h *findingsHandlers) suggestOrigin(w http.ResponseWriter, r *http.Request)
 }
 func (h *featuresHandlers) putOrigin(w http.ResponseWriter, r *http.Request) {
 	originPut(h.db, h.repo, h.broker, "feature", h.featureAnchor, w, r)
+}
+func (h *featuresHandlers) getOrigin(w http.ResponseWriter, r *http.Request) {
+	originGet(h.db, "feature", h.featureAnchor, w, r)
 }
 func (h *featuresHandlers) deleteOrigin(w http.ResponseWriter, r *http.Request) {
 	originDelete(h.db, h.broker, "feature", h.featureAnchor, w, r)
@@ -63,9 +69,16 @@ func originPut(dbh *db.DB, repo *git.Repo, broker *events.Broker, entityType str
 		IntroducedDate   *string `json:"introducedDate"`
 		Actor            *string `json:"actor"`
 		Branch           *string `json:"branch"`
+		// Accepted and ignored: the UI sends the stored origin back, and the server stamps it.
+		UpdatedAt *string `json:"updatedAt"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid JSON")
+	// Unknown keys are refused rather than silently dropped (e.g. "commit" or
+	// "date" for introducedCommit / introducedDate).
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid origin: "+err.Error()+
+			" (fields: explanation, introducedCommit, introducedDate, actor, branch)")
 		return
 	}
 
@@ -117,6 +130,24 @@ func originPut(dbh *db.DB, repo *git.Repo, broker *events.Broker, entityType str
 		broker.Publish(events.TopicAnnotations)
 	}
 	writeJSON(w, http.StatusOK, updated)
+}
+
+// originGet returns the entity's historical context; an empty object when none is recorded.
+func originGet(dbh *db.DB, entityType string, anchorOf originAnchorFn, w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if _, err := anchorOf(id); err != nil {
+		writeError(w, http.StatusNotFound, entityType+" not found")
+		return
+	}
+	o, err := dbh.GetOrigin(entityType, id)
+	if err != nil {
+		writeInternalError(w, err)
+		return
+	}
+	if o == nil {
+		o = &model.Origin{}
+	}
+	writeJSON(w, http.StatusOK, o)
 }
 
 func originDelete(dbh *db.DB, broker *events.Broker, entityType string, anchorOf originAnchorFn, w http.ResponseWriter, r *http.Request) {

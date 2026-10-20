@@ -783,7 +783,7 @@ func buildRequest(cmd *cmdDef, pf *parsedFlags) (method, path string, body io.Re
 			path += "?" + q.Encode()
 		}
 
-	case "POST", "PATCH":
+	case "POST", "PATCH", "PUT": // PUT: set-origin
 		// Check for batch input.
 		for _, fd := range cmd.Flags {
 			if fd.Type == "batch" {

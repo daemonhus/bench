@@ -811,3 +811,21 @@ func TestBatchCreate_EveryDocumentedKeyReachesTheAPI(t *testing.T) {
 		}
 	}
 }
+
+// set-origin is a PUT; the CLI used to build a body only for POST and PATCH, so it sent
+// nothing and the server answered "invalid JSON".
+func TestCLIIntegration_SetOriginSendsItsFlags(t *testing.T) {
+	srv, head := setupIntegrationServer(t)
+	created, code := cliDo(t, srv, "findings", "create", []string{"--title", "t", "--severity", "low", "--file", "main.go", "--commit", head})
+	if code != 201 {
+		t.Fatalf("create: %d %v", code, created)
+	}
+	id := created["id"].(string)
+	got, code := cliDo(t, srv, "findings", "set-origin", []string{"--id", id, "--explanation", "added with the login form", "--actor", "dev", "--branch", "feature/login"})
+	if code != 200 {
+		t.Fatalf("set-origin: %d %v", code, got)
+	}
+	if got["explanation"] != "added with the login form" || got["actor"] != "dev" || got["branch"] != "feature/login" {
+		t.Errorf("set-origin stored %v", got)
+	}
+}
