@@ -155,9 +155,9 @@ No parameters.
 |-----------|------|----------|-------------|
 | `title` | string | yes | Short title |
 | `severity` | string | yes | `critical` \| `high` \| `medium` \| `low` \| `info` |
-| `file` | string | yes | File path |
-| `commit` | string | yes | Commit hash or ref (e.g. `HEAD`, branch name, or full SHA) |
-| `description` | string | yes | Detailed description |
+| `file` | string | no | File path |
+| `commit` | string | no | Commit hash or ref (e.g. `HEAD`, branch name, or full SHA). Default: HEAD |
+| `description` | string | no | Detailed description |
 | `start` | int | no | Start line |
 | `end` | int | no | End line |
 | `cwe` | string | no | CWE identifier (e.g. `CWE-89`) |
@@ -232,8 +232,8 @@ Create multiple findings in a single transaction. Accepts the same fields as `cr
 |-----------|------|----------|-------------|
 | `author` | string | yes | Author name |
 | `text` | string | yes | Comment text |
-| `file` | string | yes | File path |
-| `commit` | string | yes | Git commit |
+| `file` | string | no | File path |
+| `commit` | string | no | Git commit. Default: HEAD |
 | `start` | int | no | Start line |
 | `end` | int | no | End line |
 | `parent` | string | no | Parent comment ID (inherits the parent's thread) |
@@ -289,8 +289,8 @@ Annotate an architectural feature: an API interface, data source/sink, dependenc
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `file` | string | yes | File path |
-| `commit` | string | yes | Commit hash or ref (e.g. `HEAD`, branch name, or full SHA) |
+| `file` | string | no | File path |
+| `commit` | string | no | Commit hash or ref (e.g. `HEAD`, branch name, or full SHA). Default: HEAD |
 | `kind` | string | yes | `interface` (API endpoint/handler) \| `source` (data input: DB read, file read) \| `sink` (data output: DB write, outbound call) \| `dependency` (third-party lib/service) \| `externality` (background job, scheduler, side-effect) |
 | `title` | string | yes | Short label. Do **not** include the HTTP method (e.g. `"Login endpoint"`, not `"POST /login"`). Use `operation` for it. |
 | `start` | int | no | Start line |

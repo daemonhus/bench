@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"bench/internal/anchor"
 	"bench/internal/db"
 	"bench/internal/events"
 	"bench/internal/git"
@@ -134,7 +135,7 @@ func (h *commentsHandlers) create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Hash the anchored lines: what the reconciler matches on to follow the code.
-	c.LineHash = lineHashAt(h.repo, c.Anchor)
+	c.LineHash = anchor.LineHash(h.repo, c.Anchor)
 
 	if err := h.db.CreateComment(&c); err != nil {
 		writeDBError(w, err)
@@ -199,7 +200,7 @@ func (h *commentsHandlers) update(w http.ResponseWriter, r *http.Request) {
 	}
 	updated, err := h.db.GetComment(id)
 	if reanchored && err == nil && updated != nil {
-		if err := recordMove(h.repo, h.db, "comment", updated.ID, updated.Anchor); err != nil {
+		if err := anchor.RecordMove(h.repo, h.db, "comment", updated.ID, updated.Anchor); err != nil {
 			writeDBError(w, err)
 			return
 		}

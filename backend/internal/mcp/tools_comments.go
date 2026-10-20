@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
+	"bench/internal/anchor"
 	"bench/internal/events"
 	"bench/internal/model"
-	"bench/internal/reconcile"
 
 	"github.com/google/uuid"
 )
@@ -206,7 +206,7 @@ func toolCreateComment(deps *toolDeps) Tool {
 				"feature": {"type": "string", "description": "Link to a feature ID (for feature-related discussion)"},
 				"parent": {"type": "string", "description": "Parent comment ID (for threading)"}
 			},
-			"required": ["file", "commit", "text", "author"]
+			"required": ["text", "author"]
 		}`),
 		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
 			var p struct {
@@ -224,8 +224,11 @@ func toolCreateComment(deps *toolDeps) Tool {
 			if err := json.Unmarshal(params, &p); err != nil {
 				return "", fmt.Errorf("invalid params: %w", err)
 			}
-			if p.File == "" || p.Commit == "" || p.Text == "" || p.Author == "" {
-				return "", fmt.Errorf("file, commit, text, and author are required")
+			if p.Text == "" || p.Author == "" {
+				return "", fmt.Errorf("author and text are required")
+			}
+			if p.Commit == "" {
+				p.Commit = "HEAD" // as on REST; stored as the commit it names
 			}
 
 			c := &model.Comment{
@@ -256,18 +259,8 @@ func toolCreateComment(deps *toolDeps) Tool {
 			if err != nil {
 				return "", err
 			}
-			if lr != nil {
-				c.Anchor.LineRange = lr
-				content, err := deps.repo.Show(p.Commit, p.File)
-				if err == nil {
-					lines := strings.Split(content, "\n")
-					start := lr.Start - 1
-					end := lr.End
-					if start >= 0 && start < end && end <= len(lines) {
-						c.LineHash = reconcile.LineHash(lines[start:end])
-					}
-				}
-			}
+			c.Anchor.LineRange = lr
+			c.LineHash = anchor.LineHash(deps.repo, c.Anchor)
 
 			if err := deps.db.CreateComment(c); err != nil {
 				return "", err
@@ -359,79 +352,18 @@ func toolUpdateComment(deps *toolDeps) Tool {
 				raw["line_end"] = int(lineEndVal.(float64))
 			}
 
-			if anchorChanging {
-				existing, err := deps.db.GetComment(id)
-				if err == nil {
-					// Determine effective new values
-					newFileID := existing.Anchor.FileID
-					if v, ok := raw["file"]; ok {
-						newFileID = v.(string)
-					} else if v, ok := raw["file_id"]; ok {
-						newFileID = v.(string)
-					}
-					newCommit := existing.Anchor.CommitID
-					if v, ok := raw["commit"]; ok {
-						newCommit = v.(string)
-					} else if v, ok := raw["commit_id"]; ok {
-						newCommit = v.(string)
-					}
-					newStart := 0
-					newEnd := 0
-					if existing.Anchor.LineRange != nil {
-						newStart = existing.Anchor.LineRange.Start
-						newEnd = existing.Anchor.LineRange.End
-					}
-					if v, ok := raw["line_start"]; ok {
-						newStart = v.(int)
-					}
-					if v, ok := raw["line_end"]; ok {
-						newEnd = v.(int)
-					}
-					// As the store does: a start moved past the end leaves just that line.
-					if _, ok := raw["line_end"]; !ok && newEnd < newStart {
-						newEnd = newStart
-					}
-
-					// Recompute lineHash
-					if newStart > 0 && newEnd > 0 {
-						content, err := deps.repo.Show(newCommit, newFileID)
-						if err == nil {
-							lines := strings.Split(content, "\n")
-							s := newStart - 1
-							e := newEnd
-							if s >= 0 && s < e && e <= len(lines) {
-								raw["line_hash"] = reconcile.LineHash(lines[s:e])
-							}
-						}
-					}
-
-					raw["anchor_updated_at"] = time.Now().UTC().Format(time.RFC3339)
-
-					// Insert position at reconciliation resume point after the DB update
-					defer func() {
-						if newStart > 0 && newEnd > 0 {
-							posCommit := newCommit
-							if lastCommit, err := deps.db.GetReconciliationState(newFileID); err == nil && lastCommit != "" {
-								posCommit = lastCommit
-							} else if head, err := deps.repo.Head(); err == nil {
-								posCommit = head
-							}
-							_ = deps.db.InsertPosition(&model.AnnotationPosition{
-								AnnotationID:   id,
-								AnnotationType: "comment",
-								CommitID:       posCommit,
-								FileID:         &newFileID,
-								LineStart:      &newStart,
-								LineEnd:        &newEnd,
-								Confidence:     "exact",
-							})
-						}
-					}()
-				}
-			}
-
 			if err := deps.db.UpdateComment(id, raw); err != nil {
 				return "", err
+			}
+			// Moved: new line hash and an exact position at the anchor commit, as REST does.
+			if anchorChanging {
+				c, err := deps.db.GetComment(id)
+				if err != nil {
+					return "", err
+				}
+				if err := anchor.RecordMove(deps.repo, deps.db, "comment", c.ID, c.Anchor); err != nil {
+					return "", err
+				}
 			}
 			if deps.broker != nil {
 				deps.broker.Publish(events.TopicAnnotations)
@@ -533,7 +465,7 @@ func toolBatchCreateComments(deps *toolDeps) Tool {
 							"feature": {"type": "string"},
 							"parent": {"type": "string"}
 						},
-						"required": ["file", "commit", "text", "author"]
+						"required": ["text", "author"]
 					},
 					"description": "Array of comments to create (max 100)"
 				}
@@ -568,8 +500,11 @@ func toolBatchCreateComments(deps *toolDeps) Tool {
 			now := time.Now().UTC().Format(time.RFC3339)
 			models := make([]model.Comment, len(p.Comments))
 			for i, pc := range p.Comments {
-				if pc.File == "" || pc.Commit == "" || pc.Text == "" || pc.Author == "" {
-					return "", fmt.Errorf("comment %d: file, commit, text, and author are required", i)
+				if pc.Text == "" || pc.Author == "" {
+					return "", fmt.Errorf("comment %d: author and text are required", i)
+				}
+				if pc.Commit == "" {
+					pc.Commit = "HEAD"
 				}
 				author := pc.Author
 
@@ -600,18 +535,8 @@ func toolBatchCreateComments(deps *toolDeps) Tool {
 				if err != nil {
 					return "", fmt.Errorf("item %d: %w", i+1, err)
 				}
-				if lr != nil {
-					c.Anchor.LineRange = lr
-					content, err := deps.repo.Show(pc.Commit, pc.File)
-					if err == nil {
-						lines := strings.Split(content, "\n")
-						start := lr.Start - 1
-						end := lr.End
-						if start >= 0 && start < end && end <= len(lines) {
-							c.LineHash = reconcile.LineHash(lines[start:end])
-						}
-					}
-				}
+				c.Anchor.LineRange = lr
+				c.LineHash = anchor.LineHash(deps.repo, c.Anchor)
 				models[i] = c
 			}
 

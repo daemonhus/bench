@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"bench/internal/anchor"
 	"bench/internal/db"
 	"bench/internal/events"
 	"bench/internal/git"
@@ -142,7 +143,7 @@ func (h *featuresHandlers) create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Hash the anchored lines: what the reconciler matches on to follow the code.
-	f.LineHash = lineHashAt(h.repo, f.Anchor)
+	f.LineHash = anchor.LineHash(h.repo, f.Anchor)
 
 	// Capture parameters and linked features before creating.
 	// extractLinkedFeatures handles both "linkedFeatures" (objects) and "linkedFeatureIds" (string array).
@@ -289,7 +290,7 @@ func (h *featuresHandlers) update(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if reanchored {
-			if err := recordMove(h.repo, h.db, "feature", feature.ID, feature.Anchor); err != nil {
+			if err := anchor.RecordMove(h.repo, h.db, "feature", feature.ID, feature.Anchor); err != nil {
 				writeDBError(w, err)
 				return
 			}

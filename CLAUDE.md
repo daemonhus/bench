@@ -551,7 +551,6 @@ Bench exposes MCP tools and a CLI. Tool schemas and CLI `--help` are the source 
 
 | Field | MCP | CLI / API |
 |-------|-----|-----------|
-| findings `status` | `draft` | `open` |
 | findings `source` | `mcp` | `manual` |
 | features `status` | `active` | `active` |
 | features `source` | `mcp` | (empty) |

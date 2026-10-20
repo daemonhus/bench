@@ -1,8 +1,9 @@
 package api
 
 // TestAPICreateDefaults verifies the default values applied when creating
-// annotations via the REST API (CLI path). These intentionally differ from
-// the MCP layer - see tools_contract_test.go in the mcp package.
+// annotations via the REST API (CLI path). A finding's status defaults to draft
+// as it does over MCP and in the UI; its source records the surface ("manual"
+// here, "mcp" over MCP) - see tools_contract_test.go in the mcp package.
 
 import (
 	"encoding/json"
@@ -29,8 +30,8 @@ func TestFindingsAPI_CreateDefaultsStatusAndSource(t *testing.T) {
 	if err := json.NewDecoder(w.Body).Decode(&f); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if f.Status != "open" {
-		t.Errorf("default status = %q, want open", f.Status)
+	if f.Status != "draft" {
+		t.Errorf("default status = %q, want draft", f.Status)
 	}
 	if f.Source != "manual" {
 		t.Errorf("default source = %q, want manual", f.Source)

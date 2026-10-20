@@ -167,7 +167,7 @@ var commands = []cmdDef{
 			{Name: "external-id", Param: "externalId", Desc: "External identifier from source system"},
 			{Name: "vector", Param: "vector", Desc: "CVSS vector string"},
 			{Name: "score", Param: "score", Desc: "CVSS score", Type: "float"},
-			{Name: "status", Param: "status", Desc: "Status [draft|open|in-progress|false-positive|accepted|closed] (default: open)"},
+			{Name: "status", Param: "status", Desc: "Status [draft|open|in-progress|false-positive|accepted|closed] (default: draft)"},
 			{Name: "source", Param: "source", Desc: "Source [pentest|tool|manual|mcp] (default: manual)"},
 			{Name: "category", Param: "category", Desc: "Finding category"},
 			{Name: "features", Param: "features", Desc: "Comma-separated feature IDs to associate", Type: "list"},
@@ -232,7 +232,7 @@ var commands = []cmdDef{
 			{Name: "status", Param: "status", Desc: "Filter by status"},
 			{Name: "severity", Param: "severity", Desc: "Filter by severity"},
 		}},
-	{Cat: "findings", Name: "batch-create", Desc: "Create multiple findings from JSON input. Required per item: file, commit, title, severity [critical|high|medium|low|info]. Optional: status [draft|open|in-progress|false-positive|accepted|closed] (default: open), source [pentest|tool|manual|mcp] (default: manual), score (float), cwe, cve, category. Afterwards, record each finding's historical context via `findings suggest-origin` and `findings set-origin`.",
+	{Cat: "findings", Name: "batch-create", Desc: "Create multiple findings from JSON input. Required per item: title, severity [critical|high|medium|low|info]. Optional: file, commit (default: HEAD), status [draft|open|in-progress|false-positive|accepted|closed] (default: draft), source [pentest|tool|manual|mcp] (default: manual), score (float), cwe, cve, category. Afterwards, record each finding's historical context via `findings suggest-origin` and `findings set-origin`.",
 		EP:    endpoint{"POST", "/api/findings"},
 		Flags: []flagDef{{Name: "input", Param: "_input", Desc: "JSON file (default: stdin)", Type: "batch"}}},
 
@@ -398,8 +398,8 @@ var commands = []cmdDef{
 	{Cat: "features", Name: "create", Desc: "Create a new feature annotation. Afterwards, record its historical context while the anchor is fresh: `features suggest-origin` derives the introducing commit/date/actor/branch from blame and merge history; confirm with `features set-origin`.",
 		EP: endpoint{"POST", "/api/features"},
 		Flags: []flagDef{
-			{Name: "file", Param: "fileId", Desc: "Anchor file path", Required: true},
-			{Name: "commit", Param: "commitId", Desc: "Anchor commit", Required: true},
+			{Name: "file", Param: "fileId", Desc: "Anchor file path"},
+			{Name: "commit", Param: "commitId", Desc: "Anchor commit (default: HEAD)"},
 			{Name: "kind", Param: "kind", Desc: "Feature kind [interface|source|sink|dependency|externality]", Required: true},
 			{Name: "title", Param: "title", Desc: "Feature title - do not prefix with HTTP method (e.g. 'Login endpoint', not 'POST /login'); use --operation for that", Required: true},
 			{Name: "start", Param: "lineStart", Desc: "Anchor line range start", Type: "int"},

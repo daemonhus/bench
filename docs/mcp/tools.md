@@ -105,7 +105,7 @@ List branches in the repository. No parameters.
 | `cve` | string | no | CVE identifier |
 | `vector` | string | no | CVSS vector |
 | `score` | float | no | CVSS score |
-| `status` | string | no | Initial status (default: `open`) |
+| `status` | string | no | Initial status (default: `draft`) |
 | `source` | string | no | Tool or scanner that found it |
 | `category` | string | no | Category label |
 

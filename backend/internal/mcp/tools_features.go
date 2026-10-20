@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
+	"bench/internal/anchor"
 	"bench/internal/events"
 	"bench/internal/model"
-	"bench/internal/reconcile"
 
 	"github.com/google/uuid"
 )
@@ -209,7 +209,7 @@ func toolCreateFeature(deps *toolDeps) Tool {
 				"linked_feature_ids": {"type": "array", "items": {"oneOf": [{"type": "string"}, {"type": "object", "properties": {"id": {"type": "string"}, "description": {"type": "string"}}, "required": ["id"]}]}, "description": "Features to link to"},
 				"parameters": {"type": "array", "items": ` + paramItemSchema + `, "description": "Optional parameters documenting the interface contract (auth headers, path vars, query params, body fields)"}
 			},
-			"required": ["file", "commit", "kind", "title"]
+			"required": ["kind", "title"]
 		}`),
 		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
 			var p struct {
@@ -238,8 +238,11 @@ func toolCreateFeature(deps *toolDeps) Tool {
 			if err := json.Unmarshal(params, &p); err != nil {
 				return "", fmt.Errorf("invalid params: %w", err)
 			}
-			if p.File == "" || p.Commit == "" || p.Kind == "" || p.Title == "" {
-				return "", fmt.Errorf("file, commit, kind, and title are required")
+			if p.Kind == "" || p.Title == "" {
+				return "", fmt.Errorf("title and kind are required")
+			}
+			if p.Commit == "" {
+				p.Commit = "HEAD" // as on REST; stored as the commit it names
 			}
 			if p.Status == "" {
 				p.Status = "active"
@@ -269,18 +272,8 @@ func toolCreateFeature(deps *toolDeps) Tool {
 			if err != nil {
 				return "", err
 			}
-			if lr != nil {
-				f.Anchor.LineRange = lr
-				content, err := deps.repo.Show(p.Commit, p.File)
-				if err == nil {
-					lines := strings.Split(content, "\n")
-					start := lr.Start - 1
-					end := lr.End
-					if start >= 0 && start < end && end <= len(lines) {
-						f.LineHash = reconcile.LineHash(lines[start:end])
-					}
-				}
-			}
+			f.Anchor.LineRange = lr
+			f.LineHash = anchor.LineHash(deps.repo, f.Anchor)
 
 			if err := deps.db.CreateFeature(f); err != nil {
 				return "", err
@@ -404,77 +397,6 @@ func toolUpdateFeature(deps *toolDeps) Tool {
 				raw["line_end"] = int(lineEndVal.(float64))
 			}
 
-			if anchorChanging {
-				existing, err := deps.db.GetFeature(id)
-				if err == nil {
-					// Determine effective new values
-					newFileID := existing.Anchor.FileID
-					if v, ok := raw["file"]; ok {
-						newFileID = v.(string)
-					} else if v, ok := raw["file_id"]; ok {
-						newFileID = v.(string)
-					}
-					newCommit := existing.Anchor.CommitID
-					if v, ok := raw["commit"]; ok {
-						newCommit = v.(string)
-					} else if v, ok := raw["commit_id"]; ok {
-						newCommit = v.(string)
-					}
-					newStart := 0
-					newEnd := 0
-					if existing.Anchor.LineRange != nil {
-						newStart = existing.Anchor.LineRange.Start
-						newEnd = existing.Anchor.LineRange.End
-					}
-					if v, ok := raw["line_start"]; ok {
-						newStart = v.(int)
-					}
-					if v, ok := raw["line_end"]; ok {
-						newEnd = v.(int)
-					}
-					// As the store does: a start moved past the end leaves just that line.
-					if _, ok := raw["line_end"]; !ok && newEnd < newStart {
-						newEnd = newStart
-					}
-
-					// Recompute lineHash
-					if newStart > 0 && newEnd > 0 {
-						content, err := deps.repo.Show(newCommit, newFileID)
-						if err == nil {
-							lines := strings.Split(content, "\n")
-							s := newStart - 1
-							e := newEnd
-							if s >= 0 && s < e && e <= len(lines) {
-								raw["line_hash"] = reconcile.LineHash(lines[s:e])
-							}
-						}
-					}
-
-					raw["anchor_updated_at"] = time.Now().UTC().Format(time.RFC3339)
-
-					// Insert position at reconciliation resume point after the DB update
-					defer func() {
-						if newStart > 0 && newEnd > 0 {
-							posCommit := newCommit
-							if lastCommit, err := deps.db.GetReconciliationState(newFileID); err == nil && lastCommit != "" {
-								posCommit = lastCommit
-							} else if head, err := deps.repo.Head(); err == nil {
-								posCommit = head
-							}
-							_ = deps.db.InsertPosition(&model.AnnotationPosition{
-								AnnotationID:   id,
-								AnnotationType: "feature",
-								CommitID:       posCommit,
-								FileID:         &newFileID,
-								LineStart:      &newStart,
-								LineEnd:        &newEnd,
-								Confidence:     "exact",
-							})
-						}
-					}()
-				}
-			}
-
 			// Extract parameters before UpdateFeature (it doesn't handle them).
 			var replaceParams bool
 			var newParams []model.FeatureParameter
@@ -538,6 +460,15 @@ func toolUpdateFeature(deps *toolDeps) Tool {
 				f, err = deps.db.UpdateFeature(id, raw)
 				if err != nil {
 					return "", err
+				}
+				// Moved: new line hash and an exact position at the anchor commit, as REST does.
+				if anchorChanging {
+					if err := anchor.RecordMove(deps.repo, deps.db, "feature", f.ID, f.Anchor); err != nil {
+						return "", err
+					}
+					if f, err = deps.db.GetFeature(f.ID); err != nil {
+						return "", err
+					}
 				}
 			} else {
 				f, err = deps.db.GetFeature(id)
@@ -635,7 +566,7 @@ func toolBatchCreateFeatures(deps *toolDeps) Tool {
 							"linked_feature_ids": {"type": "array", "items": {"oneOf": [{"type": "string"}, {"type": "object", "properties": {"id": {"type": "string"}, "description": {"type": "string"}}, "required": ["id"]}]}, "description": "Features to link to - ID strings or {id, description} objects; forward references within the same batch are allowed"},
 							"parameters": {"type": "array", "items": ` + paramItemSchema + `, "description": "Optional parameters documenting the interface contract"}
 						},
-						"required": ["file", "commit", "kind", "title"]
+						"required": ["kind", "title"]
 					},
 					"description": "Array of features to create (max 100)"
 				}
@@ -681,6 +612,12 @@ func toolBatchCreateFeatures(deps *toolDeps) Tool {
 			now := time.Now().UTC().Format(time.RFC3339)
 			models := make([]model.Feature, len(p.Features))
 			for i, pf := range p.Features {
+				if pf.Title == "" || pf.Kind == "" {
+					return "", fmt.Errorf("feature %d: title and kind are required", i)
+				}
+				if pf.Commit == "" {
+					pf.Commit = "HEAD"
+				}
 				status := pf.Status
 				if status == "" {
 					status = "active"
@@ -711,18 +648,8 @@ func toolBatchCreateFeatures(deps *toolDeps) Tool {
 				if err != nil {
 					return "", fmt.Errorf("item %d: %w", i+1, err)
 				}
-				if lr != nil {
-					f.Anchor.LineRange = lr
-					content, err := deps.repo.Show(pf.Commit, pf.File)
-					if err == nil {
-						lines := strings.Split(content, "\n")
-						start := lr.Start - 1
-						end := lr.End
-						if start >= 0 && start < end && end <= len(lines) {
-							f.LineHash = reconcile.LineHash(lines[start:end])
-						}
-					}
-				}
+				f.Anchor.LineRange = lr
+				f.LineHash = anchor.LineHash(deps.repo, f.Anchor)
 				models[i] = f
 			}
 

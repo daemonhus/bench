@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
+	"bench/internal/anchor"
 	"bench/internal/events"
 	"bench/internal/model"
-	"bench/internal/reconcile"
 
 	"github.com/google/uuid"
 )
@@ -225,7 +225,7 @@ func toolCreateFinding(deps *toolDeps) Tool {
 				"source": {"type": "string", "description": "Source tool or scanner (default: mcp)"},
 				"features": {"type": "array", "items": {"type": "string"}, "description": "Feature IDs to associate with this finding"}
 			},
-			"required": ["file", "commit", "severity", "title", "description"]
+			"required": ["severity", "title"]
 		}`),
 		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
 			var p struct {
@@ -249,8 +249,11 @@ func toolCreateFinding(deps *toolDeps) Tool {
 			if err := json.Unmarshal(params, &p); err != nil {
 				return "", fmt.Errorf("invalid params: %w", err)
 			}
-			if p.File == "" || p.Commit == "" || p.Severity == "" || p.Title == "" || p.Description == "" {
-				return "", fmt.Errorf("file, commit, severity, title, and description are required")
+			if p.Severity == "" || p.Title == "" {
+				return "", fmt.Errorf("title and severity are required")
+			}
+			if p.Commit == "" {
+				p.Commit = "HEAD" // as on REST; stored as the commit it names
 			}
 			if p.Status == "" {
 				p.Status = "draft"
@@ -282,16 +285,7 @@ func toolCreateFinding(deps *toolDeps) Tool {
 			}
 			if lr != nil {
 				f.Anchor.LineRange = lr
-				// Compute lineHash
-				content, err := deps.repo.Show(p.Commit, p.File)
-				if err == nil {
-					lines := strings.Split(content, "\n")
-					start := lr.Start - 1
-					end := lr.End
-					if start >= 0 && start < end && end <= len(lines) {
-						f.LineHash = reconcile.LineHash(lines[start:end])
-					}
-				}
+				f.LineHash = anchor.LineHash(deps.repo, f.Anchor)
 			}
 
 			if err := deps.db.CreateFinding(f); err != nil {
@@ -385,85 +379,19 @@ func toolUpdateFinding(deps *toolDeps) Tool {
 				raw["line_end"] = int(lineEndVal.(float64))
 			}
 
-			// If any anchor field is changing, recompute lineHash using the NEW values at HEAD
-			if anchorChanging {
-				existing, err := deps.db.GetFinding(id)
-				if err == nil {
-					// Determine effective new values (fall back to existing)
-					newFileID := existing.Anchor.FileID
-					if v, ok := raw["file"]; ok {
-						newFileID = v.(string)
-					} else if v, ok := raw["file_id"]; ok {
-						newFileID = v.(string)
-					}
-					newCommit := existing.Anchor.CommitID
-					if v, ok := raw["commit"]; ok {
-						newCommit = v.(string)
-					} else if v, ok := raw["commit_id"]; ok {
-						newCommit = v.(string)
-					}
-					newStart := 0
-					newEnd := 0
-					if existing.Anchor.LineRange != nil {
-						newStart = existing.Anchor.LineRange.Start
-						newEnd = existing.Anchor.LineRange.End
-					}
-					if v, ok := raw["line_start"]; ok {
-						newStart = v.(int)
-					}
-					if v, ok := raw["line_end"]; ok {
-						newEnd = v.(int)
-					}
-					// As the store does: a start moved past the end leaves just that line.
-					if _, ok := raw["line_end"]; !ok && newEnd < newStart {
-						newEnd = newStart
-					}
-
-					// Recompute lineHash using the new file at the new commit
-					if newStart > 0 && newEnd > 0 {
-						content, err := deps.repo.Show(newCommit, newFileID)
-						if err == nil {
-							lines := strings.Split(content, "\n")
-							s := newStart - 1
-							e := newEnd
-							if s >= 0 && s < e && e <= len(lines) {
-								raw["line_hash"] = reconcile.LineHash(lines[s:e])
-							}
-						}
-					}
-
-					// Set anchor_updated_at timestamp
-					raw["anchor_updated_at"] = time.Now().UTC().Format(time.RFC3339)
-				}
-			}
-
 			f, err := deps.db.UpdateFinding(id, raw)
 			if err != nil {
 				return "", err
 			}
 
-			// Record updated position entry when any anchor field changed
-			if anchorChanging && f != nil && f.Anchor.LineRange != nil {
-				// Insert position at the reconciliation resume point for this file
-				posCommit := f.Anchor.CommitID
-				if lastCommit, err := deps.db.GetReconciliationState(f.Anchor.FileID); err == nil && lastCommit != "" {
-					posCommit = lastCommit
-				} else {
-					// Fall back to HEAD
-					if head, err := deps.repo.Head(); err == nil {
-						posCommit = head
-					}
+			// Moved: new line hash and an exact position at the anchor commit, as REST does.
+			if anchorChanging && f != nil {
+				if err := anchor.RecordMove(deps.repo, deps.db, "finding", f.ID, f.Anchor); err != nil {
+					return "", err
 				}
-				fileID := f.Anchor.FileID
-				_ = deps.db.InsertPosition(&model.AnnotationPosition{
-					AnnotationID:   f.ID,
-					AnnotationType: "finding",
-					CommitID:       posCommit,
-					FileID:         &fileID,
-					LineStart:      &f.Anchor.LineRange.Start,
-					LineEnd:        &f.Anchor.LineRange.End,
-					Confidence:     "exact",
-				})
+				if f, err = deps.db.GetFinding(f.ID); err != nil {
+					return "", err
+				}
 			}
 
 			b, err := json.MarshalIndent(f, "", "  ")
@@ -587,7 +515,7 @@ func toolBatchCreateFindings(deps *toolDeps) Tool {
 							"source": {"type": "string", "description": "Source tool or scanner (default: mcp)"},
 							"features": {"type": "array", "items": {"type": "string"}, "description": "Feature IDs to associate with this finding"}
 						},
-						"required": ["file", "commit", "severity", "title", "description"]
+						"required": ["severity", "title"]
 					},
 					"description": "Array of findings to create (max 100)"
 				}
@@ -628,6 +556,12 @@ func toolBatchCreateFindings(deps *toolDeps) Tool {
 			now := time.Now().UTC().Format(time.RFC3339)
 			models := make([]model.Finding, len(p.Findings))
 			for i, pf := range p.Findings {
+				if pf.Title == "" || pf.Severity == "" {
+					return "", fmt.Errorf("finding %d: title and severity are required", i)
+				}
+				if pf.Commit == "" {
+					pf.Commit = "HEAD"
+				}
 				status := pf.Status
 				if status == "" {
 					status = "draft"
@@ -658,18 +592,8 @@ func toolBatchCreateFindings(deps *toolDeps) Tool {
 				if err != nil {
 					return "", fmt.Errorf("item %d: %w", i+1, err)
 				}
-				if lr != nil {
-					f.Anchor.LineRange = lr
-					content, err := deps.repo.Show(pf.Commit, pf.File)
-					if err == nil {
-						lines := strings.Split(content, "\n")
-						start := lr.Start - 1
-						end := lr.End
-						if start >= 0 && start < end && end <= len(lines) {
-							f.LineHash = reconcile.LineHash(lines[start:end])
-						}
-					}
-				}
+				f.Anchor.LineRange = lr
+				f.LineHash = anchor.LineHash(deps.repo, f.Anchor)
 				models[i] = f
 			}
 

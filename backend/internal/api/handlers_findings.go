@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"bench/internal/anchor"
 	"bench/internal/db"
 	"bench/internal/events"
 	"bench/internal/git"
@@ -141,7 +142,7 @@ func (h *findingsHandlers) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if f.Status == "" {
-		f.Status = "open"
+		f.Status = "draft" // tentative until confirmed, as from the UI and MCP
 	}
 	if f.Source == "" {
 		f.Source = "manual"
@@ -168,7 +169,7 @@ func (h *findingsHandlers) create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Hash the anchored lines: what the reconciler matches on to follow the code.
-	f.LineHash = lineHashAt(h.repo, f.Anchor)
+	f.LineHash = anchor.LineHash(h.repo, f.Anchor)
 
 	if err := h.db.CreateFinding(&f); err != nil {
 		writeDBError(w, err)
@@ -262,7 +263,7 @@ func (h *findingsHandlers) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if reanchored {
-		if err := recordMove(h.repo, h.db, "finding", finding.ID, finding.Anchor); err != nil {
+		if err := anchor.RecordMove(h.repo, h.db, "finding", finding.ID, finding.Anchor); err != nil {
 			writeDBError(w, err)
 			return
 		}

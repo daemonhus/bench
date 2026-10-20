@@ -43,9 +43,10 @@ var parityKinds = []kindSpec{
 }
 
 type parityEnv struct {
-	srv  *httptest.Server
-	head string
-	dir  string
+	srv   *httptest.Server
+	head  string
+	first string // the commit before head; head shifts main.go's lines down by two
+	dir   string
 }
 
 func setupParity(t *testing.T) *parityEnv {
@@ -73,6 +74,20 @@ func setupParity(t *testing.T) *parityEnv {
 			t.Fatalf("git commit: %v: %s", err, out)
 		}
 	}
+	first, err := exec.Command("git", "-C", dir, "rev-parse", "HEAD").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A second commit that moves every line down two, so a position recorded at the wrong
+	// commit shows up.
+	if err := os.WriteFile(filepath.Join(dir, "main.go"), []byte("// added\n// added\n"+src.String()), 0644); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"git", "-C", dir, "commit", "-qam", "shift"}} {
+		if out, err := exec.Command(args[0], args[1:]...).CombinedOutput(); err != nil {
+			t.Fatalf("git commit: %v: %s", err, out)
+		}
+	}
 	head, err := exec.Command("git", "-C", dir, "rev-parse", "HEAD").Output()
 	if err != nil {
 		t.Fatal(err)
@@ -88,7 +103,7 @@ func setupParity(t *testing.T) *parityEnv {
 	}
 	srv := httptest.NewServer(wb.Handler())
 	t.Cleanup(srv.Close)
-	return &parityEnv{srv: srv, head: strings.TrimSpace(string(head)), dir: dir}
+	return &parityEnv{srv: srv, head: strings.TrimSpace(string(head)), first: strings.TrimSpace(string(first)), dir: dir}
 }
 
 func (e *parityEnv) http(t *testing.T, method, path string, body any) (int, []byte) {
@@ -396,6 +411,31 @@ func TestAnchorParity_Move(t *testing.T) {
 			return ok
 		}},
 	}
+	olderMovers := []struct {
+		name string
+		move func(t *testing.T, k kindSpec, id, commit string) bool
+	}{
+		{"REST", func(t *testing.T, k kindSpec, id, commit string) bool {
+			code, _ := e.http(t, "PATCH", "/api/"+k.plural+"/"+id, map[string]any{"commit": commit, "line_start": 5, "line_end": 6})
+			return code == 200 || code == 204
+		}},
+		{"MCP", func(t *testing.T, k kindSpec, id, commit string) bool {
+			args := map[string]any{"id": id, "commit": commit, "start": 5, "end": 6}
+			if k.name == "comment" {
+				args["author"] = "a"
+			}
+			ok, _ := e.mcpCall(t, "update_"+k.name, args)
+			return ok
+		}},
+		{"CLI", func(t *testing.T, k kindSpec, id, commit string) bool {
+			args := []string{k.plural, "update", "--id", id, "--commit", commit, "--start", "5", "--end", "6"}
+			if k.name == "comment" {
+				args = append(args, "--author", "a")
+			}
+			ok, _ := e.cli(t, args...)
+			return ok
+		}},
+	}
 	create := func(t *testing.T, k kindSpec, text string, lr *model.LineRange) string {
 		code, data := e.http(t, "POST", "/api/"+k.plural, with(k.extra, map[string]any{
 			k.textField: text, "anchor": map[string]any{"fileId": "main.go", "commitId": e.head, "lineRange": lr},
@@ -429,6 +469,19 @@ func TestAnchorParity_Move(t *testing.T) {
 			}
 			if hash != wantHash {
 				t.Errorf("%s: line hash is still the old lines' (got %.8s, want %.8s)", text, hash, wantHash)
+			}
+		}
+		// Moved to lines given at an older commit: those lines are where it is at that
+		// commit (MCP used to record them at the reconciler's resume point or HEAD instead).
+		for _, m := range olderMovers {
+			text := fmt.Sprintf("%s moved via %s at the older commit", k.name, m.name)
+			id := create(t, k, text, &model.LineRange{Start: 2, End: 3})
+			if !m.move(t, k, id, e.first) {
+				t.Errorf("%s: move rejected", text)
+				continue
+			}
+			if _, _, eff := e.effective(t, k, id, e.first); !sameRange(eff, to) {
+				t.Errorf("%s: effective position at that commit %v, want %v", text, eff, to)
 			}
 		}
 	}
@@ -522,6 +575,82 @@ func TestAnchorParity_HeadPinned(t *testing.T) {
 			}
 			if got := commitOf(k, text); got != e.head {
 				t.Errorf("%s: stored commit %q, want %s", text, got, e.head)
+			}
+		}
+	}
+}
+
+// The minimum a create needs is the same through every surface: a finding's title and
+// severity, a feature's title and kind, a comment's author and text. File, commit and
+// description are optional (a missing commit is HEAD), and a finding with no status given
+// starts as a draft. MCP used to also require file, commit and description, and REST and
+// the CLI defaulted findings to open.
+func TestCreateContractParity(t *testing.T) {
+	e := setupParity(t)
+	minimal := map[string]map[string]any{
+		"finding": {"severity": "high"},
+		"feature": {"kind": "interface"},
+		"comment": {"author": "a"},
+	}
+	cliMinimal := map[string][]string{
+		"finding": {"--severity", "high"},
+		"feature": {"--kind", "interface"},
+		"comment": {"--author", "a"},
+	}
+	surfaces := map[string]func(k kindSpec, item map[string]any, cliArgs []string) (bool, string){
+		"REST": func(k kindSpec, item map[string]any, _ []string) (bool, string) {
+			code, data := e.http(t, "POST", "/api/"+k.plural, item)
+			return code == 201, string(data)
+		},
+		"MCP": func(k kindSpec, item map[string]any, _ []string) (bool, string) {
+			return e.mcpCall(t, "create_"+k.name, item)
+		},
+		"MCP batch": func(k kindSpec, item map[string]any, _ []string) (bool, string) {
+			return e.mcpCall(t, "batch_create_"+k.plural, map[string]any{k.plural: []any{item}})
+		},
+		"CLI": func(k kindSpec, _ map[string]any, cliArgs []string) (bool, string) {
+			return e.cli(t, append([]string{k.plural, "create"}, cliArgs...)...)
+		},
+		"CLI batch": func(k kindSpec, item map[string]any, _ []string) (bool, string) {
+			b, _ := json.Marshal([]any{item})
+			in := filepath.Join(t.TempDir(), "batch.json")
+			os.WriteFile(in, b, 0644)
+			return e.cli(t, k.plural, "batch-create", "--input", in)
+		},
+	}
+	for _, k := range parityKinds {
+		for name, create := range surfaces {
+			text := fmt.Sprintf("%s via %s with the minimum", k.name, name)
+			item := with(minimal[k.name], map[string]any{k.textField: text})
+			if ok, msg := create(k, item, append([]string{"--" + k.textField, text}, cliMinimal[k.name]...)); !ok {
+				t.Errorf("%s: rejected: %s", text, msg)
+				continue
+			}
+			_, data := e.http(t, "GET", "/api/"+k.plural, nil)
+			var items []map[string]any
+			json.Unmarshal(data, &items)
+			var got map[string]any
+			for _, it := range items {
+				if it[k.textField] == text {
+					got = it
+				}
+			}
+			if got == nil {
+				t.Errorf("%s: not stored", text)
+				continue
+			}
+			if c := got["anchor"].(map[string]any)["commitId"]; c != e.head {
+				t.Errorf("%s: commit %v, want HEAD (%s)", text, c, e.head)
+			}
+			if k.name == "finding" && got["status"] != "draft" {
+				t.Errorf("%s: status %v, want draft", text, got["status"])
+			}
+		}
+		// Without the text field, every surface refuses.
+		for name, create := range surfaces {
+			label := fmt.Sprintf("%s via %s without its %s", k.name, name, k.textField)
+			if ok, _ := create(k, minimal[k.name], cliMinimal[k.name]); ok {
+				t.Errorf("%s: accepted, want rejected", label)
 			}
 		}
 	}
