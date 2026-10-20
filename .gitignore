@@ -56,3 +56,4 @@ bin/bench
 
 # Local planning docs
 plan/
+/backend/cli
