@@ -14,7 +14,7 @@ export interface EditorConfig {
 }
 
 export interface WorkbenchProps {
-  /** API base URL. Empty string for standalone, '/api/p/slug' for platform. */
+  /** The project's REST root, '/api/projects/{slug}'. */
   apiBase: string;
   /** Container CSS class. */
   className?: string;
@@ -28,8 +28,7 @@ const NO_EXTENSIONS: WorkbenchExtensions = {};
 
 /**
  * Embeddable workbench component. Wraps the full App with API base URL injection.
- * In standalone mode, render as <WorkbenchView apiBase="" />.
- * In platform mode, render as <WorkbenchView apiBase="/api/p/project-slug" />.
+ * Render as <WorkbenchView apiBase="/api/projects/project-slug" />.
  */
 export function WorkbenchView({ apiBase, className, editorConfig, extensions }: WorkbenchProps) {
   // useLayoutEffect fires before any regular useEffect (including App's

@@ -109,9 +109,9 @@ test.describe('Edit project dialog', () => {
   });
 
   test('confirming removal deletes the project and closes the dialog', async ({ page, request }) => {
-    const info = await (await request.get('/api/platform/projects')).json();
+    const info = await (await request.get('/api/projects')).json();
     const repoPath = info.find((p: { name: string }) => p.name === 'beta').repoPath;
-    const res = await request.post('/api/platform/projects', { data: { name: 'zz-removable', repoPath } });
+    const res = await request.post('/api/projects', { data: { name: 'zz-removable', repoPath } });
     test.skip(!res.ok(), 'fixture refused a second project on the same repo');
     await page.goto('/projects');
     await page.waitForSelector('.project-card');

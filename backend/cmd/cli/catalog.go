@@ -33,7 +33,7 @@ func init() {
 				if v := in.str("limit"); v != "" {
 					q.Set("limit", v)
 				}
-				return c.emit("GET", withQuery("/api/platform/features/search", q), nil)
+				return c.emit("GET", withQuery("/api/features/search", q), nil)
 			}},
 		mpCmd{Group: "catalog", Name: "get", Desc: "Fetch features by project-qualified reference (slug:feature-id). Missing features come back with tombstoned=true.",
 			Args:     []string{"refs"},
@@ -48,7 +48,7 @@ func init() {
 						return errors.New("reference " + r + " is not of the form slug:feature-id")
 					}
 				}
-				return c.emit("GET", withQuery("/api/platform/features", url.Values{"refs": {strings.Join(refs, ",")}}), nil)
+				return c.emit("GET", withQuery("/api/features", url.Values{"refs": {strings.Join(refs, ",")}}), nil)
 			}},
 	)
 }

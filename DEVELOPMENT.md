@@ -27,19 +27,19 @@ The platform never forks bench code. The UI imports workbench source through the
 
 | Layer | Workbench | Platform |
 |---|---|---|
-| Go | `package workbench`: `Open()`, `Handler()`, `MCPHandler()` | project CRUD; `/api/p/{slug}/*` routed to that project's workbench handler |
-| UI | `WorkbenchView` with an `apiBase` prop | `PlatformShell` renders `WorkbenchView` with `apiBase=/api/p/{slug}` |
-| CLI | per-project categories against the REST API | same binary: `--project <slug>` prefixes `/api/p/{slug}`; adds `projects`, `baselines-all`, `flows`, `catalog` |
-| MCP | bench tools on `/mcp` | aggregate `/mcp` (bench tools take a `project` param, plus platform tools); per-project `/api/p/{slug}/mcp` |
+| Go | `package workbench`: `Open()`, `Handler()`, `MCPHandler()` | project CRUD; `/api/projects/{slug}/*` routed to that project's workbench handler |
+| UI | `WorkbenchView` with an `apiBase` prop | `PlatformShell` renders `WorkbenchView` with `apiBase=/api/projects/{slug}` |
+| CLI | per-project categories against the REST API | same binary: `--project <slug>` prefixes `/api/projects/{slug}`; adds `projects`, `baselines-all`, `flows`, `catalog` |
+| MCP | bench tools on `/mcp` | aggregate `/mcp` (bench tools take a `project` param, plus platform tools); per-project `/api/projects/{slug}/mcp` |
 
 ### Routes
 
 ```
 bench-platform (:8080)
-├── /api/platform/projects, baselines, settings          platform handlers
-├── /api/platform/flows*, flow-folders, flow-views, features   flows and the feature catalog
-├── /api/p/{slug}/api/*      stripped and forwarded to the project's workbench Handler()
-├── /api/p/{slug}/mcp        per-project MCP (no project param)
+├── /api/projects, /api/baselines, /api/settings          server handlers
+├── /api/flows*, flow-folders, flow-views, features       flows and the feature catalog
+├── /api/projects/{slug}/*   stripped to /api/* and forwarded to the project's workbench Handler()
+├── /api/projects/{slug}/mcp per-project MCP (no project param)
 └── /mcp                     aggregate MCP
 
 benchd (:8081)
@@ -50,10 +50,10 @@ benchd (:8081)
 ## Where new code goes
 
 - **Workbench REST endpoint:** a handler in `backend/internal/api/`, registered in `router.go`. The platform forwards it with no change.
-- **Platform REST endpoint:** a handler in `backend/internal/server/`, registered in `registerPlatformRoutes` (`server.go`; folders in `registerFolderRoutes`, `flow_folders.go`). Platform routes use the `/api/platform/` prefix.
+- **Platform REST endpoint:** a handler in `backend/internal/server/`, registered in `registerPlatformRoutes` (`server.go`; folders in `registerFolderRoutes`, `flow_folders.go`). Cross-project routes sit directly under `/api/`; per-project ones under `/api/projects/{slug}/`.
 - **Platform MCP tool:** `platformToolDefs()` in `backend/internal/server/mcp.go`.
 - **Per-project CLI command:** the declarative command table in `backend/cmd/cli/main.go`; it works against both servers.
-- **Multi-project CLI command:** an `mpCmd` in `mpCommands` in `backend/cmd/cli/{projects,flows,folders,catalog}.go`; shared machinery in `multiproject.go`, tests in `multiproject_test.go`. These hit `/api/platform/*`.
+- **Multi-project CLI command:** an `mpCmd` in `mpCommands` in `backend/cmd/cli/{projects,flows,folders,catalog}.go`; shared machinery in `multiproject.go`, tests in `multiproject_test.go`. These hit the cross-project `/api/*` routes.
 
 The CLI is an HTTP client only: it never imports `workbench` or `internal/*` or opens a database. Env vars `BENCH_URL` and `BENCH_PROJECT`; flags take precedence.
 
@@ -77,4 +77,4 @@ The server embeds `backend/internal/server/dist` at compile time; `platform/dev.
 - Re-export types through `workbench.go`; the platform can't import `internal/`.
 - Colours and sizes come from `src/styles/tokens.css`; don't copy styles into `platform/`.
 - There is one CLI, `backend/cmd/cli/`; don't add a second binary.
-- The platform's `/api/p/{slug}/*` forwards to workbench handlers, so new bench endpoints need no platform change.
+- The server's `/api/projects/{slug}/*` forwards to workbench handlers, so new bench endpoints need no platform change.

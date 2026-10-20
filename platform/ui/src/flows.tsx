@@ -110,7 +110,7 @@ export interface FeatureRef {
 
 // ─── REST client ─────────────────────────────────────────────────────────
 
-const API = '/api/platform/flows';
+const API = '/api/flows';
 
 // The backend embeds feature data in a nested `feature` object.
 // Flatten it into the flat fields the UI components expect.
@@ -310,13 +310,13 @@ export async function listFlowFacets(params?: {
 }
 
 export async function listFlowViews(): Promise<FlowView[]> {
-  const r = await fetch('/api/platform/flow-views');
+  const r = await fetch('/api/flow-views');
   if (!r.ok) throw new Error(await r.text());
   return r.json();
 }
 
 export async function createFlowView(input: { name: string; query: string; owner?: string; isShared?: boolean }): Promise<FlowView> {
-  const r = await fetch('/api/platform/flow-views', {
+  const r = await fetch('/api/flow-views', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -326,7 +326,7 @@ export async function createFlowView(input: { name: string; query: string; owner
 }
 
 export async function deleteFlowView(id: string): Promise<void> {
-  await fetch(`/api/platform/flow-views/${id}`, { method: 'DELETE' });
+  await fetch(`/api/flow-views/${id}`, { method: 'DELETE' });
 }
 
 export async function getFlow(id: string): Promise<Flow | null> {
@@ -619,7 +619,7 @@ export async function searchFeatures(_projects: Project[], query: string, kindFi
   if (query) params.set('q', query);
   if (kindFilter) params.set('kind', kindFilter);
   if (projectFilter) params.set('project', projectFilter);
-  const r = await fetch(`/api/platform/features/search?${params}`);
+  const r = await fetch(`/api/features/search?${params}`);
   if (!r.ok) return [];
   const arr: any[] = await r.json();
   return arr.map((f): FeatureRef => ({
@@ -1722,7 +1722,7 @@ function MapStepPanel({
     setPostingComment(true);
     setCommentError('');
     try {
-      const r = await fetch(`/api/p/${step.projectSlug}/api/comments`, {
+      const r = await fetch(`/api/projects/${step.projectSlug}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1745,14 +1745,14 @@ function MapStepPanel({
   }
 
   // Pull the feature's parameters, linked features, and comments from the
-  // project workbench (via the /api/p/{slug} proxy) for the sidebar preview.
+  // project workbench (via /api/projects/{slug}) for the sidebar preview.
   useEffect(() => {
     let cancelled = false;
     setDetail(null);
     setCommentText('');
     setCommentError('');
     if (!step.featureId || !step.projectSlug || step.tombstoned) return;
-    const base = `/api/p/${step.projectSlug}/api`;
+    const base = `/api/projects/${step.projectSlug}`;
     const j = (url: string, fb: any) => fetch(url).then((r) => (r.ok ? r.json() : fb)).catch(() => fb);
     (async () => {
       const [feat, comments, refs] = await Promise.all([
@@ -2112,8 +2112,8 @@ export function FlowDetailPage({ flowId, onBack, onOpenProject }: FlowDetailPage
     const slugs = projectSig.split(',');
     Promise.all(slugs.map((slug) =>
       Promise.all([
-        fetch(`/api/p/${slug}/api/features`).then((r) => (r.ok ? r.json() : [])).catch(() => []),
-        fetch(`/api/p/${slug}/api/refs?entityType=feature`).then((r) => (r.ok ? r.json() : [])).catch(() => []),
+        fetch(`/api/projects/${slug}/features`).then((r) => (r.ok ? r.json() : [])).catch(() => []),
+        fetch(`/api/projects/${slug}/refs?entityType=feature`).then((r) => (r.ok ? r.json() : [])).catch(() => []),
       ]).then(([feats, refs]: [any[], any[]]) => ({ slug, feats, refs })),
     )).then((results) => {
       if (cancelled) return;

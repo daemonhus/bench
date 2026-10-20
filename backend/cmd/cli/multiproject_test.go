@@ -41,7 +41,7 @@ func newRecorder(t *testing.T) *recorder {
 	t.Helper()
 	r := &recorder{responses: map[string]cannedResp{
 		// Folder tree used by folder-resolving commands: auth (f1) / login (f2).
-		"GET /api/platform/flow-folders": {200, `[{"id":"f1","name":"auth","flowCount":1},{"id":"f2","name":"login","parentId":"f1","flowCount":2}]`},
+		"GET /api/flow-folders": {200, `[{"id":"f1","name":"auth","flowCount":1},{"id":"f2","name":"login","parentId":"f1","flowCount":2}]`},
 	}}
 	r.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		b, _ := io.ReadAll(req.Body)
@@ -129,7 +129,7 @@ func TestProject_FlagPrefixesBenchCommands(t *testing.T) {
 		if code, _, stderr := runCLI(t, r, nil, args...); code != 0 {
 			t.Fatalf("%v: exit %d: %s", args, code, stderr)
 		}
-		if got := r.last(t).URI; got != "/api/p/my-api/api/findings?severity=high" {
+		if got := r.last(t).URI; got != "/api/projects/my-api/findings?severity=high" {
 			t.Errorf("%v: path = %q", args, got)
 		}
 	}
@@ -141,7 +141,7 @@ func TestProject_EnvVar(t *testing.T) {
 	if code, _, stderr := runCLI(t, r, env, "baselines", "delta", "--id", "b1"); code != 0 {
 		t.Fatalf("exit %d: %s", code, stderr)
 	}
-	if got := r.last(t).URI; got != "/api/p/from-env/api/baselines/b1/delta" {
+	if got := r.last(t).URI; got != "/api/projects/from-env/baselines/b1/delta" {
 		t.Errorf("path = %q", got)
 	}
 
@@ -149,7 +149,7 @@ func TestProject_EnvVar(t *testing.T) {
 	if code, _, stderr := runCLI(t, r, env, "--project", "from-flag", "profile", "get"); code != 0 {
 		t.Fatalf("exit %d: %s", code, stderr)
 	}
-	if got := r.last(t).URI; got != "/api/p/from-flag/api/profile" {
+	if got := r.last(t).URI; got != "/api/projects/from-flag/profile" {
 		t.Errorf("path = %q", got)
 	}
 }
@@ -159,7 +159,7 @@ func TestProject_PrefixKeepsPathParamsAndBody(t *testing.T) {
 	if code, _, stderr := runCLI(t, r, nil, "--project", "svc", "git", "read-file", "--commit", "abc123", "--path", "main.go"); code != 0 {
 		t.Fatalf("exit %d: %s", code, stderr)
 	}
-	if got := r.last(t).URI; got != "/api/p/svc/api/git/show/abc123/main.go" {
+	if got := r.last(t).URI; got != "/api/projects/svc/git/show/abc123/main.go" {
 		t.Errorf("path = %q", got)
 	}
 
@@ -167,7 +167,7 @@ func TestProject_PrefixKeepsPathParamsAndBody(t *testing.T) {
 		t.Fatalf("exit %d: %s", code, stderr)
 	}
 	got := r.last(t)
-	if got.Method != "PATCH" || got.URI != "/api/p/svc/api/findings/F1" || !jsonEqual(t, got.Body, `{"status":"closed"}`) {
+	if got.Method != "PATCH" || got.URI != "/api/projects/svc/findings/F1" || !jsonEqual(t, got.Body, `{"status":"closed"}`) {
 		t.Errorf("got %+v", got)
 	}
 }
@@ -182,7 +182,7 @@ func TestProject_PrefixesBatchCreate(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d: %s", code, stderr)
 	}
-	if len(r.reqs) != 2 || r.reqs[0].URI != "/api/p/svc/api/findings" || r.reqs[1].URI != "/api/p/svc/api/findings" {
+	if len(r.reqs) != 2 || r.reqs[0].URI != "/api/projects/svc/findings" || r.reqs[1].URI != "/api/projects/svc/findings" {
 		t.Errorf("requests = %+v", r.reqs)
 	}
 	// stdout lists what was created (as JSON); the summary goes to stderr.
@@ -200,23 +200,23 @@ func TestProject_NotAppliedToMultiProjectCommands(t *testing.T) {
 	if code, _, stderr := runCLI(t, r, map[string]string{"BENCH_PROJECT": "svc"}, "flows", "list"); code != 0 {
 		t.Fatalf("exit %d: %s", code, stderr)
 	}
-	if got := r.last(t).URI; got != "/api/platform/flows" {
+	if got := r.last(t).URI; got != "/api/flows" {
 		t.Errorf("path = %q (flows list must not be project-prefixed or project-filtered)", got)
 	}
 }
 
 func TestProject_NotFoundHint(t *testing.T) {
 	r := newRecorder(t)
-	r.responses["GET /api/p/nope/api/findings"] = cannedResp{404, "404 page not found\n"}
+	r.responses["GET /api/projects/nope/findings"] = cannedResp{404, "404 page not found\n"}
 	// Errors go to stderr (like the multi-project commands), so `> out.json` only ever holds data.
 	code, stdout, stderr := runCLI(t, r, nil, "--project", "nope", "findings", "list")
 	if code != 1 || stdout != "" || !strings.Contains(stderr, "hint: --project \"nope\" is set") {
 		t.Errorf("exit %d, stdout %q, stderr %q", code, stdout, stderr)
 	}
 
-	r.responses["GET /api/platform/projects"] = cannedResp{404, "404 page not found\n"}
+	r.responses["GET /api/projects"] = cannedResp{404, "404 page not found\n"}
 	code, _, stderr = runCLI(t, r, nil, "projects", "list")
-	if code != 1 || !strings.Contains(stderr, "needs a multi-project server") {
+	if code != 1 || !strings.Contains(stderr, "404 page not found") || strings.Contains(stderr, "needs a multi-project server") {
 		t.Errorf("exit %d, stderr %q", code, stderr)
 	}
 }
@@ -258,100 +258,100 @@ func TestMultiProjectCommands_Requests(t *testing.T) {
 		stdoutHa string // substring expected in stdout (optional)
 	}{
 		// projects
-		{name: "projects list", args: []string{"projects", "list", "--json"}, method: "GET", uri: "/api/platform/projects"},
+		{name: "projects list", args: []string{"projects", "list", "--json"}, method: "GET", uri: "/api/projects"},
 		{name: "projects create", args: []string{"projects", "create", "--name", "My API", "--repo-path", "/src/api"},
-			method: "POST", uri: "/api/platform/projects", body: `{"name":"My API","repoPath":"/src/api"}`},
+			method: "POST", uri: "/api/projects", body: `{"name":"My API","repoPath":"/src/api"}`},
 		{name: "projects update positional", args: []string{"projects", "update", "my-api", "--repo-path", "/new"},
-			method: "PATCH", uri: "/api/platform/projects/my-api", body: `{"repoPath":"/new"}`},
+			method: "PATCH", uri: "/api/projects/my-api", body: `{"repoPath":"/new"}`},
 		{name: "projects delete flag", args: []string{"projects", "delete", "--slug", "my-api"},
-			method: "DELETE", uri: "/api/platform/projects/my-api", stdoutHa: `Deleted project "my-api"`},
+			method: "DELETE", uri: "/api/projects/my-api", stdoutHa: `Deleted project "my-api"`},
 
 		// baselines-all (bare group runs its default command)
-		{name: "baselines-all", args: []string{"baselines-all"}, method: "GET", uri: "/api/platform/baselines"},
-		{name: "baselines-all list", args: []string{"baselines-all", "list"}, method: "GET", uri: "/api/platform/baselines"},
+		{name: "baselines-all", args: []string{"baselines-all"}, method: "GET", uri: "/api/baselines"},
+		{name: "baselines-all list", args: []string{"baselines-all", "list"}, method: "GET", uri: "/api/baselines"},
 
 		// flows CRUD
 		{name: "flows list filters", args: []string{"flows", "list", "--status", "active", "--tag", "auth,web", "--project", "svc", "--owner", "pete", "--query", "login", "--sort", "name", "--order", "asc", "--limit", "5", "--offset", "10"},
-			method: "GET", uri: "/api/platform/flows?limit=5&offset=10&order=asc&owner=pete&project=svc&q=login&sort=name&status=active&tag=auth&tag=web"},
+			method: "GET", uri: "/api/flows?limit=5&offset=10&order=asc&owner=pete&project=svc&q=login&sort=name&status=active&tag=auth&tag=web"},
 		{name: "flows list folder path", args: []string{"flows", "list", "--folder", "auth/login"},
-			method: "GET", uri: "/api/platform/flows?folder=f2"},
+			method: "GET", uri: "/api/flows?folder=f2"},
 		{name: "flows list folder root", args: []string{"flows", "list", "--folder", "/"},
-			method: "GET", uri: "/api/platform/flows?folder=root"},
-		{name: "flows get", args: []string{"flows", "get", "fl1"}, method: "GET", uri: "/api/platform/flows/fl1"},
+			method: "GET", uri: "/api/flows?folder=root"},
+		{name: "flows get", args: []string{"flows", "get", "fl1"}, method: "GET", uri: "/api/flows/fl1"},
 		{name: "flows create", args: []string{"flows", "create", "--name", "Login", "--tags", "auth, web", "--owner", "pete", "--folder", "auth"},
-			method: "POST", uri: "/api/platform/flows", body: `{"name":"Login","description":"","status":"draft","owner":"pete","tags":["auth","web"],"folderId":"f1"}`},
+			method: "POST", uri: "/api/flows", body: `{"name":"Login","description":"","status":"draft","owner":"pete","tags":["auth","web"],"folderId":"f1"}`},
 		{name: "flows update", args: []string{"flows", "update", "fl1", "--status", "active", "--tags", "", "--folder", "root"},
-			method: "PATCH", uri: "/api/platform/flows/fl1", body: `{"status":"active","tags":[],"folderId":""}`},
+			method: "PATCH", uri: "/api/flows/fl1", body: `{"status":"active","tags":[],"folderId":""}`},
 		{name: "flows update clears description and owner", args: []string{"flows", "update", "fl1", "--description", "", "--owner", ""},
-			method: "PATCH", uri: "/api/platform/flows/fl1", body: `{"description":"","owner":""}`},
+			method: "PATCH", uri: "/api/flows/fl1", body: `{"description":"","owner":""}`},
 		{name: "flows delete confirm", args: []string{"flows", "delete", "fl1", "--confirm"},
-			method: "DELETE", uri: "/api/platform/flows/fl1", stdoutHa: `Deleted flow "fl1"`},
+			method: "DELETE", uri: "/api/flows/fl1", stdoutHa: `Deleted flow "fl1"`},
 
 		// steps
 		{name: "flows add-step", args: []string{"flows", "add-step", "fl1", "--project", "svc", "--feature", "feat-1", "--parent", "s0", "--condition", "ok", "--note", "n"},
-			method: "POST", uri: "/api/platform/flows/fl1/steps", body: `{"projectSlug":"svc","featureId":"feat-1","parentStepId":"s0","branchCondition":"ok","note":"n"}`},
+			method: "POST", uri: "/api/flows/fl1/steps", body: `{"projectSlug":"svc","featureId":"feat-1","parentStepId":"s0","branchCondition":"ok","note":"n"}`},
 		{name: "flows add-step global project default", env: map[string]string{"BENCH_PROJECT": "envsvc"}, args: []string{"flows", "add-step", "--flow", "fl1", "--feature", "feat-1"},
-			method: "POST", uri: "/api/platform/flows/fl1/steps", body: `{"projectSlug":"envsvc","featureId":"feat-1","parentStepId":"","branchCondition":"","note":""}`},
+			method: "POST", uri: "/api/flows/fl1/steps", body: `{"projectSlug":"envsvc","featureId":"feat-1","parentStepId":"","branchCondition":"","note":""}`},
 		{name: "flows update-step", args: []string{"flows", "update-step", "fl1", "s1", "--note", "hello"},
-			method: "PATCH", uri: "/api/platform/flows/fl1/steps/s1", body: `{"note":"hello"}`},
-		{name: "flows remove-step", args: []string{"flows", "remove-step", "fl1", "s1"}, method: "DELETE", uri: "/api/platform/flows/fl1/steps/s1"},
-		{name: "flows move-step", args: []string{"flows", "move-step", "fl1", "s1", "up"}, method: "POST", uri: "/api/platform/flows/fl1/steps/s1/move?dir=-1"},
-		{name: "flows move-step flags", args: []string{"flows", "move-step", "--flow", "fl1", "--step", "s1", "--direction", "down"}, method: "POST", uri: "/api/platform/flows/fl1/steps/s1/move?dir=1"},
+			method: "PATCH", uri: "/api/flows/fl1/steps/s1", body: `{"note":"hello"}`},
+		{name: "flows remove-step", args: []string{"flows", "remove-step", "fl1", "s1"}, method: "DELETE", uri: "/api/flows/fl1/steps/s1"},
+		{name: "flows move-step", args: []string{"flows", "move-step", "fl1", "s1", "up"}, method: "POST", uri: "/api/flows/fl1/steps/s1/move?dir=-1"},
+		{name: "flows move-step flags", args: []string{"flows", "move-step", "--flow", "fl1", "--step", "s1", "--direction", "down"}, method: "POST", uri: "/api/flows/fl1/steps/s1/move?dir=1"},
 
 		// links
 		{name: "flows set-link", args: []string{"flows", "set-link", "fl1", "s1", "s2", "--description", "calls", "--tags", "auth"},
-			method: "PUT", uri: "/api/platform/flows/fl1/links/s1/s2", body: `{"description":"calls","tags":["auth"]}`},
+			method: "PUT", uri: "/api/flows/fl1/links/s1/s2", body: `{"description":"calls","tags":["auth"]}`},
 		// Only given flags are sent, so the server keeps the link's other fields.
 		{name: "flows set-link partial", args: []string{"flows", "set-link", "fl1", "s1", "s2", "--comment", ""},
-			method: "PUT", uri: "/api/platform/flows/fl1/links/s1/s2", body: `{"comment":""}`},
-		{name: "flows delete-link", args: []string{"flows", "delete-link", "fl1", "s1", "s2"}, method: "DELETE", uri: "/api/platform/flows/fl1/links/s1/s2"},
+			method: "PUT", uri: "/api/flows/fl1/links/s1/s2", body: `{"comment":""}`},
+		{name: "flows delete-link", args: []string{"flows", "delete-link", "fl1", "s1", "s2"}, method: "DELETE", uri: "/api/flows/fl1/links/s1/s2"},
 
 		// discovery / review
 		{name: "flows facets", args: []string{"flows", "facets", "--status", "active", "--project", "a,b"},
-			method: "GET", uri: "/api/platform/flows/facets?project=a&project=b&status=active"},
-		{name: "flows delta latest", args: []string{"flows", "delta", "fl1"}, method: "GET", uri: "/api/platform/flows/fl1/delta"},
-		{name: "flows delta since", args: []string{"flows", "delta", "fl1", "fb1"}, method: "GET", uri: "/api/platform/flows/fl1/delta?since=fb1"},
-		{name: "flows findings", args: []string{"flows", "findings", "fl1"}, method: "GET", uri: "/api/platform/flows/fl1/findings"},
+			method: "GET", uri: "/api/flows/facets?project=a&project=b&status=active"},
+		{name: "flows delta latest", args: []string{"flows", "delta", "fl1"}, method: "GET", uri: "/api/flows/fl1/delta"},
+		{name: "flows delta since", args: []string{"flows", "delta", "fl1", "fb1"}, method: "GET", uri: "/api/flows/fl1/delta?since=fb1"},
+		{name: "flows findings", args: []string{"flows", "findings", "fl1"}, method: "GET", uri: "/api/flows/fl1/findings"},
 
 		// flow baselines
 		{name: "flows baseline set", args: []string{"flows", "baseline", "set", "fl1", "--reviewer", "pete", "--summary", "s"},
-			method: "POST", uri: "/api/platform/flows/fl1/baselines", body: `{"reviewer":"pete","summary":"s"}`},
-		{name: "flows baselines alias list", args: []string{"flows", "baselines", "list", "fl1"}, method: "GET", uri: "/api/platform/flows/fl1/baselines"},
-		{name: "flows baseline get default latest", args: []string{"flows", "baseline", "get", "fl1"}, method: "GET", uri: "/api/platform/flows/fl1/baselines/latest"},
-		{name: "flows baseline get id", args: []string{"flows", "baseline", "get", "fl1", "fb1"}, method: "GET", uri: "/api/platform/flows/fl1/baselines/fb1"},
-		{name: "flows baseline delete preview", args: []string{"flows", "baseline", "delete", "fl1", "fb1"}, method: "DELETE", uri: "/api/platform/flows/fl1/baselines/fb1"},
-		{name: "flows baseline delete confirm", args: []string{"flows", "baseline", "delete", "fl1", "fb1", "--confirm"}, method: "DELETE", uri: "/api/platform/flows/fl1/baselines/fb1?confirm=true"},
+			method: "POST", uri: "/api/flows/fl1/baselines", body: `{"reviewer":"pete","summary":"s"}`},
+		{name: "flows baselines alias list", args: []string{"flows", "baselines", "list", "fl1"}, method: "GET", uri: "/api/flows/fl1/baselines"},
+		{name: "flows baseline get default latest", args: []string{"flows", "baseline", "get", "fl1"}, method: "GET", uri: "/api/flows/fl1/baselines/latest"},
+		{name: "flows baseline get id", args: []string{"flows", "baseline", "get", "fl1", "fb1"}, method: "GET", uri: "/api/flows/fl1/baselines/fb1"},
+		{name: "flows baseline delete preview", args: []string{"flows", "baseline", "delete", "fl1", "fb1"}, method: "DELETE", uri: "/api/flows/fl1/baselines/fb1"},
+		{name: "flows baseline delete confirm", args: []string{"flows", "baseline", "delete", "fl1", "fb1", "--confirm"}, method: "DELETE", uri: "/api/flows/fl1/baselines/fb1?confirm=true"},
 
 		// folders + move
-		{name: "folders list", args: []string{"flows", "folders", "list", "--tree"}, method: "GET", uri: "/api/platform/flow-folders", stdoutHa: "  login/  (2 flows)  f2"},
+		{name: "folders list", args: []string{"flows", "folders", "list", "--tree"}, method: "GET", uri: "/api/flow-folders", stdoutHa: "  login/  (2 flows)  f2"},
 		{name: "folders create nested", args: []string{"flows", "folders", "create", "auth/login/mfa"},
-			method: "POST", uri: "/api/platform/flow-folders", body: `{"name":"mfa","parentId":"f2"}`},
+			method: "POST", uri: "/api/flow-folders", body: `{"name":"mfa","parentId":"f2"}`},
 		{name: "folders rename", args: []string{"flows", "folders", "rename", "auth/login", "signin"},
-			method: "PATCH", uri: "/api/platform/flow-folders/f2", body: `{"name":"signin"}`},
+			method: "PATCH", uri: "/api/flow-folders/f2", body: `{"name":"signin"}`},
 		{name: "folders move to top", args: []string{"flows", "folders", "move", "auth/login", "/"},
-			method: "POST", uri: "/api/platform/flows/move", body: `{"folderIds":["f2"],"targetFolderId":""}`},
+			method: "POST", uri: "/api/flows/move", body: `{"folderIds":["f2"],"targetFolderId":""}`},
 		{name: "folders delete preview", args: []string{"flows", "folders", "delete", "auth"},
-			method: "DELETE", uri: "/api/platform/flow-folders/f1", stdoutHa: "Pass --confirm"},
+			method: "DELETE", uri: "/api/flow-folders/f1", stdoutHa: "Pass --confirm"},
 		{name: "folders delete confirm", args: []string{"flows", "folders", "delete", "f1", "--confirm"},
-			method: "DELETE", uri: "/api/platform/flow-folders/f1?confirm=true"},
+			method: "DELETE", uri: "/api/flow-folders/f1?confirm=true"},
 		{name: "flows move variadic", args: []string{"flows", "move", "fl1", "fl2", "--folder", "auth/login"},
-			method: "POST", uri: "/api/platform/flows/move", body: `{"flowIds":["fl1","fl2"],"targetFolderId":"f2"}`},
+			method: "POST", uri: "/api/flows/move", body: `{"flowIds":["fl1","fl2"],"targetFolderId":"f2"}`},
 		{name: "flows move ids flag", args: []string{"flows", "move", "--ids", "fl1,fl2", "--folder", "/"},
-			method: "POST", uri: "/api/platform/flows/move", body: `{"flowIds":["fl1","fl2"],"targetFolderId":""}`},
+			method: "POST", uri: "/api/flows/move", body: `{"flowIds":["fl1","fl2"],"targetFolderId":""}`},
 
 		// saved views
-		{name: "views list", args: []string{"flows", "views", "list"}, method: "GET", uri: "/api/platform/flow-views"},
+		{name: "views list", args: []string{"flows", "views", "list"}, method: "GET", uri: "/api/flow-views"},
 		{name: "views create", args: []string{"flows", "views", "create", "--name", "Active auth", "--query", "status=active&tag=auth", "--shared"},
-			method: "POST", uri: "/api/platform/flow-views", body: `{"name":"Active auth","query":"status=active&tag=auth","owner":"","isShared":true}`},
+			method: "POST", uri: "/api/flow-views", body: `{"name":"Active auth","query":"status=active&tag=auth","owner":"","isShared":true}`},
 		{name: "views update", args: []string{"flows", "views", "update", "v1", "--name", "Renamed", "--private"},
-			method: "PATCH", uri: "/api/platform/flow-views/v1", body: `{"name":"Renamed","isShared":false}`},
-		{name: "views delete", args: []string{"flows", "views", "delete", "v1"}, method: "DELETE", uri: "/api/platform/flow-views/v1"},
+			method: "PATCH", uri: "/api/flow-views/v1", body: `{"name":"Renamed","isShared":false}`},
+		{name: "views delete", args: []string{"flows", "views", "delete", "v1"}, method: "DELETE", uri: "/api/flow-views/v1"},
 
 		// catalog
 		{name: "catalog search", args: []string{"catalog", "search", "login", "--kind", "interface", "--projects", "a,b", "--limit", "10"},
-			method: "GET", uri: "/api/platform/features/search?kind=interface&limit=10&project=a&project=b&q=login"},
+			method: "GET", uri: "/api/features/search?kind=interface&limit=10&project=a&project=b&q=login"},
 		{name: "catalog get", args: []string{"catalog", "get", "svc:feat-1", "web:feat-2"},
-			method: "GET", uri: "/api/platform/features?refs=svc%3Afeat-1%2Cweb%3Afeat-2"},
+			method: "GET", uri: "/api/features?refs=svc%3Afeat-1%2Cweb%3Afeat-2"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -380,7 +380,7 @@ func TestMultiProjectCommands_Requests(t *testing.T) {
 
 func TestFlowsDelete_DryRunOnlyReads(t *testing.T) {
 	r := newRecorder(t)
-	r.responses["GET /api/platform/flows/fl1"] = cannedResp{200, `{"id":"fl1","name":"Login","steps":[{},{}]}`}
+	r.responses["GET /api/flows/fl1"] = cannedResp{200, `{"id":"fl1","name":"Login","steps":[{},{}]}`}
 	code, stdout, stderr := runCLI(t, r, nil, "flows", "delete", "fl1")
 	if code != 0 {
 		t.Fatalf("exit %d: %s", code, stderr)
@@ -406,14 +406,14 @@ func TestFlowsSetSteps_SendsInputVerbatim(t *testing.T) {
 		t.Fatalf("exit %d: %s", code, stderr)
 	}
 	got := r.last(t)
-	if got.Method != "PUT" || got.URI != "/api/platform/flows/fl1/steps" || got.Body != doc {
+	if got.Method != "PUT" || got.URI != "/api/flows/fl1/steps" || got.Body != doc {
 		t.Errorf("got %+v", got)
 	}
 }
 
 func TestProjectsList_Table(t *testing.T) {
 	r := newRecorder(t)
-	r.responses["GET /api/platform/projects"] = cannedResp{200, `[{"name":"My API","slug":"my-api","repoPath":"/src/api","stats":{"findingsTotal":3,"findingsOpen":1,"commentsTotal":2,"commentsOpen":0}}]`}
+	r.responses["GET /api/projects"] = cannedResp{200, `[{"name":"My API","slug":"my-api","repoPath":"/src/api","stats":{"findingsTotal":3,"findingsOpen":1,"commentsTotal":2,"commentsOpen":0}}]`}
 	code, stdout, stderr := runCLI(t, r, nil, "projects", "list")
 	if code != 0 {
 		t.Fatalf("exit %d: %s", code, stderr)
@@ -452,7 +452,7 @@ func TestMultiProject_ArgErrors(t *testing.T) {
 
 func TestMultiProject_APIErrorExitsNonZero(t *testing.T) {
 	r := newRecorder(t)
-	r.responses["GET /api/platform/flows/missing"] = cannedResp{404, `{"error":"flow not found"}`}
+	r.responses["GET /api/flows/missing"] = cannedResp{404, `{"error":"flow not found"}`}
 	code, _, stderr := runCLI(t, r, nil, "flows", "get", "missing")
 	if code != 1 || !strings.Contains(stderr, "flow not found") {
 		t.Errorf("exit %d, stderr %q", code, stderr)
@@ -495,7 +495,7 @@ func TestReadFile_KeepsPathSlashes(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d: %s", code, stderr)
 	}
-	if got, want := r.last(t).URI, "/api/p/alpha/api/git/show/HEAD/src/a%20b/c.go"; got != want {
+	if got, want := r.last(t).URI, "/api/projects/alpha/git/show/HEAD/src/a%20b/c.go"; got != want {
 		t.Fatalf("URI = %q, want %q", got, want)
 	}
 }

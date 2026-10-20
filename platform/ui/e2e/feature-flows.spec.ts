@@ -4,7 +4,7 @@ import { test, expect } from './helpers/input';
 // the feature ("Used in flows", a host-supplied card under Provenance).
 
 test('a feature page lists its flows with the step number and role, and links to the flow', async ({ page, request }) => {
-  const flows = (await (await request.get('/api/platform/flows?limit=200')).json()).items as
+  const flows = (await (await request.get('/api/flows?limit=200')).json()).items as
     { id: string; name: string; shape: { id: string; parentStepId?: string; position: number; projectSlug: string; featureId: string }[] }[];
   const login = flows.find((f) => f.name === 'Login path')!;
   const root = login.shape.find((n) => !n.parentStepId)!; // step 1, the entry point
@@ -28,9 +28,9 @@ test('a feature page lists its flows with the step number and role, and links to
 });
 
 test('a feature no flow uses says so', async ({ page, request }) => {
-  const flows = (await (await request.get('/api/platform/flows?limit=200')).json()).items as { shape: { projectSlug: string; featureId: string }[] }[];
+  const flows = (await (await request.get('/api/flows?limit=200')).json()).items as { shape: { projectSlug: string; featureId: string }[] }[];
   const used = new Set(flows.flatMap((f) => f.shape.map((n) => `${n.projectSlug}:${n.featureId}`)));
-  const feats = (await (await request.get('/api/p/beta/api/features')).json()) as { id: string }[];
+  const feats = (await (await request.get('/api/projects/beta/features')).json()) as { id: string }[];
   const unused = feats.find((f) => !used.has(`beta:${f.id}`));
   test.skip(!unused, 'every beta feature is on a flow in this fixture');
   await page.goto(`/p/beta#/feature/${unused!.id}`);

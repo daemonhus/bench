@@ -11,7 +11,7 @@ import (
 // flows: cross-project walkthroughs built from features on any project.
 
 func flowPath(id string, rest ...string) string {
-	p := "/api/platform/flows/" + url.PathEscape(id)
+	p := "/api/flows/" + url.PathEscape(id)
 	for _, r := range rest {
 		p += "/" + url.PathEscape(r)
 	}
@@ -166,7 +166,7 @@ func init() {
 		mpCmd{Group: "flows", Name: "facets", Desc: "List available filter values (status, tag, project, owner) with counts.",
 			Flags: flowFilterFlags,
 			Run: func(c *cli, in *mpInput) error {
-				return c.emit("GET", withQuery("/api/platform/flows/facets", flowFilterQuery(in)), nil)
+				return c.emit("GET", withQuery("/api/flows/facets", flowFilterQuery(in)), nil)
 			}},
 		mpCmd{Group: "flows", Name: "delta", Desc: "Show what changed since the latest (or a specific) flow baseline.",
 			Args: []string{"flow", "baseline"},
@@ -235,7 +235,7 @@ func init() {
 
 		// ── saved views ──
 		mpCmd{Group: "flows views", Name: "list", Desc: "List saved flow views, most recently updated first.",
-			Run: func(c *cli, _ *mpInput) error { return c.emit("GET", "/api/platform/flow-views", nil) }},
+			Run: func(c *cli, _ *mpInput) error { return c.emit("GET", "/api/flow-views", nil) }},
 		mpCmd{Group: "flows views", Name: "create", Desc: "Save a flow view: a named flow list query string (e.g. 'status=active&tag=auth').",
 			Flags: []flagDef{
 				{Name: "name", Desc: "View name", Required: true},
@@ -244,7 +244,7 @@ func init() {
 				{Name: "shared", Desc: "Share the view with everyone", Type: "bool"},
 			},
 			Run: func(c *cli, in *mpInput) error {
-				return c.emit("POST", "/api/platform/flow-views", map[string]any{
+				return c.emit("POST", "/api/flow-views", map[string]any{
 					"name": in.str("name"), "query": in.str("query"), "owner": in.str("owner"), "isShared": in.flag("shared"),
 				})
 			}},
@@ -262,7 +262,7 @@ func init() {
 			Args:  []string{"id"},
 			Flags: []flagDef{{Name: "id", Desc: "View ID", Required: true}},
 			Run: func(c *cli, in *mpInput) error {
-				return c.emit("DELETE", "/api/platform/flow-views/"+url.PathEscape(in.str("id")), nil)
+				return c.emit("DELETE", "/api/flow-views/"+url.PathEscape(in.str("id")), nil)
 			}},
 	)
 }
@@ -323,7 +323,7 @@ func flowList(c *cli, in *mpInput) error {
 		}
 		q.Set("folder", id)
 	}
-	return c.emit("GET", withQuery("/api/platform/flows", q), nil)
+	return c.emit("GET", withQuery("/api/flows", q), nil)
 }
 
 func flowCreate(c *cli, in *mpInput) error {
@@ -349,7 +349,7 @@ func flowCreate(c *cli, in *mpInput) error {
 		}
 		obj["folderId"] = id
 	}
-	return c.emit("POST", "/api/platform/flows", obj)
+	return c.emit("POST", "/api/flows", obj)
 }
 
 func flowUpdate(c *cli, in *mpInput) error {
@@ -509,7 +509,7 @@ func flowViewUpdate(c *cli, in *mpInput) error {
 	if len(obj) == 0 {
 		return errors.New("nothing to update: pass at least one of --name, --query, --shared, --private")
 	}
-	return c.emit("PATCH", "/api/platform/flow-views/"+url.PathEscape(in.str("id")), obj)
+	return c.emit("PATCH", "/api/flow-views/"+url.PathEscape(in.str("id")), obj)
 }
 
 func flowBaselineDelete(c *cli, in *mpInput) error {

@@ -34,13 +34,13 @@ export interface Project {
 }
 
 export async function listProjects(): Promise<Project[]> {
-  const res = await fetch('/api/platform/projects');
+  const res = await fetch('/api/projects');
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 
 export async function createProject(name: string, repoPath: string): Promise<Project> {
-  const res = await fetch('/api/platform/projects', {
+  const res = await fetch('/api/projects', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, repoPath }),
@@ -50,7 +50,7 @@ export async function createProject(name: string, repoPath: string): Promise<Pro
 }
 
 export async function updateProject(slug: string, fields: { name?: string; repoPath?: string; tags?: string[]; owner?: string }): Promise<Project> {
-  const res = await fetch(`/api/platform/projects/${slug}`, {
+  const res = await fetch(`/api/projects/${slug}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(fields),
@@ -60,7 +60,7 @@ export async function updateProject(slug: string, fields: { name?: string; repoP
 }
 
 export async function deleteProject(slug: string): Promise<void> {
-  const res = await fetch(`/api/platform/projects/${slug}`, { method: 'DELETE' });
+  const res = await fetch(`/api/projects/${slug}`, { method: 'DELETE' });
   if (!res.ok) throw new Error(await res.text());
 }
 
@@ -84,7 +84,7 @@ export interface PlatformBaseline {
 }
 
 export async function listAllBaselines(): Promise<PlatformBaseline[]> {
-  const res = await fetch('/api/platform/baselines');
+  const res = await fetch('/api/baselines');
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
@@ -112,7 +112,7 @@ export interface Finding {
 }
 
 export async function listProjectFindings(slug: string, includeResolved = false): Promise<Finding[]> {
-  const res = await fetch(`/api/p/${slug}/api/findings${includeResolved ? '?include_resolved=true' : ''}`);
+  const res = await fetch(`/api/projects/${slug}/findings${includeResolved ? '?include_resolved=true' : ''}`);
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
@@ -149,13 +149,13 @@ export const DEFAULT_CATEGORIES: string[] = [
 ];
 
 export async function getSettings(): Promise<Record<string, string>> {
-  const res = await fetch('/api/platform/settings');
+  const res = await fetch('/api/settings');
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 
 export async function putSettings(settings: Record<string, string>): Promise<void> {
-  const res = await fetch('/api/platform/settings', {
+  const res = await fetch('/api/settings', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(settings),

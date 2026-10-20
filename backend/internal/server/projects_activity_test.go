@@ -14,8 +14,8 @@ import (
 func TestListProjects_Activity(t *testing.T) {
 	p, _ := newTestPlatform(t)
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/platform/projects", p.listProjects)
-	mux.HandleFunc("POST /api/platform/projects", p.createProject)
+	mux.HandleFunc("GET /api/projects", p.listProjects)
+	mux.HandleFunc("POST /api/projects", p.createProject)
 
 	repo := t.TempDir()
 	for _, args := range [][]string{
@@ -37,11 +37,11 @@ func TestListProjects_Activity(t *testing.T) {
 			}
 		}
 	}
-	if w := do(t, mux, "POST", "/api/platform/projects", `{"name":"svc","repoPath":"`+repo+`"}`); w.Code >= 300 {
+	if w := do(t, mux, "POST", "/api/projects", `{"name":"svc","repoPath":"`+repo+`"}`); w.Code >= 300 {
 		t.Fatalf("create project: %d %s", w.Code, w.Body.String())
 	}
 
-	projects := mustDecode[[]Project](t, do(t, mux, "GET", "/api/platform/projects", ""))
+	projects := mustDecode[[]Project](t, do(t, mux, "GET", "/api/projects", ""))
 	if len(projects) != 1 || projects[0].Activity == nil {
 		t.Fatalf("want one project with activity, got %+v", projects)
 	}

@@ -6,7 +6,7 @@ interface DiffResult {
 }
 
 // Module-level base URL for all API calls.
-// Standalone: '' (empty, relative paths). Platform: '/api/p/project-slug'.
+// The project's REST root, '/api/projects/{slug}'; the paths below are relative to it.
 let _baseUrl = '';
 
 /**
@@ -34,48 +34,48 @@ async function fetchJSON<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const gitApi = {
   getInfo(): Promise<{ name: string; defaultBranch: string; remoteUrl: string }> {
-    return fetchJSON('/api/git/info');
+    return fetchJSON('/git/info');
   },
   listCommits(limit = 50): Promise<CommitInfo[]> {
-    return fetchJSON(`/api/git/commits?limit=${limit}`);
+    return fetchJSON(`/git/commits?limit=${limit}`);
   },
   /** Resolve any commitish (including rev^ suffixes) to a concrete commit. */
   resolveCommit(ref: string): Promise<CommitInfo | null> {
-    return fetchJSON<CommitInfo[]>(`/api/git/commits?to_commit=${encodeURIComponent(ref)}&limit=1`)
+    return fetchJSON<CommitInfo[]>(`/git/commits?to_commit=${encodeURIComponent(ref)}&limit=1`)
       .then((list) => list[0] ?? null)
       .catch(() => null);
   },
   listFiles(commitish: string): Promise<FileEntry[]> {
-    return fetchJSON(`/api/git/tree/${encodeURIComponent(commitish)}`);
+    return fetchJSON(`/git/tree/${encodeURIComponent(commitish)}`);
   },
   getFileContent(commitish: string, path: string): Promise<{ content: string }> {
-    return fetchJSON(`/api/git/show/${encodeURIComponent(commitish)}/${path}`);
+    return fetchJSON(`/git/show/${encodeURIComponent(commitish)}/${path}`);
   },
   getDiff(from: string, to: string, path: string): Promise<DiffResult> {
-    return fetchJSON(`/api/git/diff?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&path=${encodeURIComponent(path)}`);
+    return fetchJSON(`/git/diff?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&path=${encodeURIComponent(path)}`);
   },
   getDiffFiles(from: string, to: string): Promise<string[]> {
-    return fetchJSON(`/api/git/diff-files?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+    return fetchJSON(`/git/diff-files?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
   },
   listBranches(): Promise<BranchInfo[]> {
-    return fetchJSON('/api/git/branches');
+    return fetchJSON('/git/branches');
   },
   listGraph(limit = 100): Promise<GraphCommit[]> {
-    return fetchJSON(`/api/git/graph?limit=${limit}`);
+    return fetchJSON(`/git/graph?limit=${limit}`);
   },
   activity(scale: ActivityScale = 'week', periods = 52): Promise<ActivityBucket[]> {
-    return fetchJSON(`/api/git/activity?scale=${scale}&periods=${periods}`);
+    return fetchJSON(`/git/activity?scale=${scale}&periods=${periods}`);
   },
   /** Commits and merges in from..to (from exclusive). */
   rangeStats(from: string, to = 'HEAD'): Promise<{ commits: number; merges: number }> {
-    return fetchJSON(`/api/git/range-stats?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+    return fetchJSON(`/git/range-stats?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
   },
   searchCode(pattern: string, commit?: string, opts?: { path?: string; caseInsensitive?: boolean }): Promise<GrepMatch[]> {
     const params = new URLSearchParams({ pattern });
     if (commit) params.set('commit', commit);
     if (opts?.path) params.set('path', opts.path);
     if (opts?.caseInsensitive) params.set('case_insensitive', 'true');
-    return fetchJSON(`/api/git/search?${params}`);
+    return fetchJSON(`/git/search?${params}`);
   },
 };
 
@@ -86,7 +86,7 @@ export const findingsApi = {
     if (commit) params.set('commit', commit);
     if (id) params.set('id', id);
     params.set('include_resolved', 'true');
-    return fetchJSON(`/api/findings?${params}`);
+    return fetchJSON(`/findings?${params}`);
   },
   listPaginated(opts: { fileId?: string; commit?: string; id?: string; limit: number; offset?: number }): Promise<PaginatedResponse<Finding | FindingWithPosition>> {
     const params = new URLSearchParams();
@@ -96,42 +96,42 @@ export const findingsApi = {
     params.set('limit', String(opts.limit));
     if (opts.offset) params.set('offset', String(opts.offset));
     params.set('include_resolved', 'true');
-    return fetchJSON(`/api/findings?${params}`);
+    return fetchJSON(`/findings?${params}`);
   },
   /** One finding; with `commit`, also its effective position there (effectiveAnchor, confidence). */
   get(id: string, commit?: string): Promise<FindingWithPosition> {
     const q = commit ? `?commit=${encodeURIComponent(commit)}` : '';
-    return fetchJSON(`/api/findings/${encodeURIComponent(id)}${q}`);
+    return fetchJSON(`/findings/${encodeURIComponent(id)}${q}`);
   },
   create(finding: Finding): Promise<Finding> {
-    return fetchJSON('/api/findings', {
+    return fetchJSON('/findings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(finding),
     });
   },
   setOrigin(id: string, origin: Partial<Origin>): Promise<Origin> {
-    return fetchJSON(`/api/findings/${encodeURIComponent(id)}/origin`, {
+    return fetchJSON(`/findings/${encodeURIComponent(id)}/origin`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(origin),
     });
   },
   clearOrigin(id: string): Promise<void> {
-    return fetchJSON(`/api/findings/${encodeURIComponent(id)}/origin`, { method: 'DELETE' });
+    return fetchJSON(`/findings/${encodeURIComponent(id)}/origin`, { method: 'DELETE' });
   },
   suggestOrigin(id: string): Promise<OriginSuggestion> {
-    return fetchJSON(`/api/findings/${encodeURIComponent(id)}/origin/suggest`);
+    return fetchJSON(`/findings/${encodeURIComponent(id)}/origin/suggest`);
   },
   update(id: string, updates: Partial<Finding>): Promise<Finding> {
-    return fetchJSON(`/api/findings/${encodeURIComponent(id)}`, {
+    return fetchJSON(`/findings/${encodeURIComponent(id)}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates),
     });
   },
   delete(id: string): Promise<void> {
-    return fetchJSON(`/api/findings/${encodeURIComponent(id)}`, {
+    return fetchJSON(`/findings/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
   },
@@ -145,7 +145,7 @@ export const commentsApi = {
     if (featureId) params.set('featureId', featureId);
     if (commit) params.set('commit', commit);
     const q = params.toString() ? `?${params}` : '';
-    return fetchJSON(`/api/comments${q}`);
+    return fetchJSON(`/comments${q}`);
   },
   listPaginated(opts: { fileId?: string; findingId?: string; commit?: string; limit: number; offset?: number }): Promise<PaginatedResponse<Comment | CommentWithPosition>> {
     const params = new URLSearchParams();
@@ -154,10 +154,10 @@ export const commentsApi = {
     if (opts.commit) params.set('commit', opts.commit);
     params.set('limit', String(opts.limit));
     if (opts.offset) params.set('offset', String(opts.offset));
-    return fetchJSON(`/api/comments?${params}`);
+    return fetchJSON(`/comments?${params}`);
   },
   create(comment: Comment): Promise<Comment> {
-    return fetchJSON('/api/comments', {
+    return fetchJSON('/comments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(comment),
@@ -172,14 +172,14 @@ export const commentsApi = {
     line_end?: number;
     anchor_updated_at?: string;
   }): Promise<void> {
-    return fetchJSON(`/api/comments/${encodeURIComponent(id)}`, {
+    return fetchJSON(`/comments/${encodeURIComponent(id)}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates),
     });
   },
   delete(id: string): Promise<void> {
-    return fetchJSON(`/api/comments/${encodeURIComponent(id)}`, {
+    return fetchJSON(`/comments/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
   },
@@ -195,10 +195,10 @@ export const featuresApi = {
     if (linkedTo) params.set('linkedTo', linkedTo);
     if (id) params.set('id', id);
     const q = params.toString() ? `?${params}` : '';
-    return fetchJSON(`/api/features${q}`);
+    return fetchJSON(`/features${q}`);
   },
   create(feature: Partial<Feature>): Promise<Feature> {
-    return fetchJSON('/api/features', {
+    return fetchJSON('/features', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(feature),
@@ -206,30 +206,30 @@ export const featuresApi = {
   },
   get(id: string, commit?: string): Promise<FeatureWithPosition> {
     const q = commit ? `?commit=${encodeURIComponent(commit)}` : '';
-    return fetchJSON(`/api/features/${encodeURIComponent(id)}${q}`);
+    return fetchJSON(`/features/${encodeURIComponent(id)}${q}`);
   },
   setOrigin(id: string, origin: Partial<Origin>): Promise<Origin> {
-    return fetchJSON(`/api/features/${encodeURIComponent(id)}/origin`, {
+    return fetchJSON(`/features/${encodeURIComponent(id)}/origin`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(origin),
     });
   },
   clearOrigin(id: string): Promise<void> {
-    return fetchJSON(`/api/features/${encodeURIComponent(id)}/origin`, { method: 'DELETE' });
+    return fetchJSON(`/features/${encodeURIComponent(id)}/origin`, { method: 'DELETE' });
   },
   suggestOrigin(id: string): Promise<OriginSuggestion> {
-    return fetchJSON(`/api/features/${encodeURIComponent(id)}/origin/suggest`);
+    return fetchJSON(`/features/${encodeURIComponent(id)}/origin/suggest`);
   },
   update(id: string, updates: Partial<Feature>): Promise<Feature> {
-    return fetchJSON(`/api/features/${encodeURIComponent(id)}`, {
+    return fetchJSON(`/features/${encodeURIComponent(id)}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates),
     });
   },
   delete(id: string): Promise<void> {
-    return fetchJSON(`/api/features/${encodeURIComponent(id)}`, {
+    return fetchJSON(`/features/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
   },
@@ -242,55 +242,55 @@ export const refsApi = {
     if (entityId) params.set('entityId', entityId);
     if (provider) params.set('provider', provider);
     const q = params.toString() ? `?${params}` : '';
-    return fetchJSON(`/api/refs${q}`);
+    return fetchJSON(`/refs${q}`);
   },
   create(ref: Omit<Ref, 'id' | 'createdAt'>): Promise<Ref> {
-    return fetchJSON('/api/refs', {
+    return fetchJSON('/refs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(ref),
     });
   },
   update(id: string, updates: Partial<Pick<Ref, 'provider' | 'url' | 'title'>>): Promise<Ref> {
-    return fetchJSON(`/api/refs/${encodeURIComponent(id)}`, {
+    return fetchJSON(`/refs/${encodeURIComponent(id)}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates),
     });
   },
   delete(id: string): Promise<void> {
-    return fetchJSON(`/api/refs/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    return fetchJSON(`/refs/${encodeURIComponent(id)}`, { method: 'DELETE' });
   },
 };
 
 export const reconcileApi = {
   head(): Promise<ReconciledHead> {
-    return fetchJSON('/api/reconcile/head');
+    return fetchJSON('/reconcile/head');
   },
   start(targetCommit: string, filePaths?: string[]): Promise<JobSnapshot> {
-    return fetchJSON('/api/reconcile', {
+    return fetchJSON('/reconcile', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ targetCommit, filePaths }),
     });
   },
   jobStatus(jobId: string): Promise<JobSnapshot> {
-    return fetchJSON(`/api/reconcile/status?jobId=${encodeURIComponent(jobId)}`);
+    return fetchJSON(`/reconcile/status?jobId=${encodeURIComponent(jobId)}`);
   },
   fileStatus(fileId: string, commit: string): Promise<ReconcileFileStatus> {
-    return fetchJSON(`/api/reconcile/status?fileId=${encodeURIComponent(fileId)}&commit=${encodeURIComponent(commit)}`);
+    return fetchJSON(`/reconcile/status?fileId=${encodeURIComponent(fileId)}&commit=${encodeURIComponent(commit)}`);
   },
   history(type: 'finding' | 'comment' | 'feature', id: string): Promise<{ id: string; type: string; positions: AnnotationPosition[] }> {
-    return fetchJSON(`/api/annotations/${type}/${encodeURIComponent(id)}/history`);
+    return fetchJSON(`/annotations/${type}/${encodeURIComponent(id)}/history`);
   },
 };
 
 export const profileApi = {
   get(): Promise<ServiceProfile> {
-    return fetchJSON('/api/profile');
+    return fetchJSON('/profile');
   },
   update(patch: Partial<ServiceProfile>): Promise<ServiceProfile> {
-    return fetchJSON('/api/profile', {
+    return fetchJSON('/profile', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(patch),
@@ -300,10 +300,10 @@ export const profileApi = {
 
 export const settingsApi = {
   get(): Promise<Record<string, string>> {
-    return fetchJSON('/api/settings');
+    return fetchJSON('/settings');
   },
   put(settings: Record<string, string>): Promise<void> {
-    return fetchJSON('/api/settings', {
+    return fetchJSON('/settings', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(settings),
@@ -313,13 +313,13 @@ export const settingsApi = {
 
 export const baselinesApi = {
   list(): Promise<Baseline[]> {
-    return fetchJSON('/api/baselines');
+    return fetchJSON('/baselines');
   },
   latest(): Promise<Baseline | null> {
-    return fetchJSON<Baseline>('/api/baselines/latest').catch(() => null);
+    return fetchJSON<Baseline>('/baselines/latest').catch(() => null);
   },
   create(reviewer?: string, summary?: string, commitId?: string): Promise<Baseline> {
-    return fetchJSON('/api/baselines', {
+    return fetchJSON('/baselines', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -330,21 +330,21 @@ export const baselinesApi = {
     });
   },
   update(id: string, updates: { reviewer?: string; summary?: string }): Promise<Baseline> {
-    return fetchJSON(`/api/baselines/${encodeURIComponent(id)}`, {
+    return fetchJSON(`/baselines/${encodeURIComponent(id)}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates),
     });
   },
   delete(id: string): Promise<void> {
-    return fetchJSON(`/api/baselines/${encodeURIComponent(id)}`, {
+    return fetchJSON(`/baselines/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
   },
   delta(): Promise<BaselineDelta | null> {
-    return fetchJSON<BaselineDelta>('/api/baselines/delta').catch(() => null);
+    return fetchJSON<BaselineDelta>('/baselines/delta').catch(() => null);
   },
   deltaFor(baselineId: string): Promise<BaselineDelta | null> {
-    return fetchJSON<BaselineDelta>(`/api/baselines/${encodeURIComponent(baselineId)}/delta`).catch(() => null);
+    return fetchJSON<BaselineDelta>(`/baselines/${encodeURIComponent(baselineId)}/delta`).catch(() => null);
   },
 };

@@ -50,6 +50,17 @@ type Project struct {
 	Activity *workbench.BranchActivity `json:"activity,omitempty"`
 }
 
+// routes is the whole server: project and cross-project REST, each project's workbench under
+// /api/projects/{slug}/, the aggregate MCP at /mcp and the UI for everything else.
+func (p *Platform) routes() http.Handler {
+	mux := http.NewServeMux()
+	p.registerPlatformRoutes(mux)
+	mux.Handle("/api/projects/{slug}/", p.workbenchRouter())
+	mux.Handle("/mcp", newPlatformMCP(p))
+	mux.Handle("/", spaHandler())
+	return mux
+}
+
 // Run serves the multi-project workbench on addr, keeping every database under dataDir.
 func Run(dataDir, addr string) error {
 	if err := os.MkdirAll(dataDir, 0755); err != nil {
@@ -62,14 +73,8 @@ func Run(dataDir, addr string) error {
 	}
 	defer p.Close()
 
-	mux := http.NewServeMux()
-	p.registerPlatformRoutes(mux)
-	mux.Handle("/api/p/", p.workbenchRouter())
-	mux.Handle("/mcp", newPlatformMCP(p))
-	mux.Handle("/", spaHandler())
-
 	log.Printf("benchd listening on %s (data=%s)", addr, dataDir)
-	return http.ListenAndServe(addr, workbench.WithMiddleware(mux))
+	return http.ListenAndServe(addr, workbench.WithMiddleware(p.routes()))
 }
 
 func NewPlatform(dataDir string) (*Platform, error) {
@@ -313,6 +318,52 @@ func (p *Platform) getWorkbench(identifier string) (*workbench.Workbench, error)
 	return wb, nil
 }
 
+// enrichProject adds the live data (remote, activity, stats, risk) read from the project's workbench.
+func (p *Platform) enrichProject(proj *Project) {
+	if wb, err := p.getWorkbench(proj.Slug); err == nil {
+		proj.RemoteURL = wb.Repo.RemoteURL()
+		if act, err := wb.Repo.BranchActivity(wb.Repo.DefaultBranch(), 12); err == nil {
+			proj.Activity = &act
+		}
+		if stats, err := wb.Stats(); err == nil {
+			proj.Stats = &stats
+			// Compute risk data from latest baseline
+			if baselines, err := wb.ListBaselines(1); err == nil && len(baselines) > 0 {
+				latest := baselines[0]
+				delta := stats.FindingsTotal - latest.FindingsTotal
+				if delta < 0 {
+					delta = 0
+				}
+				rd := &RiskData{
+					LatestBaselineAt: latest.CreatedAt,
+					DeltaNewFindings: delta,
+				}
+				if head, err := wb.Repo.Head(); err == nil {
+					if commits, err := wb.Repo.RevList(latest.CommitID, head); err == nil {
+						rd.CommitsSince = len(commits)
+					}
+					if files, err := wb.Repo.DiffFiles(latest.CommitID, head); err == nil {
+						rd.FilesChangedSince = len(files)
+					}
+				}
+				proj.RiskData = rd
+			}
+		}
+	}
+}
+
+func (p *Platform) getProject(w http.ResponseWriter, r *http.Request) {
+	var proj Project
+	err := p.db.QueryRow("SELECT id, name, slug, repo_path, created_at FROM projects WHERE slug = ?", r.PathValue("slug")).
+		Scan(&proj.ID, &proj.Name, &proj.Slug, &proj.RepoPath, &proj.CreatedAt)
+	if err != nil {
+		http.Error(w, "not found", 404)
+		return
+	}
+	p.enrichProject(&proj)
+	writeJSON(w, proj)
+}
+
 func (p *Platform) listProjects(w http.ResponseWriter, r *http.Request) {
 	rows, err := p.db.Query("SELECT id, name, slug, repo_path, created_at FROM projects ORDER BY created_at DESC")
 	if err != nil {
@@ -328,36 +379,7 @@ func (p *Platform) listProjects(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), 500)
 			return
 		}
-		if wb, err := p.getWorkbench(proj.Slug); err == nil {
-			proj.RemoteURL = wb.Repo.RemoteURL()
-			if act, err := wb.Repo.BranchActivity(wb.Repo.DefaultBranch(), 12); err == nil {
-				proj.Activity = &act
-			}
-			if stats, err := wb.Stats(); err == nil {
-				proj.Stats = &stats
-				// Compute risk data from latest baseline
-				if baselines, err := wb.ListBaselines(1); err == nil && len(baselines) > 0 {
-					latest := baselines[0]
-					delta := stats.FindingsTotal - latest.FindingsTotal
-					if delta < 0 {
-						delta = 0
-					}
-					rd := &RiskData{
-						LatestBaselineAt: latest.CreatedAt,
-						DeltaNewFindings: delta,
-					}
-					if head, err := wb.Repo.Head(); err == nil {
-						if commits, err := wb.Repo.RevList(latest.CommitID, head); err == nil {
-							rd.CommitsSince = len(commits)
-						}
-						if files, err := wb.Repo.DiffFiles(latest.CommitID, head); err == nil {
-							rd.FilesChangedSince = len(files)
-						}
-					}
-					proj.RiskData = rd
-				}
-			}
-		}
+		p.enrichProject(&proj)
 		projects = append(projects, proj)
 	}
 	if projects == nil {
@@ -606,24 +628,23 @@ func (p *Platform) putSettings(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(204)
 }
 
+// workbenchRouter serves one project's workbench under /api/projects/{slug}/: the part after the
+// slug maps onto the workbench's own routes (/api/projects/{slug}/findings → /api/findings,
+// /api/projects/{slug}/mcp → /mcp).
 func (p *Platform) workbenchRouter() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Path: /api/p/{slug}/api/git/commits → extract slug, forward /api/git/commits
-		rest := strings.TrimPrefix(r.URL.Path, "/api/p/")
-		parts := strings.SplitN(rest, "/", 2)
-		slug := parts[0]
-
-		wb, err := p.getWorkbench(slug)
+		wb, err := p.getWorkbench(r.PathValue("slug"))
 		if err != nil {
 			http.Error(w, "project not found", 404)
 			return
 		}
 
-		remaining := "/"
-		if len(parts) > 1 {
-			remaining = "/" + parts[1]
+		rest := strings.TrimPrefix(r.URL.Path, "/api/projects/"+r.PathValue("slug")+"/")
+		if rest == "mcp" {
+			r.URL.Path = "/mcp"
+		} else {
+			r.URL.Path = "/api/" + rest
 		}
-		r.URL.Path = remaining
 		wb.Handler().ServeHTTP(w, r)
 	})
 }
@@ -808,7 +829,7 @@ type FlowShapeNode struct {
 	FeatureID    string `json:"featureId"`
 }
 
-// FlowsPage is the paginated response for GET /api/platform/flows.
+// FlowsPage is the paginated response for GET /api/flows.
 type FlowsPage struct {
 	Items  []FlowSummary `json:"items"`
 	Total  int           `json:"total"`
@@ -1058,7 +1079,7 @@ type FacetItem struct {
 	Count int    `json:"count"`
 }
 
-// FacetsResponse is the response for GET /api/platform/flows/facets.
+// FacetsResponse is the response for GET /api/flows/facets.
 type FacetsResponse struct {
 	Project []FacetItem `json:"project"`
 	Tag     []FacetItem `json:"tag"`
@@ -2304,42 +2325,43 @@ func (p *Platform) batchFeatures(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, result)
 }
 
-// registerPlatformRoutes wires every /api/platform/* REST route onto mux. The server
+// registerPlatformRoutes wires every project and cross-project REST route onto mux. The server
 // and the MCP in-process proxy (Handler) share it so the two can never drift apart.
 func (p *Platform) registerPlatformRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("GET /api/platform/projects", p.listProjects)
-	mux.HandleFunc("POST /api/platform/projects", p.createProject)
-	mux.HandleFunc("PATCH /api/platform/projects/{slug}", p.updateProject)
-	mux.HandleFunc("DELETE /api/platform/projects/{slug}", p.deleteProject)
-	mux.HandleFunc("GET /api/platform/baselines", p.listAllBaselines)
-	mux.HandleFunc("GET /api/platform/settings", p.getSettings)
-	mux.HandleFunc("PUT /api/platform/settings", p.putSettings)
-	mux.HandleFunc("GET /api/platform/flows/facets", p.listFlowFacets)
-	mux.HandleFunc("GET /api/platform/flows", p.listFlows)
-	mux.HandleFunc("POST /api/platform/flows", p.createFlow)
-	mux.HandleFunc("GET /api/platform/flows/{id}", p.getFlow)
-	mux.HandleFunc("PATCH /api/platform/flows/{id}", p.updateFlow)
-	mux.HandleFunc("DELETE /api/platform/flows/{id}", p.deleteFlow)
-	mux.HandleFunc("POST /api/platform/flows/{id}/steps", p.addFlowStep)
-	mux.HandleFunc("PATCH /api/platform/flows/{id}/steps/{stepId}", p.updateFlowStep)
-	mux.HandleFunc("DELETE /api/platform/flows/{id}/steps/{stepId}", p.removeFlowStep)
-	mux.HandleFunc("PUT /api/platform/flows/{id}/steps", p.setFlowSteps)
-	mux.HandleFunc("POST /api/platform/flows/{id}/steps/{stepId}/move", p.moveFlowStep)
-	mux.HandleFunc("PUT /api/platform/flows/{id}/links/{fromId}/{toId}", p.setFlowLink)
-	mux.HandleFunc("DELETE /api/platform/flows/{id}/links/{fromId}/{toId}", p.deleteFlowLink)
-	mux.HandleFunc("GET /api/platform/flows/{id}/baselines", p.listFlowBaselines)
-	mux.HandleFunc("GET /api/platform/flows/{id}/baselines/latest", p.latestFlowBaseline)
-	mux.HandleFunc("GET /api/platform/flows/{id}/baselines/{bId}", p.getFlowBaseline)
-	mux.HandleFunc("POST /api/platform/flows/{id}/baselines", p.createFlowBaseline)
-	mux.HandleFunc("DELETE /api/platform/flows/{id}/baselines/{bId}", p.deleteFlowBaseline)
-	mux.HandleFunc("GET /api/platform/flows/{id}/delta", p.getFlowDelta)
-	mux.HandleFunc("GET /api/platform/flows/{id}/findings", p.listFlowFindings)
-	mux.HandleFunc("GET /api/platform/features/search", p.searchFeatures)
-	mux.HandleFunc("GET /api/platform/features", p.batchFeatures)
-	mux.HandleFunc("GET /api/platform/flow-views", p.listFlowViews)
-	mux.HandleFunc("POST /api/platform/flow-views", p.createFlowView)
-	mux.HandleFunc("PATCH /api/platform/flow-views/{id}", p.updateFlowView)
-	mux.HandleFunc("DELETE /api/platform/flow-views/{id}", p.deleteFlowView)
+	mux.HandleFunc("GET /api/projects", p.listProjects)
+	mux.HandleFunc("POST /api/projects", p.createProject)
+	mux.HandleFunc("GET /api/projects/{slug}", p.getProject)
+	mux.HandleFunc("PATCH /api/projects/{slug}", p.updateProject)
+	mux.HandleFunc("DELETE /api/projects/{slug}", p.deleteProject)
+	mux.HandleFunc("GET /api/baselines", p.listAllBaselines)
+	mux.HandleFunc("GET /api/settings", p.getSettings)
+	mux.HandleFunc("PUT /api/settings", p.putSettings)
+	mux.HandleFunc("GET /api/flows/facets", p.listFlowFacets)
+	mux.HandleFunc("GET /api/flows", p.listFlows)
+	mux.HandleFunc("POST /api/flows", p.createFlow)
+	mux.HandleFunc("GET /api/flows/{id}", p.getFlow)
+	mux.HandleFunc("PATCH /api/flows/{id}", p.updateFlow)
+	mux.HandleFunc("DELETE /api/flows/{id}", p.deleteFlow)
+	mux.HandleFunc("POST /api/flows/{id}/steps", p.addFlowStep)
+	mux.HandleFunc("PATCH /api/flows/{id}/steps/{stepId}", p.updateFlowStep)
+	mux.HandleFunc("DELETE /api/flows/{id}/steps/{stepId}", p.removeFlowStep)
+	mux.HandleFunc("PUT /api/flows/{id}/steps", p.setFlowSteps)
+	mux.HandleFunc("POST /api/flows/{id}/steps/{stepId}/move", p.moveFlowStep)
+	mux.HandleFunc("PUT /api/flows/{id}/links/{fromId}/{toId}", p.setFlowLink)
+	mux.HandleFunc("DELETE /api/flows/{id}/links/{fromId}/{toId}", p.deleteFlowLink)
+	mux.HandleFunc("GET /api/flows/{id}/baselines", p.listFlowBaselines)
+	mux.HandleFunc("GET /api/flows/{id}/baselines/latest", p.latestFlowBaseline)
+	mux.HandleFunc("GET /api/flows/{id}/baselines/{bId}", p.getFlowBaseline)
+	mux.HandleFunc("POST /api/flows/{id}/baselines", p.createFlowBaseline)
+	mux.HandleFunc("DELETE /api/flows/{id}/baselines/{bId}", p.deleteFlowBaseline)
+	mux.HandleFunc("GET /api/flows/{id}/delta", p.getFlowDelta)
+	mux.HandleFunc("GET /api/flows/{id}/findings", p.listFlowFindings)
+	mux.HandleFunc("GET /api/features/search", p.searchFeatures)
+	mux.HandleFunc("GET /api/features", p.batchFeatures)
+	mux.HandleFunc("GET /api/flow-views", p.listFlowViews)
+	mux.HandleFunc("POST /api/flow-views", p.createFlowView)
+	mux.HandleFunc("PATCH /api/flow-views/{id}", p.updateFlowView)
+	mux.HandleFunc("DELETE /api/flow-views/{id}", p.deleteFlowView)
 	p.registerFolderRoutes(mux)
 }
 

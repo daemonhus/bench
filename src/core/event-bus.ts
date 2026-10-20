@@ -1,6 +1,6 @@
 /**
  * Singleton SSE event bus.
- * Connects to GET /api/events and dispatches topic-based notifications.
+ * Connects to GET /api/projects/{slug}/events and dispatches topic-based notifications.
  * Auto-reconnects on disconnect with jittered backoff.
  */
 
@@ -20,7 +20,7 @@ function jitter(base: number): number {
 function connect() {
   if (eventSource) return;
 
-  const url = `${getApiBase()}/api/events`;
+  const url = `${getApiBase()}/events`;
   const es = new EventSource(url);
   eventSource = es;
 

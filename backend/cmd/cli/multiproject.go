@@ -1,7 +1,7 @@
 package main
 
 // Multi-project commands. These talk to a multi-project server's
-// /api/platform/* API (projects, cross-project baselines, flows, flow folders,
+// /api/* API (projects, cross-project baselines, flows, flow folders,
 // saved flow views, the cross-project feature catalog). They are not routed
 // through --project; a few use it as a default value (e.g. flows add-step).
 //
@@ -18,7 +18,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
 	"net/url"
 	"os"
 	"sort"
@@ -295,9 +294,6 @@ func (c *cli) req(method, path string, body any) ([]byte, int, error) {
 	}
 	if status >= 400 {
 		msg := formatOutput(data, status)
-		if status == http.StatusNotFound && strings.Contains(string(data), "404 page not found") && strings.HasPrefix(path, "/api/platform/") {
-			msg += "\n(hint: this command needs a multi-project server; the server at " + c.client.baseURL + " does not serve " + strings.SplitN(path, "?", 2)[0] + ")"
-		}
 		return data, status, &apiError{msg}
 	}
 	return data, status, nil

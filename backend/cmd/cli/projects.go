@@ -39,12 +39,12 @@ func init() {
 			Run: projectDelete},
 
 		mpCmd{Group: "baselines-all", Name: "list", Desc: "List baselines across every project: up to 50 per project, newest first within each project, each tagged with projectSlug.",
-			Run: func(c *cli, _ *mpInput) error { return c.emit("GET", "/api/platform/baselines", nil) }},
+			Run: func(c *cli, _ *mpInput) error { return c.emit("GET", "/api/baselines", nil) }},
 	)
 }
 
 func projectList(c *cli, in *mpInput) error {
-	data, status, err := c.req("GET", "/api/platform/projects", nil)
+	data, status, err := c.req("GET", "/api/projects", nil)
 	if err != nil {
 		return err
 	}
@@ -84,7 +84,7 @@ func projectList(c *cli, in *mpInput) error {
 }
 
 func projectCreate(c *cli, in *mpInput) error {
-	data, _, err := c.req("POST", "/api/platform/projects", map[string]string{"name": in.str("name"), "repoPath": in.str("repo-path")})
+	data, _, err := c.req("POST", "/api/projects", map[string]string{"name": in.str("name"), "repoPath": in.str("repo-path")})
 	if err != nil {
 		return err
 	}
@@ -108,7 +108,7 @@ func projectUpdate(c *cli, in *mpInput) error {
 	if len(obj) == 0 {
 		return errors.New("at least one of --name or --repo-path must be provided")
 	}
-	if _, _, err := c.req("PATCH", "/api/platform/projects/"+url.PathEscape(in.str("slug")), obj); err != nil {
+	if _, _, err := c.req("PATCH", "/api/projects/"+url.PathEscape(in.str("slug")), obj); err != nil {
 		return err
 	}
 	fmt.Fprintf(c.stdout, "Updated project %q\n", in.str("slug"))
@@ -116,7 +116,7 @@ func projectUpdate(c *cli, in *mpInput) error {
 }
 
 func projectDelete(c *cli, in *mpInput) error {
-	if _, _, err := c.req("DELETE", "/api/platform/projects/"+url.PathEscape(in.str("slug")), nil); err != nil {
+	if _, _, err := c.req("DELETE", "/api/projects/"+url.PathEscape(in.str("slug")), nil); err != nil {
 		return err
 	}
 	fmt.Fprintf(c.stdout, "Deleted project %q\n", in.str("slug"))

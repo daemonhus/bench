@@ -19,7 +19,7 @@ async function backToProjects(page: Page) {
 }
 
 async function flowId(page: Page, name: string): Promise<string> {
-  const r = await page.request.get('/api/platform/flows?limit=50');
+  const r = await page.request.get('/api/flows?limit=50');
   const items = (await r.json()).items as { id: string; name: string }[];
   return items.find((f) => f.name === name)!.id;
 }
@@ -228,7 +228,7 @@ test.describe('P6. Saved view tabs', () => {
     await page.locator('.flows-view-tab-confirm-yes').click();
     await expect(page.locator('.flows-view-tab', { hasText: 'Drafts' })).toHaveCount(0);
     // restore for later tests
-    await page.request.post('/api/platform/flow-views', { data: { name: 'Drafts', query: 'status:draft', owner: 'e2e', isShared: false } });
+    await page.request.post('/api/flow-views', { data: { name: 'Drafts', query: 'status:draft', owner: 'e2e', isShared: false } });
   });
 });
 

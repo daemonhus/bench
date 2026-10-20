@@ -43,7 +43,7 @@ func TestParseFlags_Validation(t *testing.T) {
 // --confirm=true was stored as a value, not a bool, so the delete stayed a preview.
 func TestParseFlags_BoolEqualsForm(t *testing.T) {
 	r := newRecorder(t)
-	r.responses["DELETE /api/p/a/api/baselines/b1"] = cannedResp{204, ""}
+	r.responses["DELETE /api/projects/a/baselines/b1"] = cannedResp{204, ""}
 	if code, _, stderr := runCLI(t, r, nil, "--project", "a", "baselines", "delete", "--id", "b1", "--confirm=true"); code != 0 {
 		t.Fatalf("exit %d: %s", code, stderr)
 	}
@@ -75,7 +75,7 @@ func TestMultiProject_EnumFlagsValidated(t *testing.T) {
 // API errors printed as "Error: Error (HTTP 400): ...".
 func TestMultiProject_APIErrorNotDoublePrefixed(t *testing.T) {
 	r := newRecorder(t)
-	r.responses["POST /api/platform/projects"] = cannedResp{400, "path is not a git repository\n"}
+	r.responses["POST /api/projects"] = cannedResp{400, "path is not a git repository\n"}
 	code, _, stderr := runCLI(t, r, nil, "projects", "create", "--name", "x", "--repo-path", "/nope")
 	if code != 1 || strings.Contains(stderr, "Error: Error") || !strings.Contains(stderr, "Error (HTTP 400): path is not a git repository") {
 		t.Errorf("exit %d, stderr %q", code, stderr)
@@ -94,17 +94,17 @@ func TestMultiProject_UsageHasNoDoubleSpace(t *testing.T) {
 // the server; the CLI exited 0 silently, hiding typos.
 func TestFlowsAddStep_WarnsWhenTombstoned(t *testing.T) {
 	r := newRecorder(t)
-	r.responses["POST /api/platform/flows/fl1/steps"] = cannedResp{201, `{"id":"s1","tombstoned":true,"tombstonedReason":"feature_not_found"}`}
+	r.responses["POST /api/flows/fl1/steps"] = cannedResp{201, `{"id":"s1","tombstoned":true,"tombstonedReason":"feature_not_found"}`}
 	code, stdout, stderr := runCLI(t, r, nil, "flows", "add-step", "fl1", "--project", "svc", "--feature", "typo")
 	if code != 0 || !strings.Contains(stdout, `"id": "s1"`) || !strings.Contains(stderr, `feature "typo" was not found on project "svc"`) {
 		t.Errorf("exit %d, stdout %q, stderr %q", code, stdout, stderr)
 	}
-	r.responses["POST /api/platform/flows/fl1/steps"] = cannedResp{201, `{"id":"s2","tombstoned":true,"tombstonedReason":"project_not_registered"}`}
+	r.responses["POST /api/flows/fl1/steps"] = cannedResp{201, `{"id":"s2","tombstoned":true,"tombstonedReason":"project_not_registered"}`}
 	_, _, stderr = runCLI(t, r, nil, "flows", "add-step", "fl1", "--project", "nosuch", "--feature", "f")
 	if !strings.Contains(stderr, `project "nosuch" is not registered`) {
 		t.Errorf("stderr %q", stderr)
 	}
-	r.responses["POST /api/platform/flows/fl1/steps"] = cannedResp{201, `{"id":"s3","tombstoned":false}`}
+	r.responses["POST /api/flows/fl1/steps"] = cannedResp{201, `{"id":"s3","tombstoned":false}`}
 	if _, _, stderr = runCLI(t, r, nil, "flows", "add-step", "fl1", "--project", "svc", "--feature", "f"); stderr != "" {
 		t.Errorf("healthy step warned: %q", stderr)
 	}
@@ -127,7 +127,7 @@ func TestFoldersCreate_ValidatesWholePathFirst(t *testing.T) {
 // The flow baseline delete preview echoed the server's "Pass ?confirm=true".
 func TestFlowBaselineDelete_PreviewInCLITerms(t *testing.T) {
 	r := newRecorder(t)
-	r.responses["DELETE /api/platform/flows/fl1/baselines/fb1"] = cannedResp{200,
+	r.responses["DELETE /api/flows/fl1/baselines/fb1"] = cannedResp{200,
 		`{"dryRun":true,"baseline":{"id":"fb1","seq":3,"reviewer":"pete","summary":"s","createdAt":"2026-01-01"},"message":"Pass ?confirm=true to delete this baseline."}`}
 	code, stdout, _ := runCLI(t, r, nil, "flows", "baseline", "delete", "fl1", "fb1")
 	if code != 0 || !strings.Contains(stdout, "Dry run - flow baseline #3") || !strings.Contains(stdout, "Pass --confirm") || strings.Contains(stdout, "?confirm") {

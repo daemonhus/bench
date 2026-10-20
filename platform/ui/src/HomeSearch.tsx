@@ -93,7 +93,7 @@ export function HomeSearch({ projects, data, onOpen }: {
     let live = true, done = false;
     Promise.all(slugs.split(',').map(async (slug): Promise<[string, Comment[]]> => {
       try {
-        const res = await fetch(`/api/p/${slug}/api/comments?include_resolved=true`);
+        const res = await fetch(`/api/projects/${slug}/comments?include_resolved=true`);
         return [slug, res.ok ? await res.json() : []];
       } catch { return [slug, []]; }
     })).then((entries) => { done = true; if (live) setComments(Object.fromEntries(entries)); });

@@ -17,7 +17,7 @@ export default defineConfig({
   webServer: [
     {
       command: 'node e2e/support/platform-fixture.mjs',
-      url: `http://localhost:${API}/api/platform/projects`,
+      url: `http://localhost:${API}/api/projects`,
       env: { E2E_PLATFORM_PORT: String(API) },
       stdout: 'ignore',
       reuseExistingServer: false,

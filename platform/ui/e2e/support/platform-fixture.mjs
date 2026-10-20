@@ -31,7 +31,7 @@ const stop = () => { server.kill(); process.exit(0); };
 process.on('SIGTERM', stop); process.on('SIGINT', stop); server.on('exit', () => process.exit(1));
 
 for (let i = 0; i < 100; i++) {
-  try { if ((await fetch(`${API}/api/platform/projects`)).ok) break; } catch { /* not up yet */ }
+  try { if ((await fetch(`${API}/api/projects`)).ok) break; } catch { /* not up yet */ }
   await new Promise(r => setTimeout(r, 200));
 }
 
@@ -46,8 +46,8 @@ const call = async (method, path, body) => {
 const projects = [['alpha', alpha], ['beta', beta]];
 const featureIds = {};
 for (const [name, fx] of projects) {
-  await call('POST', '/api/platform/projects', { name, repoPath: fx.repo });
-  const base = `/api/p/${name}/api`;
+  await call('POST', '/api/projects', { name, repoPath: fx.repo });
+  const base = `/api/projects/${name}`;
   await call('PATCH', `${base}/profile`, {}); // open the write gate
   const anchor = (fileId, line) => ({ fileId, commitId: fx.head, lineRange: { start: line, end: line } });
   const kinds = [['interface', 'POST /login', 'src/api.go'], ['source', 'sqlite://users.db (read)', 'src/store/db.go'], ['sink', 'sqlite://users.db (write)', 'src/store/db.go'], ['externality', 'session reaper', 'src/auth/session.go']];
@@ -59,15 +59,15 @@ for (const [name, fx] of projects) {
   for (let i = 0; i < 3; i++) {
     await call('POST', `${base}/findings`, { anchor: anchor('src/auth/login.go', 3 + i), severity: ['high', 'medium', 'low'][i], title: `${name} finding ${i + 1}`, description: 'seeded', status: 'open', source: 'manual' });
   }
-  await call('PATCH', `/api/platform/projects/${name}`, { name, tags: [name === 'alpha' ? 'core' : 'edge'], owner: 'e2e' });
+  await call('PATCH', `/api/projects/${name}`, { name, tags: [name === 'alpha' ? 'core' : 'edge'], owner: 'e2e' });
 }
 
 // ── flows ───────────────────────────────────────────────────────────────────
 const step = (clientId, parentClientId, project, idx, note, branchCondition = '') =>
   ({ clientId, parentClientId, branchCondition, projectSlug: project, featureId: featureIds[project][idx], note });
 
-const login = await call('POST', '/api/platform/flows', { name: 'Login path', description: 'Branched request flow', status: 'active', owner: 'e2e', tags: ['auth', 'core'] });
-await call('PUT', `/api/platform/flows/${login.id}/steps`, {
+const login = await call('POST', '/api/flows', { name: 'Login path', description: 'Branched request flow', status: 'active', owner: 'e2e', tags: ['auth', 'core'] });
+await call('PUT', `/api/flows/${login.id}/steps`, {
   steps: [
     step('a', '', 'alpha', 0, 'entry'),
     step('b', 'a', 'alpha', 1, 'lookup', 'user exists'),
@@ -76,13 +76,13 @@ await call('PUT', `/api/platform/flows/${login.id}/steps`, {
   ],
   links: [],
 });
-const cross = await call('POST', '/api/platform/flows', { name: 'Cross project', description: 'Spans alpha and beta', status: 'draft', owner: 'e2e', tags: ['edge'] });
-await call('PUT', `/api/platform/flows/${cross.id}/steps`, {
+const cross = await call('POST', '/api/flows', { name: 'Cross project', description: 'Spans alpha and beta', status: 'draft', owner: 'e2e', tags: ['edge'] });
+await call('PUT', `/api/flows/${cross.id}/steps`, {
   steps: [step('a', '', 'alpha', 0, 'alpha entry'), step('b', 'a', 'beta', 0, 'beta entry'), step('c', 'b', 'beta', 1, 'beta read')],
   links: [],
 });
-await call('POST', '/api/platform/flows', { name: 'Empty flow', description: '', status: 'draft', owner: '', tags: [] });
-await call('POST', '/api/platform/flow-views', { name: 'Drafts', query: 'status:draft', owner: 'e2e', isShared: false });
+await call('POST', '/api/flows', { name: 'Empty flow', description: '', status: 'draft', owner: '', tags: [] });
+await call('POST', '/api/flow-views', { name: 'Drafts', query: 'status:draft', owner: 'e2e', isShared: false });
 
 console.log(`[platform-fixture] ready on ${API}`);
 await new Promise(() => {});

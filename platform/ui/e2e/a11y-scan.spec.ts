@@ -12,7 +12,7 @@ async function violations(page: Page, include?: string) {
   return r.violations.map((v) => ({ rule: v.id, impact: v.impact, count: v.nodes.length, nodes: v.nodes.slice(0, 4).map((n) => n.target.join(' ')) }));
 }
 async function flowId(page: Page, name: string) {
-  const items = (await (await page.request.get('/api/platform/flows?limit=50')).json()).items as { id: string; name: string }[];
+  const items = (await (await page.request.get('/api/flows?limit=50')).json()).items as { id: string; name: string }[];
   return items.find((f) => f.name === name)!.id;
 }
 

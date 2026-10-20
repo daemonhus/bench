@@ -31,7 +31,7 @@ export function useProfile(slug: string): Profile | null | undefined {
   const [profile, setProfile] = useState<Profile | null | undefined>(profileCache.get(slug));
   useEffect(() => {
     let live = true;
-    fetch(`/api/p/${slug}/api/profile`)
+    fetch(`/api/projects/${slug}/profile`)
       .then((r) => (r.ok ? r.json() : null))
       .catch(() => null)
       .then((p: Profile | null) => { profileCache.set(slug, p); if (live) setProfile(p); });

@@ -64,7 +64,7 @@ func init() {
 
 // fetchFolders returns every folder with its path filled in, sorted by path.
 func (c *cli) fetchFolders() ([]cliFolder, error) {
-	data, _, err := c.req("GET", "/api/platform/flow-folders", nil)
+	data, _, err := c.req("GET", "/api/flow-folders", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -184,7 +184,7 @@ func folderCreate(c *cli, in *mpInput) error {
 			parent = id
 			continue
 		}
-		created, _, err = c.req("POST", "/api/platform/flow-folders", map[string]any{"name": part, "parentId": parent})
+		created, _, err = c.req("POST", "/api/flow-folders", map[string]any{"name": part, "parentId": parent})
 		if err != nil {
 			return err
 		}
@@ -209,7 +209,7 @@ func folderRename(c *cli, in *mpInput) error {
 	if id == "" {
 		return errors.New("the top level cannot be renamed")
 	}
-	return c.emit("PATCH", "/api/platform/flow-folders/"+url.PathEscape(id), map[string]any{"name": in.str("name")})
+	return c.emit("PATCH", "/api/flow-folders/"+url.PathEscape(id), map[string]any{"name": in.str("name")})
 }
 
 func folderMove(c *cli, in *mpInput) error {
@@ -228,7 +228,7 @@ func folderMove(c *cli, in *mpInput) error {
 	if err != nil {
 		return err
 	}
-	return c.emit("POST", "/api/platform/flows/move", map[string]any{"folderIds": []string{id}, "targetFolderId": target})
+	return c.emit("POST", "/api/flows/move", map[string]any{"folderIds": []string{id}, "targetFolderId": target})
 }
 
 func folderDelete(c *cli, in *mpInput) error {
@@ -243,7 +243,7 @@ func folderDelete(c *cli, in *mpInput) error {
 	if id == "" {
 		return errors.New("the top level cannot be deleted")
 	}
-	path := "/api/platform/flow-folders/" + url.PathEscape(id)
+	path := "/api/flow-folders/" + url.PathEscape(id)
 	if in.flag("confirm") {
 		return c.emit("DELETE", path+"?confirm=true", nil)
 	}
@@ -275,5 +275,5 @@ func flowMove(c *cli, in *mpInput) error {
 	if err != nil {
 		return err
 	}
-	return c.emit("POST", "/api/platform/flows/move", map[string]any{"flowIds": ids, "targetFolderId": target})
+	return c.emit("POST", "/api/flows/move", map[string]any{"flowIds": ids, "targetFolderId": target})
 }

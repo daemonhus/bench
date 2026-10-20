@@ -265,7 +265,7 @@ export function PlatformShell() {
         )}
         {view.kind === 'workbench' && (
           <WorkbenchView
-            apiBase={`/api/p/${view.slug}`}
+            apiBase={`/api/projects/${view.slug}`}
             className="platform-workbench"
             editorConfig={editorConfig}
             extensions={{

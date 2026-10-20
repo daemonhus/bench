@@ -85,7 +85,7 @@ export function HomePage({ onOpenProject, onOpenFlow, onOpenProjects }: {
       setProjects(ps); setBaselines(bs); setFlows(fs);
       if (settings.riskWeights) try { setWeights({ ...DEFAULT_RISK_WEIGHTS, ...JSON.parse(settings.riskWeights) }); } catch { /* defaults */ }
       const loaded = await Promise.all(ps.map(async (p): Promise<[string, ProjectData]> => {
-        const base = `/api/p/${p.slug}/api`;
+        const base = `/api/projects/${p.slug}`;
         const [findings, profile, features, coverage] = await Promise.all([
           listProjectFindings(p.slug, true).catch(() => [] as Finding[]),
           getJSON<Profile | null>(`${base}/profile`, null),

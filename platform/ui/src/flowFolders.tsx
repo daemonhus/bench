@@ -13,7 +13,7 @@ export interface FlowFolder {
   updatedAt: string;
 }
 
-const FOLDERS = '/api/platform/flow-folders';
+const FOLDERS = '/api/flow-folders';
 
 async function ok<T>(r: Response): Promise<T> {
   if (!r.ok) throw new Error((await r.text()).trim() || r.statusText);
@@ -33,7 +33,7 @@ export const deleteFolder = (id: string, confirm: boolean) =>
   fetch(`${FOLDERS}/${id}${confirm ? '?confirm=true' : ''}`, { method: 'DELETE' })
     .then((r) => ok<{ folders: number; flows: number }>(r));
 export const moveItems = (items: DragItem[], targetFolderId: string) =>
-  fetch('/api/platform/flows/move', json('POST', {
+  fetch('/api/flows/move', json('POST', {
     flowIds: items.filter((i) => i.kind === 'flow').map((i) => i.id),
     folderIds: items.filter((i) => i.kind === 'folder').map((i) => i.id),
     targetFolderId,

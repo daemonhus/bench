@@ -67,7 +67,7 @@ func TestFlows_CreateUpdateResponsesReflectStoredRow(t *testing.T) {
 	if s.CreatedAt == "" {
 		t.Errorf("add-step response createdAt empty: %+v", s)
 	}
-	w := do(t, h, "PATCH", "/api/platform/flows/"+f.ID, `{"description":"d"}`)
+	w := do(t, h, "PATCH", "/api/flows/"+f.ID, `{"description":"d"}`)
 	if w.Code != 200 {
 		t.Fatalf("update: %d %s", w.Code, w.Body.String())
 	}
@@ -75,7 +75,7 @@ func TestFlows_CreateUpdateResponsesReflectStoredRow(t *testing.T) {
 	if len(u.Steps) != 1 || u.Steps[0].ID != s.ID {
 		t.Errorf("update response steps = %+v, want the flow's step", u.Steps)
 	}
-	if w := do(t, h, "PATCH", "/api/platform/flows/"+f.ID, `{"name":" "}`); w.Code != 400 {
+	if w := do(t, h, "PATCH", "/api/flows/"+f.ID, `{"name":" "}`); w.Code != 400 {
 		t.Errorf("empty name update = %d, want 400", w.Code)
 	}
 }
@@ -87,7 +87,7 @@ func TestFlows_SetLinkKeepsOmittedFields(t *testing.T) {
 	f := createTestFlow(t, h, "F", "draft")
 	a := addTestStep(t, h, f.ID, "svc", "a")
 	b := addTestStep(t, h, f.ID, "web", "b")
-	path := fmt.Sprintf("/api/platform/flows/%s/links/%s/%s", f.ID, a.ID, b.ID)
+	path := fmt.Sprintf("/api/flows/%s/links/%s/%s", f.ID, a.ID, b.ID)
 	if w := do(t, h, "PUT", path, `{"description":"calls","comment":"note","tags":["auth"]}`); w.Code != 200 {
 		t.Fatalf("set link: %d %s", w.Code, w.Body.String())
 	}
@@ -96,18 +96,18 @@ func TestFlows_SetLinkKeepsOmittedFields(t *testing.T) {
 	if l.Description != "calls v2" || l.Comment != "note" || len(l.Tags) != 1 {
 		t.Errorf("partial update response: %+v", l)
 	}
-	got := mustDecode[Flow](t, do(t, h, "GET", "/api/platform/flows/"+f.ID, ""))
+	got := mustDecode[Flow](t, do(t, h, "GET", "/api/flows/"+f.ID, ""))
 	if len(got.Links) != 1 || got.Links[0].Comment != "note" || got.Links[0].Tags[0] != "auth" {
 		t.Errorf("stored link after partial update: %+v", got.Links)
 	}
 	// Explicit empty values still clear.
 	do(t, h, "PUT", path, `{"comment":"","tags":[]}`)
-	got = mustDecode[Flow](t, do(t, h, "GET", "/api/platform/flows/"+f.ID, ""))
+	got = mustDecode[Flow](t, do(t, h, "GET", "/api/flows/"+f.ID, ""))
 	if got.Links[0].Comment != "" || len(got.Links[0].Tags) != 0 || got.Links[0].Description != "calls v2" {
 		t.Errorf("clearing fields: %+v", got.Links[0])
 	}
 	// An empty body creates a bare link.
-	if w := do(t, h, "PUT", fmt.Sprintf("/api/platform/flows/%s/links/%s/%s", f.ID, b.ID, a.ID), ""); w.Code != 200 {
+	if w := do(t, h, "PUT", fmt.Sprintf("/api/flows/%s/links/%s/%s", f.ID, b.ID, a.ID), ""); w.Code != 200 {
 		t.Errorf("empty-body link: %d %s", w.Code, w.Body.String())
 	}
 }
@@ -125,11 +125,11 @@ func TestFlows_SetStepsValidatesStepsAndLinks(t *testing.T) {
 			"links":[{"fromClientId":"a","toClientId":"b"},{"fromClientId":"a","toClientId":"b"}]}`,
 		"unknown client": `{"steps":[{"clientId":"a","projectSlug":"s","featureId":"x"}],"links":[{"fromClientId":"a","toClientId":"zz"}]}`,
 	} {
-		if w := do(t, h, "PUT", "/api/platform/flows/"+f.ID+"/steps", body); w.Code != 400 {
+		if w := do(t, h, "PUT", "/api/flows/"+f.ID+"/steps", body); w.Code != 400 {
 			t.Errorf("%s: status %d (%s), want 400", name, w.Code, w.Body.String())
 		}
 	}
-	got := mustDecode[Flow](t, do(t, h, "GET", "/api/platform/flows/"+f.ID, ""))
+	got := mustDecode[Flow](t, do(t, h, "GET", "/api/flows/"+f.ID, ""))
 	if len(got.Steps) != 1 || got.Steps[0].ID != keep.ID {
 		t.Errorf("rejected set-steps changed the flow: %+v", got.Steps)
 	}
@@ -138,11 +138,11 @@ func TestFlows_SetStepsValidatesStepsAndLinks(t *testing.T) {
 // Saved views: create had empty timestamps, update accepted an empty name.
 func TestFlowViews_TimestampsAndEmptyName(t *testing.T) {
 	_, h := newTestPlatform(t)
-	v := mustDecode[FlowView](t, do(t, h, "POST", "/api/platform/flow-views", `{"name":"v"}`))
+	v := mustDecode[FlowView](t, do(t, h, "POST", "/api/flow-views", `{"name":"v"}`))
 	if v.CreatedAt == "" || v.UpdatedAt == "" {
 		t.Errorf("create view timestamps: %+v", v)
 	}
-	if w := do(t, h, "PATCH", "/api/platform/flow-views/"+v.ID, `{"name":""}`); w.Code != 400 {
+	if w := do(t, h, "PATCH", "/api/flow-views/"+v.ID, `{"name":""}`); w.Code != 400 {
 		t.Errorf("empty view name = %d, want 400", w.Code)
 	}
 }

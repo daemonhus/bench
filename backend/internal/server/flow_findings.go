@@ -32,7 +32,7 @@ type FlowFinding struct {
 	FeatureID   string `json:"featureId"`
 }
 
-// FlowFindings is the response for GET /api/platform/flows/{id}/findings.
+// FlowFindings is the response for GET /api/flows/{id}/findings.
 type FlowFindings struct {
 	FlowID   string                `json:"flowId"`
 	Total    int                   `json:"total"`

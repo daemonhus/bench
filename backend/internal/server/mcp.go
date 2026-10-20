@@ -182,7 +182,7 @@ func injectProjectParam(toolJSON json.RawMessage) json.RawMessage {
 
 // ── tools/call ──────────────────────────────────────────────────────────
 
-// restRoute describes how a platform MCP tool maps onto a /api/platform REST route.
+// restRoute describes how a platform MCP tool maps onto a REST route.
 //   - path holds {placeholder}s filled from same-named tool arguments (required, and
 //     never forwarded in the body);
 //   - query, if set, builds the query string from the arguments;
@@ -198,54 +198,54 @@ type restRoute struct {
 // platformRoutes maps every REST-backed platform tool to its route.
 var platformRoutes = map[string]restRoute{
 	// projects
-	"list_projects":      {method: "GET", path: "/api/platform/projects"},
-	"create_project":     {method: "POST", path: "/api/platform/projects", body: renameKeys(map[string]string{"repo_path": "repoPath"})},
-	"update_project":     {method: "PATCH", path: "/api/platform/projects/{project}", body: renameKeys(map[string]string{"repo_path": "repoPath"})},
-	"delete_project":     {method: "DELETE", path: "/api/platform/projects/{project}"},
-	"list_all_baselines": {method: "GET", path: "/api/platform/baselines"},
+	"list_projects":      {method: "GET", path: "/api/projects"},
+	"create_project":     {method: "POST", path: "/api/projects", body: renameKeys(map[string]string{"repo_path": "repoPath"})},
+	"update_project":     {method: "PATCH", path: "/api/projects/{project}", body: renameKeys(map[string]string{"repo_path": "repoPath"})},
+	"delete_project":     {method: "DELETE", path: "/api/projects/{project}"},
+	"list_all_baselines": {method: "GET", path: "/api/baselines"},
 
 	// cross-project features
-	"search_features": {method: "GET", path: "/api/platform/features/search", query: featureSearchQuery},
-	"get_features":    {method: "GET", path: "/api/platform/features", query: featureRefsQuery},
+	"search_features": {method: "GET", path: "/api/features/search", query: featureSearchQuery},
+	"get_features":    {method: "GET", path: "/api/features", query: featureRefsQuery},
 
 	// flows
-	"flows_list":        {method: "GET", path: "/api/platform/flows", query: flowsListQuery},
-	"flows_list_facets": {method: "GET", path: "/api/platform/flows/facets", query: flowsListQuery},
-	"flows_get":         {method: "GET", path: "/api/platform/flows/{flow_id}"},
-	"flows_create":      {method: "POST", path: "/api/platform/flows", body: translateFolderArgs},
-	"flows_update":      {method: "PATCH", path: "/api/platform/flows/{flow_id}", body: translateFolderArgs},
+	"flows_list":        {method: "GET", path: "/api/flows", query: flowsListQuery},
+	"flows_list_facets": {method: "GET", path: "/api/flows/facets", query: flowsListQuery},
+	"flows_get":         {method: "GET", path: "/api/flows/{flow_id}"},
+	"flows_create":      {method: "POST", path: "/api/flows", body: translateFolderArgs},
+	"flows_update":      {method: "PATCH", path: "/api/flows/{flow_id}", body: translateFolderArgs},
 
 	// folders
-	"flows_list_folders":  {method: "GET", path: "/api/platform/flow-folders"},
-	"flows_create_folder": {method: "POST", path: "/api/platform/flow-folders", body: translateFolderArgs},
-	"flows_update_folder": {method: "PATCH", path: "/api/platform/flow-folders/{folder_id}", body: translateFolderArgs},
-	"flows_delete_folder": {method: "DELETE", path: "/api/platform/flow-folders/{folder_id}", query: confirmQuery},
-	"flows_move":          {method: "POST", path: "/api/platform/flows/move", body: translateFolderArgs},
+	"flows_list_folders":  {method: "GET", path: "/api/flow-folders"},
+	"flows_create_folder": {method: "POST", path: "/api/flow-folders", body: translateFolderArgs},
+	"flows_update_folder": {method: "PATCH", path: "/api/flow-folders/{folder_id}", body: translateFolderArgs},
+	"flows_delete_folder": {method: "DELETE", path: "/api/flow-folders/{folder_id}", query: confirmQuery},
+	"flows_move":          {method: "POST", path: "/api/flows/move", body: translateFolderArgs},
 
 	// steps
-	"flows_add_step":    {method: "POST", path: "/api/platform/flows/{flow_id}/steps", body: translateStepArgs},
-	"flows_update_step": {method: "PATCH", path: "/api/platform/flows/{flow_id}/steps/{step_id}", body: translateStepArgs},
-	"flows_remove_step": {method: "DELETE", path: "/api/platform/flows/{flow_id}/steps/{step_id}"},
-	"flows_move_step":   {method: "POST", path: "/api/platform/flows/{flow_id}/steps/{step_id}/move", query: flowsMoveQuery, body: dropBody},
-	"flows_set_steps":   {method: "PUT", path: "/api/platform/flows/{flow_id}/steps", body: translateSetStepsArgs},
+	"flows_add_step":    {method: "POST", path: "/api/flows/{flow_id}/steps", body: translateStepArgs},
+	"flows_update_step": {method: "PATCH", path: "/api/flows/{flow_id}/steps/{step_id}", body: translateStepArgs},
+	"flows_remove_step": {method: "DELETE", path: "/api/flows/{flow_id}/steps/{step_id}"},
+	"flows_move_step":   {method: "POST", path: "/api/flows/{flow_id}/steps/{step_id}/move", query: flowsMoveQuery, body: dropBody},
+	"flows_set_steps":   {method: "PUT", path: "/api/flows/{flow_id}/steps", body: translateSetStepsArgs},
 
 	// links
-	"flows_set_link":    {method: "PUT", path: "/api/platform/flows/{flow_id}/links/{from_step_id}/{to_step_id}"},
-	"flows_delete_link": {method: "DELETE", path: "/api/platform/flows/{flow_id}/links/{from_step_id}/{to_step_id}"},
+	"flows_set_link":    {method: "PUT", path: "/api/flows/{flow_id}/links/{from_step_id}/{to_step_id}"},
+	"flows_delete_link": {method: "DELETE", path: "/api/flows/{flow_id}/links/{from_step_id}/{to_step_id}"},
 
 	// baselines, delta, findings
-	"flows_set_baseline":    {method: "POST", path: "/api/platform/flows/{flow_id}/baselines"},
-	"flows_list_baselines":  {method: "GET", path: "/api/platform/flows/{flow_id}/baselines"},
-	"flows_get_baseline":    {method: "GET", path: "/api/platform/flows/{flow_id}/baselines/{baseline_id}"},
-	"flows_get_delta":       {method: "GET", path: "/api/platform/flows/{flow_id}/delta", query: flowsDeltaQuery},
-	"flows_delete_baseline": {method: "DELETE", path: "/api/platform/flows/{flow_id}/baselines/{baseline_id}", query: confirmQuery},
-	"flows_list_findings":   {method: "GET", path: "/api/platform/flows/{flow_id}/findings"},
+	"flows_set_baseline":    {method: "POST", path: "/api/flows/{flow_id}/baselines"},
+	"flows_list_baselines":  {method: "GET", path: "/api/flows/{flow_id}/baselines"},
+	"flows_get_baseline":    {method: "GET", path: "/api/flows/{flow_id}/baselines/{baseline_id}"},
+	"flows_get_delta":       {method: "GET", path: "/api/flows/{flow_id}/delta", query: flowsDeltaQuery},
+	"flows_delete_baseline": {method: "DELETE", path: "/api/flows/{flow_id}/baselines/{baseline_id}", query: confirmQuery},
+	"flows_list_findings":   {method: "GET", path: "/api/flows/{flow_id}/findings"},
 
 	// saved flow views
-	"flows_list_views":  {method: "GET", path: "/api/platform/flow-views"},
-	"flows_create_view": {method: "POST", path: "/api/platform/flow-views", body: renameKeys(map[string]string{"is_shared": "isShared"})},
-	"flows_update_view": {method: "PATCH", path: "/api/platform/flow-views/{view_id}", body: renameKeys(map[string]string{"is_shared": "isShared"})},
-	"flows_delete_view": {method: "DELETE", path: "/api/platform/flow-views/{view_id}"},
+	"flows_list_views":  {method: "GET", path: "/api/flow-views"},
+	"flows_create_view": {method: "POST", path: "/api/flow-views", body: renameKeys(map[string]string{"is_shared": "isShared"})},
+	"flows_update_view": {method: "PATCH", path: "/api/flow-views/{view_id}", body: renameKeys(map[string]string{"is_shared": "isShared"})},
+	"flows_delete_view": {method: "DELETE", path: "/api/flow-views/{view_id}"},
 }
 
 func (m *platformMCP) handleToolsCall(w http.ResponseWriter, id any, params json.RawMessage) {
@@ -661,7 +661,7 @@ func (m *platformMCP) handleFlowsDelete(w http.ResponseWriter, id any, rawArgs j
 		mcpToolError(w, id, "flow_id is required")
 		return
 	}
-	flowPath := "/api/platform/flows/" + url.PathEscape(args.FlowID)
+	flowPath := "/api/flows/" + url.PathEscape(args.FlowID)
 
 	if !args.Confirm {
 		// Dry-run: fetch the flow and describe what would be deleted.

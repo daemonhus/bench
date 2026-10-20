@@ -14,13 +14,13 @@ interface Folder { id: string; name: string; parentId?: string }
 const createdFlows: string[] = [];
 const api = {
   folder: async (r: APIRequestContext, name: string, parentId = '') =>
-    (await (await r.post('/api/platform/flow-folders', { data: { name, parentId } })).json()) as Folder,
+    (await (await r.post('/api/flow-folders', { data: { name, parentId } })).json()) as Folder,
   flow: async (r: APIRequestContext, name: string, folderId = '') => {
-    const f = (await (await r.post('/api/platform/flows', { data: { name, folderId } })).json()) as { id: string };
+    const f = (await (await r.post('/api/flows', { data: { name, folderId } })).json()) as { id: string };
     createdFlows.push(f.id);
     return f;
   },
-  getFlow: async (r: APIRequestContext, id: string) => r.get(`/api/platform/flows/${id}`),
+  getFlow: async (r: APIRequestContext, id: string) => r.get(`/api/flows/${id}`),
 };
 
 const card = (page: Page, name: string) => page.locator('.flow-card', { has: page.locator('.flow-card-title', { hasText: new RegExp(`^${name}$`) }) });
@@ -28,12 +28,12 @@ const crumbs = (page: Page) => page.locator('.flows-list-header .flow-path').loc
 
 test.afterEach(async ({ request }) => {
   // Flows made here (including ones moved back to the top level, or made through the UI).
-  for (const id of createdFlows.splice(0)) await request.delete(`/api/platform/flows/${id}`);
-  const page1 = (await (await request.get('/api/platform/flows?limit=200')).json()) as { items: { id: string; name: string }[] };
-  for (const f of page1.items.filter((x) => x.name === 'Pay by card')) await request.delete(`/api/platform/flows/${f.id}`);
-  const folders = (await (await request.get('/api/platform/flow-folders')).json()) as Folder[];
+  for (const id of createdFlows.splice(0)) await request.delete(`/api/flows/${id}`);
+  const page1 = (await (await request.get('/api/flows?limit=200')).json()) as { items: { id: string; name: string }[] };
+  for (const f of page1.items.filter((x) => x.name === 'Pay by card')) await request.delete(`/api/flows/${f.id}`);
+  const folders = (await (await request.get('/api/flow-folders')).json()) as Folder[];
   for (const f of folders.filter((x) => !x.parentId)) {
-    await request.delete(`/api/platform/flow-folders/${f.id}?confirm=true`);
+    await request.delete(`/api/flow-folders/${f.id}?confirm=true`);
   }
 });
 
@@ -104,7 +104,7 @@ test('a new flow is created in the open folder', async ({ page, request }) => {
   await page.locator('.flow-path').getByRole('button', { name: 'Checkout', exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`folder=${dir.id}`));
   await expect(card(page, 'Pay by card')).toBeVisible();
-  const root = await (await request.get('/api/platform/flows?folder=root')).json();
+  const root = await (await request.get('/api/flows?folder=root')).json();
   expect(root.items.map((f: { name: string }) => f.name)).not.toContain('Pay by card');
 });
 
@@ -138,7 +138,7 @@ test('folders can be dragged into folders, but never into themselves', async ({ 
   await expect(page.getByRole('menuitem', { name: /Outer\/Inner/ })).toHaveCount(0);
   await expect(page.getByRole('menuitem', { name: /^Outer$/ })).toHaveCount(0);
   await page.keyboard.press('Escape');
-  expect((await (await request.get('/api/platform/flow-folders')).json()).find((f: Folder) => f.name === 'Inner').parentId).toBe(outer.id);
+  expect((await (await request.get('/api/flow-folders')).json()).find((f: Folder) => f.name === 'Inner').parentId).toBe(outer.id);
 });
 
 test('keyboard: the card menu moves a flow without dragging, and Escape returns focus', async ({ page, request }) => {
@@ -320,7 +320,7 @@ test('the flow page is always editable and autosaves, with the status badge as i
 });
 
 test('the flow page draws its outline at a readable size', async ({ page }) => {
-  const r = await page.request.get('/api/platform/flows?limit=50');
+  const r = await page.request.get('/api/flows?limit=50');
   const id = ((await r.json()).items as { id: string; name: string }[]).find((f) => f.name === 'Login path')!.id;
   await page.goto(`/flows/${id}`);
   const shape = page.locator('.flow-detail-shape svg');
@@ -371,14 +371,14 @@ test('The toolbar runs search, filter, sort; New folder / New flow sit top right
   expect(Math.abs(actions.x + actions.width - (header.x + header.width))).toBeLessThanOrEqual(2);
   // The fixture has a saved view ("Drafts"), so the row shows; with none and no filter it would not.
   await expect(page.locator('.flows-view-tabs')).toBeVisible();
-  const views = (await (await request.get('/api/platform/flow-views')).json()) as { id: string; name: string; query: string; owner: string; isShared: boolean }[];
-  for (const v of views) await request.delete(`/api/platform/flow-views/${v.id}`);
+  const views = (await (await request.get('/api/flow-views')).json()) as { id: string; name: string; query: string; owner: string; isShared: boolean }[];
+  for (const v of views) await request.delete(`/api/flow-views/${v.id}`);
   await page.reload();
   await expect(page.locator('.flows-list-actions')).toBeVisible();
   await expect(page.locator('.flows-view-tabs')).toHaveCount(0);
   await page.getByPlaceholder(/Search flows/).fill('login');
   await expect(page.locator('.flows-view-tabs')).toBeVisible(); // a filter can be saved as a view
-  for (const v of views) await request.post('/api/platform/flow-views', { data: { name: v.name, query: v.query, owner: v.owner, isShared: v.isShared } });
+  for (const v of views) await request.post('/api/flow-views', { data: { name: v.name, query: v.query, owner: v.owner, isShared: v.isShared } });
 });
 
 test.describe('phone', () => {

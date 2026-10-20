@@ -48,11 +48,11 @@ func migrateFlowFolders(conn *sql.DB) error {
 }
 
 func (p *Platform) registerFolderRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("GET /api/platform/flow-folders", p.listFlowFolders)
-	mux.HandleFunc("POST /api/platform/flow-folders", p.createFlowFolder)
-	mux.HandleFunc("PATCH /api/platform/flow-folders/{id}", p.updateFlowFolder)
-	mux.HandleFunc("DELETE /api/platform/flow-folders/{id}", p.deleteFlowFolder)
-	mux.HandleFunc("POST /api/platform/flows/move", p.moveFlowItems)
+	mux.HandleFunc("GET /api/flow-folders", p.listFlowFolders)
+	mux.HandleFunc("POST /api/flow-folders", p.createFlowFolder)
+	mux.HandleFunc("PATCH /api/flow-folders/{id}", p.updateFlowFolder)
+	mux.HandleFunc("DELETE /api/flow-folders/{id}", p.deleteFlowFolder)
+	mux.HandleFunc("POST /api/flows/move", p.moveFlowItems)
 }
 
 var errFolderNotFound = errors.New("folder not found")

@@ -87,11 +87,11 @@ test('SLA & ageing, weaknesses and attack surface', async ({ page }) => {
 });
 
 test('attack surface: share of features on a documented flow, one square each with bench\'s hover card', async ({ page, request }) => {
-  const flows = (await (await request.get('/api/platform/flows?limit=200')).json()).items as { shape: { projectSlug: string; featureId: string }[] }[];
+  const flows = (await (await request.get('/api/flows?limit=200')).json()).items as { shape: { projectSlug: string; featureId: string }[] }[];
   const onFlow = new Set(flows.flatMap((f) => f.shape.map((n) => `${n.projectSlug}:${n.featureId}`)));
   const expected: Record<string, { total: number; on: number }> = {};
   for (const slug of ['alpha', 'beta']) {
-    const fs = (await (await request.get(`/api/p/${slug}/api/features`)).json()) as { id: string }[];
+    const fs = (await (await request.get(`/api/projects/${slug}/features`)).json()) as { id: string }[];
     expected[slug] = { total: fs.length, on: fs.filter((f) => onFlow.has(`${slug}:${f.id}`)).length };
   }
   await page.goto('/');
@@ -259,8 +259,8 @@ test.describe('search everything (top right)', () => {
   });
 
   test('comments are searched too, and open where they live', async ({ page, request }) => {
-    const findings = await (await request.get('/api/p/alpha/api/findings')).json() as { id: string; anchor: unknown }[];
-    const c = await (await request.post('/api/p/alpha/api/comments', {
+    const findings = await (await request.get('/api/projects/alpha/findings')).json() as { id: string; anchor: unknown }[];
+    const c = await (await request.post('/api/projects/alpha/comments', {
       data: { anchor: findings[0].anchor, author: 'e2e', text: 'Rotate the zebra signing key before release', findingId: findings[0].id },
     })).json() as { id: string };
     try {
@@ -275,7 +275,7 @@ test.describe('search everything (top right)', () => {
       await hit.click();
       await expect(page).toHaveURL(new RegExp(`/p/alpha#/finding/${findings[0].id}$`));
     } finally {
-      await request.delete(`/api/p/alpha/api/comments/${c.id}`);
+      await request.delete(`/api/projects/alpha/comments/${c.id}`);
     }
   });
 });

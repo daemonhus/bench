@@ -982,7 +982,7 @@ func printRootHelp(w io.Writer) {
 	fmt.Fprintln(w, "Global Flags:")
 	fmt.Fprintf(w, "  --url string       Server base URL (default %q, env BENCH_URL)\n", defaultBaseURL)
 	fmt.Fprintln(w, "  --project string   Project slug on a multi-project server (env BENCH_PROJECT);")
-	fmt.Fprintln(w, "                     routes project commands through /api/p/<slug>")
+	fmt.Fprintln(w, "                     routes project commands through /api/projects/<slug>")
 	fmt.Fprintln(w, "  --version          Print version and exit")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Examples:")
@@ -1319,14 +1319,14 @@ func main() {
 	os.Exit(run(os.Args[1:], os.Getenv, os.Stdout, os.Stderr))
 }
 
-// projectPrefix returns the path prefix that routes per-project (bench) API
-// calls through a multi-project server's /api/p/{slug} proxy. Empty project
-// means a single-project server: no prefix.
-func projectPrefix(project string) string {
+// projectPath turns a command's workbench endpoint (/api/findings) into the
+// multi-project server's per-project route (/api/projects/{slug}/findings).
+// Empty project leaves the path as is.
+func projectPath(project, path string) string {
 	if project == "" {
-		return ""
+		return path
 	}
-	return "/api/p/" + url.PathEscape(project)
+	return "/api/projects/" + url.PathEscape(project) + strings.TrimPrefix(path, "/api")
 }
 
 // run is the CLI entry point; it returns the process exit code. getenv,
@@ -1386,7 +1386,7 @@ func run(args []string, getenv func(string) string, stdout, stderr io.Writer) in
 
 	client := newAPIClient(serverURL)
 
-	// Multi-project categories talk to /api/platform/* and ignore --project
+	// Multi-project categories talk to the cross-project /api/* routes and ignore --project
 	// for routing (some commands use it as a default, e.g. flows add-step).
 	if g := findGroup("", catName); g != nil {
 		c := &cli{client: client, project: project, stdout: stdout, stderr: stderr}
@@ -1452,7 +1452,7 @@ func run(args []string, getenv func(string) string, stdout, stderr io.Writer) in
 		fmt.Fprintf(stderr, "Error: %v\n", err)
 		return 1
 	}
-	path = projectPrefix(project) + path
+	path = projectPath(project, path)
 
 	// Batch mode: POST each item individually. stdout gets the created IDs as JSON
 	// ([{"index":0,"id":"…"}], failed items left out) for scripts to pipe on;

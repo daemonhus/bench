@@ -214,9 +214,9 @@ func TestMCP_PerProjectEndpoint(t *testing.T) {
 		t.Fatal(err)
 	}
 	mux := http.NewServeMux()
-	mux.Handle("/api/p/", p.workbenchRouter())
+	mux.Handle("/api/projects/{slug}/", p.workbenchRouter())
 
-	tools := listTools(t, mux, "/api/p/svc/mcp")
+	tools := listTools(t, mux, "/api/projects/svc/mcp")
 	names := map[string]toolDef{}
 	for _, d := range tools {
 		names[d.Name] = d
@@ -234,7 +234,7 @@ func TestMCP_PerProjectEndpoint(t *testing.T) {
 
 	body, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 1, "method": "tools/call",
 		"params": map[string]any{"name": "list_features", "arguments": map[string]any{}}})
-	req := httptest.NewRequest("POST", "/api/p/svc/mcp", bytes.NewReader(body))
+	req := httptest.NewRequest("POST", "/api/projects/svc/mcp", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
@@ -244,7 +244,7 @@ func TestMCP_PerProjectEndpoint(t *testing.T) {
 		t.Fatalf("per-project list_features failed: %s", w.Body.String())
 	}
 
-	req = httptest.NewRequest("POST", "/api/p/nope/mcp", bytes.NewReader(body))
+	req = httptest.NewRequest("POST", "/api/projects/nope/mcp", bytes.NewReader(body))
 	w = httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 	if w.Code != 404 {
