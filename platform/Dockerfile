@@ -23,11 +23,9 @@ FROM golang:1.24-alpine AS backend
 RUN apk add --no-cache git
 WORKDIR /app
 COPY backend/ backend/
-COPY platform/backend/ platform/backend/
-COPY --from=frontend /repo/platform/ui/dist platform/backend/dist
-WORKDIR /app/platform/backend
-# platform/backend/go.mod replaces module `bench` with ../../backend
-RUN CGO_ENABLED=0 go build -o /bench-platform .
+COPY --from=frontend /repo/platform/ui/dist backend/internal/server/dist
+WORKDIR /app/backend
+RUN CGO_ENABLED=0 go build -o /bench-platform ./cmd/benchd
 
 # --- Runtime ---
 FROM alpine:3.20

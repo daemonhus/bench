@@ -3,17 +3,15 @@
 One repository: the workbench at the root, and the multi-project platform in `platform/`.
 
 ```
-backend/            Go: package workbench (library) + cmd/server, cmd/cli
+backend/            Go: package workbench (library), internal/server + cmd/benchd (the server), cmd/cli
 src/                React workbench: viewer, sidebar, stores
 e2e/                Playwright suites (dev + production-embedded configs)
 docs/               VitePress docs (single- and multi-project reference)
 platform/
-  backend/          Go: project CRUD, workbench router, MCP proxy, flows
   ui/               React: shell, project list, flows, settings
   dev.sh            platform: Vite (3000) + Go (8080)
   Dockerfile        platform image (build context: repo root)
-bin/build.sh        builds bench (CLI), benchd, bench-platform into bin/
-go.work             ties ./backend and ./platform/backend together
+bin/build.sh        builds bench (CLI) and benchd into bin/
 ```
 
 ## Quick start
@@ -25,7 +23,7 @@ npm install && ./dev.sh /path/to/repo        # standalone workbench: Vite 5173 +
 
 ## How platform wraps the workbench
 
-The platform never forks bench code. The UI imports workbench source through the Vite alias `@bench` (`platform/ui/vite.config.ts`, `tsconfig.json`; it resolves to `src/`). Styling comes from bench too: `platform/ui/src/tokens.css` imports `src/styles/tokens.css` and adds only platform-only tokens. The backend imports `package workbench` through `go.work`.
+The platform never forks bench code. The UI imports workbench source through the Vite alias `@bench` (`platform/ui/vite.config.ts`, `tsconfig.json`; it resolves to `src/`). Styling comes from bench too: `platform/ui/src/tokens.css` imports `src/styles/tokens.css` and adds only platform-only tokens. The server (`backend/internal/server`) imports `package workbench` from the same Go module.
 
 | Layer | Workbench | Platform |
 |---|---|---|
@@ -52,8 +50,8 @@ benchd (:8081)
 ## Where new code goes
 
 - **Workbench REST endpoint:** a handler in `backend/internal/api/`, registered in `router.go`. The platform forwards it with no change.
-- **Platform REST endpoint:** a handler in `platform/backend/`, registered in `registerPlatformRoutes` (`main.go`; folders in `registerFolderRoutes`, `flow_folders.go`). Platform routes use the `/api/platform/` prefix.
-- **Platform MCP tool:** `platformToolDefs()` in `platform/backend/mcp.go`.
+- **Platform REST endpoint:** a handler in `backend/internal/server/`, registered in `registerPlatformRoutes` (`server.go`; folders in `registerFolderRoutes`, `flow_folders.go`). Platform routes use the `/api/platform/` prefix.
+- **Platform MCP tool:** `platformToolDefs()` in `backend/internal/server/mcp.go`.
 - **Per-project CLI command:** the declarative command table in `backend/cmd/cli/main.go`; it works against both servers.
 - **Multi-project CLI command:** an `mpCmd` in `mpCommands` in `backend/cmd/cli/{projects,flows,folders,catalog}.go`; shared machinery in `multiproject.go`, tests in `multiproject_test.go`. These hit `/api/platform/*`.
 
@@ -67,9 +65,9 @@ The CLI is an HTTP client only: it never imports `workbench` or `internal/*` or 
 | Workbench e2e (dev, 3 canvas sizes) | `npx playwright test -c playwright.e2e.config.ts` |
 | Workbench e2e (production-embedded) | `npx playwright test -c playwright.prod.config.ts` |
 | Platform e2e | `cd platform/ui && npx playwright test` (isolated ports 5184/8092) |
-| Go | `(cd backend && go test ./...)` and `(cd platform/backend && go test ./...)` |
+| Go | `(cd backend && go test ./...)` |
 
-The platform backend embeds `dist/` at compile time; `platform/dev.sh` and the e2e fixture create it.
+The server embeds `backend/internal/server/dist` at compile time; `platform/dev.sh` and the e2e fixture create it.
 
 ## Rules
 

@@ -50,12 +50,10 @@ history.py
 *.patch
 
 # Platform
-platform/backend/dist/
+backend/internal/server/dist/*
+!backend/internal/server/dist/.gitkeep
 platform/ui/dist/
-platform/backend/bench-platform
-/bench-platform
 bin/bench
-bin/bench-platform
 
 # Local planning docs
 plan/

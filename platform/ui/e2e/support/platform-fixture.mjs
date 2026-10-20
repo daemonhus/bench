@@ -11,20 +11,21 @@ import { createFixtureRepo, sh } from '../../../../e2e/support/fixture-repo.mjs'
 const PORT = process.env.E2E_PLATFORM_PORT ?? '8092';
 const API = `http://localhost:${PORT}`;
 const here = dirname(fileURLToPath(import.meta.url));
-const backendDir = join(here, '..', '..', '..', 'backend');
+const backendDir = join(here, '..', '..', '..', '..', 'backend');
 
 const work = mkdtempSync(join(tmpdir(), 'platform-e2e-'));
 const alpha = createFixtureRepo(work, 'alpha');
 const beta = createFixtureRepo(work, 'beta');
 
-// The backend embeds dist/ at compile time; a clean checkout has none.
-if (!existsSync(join(backendDir, 'dist'))) {
-  mkdirSync(join(backendDir, 'dist'), { recursive: true });
-  writeFileSync(join(backendDir, 'dist', '.keep'), '');
+// The server embeds internal/server/dist at compile time; a clean checkout has none.
+const embedDir = join(backendDir, 'internal', 'server', 'dist');
+if (!existsSync(embedDir)) {
+  mkdirSync(embedDir, { recursive: true });
+  writeFileSync(join(embedDir, '.keep'), '');
 }
 
 const bin = join(work, 'platform-e2e');
-sh(backendDir, 'go', 'build', '-o', bin, '.');
+sh(backendDir, 'go', 'build', '-o', bin, './cmd/benchd');
 const server = spawn(bin, ['-data', join(work, 'data'), '-addr', `:${PORT}`], { stdio: process.env.E2E_VERBOSE ? 'inherit' : 'ignore' });
 const stop = () => { server.kill(); process.exit(0); };
 process.on('SIGTERM', stop); process.on('SIGINT', stop); server.on('exit', () => process.exit(1));

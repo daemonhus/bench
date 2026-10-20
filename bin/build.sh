@@ -6,13 +6,10 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BIN="$ROOT/bin"
 
 echo "Building bench CLI..."
-go build -o "$BIN/bench" "$ROOT/backend/cmd/cli/"
+go build -C "$ROOT/backend" -o "$BIN/bench" ./cmd/cli/
 
-echo "Building benchd (single-project server)..."
-go build -o "$BIN/benchd" "$ROOT/backend/cmd/server/"
-
-echo "Building bench-platform (multi-project server)..."
-(cd "$ROOT/platform/backend" && go build -o "$BIN/bench-platform" .)
+echo "Building benchd (server)..."
+go build -C "$ROOT/backend" -o "$BIN/benchd" ./cmd/benchd/
 
 echo "Done. Binaries in $BIN/"
-ls -lh "$BIN/bench" "$BIN/benchd" "$BIN/bench-platform"
+ls -lh "$BIN/bench" "$BIN/benchd"

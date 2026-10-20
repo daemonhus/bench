@@ -6,7 +6,6 @@ on:
     paths:
       - "backend/**"
       - "platform/**"
-      - "go.work"
       - "src/**"
       - "*.ts"
       - "*.json"
@@ -39,47 +38,9 @@ jobs:
           cache: true
           cache-dependency-path: backend/go.sum
 
-      - name: Verify go.mod/go.sum are tidy
-        run: go mod tidy -diff
-
-      - name: Check formatting
-        run: |
-          UNFORMATTED="$(gofmt -l .)"
-          if [ -n "$UNFORMATTED" ]; then
-            echo "These files need gofmt:"
-            echo "$UNFORMATTED"
-            exit 1
-          fi
-
-      - name: Vet
-        run: go vet ./...
-
-      - name: Test
-        run: go test ./...
-
-      - name: Build
-        run: go build ./...
-
-  platform-backend:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: platform/backend
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: platform/backend/go.mod
-          cache: true
-          cache-dependency-path: |
-            platform/backend/go.sum
-            backend/go.sum
-
-      # The binary embeds dist/ at compile time; the real UI is built in the docker job.
+      # The server embeds internal/server/dist at compile time; the real UI is built in the docker job.
       - name: Stub the embedded UI
-        run: mkdir -p dist && touch dist/.keep
+        run: mkdir -p internal/server/dist && touch internal/server/dist/.gitkeep
 
       - name: Verify go.mod/go.sum are tidy
         run: go mod tidy -diff
@@ -135,7 +96,7 @@ jobs:
         working-directory: platform/ui
 
   docker:
-    needs: [backend, platform-backend, frontend]
+    needs: [backend, frontend]
     name: docker (${{ matrix.image }}, ${{ matrix.platform }})
     strategy:
       fail-fast: false

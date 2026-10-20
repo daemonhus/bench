@@ -1,4 +1,4 @@
-package main
+package server
 
 // Regressions found driving the bench CLI and the MCP tools against a live
 // multi-project server.

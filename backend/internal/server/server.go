@@ -1,11 +1,10 @@
-package main
+package server
 
 import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
 	"io/fs"
@@ -51,18 +50,15 @@ type Project struct {
 	Activity *workbench.BranchActivity `json:"activity,omitempty"`
 }
 
-func main() {
-	dataDir := flag.String("data", ".", "Data directory for databases")
-	addr := flag.String("addr", ":8080", "Listen address")
-	flag.Parse()
-
-	if err := os.MkdirAll(*dataDir, 0755); err != nil {
-		log.Fatalf("create data dir: %v", err)
+// Run serves the multi-project workbench on addr, keeping every database under dataDir.
+func Run(dataDir, addr string) error {
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		return fmt.Errorf("create data dir: %w", err)
 	}
 
-	p, err := NewPlatform(*dataDir)
+	p, err := NewPlatform(dataDir)
 	if err != nil {
-		log.Fatalf("init platform: %v", err)
+		return fmt.Errorf("init platform: %w", err)
 	}
 	defer p.Close()
 
@@ -72,10 +68,8 @@ func main() {
 	mux.Handle("/mcp", newPlatformMCP(p))
 	mux.Handle("/", spaHandler())
 
-	log.Printf("platform listening on %s (data=%s)", *addr, *dataDir)
-	if err := http.ListenAndServe(*addr, workbench.WithMiddleware(mux)); err != nil {
-		log.Fatal(err)
-	}
+	log.Printf("benchd listening on %s (data=%s)", addr, dataDir)
+	return http.ListenAndServe(addr, workbench.WithMiddleware(mux))
 }
 
 func NewPlatform(dataDir string) (*Platform, error) {

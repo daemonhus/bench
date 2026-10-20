@@ -18,13 +18,19 @@ trap cleanup EXIT INT TERM
 # Build frontend so backend can embed real dist
 (cd "$PLATFORM_DIR/ui" && npm run build)
 
-# Copy built frontend into backend/dist (go:embed can't follow symlinks)
-rm -rf "$PLATFORM_DIR/backend/dist"
-cp -r "$PLATFORM_DIR/ui/dist" "$PLATFORM_DIR/backend/dist"
+# Copy built frontend into the server's embed dir (go:embed can't follow symlinks)
+EMBED_DIR="$PLATFORM_DIR/../backend/internal/server/dist"
+rm -rf "$EMBED_DIR"
+cp -r "$PLATFORM_DIR/ui/dist" "$EMBED_DIR"
+touch "$EMBED_DIR/.gitkeep"
 
 # backend/embed.go requires a non-empty dist/ dir at compile time even in library mode
 mkdir -p "$PLATFORM_DIR/../backend/dist"
 touch "$PLATFORM_DIR/../backend/dist/.keep"
+
+# Project databases (platform.db plus one <slug>.db per project)
+DATA_DIR="${BENCH_DATA:-$PLATFORM_DIR/backend}"
+mkdir -p "$DATA_DIR"
 
 # Start Vite dev server in background
 (cd "$PLATFORM_DIR/ui" && npm run dev) &
@@ -43,4 +49,4 @@ echo "  Backend:  http://localhost:8080"
 echo ""
 
 # Start Go backend — blocks until killed
-cd "$PLATFORM_DIR/backend" && go run . -addr :8080
+cd "$PLATFORM_DIR/../backend" && go run ./cmd/benchd -data "$DATA_DIR" -addr :8080
