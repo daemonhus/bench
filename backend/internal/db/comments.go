@@ -102,7 +102,7 @@ func (d *DB) ListComments(fileID, findingID string, limit, offset int, featureID
 }
 
 func (d *DB) CreateComment(c *model.Comment) error {
-	if err := checkAnchors(&c.Anchor); err != nil {
+	if err := d.checkAnchors(&c.Anchor); err != nil {
 		return err
 	}
 	var lineStart, lineEnd *int
@@ -172,6 +172,7 @@ func (d *DB) UpdateComment(id string, updates map[string]any) error {
 	if err := d.mergeLineRangeUpdate("comments", id, updates); err != nil {
 		return err
 	}
+	d.pinCommitUpdate(updates)
 	allowed := map[string]string{
 		"text":              "text",
 		"author":            "author",
@@ -222,7 +223,7 @@ func (d *DB) BatchCreateComments(comments []model.Comment) ([]string, error) {
 	for i := range comments {
 		anchors[i] = &comments[i].Anchor
 	}
-	if err := checkAnchors(anchors...); err != nil {
+	if err := d.checkAnchors(anchors...); err != nil {
 		return nil, err
 	}
 	return wq(d.wq, func() ([]string, error) {

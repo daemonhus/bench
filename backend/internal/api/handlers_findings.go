@@ -167,21 +167,8 @@ func (h *findingsHandlers) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Compute lineHash from file content at anchor commit
-	if f.Anchor.LineRange != nil && f.Anchor.CommitID != "" && h.repo != nil {
-		content, err := h.repo.Show(f.Anchor.CommitID, f.Anchor.FileID)
-		if err == nil {
-			lines := strings.Split(content, "\n")
-			start := f.Anchor.LineRange.Start - 1 // 0-based
-			end := f.Anchor.LineRange.End         // exclusive for slice
-			if end == 0 {
-				end = f.Anchor.LineRange.Start
-			}
-			if start >= 0 && start < end && end <= len(lines) {
-				f.LineHash = reconcile.LineHash(lines[start:end])
-			}
-		}
-	}
+	// Hash the anchored lines: what the reconciler matches on to follow the code.
+	f.LineHash = lineHashAt(h.repo, f.Anchor)
 
 	if err := h.db.CreateFinding(&f); err != nil {
 		writeDBError(w, err)
@@ -264,6 +251,7 @@ func (h *findingsHandlers) update(w http.ResponseWriter, r *http.Request) {
 	if !validateAnchorUpdate(w, updates) {
 		return
 	}
+	reanchored := touchesAnchor(updates)
 	finding, err := h.db.UpdateFinding(id, updates)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
@@ -272,6 +260,16 @@ func (h *findingsHandlers) update(w http.ResponseWriter, r *http.Request) {
 			writeDBError(w, err)
 		}
 		return
+	}
+	if reanchored {
+		if err := recordMove(h.repo, h.db, "finding", finding.ID, finding.Anchor); err != nil {
+			writeDBError(w, err)
+			return
+		}
+		if finding, err = h.db.GetFinding(finding.ID); err != nil {
+			writeDBError(w, err)
+			return
+		}
 	}
 	if h.broker != nil {
 		h.broker.Publish(events.TopicAnnotations)

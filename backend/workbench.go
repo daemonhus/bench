@@ -75,6 +75,11 @@ func newWorkbench(repo *git.Repo, database *db.DB, opts ...Option) *Workbench {
 	for _, opt := range opts {
 		opt(&o)
 	}
+	// Annotations anchored to "HEAD" or a branch are stored at the commit it names now.
+	database.SetCommitResolver(func(ref string) (string, bool) {
+		sha, err := repo.ResolveRef(ref)
+		return sha, err == nil && sha != ""
+	})
 	reconciler := reconcile.NewReconciler(repo, database, database, database, reconcile.WithResolver(database))
 	broker := events.NewBroker()
 	return &Workbench{

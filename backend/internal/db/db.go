@@ -17,6 +17,28 @@ type DB struct {
 	// profileConfigured caches a positive ProfileConfigured answer - the
 	// profile can never become unconfigured, so one true answer is final.
 	profileConfigured atomic.Bool
+	// resolveCommit pins a ref given as an anchor commit (e.g. "HEAD") to its
+	// commit id; see SetCommitResolver.
+	resolveCommit func(ref string) (string, bool)
+}
+
+// SetCommitResolver makes every annotation write pin its anchor commit to a
+// commit id, so an anchor given as "HEAD" or a branch doesn't move with it. A
+// ref that doesn't resolve is stored as given. The workbench wires this to the
+// project's git repo.
+func (d *DB) SetCommitResolver(resolve func(ref string) (string, bool)) {
+	d.resolveCommit = resolve
+}
+
+// pinCommit returns ref resolved to a commit id when it can be.
+func (d *DB) pinCommit(ref string) string {
+	if ref == "" || d.resolveCommit == nil {
+		return ref
+	}
+	if sha, ok := d.resolveCommit(ref); ok {
+		return sha
+	}
+	return ref
 }
 
 func Open(path, projectID string) (*DB, error) {

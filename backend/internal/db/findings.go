@@ -145,7 +145,7 @@ func (d *DB) ListFindings(fileID string, limit, offset int) ([]model.Finding, in
 }
 
 func (d *DB) CreateFinding(f *model.Finding) error {
-	if err := checkAnchors(&f.Anchor); err != nil {
+	if err := d.checkAnchors(&f.Anchor); err != nil {
 		return err
 	}
 	if f.Severity == "informational" {
@@ -202,6 +202,7 @@ func (d *DB) UpdateFinding(id string, updates map[string]any) (*model.Finding, e
 	if err := d.mergeLineRangeUpdate("findings", id, updates); err != nil {
 		return nil, err
 	}
+	d.pinCommitUpdate(updates)
 	allowed := map[string]string{
 		"severity":          "severity",
 		"title":             "title",
@@ -369,7 +370,7 @@ func (d *DB) BatchCreateFindings(findings []model.Finding) ([]string, error) {
 	for i := range findings {
 		anchors[i] = &findings[i].Anchor
 	}
-	if err := checkAnchors(anchors...); err != nil {
+	if err := d.checkAnchors(anchors...); err != nil {
 		return nil, err
 	}
 	return wq(d.wq, func() ([]string, error) {

@@ -13,10 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	"bench/internal/api"
-	"bench/internal/db"
-	"bench/internal/git"
-	"bench/internal/mcp"
+	workbench "bench"
 	"bench/internal/model"
 )
 
@@ -63,7 +60,12 @@ func setupParity(t *testing.T) *parityEnv {
 			t.Fatalf("git setup: %v: %s", err, out)
 		}
 	}
-	if err := os.WriteFile(filepath.Join(dir, "main.go"), []byte(strings.Repeat("// line\n", 10)), 0644); err != nil {
+	// Distinct lines, so a hash of the wrong lines is caught.
+	var src strings.Builder
+	for i := 1; i <= 10; i++ {
+		fmt.Fprintf(&src, "// line %d\n", i)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "main.go"), []byte(src.String()), 0644); err != nil {
 		t.Fatal(err)
 	}
 	for _, args := range [][]string{{"git", "-C", dir, "add", "."}, {"git", "-C", dir, "commit", "-m", "init"}} {
@@ -75,19 +77,16 @@ func setupParity(t *testing.T) *parityEnv {
 	if err != nil {
 		t.Fatal(err)
 	}
-	database, err := db.Open(filepath.Join(t.TempDir(), "test.db"), "test")
+	// Wired exactly as the servers wire a project: REST and MCP over one database.
+	wb, err := workbench.Open(dir, filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { database.Close() })
-	if err := database.PutServiceProfile(model.ServiceProfile{}); err != nil {
+	t.Cleanup(func() { wb.DB.Close() })
+	if err := wb.DB.PutServiceProfile(model.ServiceProfile{}); err != nil {
 		t.Fatal(err)
 	}
-	repo := git.NewRepo(dir)
-	mux := http.NewServeMux()
-	mux.Handle("/mcp", mcp.NewHandler(database, repo, nil, nil))
-	mux.Handle("/", api.NewRouter(repo, database, nil))
-	srv := httptest.NewServer(mux)
+	srv := httptest.NewServer(wb.Handler())
 	t.Cleanup(srv.Close)
 	return &parityEnv{srv: srv, head: strings.TrimSpace(string(head)), dir: dir}
 }
@@ -336,6 +335,193 @@ func TestLineRangeParity_Update(t *testing.T) {
 				case !c.reject && !sameRange(got, c.want):
 					t.Errorf("%s: stored %v, want %v", text, got, c.want)
 				}
+			}
+		}
+	}
+}
+
+// effective returns the item's stored anchor, line hash and its effective line range at
+// commit, as the lists report them (what the UI shows and the reconciler works from).
+func (e *parityEnv) effective(t *testing.T, k kindSpec, id, commit string) (stored model.Anchor, hash string, eff *model.LineRange) {
+	t.Helper()
+	_, data := e.http(t, "GET", "/api/"+k.plural+"?fileId=main.go&commit="+commit, nil)
+	var items []struct {
+		ID              string        `json:"id"`
+		Anchor          model.Anchor  `json:"anchor"`
+		LineHash        string        `json:"lineHash"`
+		EffectiveAnchor *model.Anchor `json:"effectiveAnchor"`
+	}
+	json.Unmarshal(data, &items)
+	for _, it := range items {
+		if it.ID == id {
+			if it.EffectiveAnchor != nil {
+				eff = it.EffectiveAnchor.LineRange
+			}
+			return it.Anchor, it.LineHash, eff
+		}
+	}
+	t.Fatalf("%s %s not listed", k.name, id)
+	return
+}
+
+// Moving an annotation to new lines, through any surface, must leave it tracked at the new
+// lines: the stored range, the effective position the reconciler reports, and the line hash it
+// matches on. REST moves used to keep reporting the old lines (no new position for findings)
+// and keep the old lines' hash (all kinds).
+func TestAnchorParity_Move(t *testing.T) {
+	e := setupParity(t)
+	to := &model.LineRange{Start: 5, End: 6}
+	movers := []struct {
+		name string
+		move func(t *testing.T, k kindSpec, id string) bool
+	}{
+		{"REST", func(t *testing.T, k kindSpec, id string) bool {
+			code, _ := e.http(t, "PATCH", "/api/"+k.plural+"/"+id, map[string]any{"line_start": 5, "line_end": 6})
+			return code == 200 || code == 204
+		}},
+		{"MCP", func(t *testing.T, k kindSpec, id string) bool {
+			args := map[string]any{"id": id, "start": 5, "end": 6}
+			if k.name == "comment" {
+				args["author"] = "a"
+			}
+			ok, _ := e.mcpCall(t, "update_"+k.name, args)
+			return ok
+		}},
+		{"CLI", func(t *testing.T, k kindSpec, id string) bool {
+			args := []string{k.plural, "update", "--id", id, "--start", "5", "--end", "6"}
+			if k.name == "comment" {
+				args = append(args, "--author", "a")
+			}
+			ok, _ := e.cli(t, args...)
+			return ok
+		}},
+	}
+	create := func(t *testing.T, k kindSpec, text string, lr *model.LineRange) string {
+		code, data := e.http(t, "POST", "/api/"+k.plural, with(k.extra, map[string]any{
+			k.textField: text, "anchor": map[string]any{"fileId": "main.go", "commitId": e.head, "lineRange": lr},
+		}))
+		if code != 201 {
+			t.Fatalf("create %s: %d %s", text, code, data)
+		}
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		return m["id"].(string)
+	}
+	for _, k := range parityKinds {
+		// What an item created at the new lines is tracked by.
+		_, wantHash, _ := e.effective(t, k, create(t, k, k.name+" reference", to), e.head)
+		if wantHash == "" {
+			t.Fatalf("%s reference has no line hash", k.name)
+		}
+		for _, m := range movers {
+			text := fmt.Sprintf("%s moved via %s", k.name, m.name)
+			id := create(t, k, text, &model.LineRange{Start: 2, End: 3})
+			if !m.move(t, k, id) {
+				t.Errorf("%s: move rejected", text)
+				continue
+			}
+			stored, hash, eff := e.effective(t, k, id, e.head)
+			if !sameRange(stored.LineRange, to) {
+				t.Errorf("%s: stored %v, want %v", text, stored.LineRange, to)
+			}
+			if !sameRange(eff, to) {
+				t.Errorf("%s: effective position at HEAD %v, want %v", text, eff, to)
+			}
+			if hash != wantHash {
+				t.Errorf("%s: line hash is still the old lines' (got %.8s, want %.8s)", text, hash, wantHash)
+			}
+		}
+	}
+}
+
+// An anchor commit given as "HEAD" is stored as the commit it names, through every surface, on
+// create and on update; it used to be stored as the literal "HEAD", which moves.
+func TestAnchorParity_HeadPinned(t *testing.T) {
+	e := setupParity(t)
+	c := lineCase{start: 2, end: 3}
+	creators := map[string]func(k kindSpec, text string) (bool, string){
+		"REST": func(k kindSpec, text string) (bool, string) {
+			code, data := e.http(t, "POST", "/api/"+k.plural, with(k.extra, map[string]any{k.textField: text,
+				"anchor": map[string]any{"fileId": "main.go", "commitId": "HEAD", "lineRange": map[string]any{"start": 2, "end": 3}}}))
+			return code == 201, string(data)
+		},
+		"MCP": func(k kindSpec, text string) (bool, string) {
+			return e.mcpCall(t, "create_"+k.name, lines(with(k.extra, map[string]any{k.textField: text, "file": "main.go", "commit": "HEAD"}), "start", "end", c))
+		},
+		"MCP batch": func(k kindSpec, text string) (bool, string) {
+			item := lines(with(k.extra, map[string]any{k.textField: text, "file": "main.go", "commit": "HEAD"}), "start", "end", c)
+			return e.mcpCall(t, "batch_create_"+k.plural, map[string]any{k.plural: []any{item}})
+		},
+		"CLI": func(k kindSpec, text string) (bool, string) {
+			return e.cli(t, append([]string{k.plural, "create", "--" + k.textField, text, "--file", "main.go", "--commit", "HEAD", "--start", "2", "--end", "3"}, k.cliExtra...)...)
+		},
+		"CLI batch": func(k kindSpec, text string) (bool, string) {
+			item := lines(with(k.extra, map[string]any{k.textField: text, "file": "main.go", "commit": "HEAD"}), "line_start", "line_end", c)
+			b, _ := json.Marshal([]any{item})
+			in := filepath.Join(t.TempDir(), "batch.json")
+			os.WriteFile(in, b, 0644)
+			return e.cli(t, k.plural, "batch-create", "--input", in)
+		},
+	}
+	updaters := map[string]func(k kindSpec, id string) bool{
+		"REST": func(k kindSpec, id string) bool {
+			code, _ := e.http(t, "PATCH", "/api/"+k.plural+"/"+id, map[string]any{"commit": "HEAD"})
+			return code == 200 || code == 204
+		},
+		"MCP": func(k kindSpec, id string) bool {
+			args := map[string]any{"id": id, "commit": "HEAD"}
+			if k.name == "comment" {
+				args["author"] = "a"
+			}
+			ok, _ := e.mcpCall(t, "update_"+k.name, args)
+			return ok
+		},
+		"CLI": func(k kindSpec, id string) bool {
+			args := []string{k.plural, "update", "--id", id, "--commit", "HEAD"}
+			if k.name == "comment" {
+				args = append(args, "--author", "a")
+			}
+			ok, _ := e.cli(t, args...)
+			return ok
+		},
+	}
+	commitOf := func(k kindSpec, text string) string {
+		_, data := e.http(t, "GET", "/api/"+k.plural, nil)
+		var items []map[string]any
+		json.Unmarshal(data, &items)
+		for _, it := range items {
+			if it[k.textField] == text {
+				return it["anchor"].(map[string]any)["commitId"].(string)
+			}
+		}
+		return "<not stored>"
+	}
+	for _, k := range parityKinds {
+		for name, create := range creators {
+			text := fmt.Sprintf("%s created via %s at HEAD", k.name, name)
+			if ok, msg := create(k, text); !ok {
+				t.Errorf("%s: rejected: %s", text, msg)
+				continue
+			}
+			if got := commitOf(k, text); got != e.head {
+				t.Errorf("%s: stored commit %q, want %s", text, got, e.head)
+			}
+		}
+		for name, update := range updaters {
+			text := fmt.Sprintf("%s updated via %s to HEAD", k.name, name)
+			code, data := e.http(t, "POST", "/api/"+k.plural, with(k.extra, map[string]any{k.textField: text,
+				"anchor": map[string]any{"fileId": "main.go", "commitId": e.head, "lineRange": map[string]any{"start": 2, "end": 3}}}))
+			if code != 201 {
+				t.Fatalf("seed %s: %d %s", text, code, data)
+			}
+			var m map[string]any
+			json.Unmarshal(data, &m)
+			if !update(k, m["id"].(string)) {
+				t.Errorf("%s: update rejected", text)
+				continue
+			}
+			if got := commitOf(k, text); got != e.head {
+				t.Errorf("%s: stored commit %q, want %s", text, got, e.head)
 			}
 		}
 	}

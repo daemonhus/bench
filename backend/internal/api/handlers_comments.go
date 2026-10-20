@@ -133,21 +133,8 @@ func (h *commentsHandlers) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Compute lineHash from file content at anchor commit
-	if c.Anchor.LineRange != nil && c.Anchor.CommitID != "" && h.repo != nil {
-		content, err := h.repo.Show(c.Anchor.CommitID, c.Anchor.FileID)
-		if err == nil {
-			lines := strings.Split(content, "\n")
-			start := c.Anchor.LineRange.Start - 1
-			end := c.Anchor.LineRange.End
-			if end == 0 {
-				end = c.Anchor.LineRange.Start
-			}
-			if start >= 0 && start < end && end <= len(lines) {
-				c.LineHash = reconcile.LineHash(lines[start:end])
-			}
-		}
-	}
+	// Hash the anchored lines: what the reconciler matches on to follow the code.
+	c.LineHash = lineHashAt(h.repo, c.Anchor)
 
 	if err := h.db.CreateComment(&c); err != nil {
 		writeDBError(w, err)
@@ -210,21 +197,16 @@ func (h *commentsHandlers) update(w http.ResponseWriter, r *http.Request) {
 		writeDBError(w, err)
 		return
 	}
+	updated, err := h.db.GetComment(id)
+	if reanchored && err == nil && updated != nil {
+		if err := recordMove(h.repo, h.db, "comment", updated.ID, updated.Anchor); err != nil {
+			writeDBError(w, err)
+			return
+		}
+		updated, err = h.db.GetComment(updated.ID)
+	}
 	if h.broker != nil {
 		h.broker.Publish(events.TopicAnnotations)
-	}
-	updated, err := h.db.GetComment(id)
-	if reanchored && err == nil && updated != nil && updated.Anchor.LineRange != nil && updated.Anchor.CommitID != "" {
-		fileID := updated.Anchor.FileID
-		_ = h.db.InsertPosition(&model.AnnotationPosition{
-			AnnotationID:   updated.ID,
-			AnnotationType: "comment",
-			CommitID:       updated.Anchor.CommitID,
-			FileID:         &fileID,
-			LineStart:      &updated.Anchor.LineRange.Start,
-			LineEnd:        &updated.Anchor.LineRange.End,
-			Confidence:     "exact",
-		})
 	}
 	if err != nil || updated == nil {
 		w.WriteHeader(http.StatusNoContent)

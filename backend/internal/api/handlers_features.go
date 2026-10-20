@@ -141,21 +141,8 @@ func (h *featuresHandlers) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Compute lineHash from file content at anchor commit
-	if f.Anchor.LineRange != nil && f.Anchor.CommitID != "" && h.repo != nil {
-		content, err := h.repo.Show(f.Anchor.CommitID, f.Anchor.FileID)
-		if err == nil {
-			lines := strings.Split(content, "\n")
-			start := f.Anchor.LineRange.Start - 1
-			end := f.Anchor.LineRange.End
-			if end == 0 {
-				end = f.Anchor.LineRange.Start
-			}
-			if start >= 0 && start < end && end <= len(lines) {
-				f.LineHash = reconcile.LineHash(lines[start:end])
-			}
-		}
-	}
+	// Hash the anchored lines: what the reconciler matches on to follow the code.
+	f.LineHash = lineHashAt(h.repo, f.Anchor)
 
 	// Capture parameters and linked features before creating.
 	// extractLinkedFeatures handles both "linkedFeatures" (objects) and "linkedFeatureIds" (string array).
@@ -301,18 +288,15 @@ func (h *featuresHandlers) update(w http.ResponseWriter, r *http.Request) {
 			writeDBError(w, err)
 			return
 		}
-		// A re-anchor is an exact position at the new anchor commit, same as create.
-		if reanchored && feature.Anchor.LineRange != nil && feature.Anchor.CommitID != "" {
-			fileID := feature.Anchor.FileID
-			_ = h.db.InsertPosition(&model.AnnotationPosition{
-				AnnotationID:   feature.ID,
-				AnnotationType: "feature",
-				CommitID:       feature.Anchor.CommitID,
-				FileID:         &fileID,
-				LineStart:      &feature.Anchor.LineRange.Start,
-				LineEnd:        &feature.Anchor.LineRange.End,
-				Confidence:     "exact",
-			})
+		if reanchored {
+			if err := recordMove(h.repo, h.db, "feature", feature.ID, feature.Anchor); err != nil {
+				writeDBError(w, err)
+				return
+			}
+			if feature, err = h.db.GetFeature(feature.ID); err != nil {
+				writeDBError(w, err)
+				return
+			}
 		}
 	} else {
 		feature, err = h.db.GetFeature(id)

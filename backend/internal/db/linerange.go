@@ -8,12 +8,14 @@ import (
 	"bench/internal/model"
 )
 
-// Line ranges are checked here, at the one layer every create and update goes
-// through (REST, MCP and the CLI alike), with model.ParseLineRange's rule.
+// Anchors are checked here, at the one layer every create and update goes
+// through (REST, MCP and the CLI alike): line ranges with model.ParseLineRange's
+// rule, and commits pinned to a commit id.
 
-// checkAnchors validates and normalises the line range of each anchor, naming
-// the item when there is more than one.
-func checkAnchors(anchors ...*model.Anchor) error {
+// checkAnchors validates and normalises each anchor before it is stored: the
+// line range by model.ParseLineRange (naming the item when there is more than
+// one), and the commit pinned to a commit id.
+func (d *DB) checkAnchors(anchors ...*model.Anchor) error {
 	for i, a := range anchors {
 		if err := a.NormalizeLineRange(); err != nil {
 			if len(anchors) > 1 {
@@ -21,8 +23,18 @@ func checkAnchors(anchors ...*model.Anchor) error {
 			}
 			return err
 		}
+		a.CommitID = d.pinCommit(a.CommitID)
 	}
 	return nil
+}
+
+// pinCommitUpdate pins a commit given in an update map, under any of its keys.
+func (d *DB) pinCommitUpdate(updates map[string]any) {
+	for _, k := range []string{"commit", "commit_id"} {
+		if ref, ok := updates[k].(string); ok {
+			updates[k] = d.pinCommit(ref)
+		}
+	}
 }
 
 // mergeLineRangeUpdate resolves line_start / line_end in an update map against
