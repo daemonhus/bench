@@ -47,6 +47,8 @@ type Project struct {
 	CreatedAt string                  `json:"createdAt"`
 	Stats     *workbench.ProjectStats `json:"stats,omitempty"`
 	RiskData  *RiskData               `json:"riskData,omitempty"`
+	// Activity on the default branch: last push (newest commit) and commits over the last year.
+	Activity *workbench.BranchActivity `json:"activity,omitempty"`
 }
 
 func main() {
@@ -334,6 +336,9 @@ func (p *Platform) listProjects(w http.ResponseWriter, r *http.Request) {
 		}
 		if wb, err := p.getWorkbench(proj.Slug); err == nil {
 			proj.RemoteURL = wb.Repo.RemoteURL()
+			if act, err := wb.Repo.BranchActivity(wb.Repo.DefaultBranch(), 12); err == nil {
+				proj.Activity = &act
+			}
 			if stats, err := wb.Stats(); err == nil {
 				proj.Stats = &stats
 				// Compute risk data from latest baseline

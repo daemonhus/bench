@@ -24,6 +24,7 @@ type ProjectStats = model.ProjectStats
 type Baseline = model.Baseline
 type BaselineDelta = model.BaselineDelta
 type FileStat = model.FileStat
+type BranchActivity = model.BranchActivity
 
 // Workbench is a single-project code review instance.
 type Workbench struct {

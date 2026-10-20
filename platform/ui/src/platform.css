@@ -1386,6 +1386,12 @@ button.home-heat:focus-visible { outline: 2px solid var(--accent-blue); outline-
 .pc-tile--split { flex-direction: row; gap: 0; padding: 0; }
 .pc-tile-half { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; }
 .pc-tile-half + .pc-tile-half { border-left: 1px solid var(--border-default); }
+/* A graph behind the tile's text (Activity): pinned to the bottom, faint, never in the way. */
+.pc-tile--graph { position: relative; overflow: hidden; }
+.pc-tile--graph > :not(.pc-tile-bg) { position: relative; }
+.pc-tile-bg { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 45%; pointer-events: none; }
+.pc-activity-graph-area { fill: var(--accent-green); opacity: 0.1; }
+.pc-activity-graph-line { fill: none; stroke: var(--accent-green); stroke-width: 1.25; opacity: 0.4; stroke-linejoin: round; }
 .pc-tile-label { font-size: var(--font-size-xs); font-weight: 600; letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--text-muted); }
 .pc-tile-value { font-size: 20px; font-weight: 600; line-height: 1.25; color: var(--text-primary); font-variant-numeric: tabular-nums; }
 .pc-tile-sub { font-size: var(--font-size-xs); color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -1401,4 +1407,8 @@ button.home-heat:focus-visible { outline: 2px solid var(--accent-blue); outline-
 .pc-squares-more:hover { color: var(--accent-blue); }
 
 @media (max-width: 899px) { .pc-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } .pc-tile--wide { grid-column: span 3; } }
-@media (max-width: 639px) { .pc-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } .pc-tile--wide { grid-column: span 2; } }
+@media (max-width: 639px) {
+  .pc-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } .pc-tile--wide { grid-column: span 2; }
+  /* Half-width tiles: let a note wrap rather than cut it off. */
+  .pc-tile-sub { white-space: normal; }
+}

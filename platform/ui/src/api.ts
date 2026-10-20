@@ -29,6 +29,8 @@ export interface Project {
   owner: string;
   stats?: ProjectStats;
   riskData?: RiskData;
+  /** The default branch's last push (newest commit) and commits over the last `months` months. */
+  activity?: { branch: string; lastCommitAt?: string; commits: number; months: number; weekly?: number[] };
 }
 
 export async function listProjects(): Promise<Project[]> {

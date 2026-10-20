@@ -10,7 +10,7 @@ import {
 } from './api';
 import { listAllFlows, type FlowSummary } from './flows';
 import { computeRiskScore } from './risk';
-import { SLA_DAYS, ageDays, type Profile } from './projectInsight';
+import { SLA_DAYS, ageDays, plural, type Profile } from './projectInsight';
 import { FindingsTrendChart, SurfaceChart, type FindingsWeek } from './charts';
 import { HomeSearch } from './HomeSearch';
 
@@ -53,7 +53,6 @@ const median = (xs: number[]) => {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 };
 const riskColor = (score: number) => `var(--severity-${score >= 75 ? 'critical' : score >= 50 ? 'high' : score >= 25 ? 'medium' : 'low'})`;
-const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
 /** The first few names, then a count, so a line stays one line with fifty projects. */
 const nameList = (names: string[], max = 3) =>
   names.length <= max ? names.join(', ') : `${names.slice(0, max).join(', ')} and ${names.length - max} more`;

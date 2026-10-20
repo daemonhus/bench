@@ -3,7 +3,7 @@ import { createProject, updateProject, deleteProject, listProjectFindings, DEFAU
 import { TagEditor, SortToggle } from './filters';
 import { useModalFocus } from './useModalFocus';
 import { computeRiskScore, projectSize } from './risk';
-import { Exposure, useProfile, pastSla, ageDays } from './projectInsight';
+import { Exposure, useProfile, pastSla, ageDays, plural } from './projectInsight';
 import { Skeleton } from '@bench/components/Skeleton';
 import { FindingMiniCard, useHoverCard } from '@bench/components/mini-cards';
 import { isOpenFinding, SEVERITY_RANK } from '@bench/core/finding-categories';
@@ -193,7 +193,11 @@ function FindingSquares({ project, findings, onOpen }: { project: Project; findi
 }
 
 /** One labelled number; `tone` colours the number only when it needs attention. */
-type TileProps = { label: string; value: React.ReactNode; sub?: React.ReactNode; tone?: 'bad' | 'warn'; children?: React.ReactNode };
+type TileProps = {
+  label: string; value: React.ReactNode; sub?: React.ReactNode; tone?: 'bad' | 'warn'; title?: string; children?: React.ReactNode;
+  /** Drawn behind the tile's text, e.g. a history graph. */
+  background?: React.ReactNode;
+};
 
 function TileBody({ label, value, sub, tone, children }: TileProps) {
   return (
@@ -210,7 +214,75 @@ function TileBody({ label, value, sub, tone, children }: TileProps) {
 }
 
 function Tile(props: TileProps) {
-  return <div className="pc-tile"><TileBody {...props} /></div>;
+  return (
+    <div className={`pc-tile${props.background ? ' pc-tile--graph' : ''}`} title={props.title}>
+      {props.background}
+      <TileBody {...props} />
+    </div>
+  );
+}
+
+/** A smooth path through points that never overshoots them (monotone cubic, as d3's
+ *  curveMonotoneX), so a quiet stretch stays flat instead of dipping below zero. */
+function monotonePath(pts: [number, number][]): string {
+  const n = pts.length;
+  const dx = (i: number) => pts[i + 1][0] - pts[i][0];
+  const slope = (i: number) => (pts[i + 1][1] - pts[i][1]) / dx(i);
+  const m = pts.map((_, i) => {
+    if (i === 0) return slope(0);
+    if (i === n - 1) return slope(n - 2);
+    // d3's rule: no slope at a turning point, else bounded so the curve can't overshoot.
+    const s0 = slope(i - 1), s1 = slope(i), h0 = dx(i - 1), h1 = dx(i);
+    const p = (s0 * h1 + s1 * h0) / (h0 + h1);
+    return (Math.sign(s0) + Math.sign(s1)) * Math.min(Math.abs(s0), Math.abs(s1), 0.5 * Math.abs(p));
+  });
+  let d = `M${pts[0][0].toFixed(2)},${pts[0][1].toFixed(2)}`;
+  for (let i = 0; i < n - 1; i++) {
+    const h = dx(i) / 3;
+    d += `C${(pts[i][0] + h).toFixed(2)},${(pts[i][1] + m[i] * h).toFixed(2)} ${(pts[i + 1][0] - h).toFixed(2)},${(pts[i + 1][1] - m[i + 1] * h).toFixed(2)} ${pts[i + 1][0].toFixed(2)},${pts[i + 1][1].toFixed(2)}`;
+  }
+  return d;
+}
+
+/** A year of weekly commit counts as a faint area graph behind a tile, like GitHub's
+ *  participation graph on a repository list. Decorative: the tile's text and tooltip carry
+ *  the numbers. */
+function ActivityGraph({ weekly }: { weekly: number[] }) {
+  // A 3-week rolling mean, so one busy week reads as a rise rather than a spike.
+  const smooth = weekly.map((_, i) => {
+    const w = weekly.slice(Math.max(0, i - 1), i + 2);
+    return w.reduce((a, b) => a + b, 0) / w.length;
+  });
+  const max = Math.max(...smooth);
+  if (smooth.length < 2 || max === 0) return null;
+  const W = 100, H = 32;
+  const pts = smooth.map((n, i): [number, number] => [(i / (smooth.length - 1)) * W, H - (n / max) * (H - 2) - 1]);
+  const line = monotonePath(pts);
+  return (
+    <svg className="pc-tile-bg pc-activity-graph" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
+      <path className="pc-activity-graph-area" d={`${line}L${W},${H}L0,${H}Z`} />
+      <path className="pc-activity-graph-line" d={line} vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
+
+/** How long ago, in the largest unit that fits: today, 5d, 3w, 4mo, 2y ago. */
+function ago(iso: string): string {
+  const days = Math.floor(ageDays(iso));
+  if (days < 1) return 'today';
+  if (days < 14) return `${days}d ago`;
+  if (days < 56) return `${Math.floor(days / 7)}w ago`;
+  if (days < 365) return `${Math.floor(days / 30.44)}mo ago`;
+  return `${Math.floor(days / 365.25)}y ago`;
+}
+
+/** Commits per month, rounded to what's readable: 18 commits/mo, 2.5, 1 commit/mo, under 1. */
+function perMonth(commits: number, months: number): string {
+  const n = commits / Math.max(1, months);
+  if (n === 0) return 'no commits this year';
+  if (n < 1) return 'under 1 commit/mo';
+  const shown = n < 10 ? Math.round(n * 10) / 10 : Math.round(n);
+  return `${shown} commit${shown === 1 ? '' : 's'}/mo`;
 }
 
 /** Two related numbers in one double-width tile, split 50/50, each with its own label. */
@@ -240,6 +312,7 @@ function ProjectCard({ project: p, weights, onSelect, onOpen, onEdit }: {
   const baselineDays = p.riskData?.latestBaselineAt ? Math.floor(ageDays(p.riskData.latestBaselineAt)) : null;
   const commits = p.riskData?.commitsSince ?? 0;
   const files = p.riskData?.filesChangedSince ?? 0;
+  const act = p.activity;
   const size = projectSize(p);
   const httpUrl = remoteToHttp(p.remoteUrl ?? '');
   const host = remoteHost(p.remoteUrl ?? '');
@@ -294,11 +367,20 @@ function ProjectCard({ project: p, weights, onSelect, onOpen, onEdit }: {
               sub: late ? 'need fixing now' : stats.findingsOpen > 0 && late === 0 ? 'all within deadline' : undefined,
             }}
           />
-          <Tile label="Last baseline" value={baselineDays == null ? 'never' : baselineDays === 0 ? 'today' : `${baselineDays}d`}
+          {/* When it was last reviewed, and what has landed since. */}
+          <Tile label="Last baseline" value={p.riskData?.latestBaselineAt ? ago(p.riskData.latestBaselineAt) : 'never'}
             tone={baselineDays == null || baselineDays > STALE_BASELINE_DAYS ? 'warn' : undefined}
-            sub={baselineDays == null ? 'not reviewed yet' : baselineDays === 0 ? undefined : 'ago'} />
-          <Tile label="Unreviewed" value={commits} tone={commits ? 'warn' : undefined}
-            sub={commits ? `commit${commits === 1 ? '' : 's'} · ${files} file${files === 1 ? '' : 's'}` : 'since baseline'} />
+            title={commits ? `${plural(commits, 'commit')} touching ${plural(files, 'file')} since the last baseline` : undefined}
+            sub={baselineDays == null ? 'not reviewed yet'
+              : commits ? <span className="pc-tone-warn">{plural(commits, 'commit')} unreviewed</span>
+              : 'nothing unreviewed'} />
+          {/* How active the repository is: its last push, and its pace over the last year. */}
+          {act && (
+            <Tile label="Activity" value={act.lastCommitAt ? ago(act.lastCommitAt) : '–'}
+              background={act.weekly && <ActivityGraph weekly={act.weekly} />}
+              title={`Last push ${act.lastCommitAt ? ago(act.lastCommitAt) : 'unknown'}. ${plural(act.commits, 'commit')} on ${act.branch} over the last ${plural(act.months, 'month')}${act.lastCommitAt ? `; newest ${new Date(act.lastCommitAt).toLocaleDateString()}` : ''}. The graph is commits per week.`}
+              sub={perMonth(act.commits, act.months)} />
+          )}
           <Tile label="Size" value={size} sub={`feature${size === 1 ? '' : 's'}`} />
         </div>
       )}

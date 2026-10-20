@@ -10,6 +10,9 @@ export type Sev = 'critical' | 'high' | 'medium' | 'low' | 'info';
 export const SLA_DAYS: Record<Sev, number> = { critical: 7, high: 30, medium: 90, low: 180, info: Infinity };
 
 const DAY = 86_400_000;
+/** "1 commit", "3 commits". */
+export const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
+
 export const ageDays = (iso?: string) => (iso ? Math.max(0, (Date.now() - new Date(iso).getTime()) / DAY) : 0);
 
 /** Open findings past their severity's SLA. */

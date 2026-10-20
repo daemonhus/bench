@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -50,6 +51,11 @@ type GoGitBackend struct {
 	// immutable, so entries never go stale.
 	lineStatsMu sync.Mutex
 	lineStats   map[plumbing.Hash]lineStat
+
+	// branchActivity memoises BranchActivity by branch tip, window and day, so a
+	// projects page doesn't re-walk a year of history until someone pushes.
+	branchActivityMu sync.Mutex
+	branchActivity   map[string]model.BranchActivity
 }
 
 // lineStat is a commit's total added and deleted lines across all files.
@@ -473,6 +479,95 @@ func periodAdd(t time.Time, scale string, n int) time.Time {
 	default: // week
 		return t.AddDate(0, 0, 7*n)
 	}
+}
+
+// BranchActivity walks a branch's history back months months (commit metadata only,
+// no diffs) for its newest commit and its commit count. The tip is the newer of the
+// local branch and its origin remote-tracking branch, so a fetched push counts.
+func (b *GoGitBackend) BranchActivity(branch string, months int) (model.BranchActivity, error) {
+	out := model.BranchActivity{Branch: branch, Months: months}
+	if err := validateRef(branch); err != nil {
+		return out, err
+	}
+	if months <= 0 {
+		months, out.Months = 12, 12
+	}
+	repo, unlock, err := b.openWalk()
+	if err != nil {
+		return out, err
+	}
+	defer unlock()
+
+	var tip *object.Commit
+	for _, name := range []plumbing.ReferenceName{
+		plumbing.NewBranchReferenceName(branch),
+		plumbing.NewRemoteReferenceName("origin", branch),
+	} {
+		ref, err := repo.Reference(name, true)
+		if err != nil {
+			continue
+		}
+		c, err := repo.CommitObject(ref.Hash())
+		if err != nil {
+			continue
+		}
+		if tip == nil || c.Committer.When.After(tip.Committer.When) {
+			tip = c
+		}
+	}
+	if tip == nil {
+		return out, fmt.Errorf("branch %q not found", branch)
+	}
+
+	now := time.Now().UTC()
+	key := fmt.Sprintf("%s|%d|%s", tip.Hash, months, now.Format("2006-01-02"))
+	b.branchActivityMu.Lock()
+	cached, ok := b.branchActivity[key]
+	b.branchActivityMu.Unlock()
+	if ok {
+		return cached, nil
+	}
+
+	out.LastCommitAt = tip.Committer.When.UTC().Format(time.RFC3339)
+	since := now.AddDate(0, -months, 0)
+	const week = 7 * 24 * time.Hour
+	out.Weekly = make([]int, int(math.Ceil(float64(now.Sub(since))/float64(week))))
+	oldest := now
+	reachedWindowStart := false
+	iter, err := repo.Log(&gogit.LogOptions{From: tip.Hash, Order: gogit.LogOrderCommitterTime})
+	if err != nil {
+		return out, err
+	}
+	err = iter.ForEach(func(c *object.Commit) error {
+		if c.Committer.When.Before(since) {
+			reachedWindowStart = true
+			return storer.ErrStop
+		}
+		if c.NumParents() <= 1 {
+			out.Commits++
+			if i := len(out.Weekly) - 1 - int(now.Sub(c.Committer.When)/week); i >= 0 && i < len(out.Weekly) {
+				out.Weekly[i]++
+			}
+		}
+		oldest = c.Committer.When
+		return nil
+	})
+	if err != nil {
+		return out, err
+	}
+	// A branch younger than the window is averaged over the months it has existed.
+	if !reachedWindowStart {
+		age := int(math.Ceil(now.Sub(oldest).Hours() / (24 * 30.44)))
+		out.Months = max(1, min(months, age))
+	}
+
+	b.branchActivityMu.Lock()
+	if b.branchActivity == nil {
+		b.branchActivity = map[string]model.BranchActivity{}
+	}
+	b.branchActivity[key] = out
+	b.branchActivityMu.Unlock()
+	return out, nil
 }
 
 func (b *GoGitBackend) Activity(scale string, periods int) ([]model.ActivityBucket, error) {

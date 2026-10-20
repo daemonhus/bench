@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"bench/internal/model"
 )
@@ -231,5 +232,95 @@ func TestOpenRepoBare(t *testing.T) {
 	// The history walks go through it too.
 	if _, err := NewRepo(bare).Graph(10); err != nil {
 		t.Fatalf("Graph on bare repo: %v", err)
+	}
+}
+
+// buildRecentRepo makes a main branch with commits a few days, ~40 and ~70 days old, a merge,
+// and an origin/main that is one commit ahead (fetched, not yet pulled).
+func buildRecentRepo(t *testing.T) (*Repo, time.Time) {
+	t.Helper()
+	dir := t.TempDir()
+	now := time.Now().UTC().Truncate(time.Second)
+	at := func(days int) string { return now.AddDate(0, 0, -days).Format(time.RFC3339) }
+	run := func(date string, args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=a", "GIT_AUTHOR_EMAIL=a@example.com",
+			"GIT_COMMITTER_NAME=a", "GIT_COMMITTER_EMAIL=a@example.com",
+			"GIT_AUTHOR_DATE="+date, "GIT_COMMITTER_DATE="+date)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	commit := func(days int, file string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(dir, file), []byte(file+at(days)), 0644); err != nil {
+			t.Fatal(err)
+		}
+		run(at(days), "add", ".")
+		run(at(days), "commit", "-m", file)
+	}
+	run(at(70), "init", "-b", "main")
+	commit(70, "a")
+	commit(40, "b")
+	run(at(5), "checkout", "-b", "side")
+	commit(5, "c")
+	run(at(3), "checkout", "main")
+	run(at(3), "merge", "--no-ff", "-m", "merge side", "side")
+	// origin/main: one more commit, a day old, fetched but not merged locally.
+	run(at(1), "checkout", "-b", "upstream")
+	commit(1, "d")
+	run(at(1), "update-ref", "refs/remotes/origin/main", "HEAD")
+	run(at(1), "checkout", "main")
+	return NewRepo(dir), now
+}
+
+func TestBranchActivity(t *testing.T) {
+	repo, now := buildRecentRepo(t)
+	got, err := repo.BranchActivity("main", 12)
+	if err != nil {
+		t.Fatalf("BranchActivity: %v", err)
+	}
+	// The newest commit is origin/main's, a day old: the last push.
+	if want := now.AddDate(0, 0, -1).Format(time.RFC3339); got.LastCommitAt != want {
+		t.Errorf("LastCommitAt = %s, want %s (origin/main's tip)", got.LastCommitAt, want)
+	}
+	// a, b, c and d; the merge isn't counted.
+	if got.Commits != 4 {
+		t.Errorf("Commits = %d, want 4", got.Commits)
+	}
+	// The branch is ~70 days old, so it's averaged over 3 months, not 12.
+	if got.Months != 3 {
+		t.Errorf("Months = %d, want 3", got.Months)
+	}
+	// Weekly history for the graph: a year of weeks, newest last, adding up to the count.
+	if len(got.Weekly) != 53 {
+		t.Fatalf("Weekly has %d weeks, want 53", len(got.Weekly))
+	}
+	sum := 0
+	for _, n := range got.Weekly {
+		sum += n
+	}
+	last := len(got.Weekly) - 1
+	if sum != got.Commits || got.Weekly[last] != 2 || got.Weekly[last-5] != 1 || got.Weekly[last-10] != 1 {
+		t.Errorf("Weekly = %v (sum %d): want c and d this week, b 5 weeks ago, a 10 weeks ago", got.Weekly, sum)
+	}
+	again, _ := repo.BranchActivity("main", 12)
+	if again.LastCommitAt != got.LastCommitAt || again.Commits != got.Commits || len(again.Weekly) != len(got.Weekly) {
+		t.Errorf("cached result %+v differs from %+v", again, got)
+	}
+
+	// A window shorter than the history stops at its start.
+	short, err := repo.BranchActivity("main", 1)
+	if err != nil {
+		t.Fatalf("BranchActivity(1 month): %v", err)
+	}
+	if short.Commits != 2 || short.Months != 1 {
+		t.Errorf("1-month window = %d commits over %d months, want 2 over 1", short.Commits, short.Months)
+	}
+
+	if _, err := repo.BranchActivity("nope", 12); err == nil {
+		t.Error("unknown branch: want an error")
 	}
 }

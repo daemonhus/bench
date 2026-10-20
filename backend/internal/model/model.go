@@ -384,6 +384,19 @@ type ActivityBucket struct {
 	Authors   []ActivityAuthor `json:"authors"` // by commits desc, then name
 }
 
+// BranchActivity is how active a branch is: when its newest commit was made (the
+// last push, as far as a local clone can tell) and how many commits it gained over
+// the last Months months (fewer when the branch is younger). Merges aren't counted.
+type BranchActivity struct {
+	Branch       string `json:"branch"`
+	LastCommitAt string `json:"lastCommitAt,omitempty"` // RFC3339, UTC
+	Commits      int    `json:"commits"`
+	Months       int    `json:"months"`
+	// Weekly counts the same commits per week across the whole window, oldest
+	// first; the last entry is the current week (the 7 days up to now).
+	Weekly []int `json:"weekly"`
+}
+
 // RangeStats summarises the commits between two refs (from exclusive).
 type RangeStats struct {
 	Commits int `json:"commits"`

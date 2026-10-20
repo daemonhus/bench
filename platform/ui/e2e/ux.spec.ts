@@ -155,6 +155,16 @@ test.describe('project cards', () => {
     await expect(tile('Past SLA').locator('.pc-tile-value')).toHaveText('0'); // all just created
     await expect(tile('Past SLA').locator('.pc-tile-sub')).toHaveText('all within deadline');
     await expect(tile('Last baseline').locator('.pc-tile-value')).toHaveText('today');
+    // The baseline tile also says what has landed since; there's no separate Unreviewed tile.
+    await expect(tile('Last baseline').locator('.pc-tile-sub')).toContainText('unreviewed');
+    await expect(card.locator('.pc-tile-label')).toHaveText(['Open findings', 'Past SLA', 'Last baseline', 'Activity', 'Size']);
+    // Activity: the default branch's last push (the fixture repo was just committed to) and its pace.
+    await expect(tile('Activity').locator('.pc-tile-value')).toHaveText('today');
+    await expect(tile('Activity').locator('.pc-tile-sub')).toHaveText(/^(\d+(\.\d)? commits?\/mo|under 1 commit\/mo|no commits this year)$/);
+    await expect(tile('Activity')).toHaveAttribute('title', /^Last push today\. \d+ commits? on \S+ over the last 1 month; newest .*commits per week\.$/);
+    // A year of weekly history behind it, GitHub-style: decorative, hidden from assistive tech.
+    await expect(tile('Activity').locator('svg.pc-activity-graph')).toHaveAttribute('aria-hidden', 'true');
+    await expect(tile('Activity').locator('.pc-activity-graph-line')).toHaveAttribute('d', /^M[\d.]+,[\d.]+C/);
     await expect(tile('Size').locator('.pc-tile-value')).toHaveText('4'); // every feature counts
     // Hovering a square shows bench's finding card; its title opens the finding's page.
     await squares.first().hover();

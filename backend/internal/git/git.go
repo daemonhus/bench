@@ -77,6 +77,11 @@ func (r *Repo) DefaultBranch() string { return r.backend.DefaultBranch() }
 
 func (r *Repo) BranchTip(branch string) (string, error) { return r.backend.BranchTip(branch) }
 
+// BranchActivity reports a branch's last commit and its commits over the last months months.
+func (r *Repo) BranchActivity(branch string, months int) (model.BranchActivity, error) {
+	return r.backend.BranchActivity(branch, months)
+}
+
 func (r *Repo) ResolveRef(ref string) (string, error) { return r.backend.ResolveRef(ref) }
 
 func (r *Repo) Log(limit int) ([]model.CommitInfo, error) { return r.backend.Log(limit) }
