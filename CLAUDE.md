@@ -58,7 +58,7 @@ A discovered vulnerability or security issue.
   score?: number      // CVSS score
   source?: string     // tool or scanner that found it
   category?: string
-  featureIds?: string[]  // associated Feature IDs (join table - referential integrity)
+  features?: string[]  // associated Feature IDs (join table; each must exist in the project)
   refs?: Ref[]           // external references (enriched inline)
   origin?: FindingOrigin // historical context (enriched inline)
   createdAt: string
@@ -209,8 +209,8 @@ An immutable snapshot of review state at a point in time. Records every finding 
   featuresTotal: number
   featuresActive: number
   byKind: Record<string, number>   // e.g. { interface: 3, sink: 2 }
-  findingIds: string[]  // every finding ID at snapshot time - core of delta computation
-  featureIds: string[]  // every feature ID at snapshot time
+  findings: string[]  // every finding ID at snapshot time - core of delta computation
+  features: string[]  // every feature ID at snapshot time
 }
 ```
 
@@ -356,7 +356,7 @@ DB migrations (Alembic)
 
 ## Linking Findings to Features
 
-Every finding that exploits or directly relates to a feature annotation **should** link to it via `featureIds`. This connects the vulnerability to the architectural surface where it lives and makes the relationship queryable.
+Every finding that exploits or directly relates to a feature annotation **should** link to it via `features`. This connects the vulnerability to the architectural surface where it lives and makes the relationship queryable.
 
 **When to link:**
 - A finding in an HTTP handler → link to the `interface` feature for that endpoint
@@ -563,7 +563,7 @@ Bench exposes MCP tools and a CLI. Tool schemas and CLI `--help` are the source 
 
 ## Important Notes
 
-**Resolved findings are included in baseline snapshots.** `findingIds` captures all findings including closed/resolved ones. `list_findings` excludes resolved by default, so delta counts may appear higher. Use `include_resolved=true` (MCP) or `--include-resolved` (CLI) when cross-referencing.
+**Resolved findings are included in baseline snapshots.** A baseline's `findings` list captures all findings including closed/resolved ones. `list_findings` excludes resolved by default, so delta counts may appear higher. Use `include_resolved=true` (MCP) or `--include-resolved` (CLI) when cross-referencing.
 
 **Baselines snapshot the database, not the commit.** Setting a baseline at commit X records all findings currently in the database - regardless of which commit each finding was anchored to. `commitId` is used for git diffs (`changedFiles`), not for scoping which findings are included.
 
