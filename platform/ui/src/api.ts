@@ -109,6 +109,8 @@ export interface Finding {
   resolvedCommit?: string;
   resolvedAt?: string;
   commentCount?: number;
+  /** Ids of the features (in the same project) this finding affects. */
+  features?: string[];
 }
 
 export async function listProjectFindings(slug: string, includeResolved = false): Promise<Finding[]> {

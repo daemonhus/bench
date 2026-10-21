@@ -237,11 +237,15 @@ test.describe('search everything (top right)', () => {
     await expect(page.locator('.home-search-empty')).toHaveText(/No matches/);
   });
 
-  test('keyboard: arrows move, Enter opens the hit in its project, Escape closes', async ({ page }) => {
+  test('keyboard: arrows pick a row, Enter opens the picked hit in its project, Escape closes', async ({ page }) => {
     await page.goto('/');
     await expect(panel(page, 'Next actions').locator('.home-action').first()).toBeVisible();
     await box(page).fill('beta finding');
     const options = results(page).getByRole('option');
+    // Nothing is picked until an arrow picks it (Enter alone opens the search page).
+    await expect(options.first()).toHaveAttribute('aria-selected', 'false');
+    await expect(box(page)).not.toHaveAttribute('aria-activedescendant');
+    await page.keyboard.press('ArrowDown');
     await expect(options.first()).toHaveAttribute('aria-selected', 'true');
     await page.keyboard.press('ArrowDown');
     await expect(options.nth(1)).toHaveAttribute('aria-selected', 'true');

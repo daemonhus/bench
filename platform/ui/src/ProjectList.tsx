@@ -8,6 +8,9 @@ import { Skeleton } from '@bench/components/Skeleton';
 import { FindingMiniCard, useHoverCard } from '@bench/components/mini-cards';
 import { isOpenFinding, SEVERITY_RANK } from '@bench/core/finding-categories';
 import type { Finding as BenchFinding } from '@bench/core/types';
+import { remoteToHttp, repoLabel } from './repoLinks';
+
+export { remoteToHttp, repoLabel };
 
 type SortKey = 'name' | 'findings' | 'severity' | 'risk' | 'size';
 const PROJECT_SORTS: { id: SortKey; label: string; defaultDir: 'asc' | 'desc' }[] = [
@@ -68,20 +71,6 @@ function riskBreakdown(p: Project, w: RiskWeights): { label: string; value: numb
   const size = (w.sizeWeight ?? 0) * projectSize(p);
   if (size >= 0.1) factors.push({ label: 'Size', value: Math.round(size * 10) / 10 });
   return factors;
-}
-
-/** Convert a git remote URL (SSH or HTTPS) to an HTTP browse URL. */
-export function remoteToHttp(raw: string): string | null {
-  if (!raw) return null;
-  // SSH: git@github.com:org/repo.git
-  const sshMatch = raw.match(/^git@([^:]+):(.+?)(?:\.git)?$/);
-  if (sshMatch) return `https://${sshMatch[1]}/${sshMatch[2]}`;
-  // ssh://git@host/org/repo.git
-  const sshProto = raw.match(/^ssh:\/\/[^@]+@([^/]+)\/(.+?)(?:\.git)?$/);
-  if (sshProto) return `https://${sshProto[1]}/${sshProto[2]}`;
-  // HTTPS: https://github.com/org/repo.git
-  if (raw.startsWith('http')) return raw.replace(/\.git$/, '');
-  return null;
 }
 
 function remoteHost(url: string): 'github' | 'gitlab' | 'other' {
@@ -386,12 +375,6 @@ function ProjectCard({ project: p, weights, onSelect, onOpen, onEdit }: {
       )}
     </div>
   );
-}
-
-/** Show the repository's own name (and its parent) rather than a long absolute path; the full path is in the tooltip. */
-export function repoLabel(path: string): string {
-  const parts = path.replace(/\/+$/, '').split('/').filter(Boolean);
-  return parts.length > 1 ? `…/${parts.slice(-2).join('/')}` : path;
 }
 
 export function ProjectList({ projects, loading, weights = DEFAULT_RISK_WEIGHTS, onSelect, onOpen, onRefresh, toolbar, countLabel }: ProjectListProps) {

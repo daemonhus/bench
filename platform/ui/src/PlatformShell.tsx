@@ -7,6 +7,8 @@ import { FeatureFlowsCard } from './FeatureFlowsCard';
 import { SettingsPage } from './SettingsPage';
 import { FlowsListPage, FlowDetailPage } from './flows';
 import { ServiceMapPage } from './ServiceMap';
+import { SearchPage, type SearchState } from './SearchPage';
+import { parseSearch, searchPath } from './searchModel';
 import { getSettings } from './api';
 import './tokens.css';
 import './platform.css';
@@ -23,6 +25,7 @@ type View =
   | { kind: 'settings' }
   | { kind: 'flows'; folder?: string }
   | { kind: 'map' }
+  | { kind: 'search'; search: SearchState }
   | { kind: 'flow'; id: string };
 
 function parseView(): View {
@@ -40,6 +43,7 @@ function parseView(): View {
     return folder ? { kind: 'flows', folder } : { kind: 'flows' };
   }
   if (path === '/map') return { kind: 'map' };
+  if (path === '/search') return { kind: 'search', search: parseSearch(window.location.search) };
   if (SETTINGS_ENABLED && path === '/settings') return { kind: 'settings' };
   if (path === '/projects') return { kind: 'projects' };
   return { kind: 'home' };
@@ -50,6 +54,7 @@ function viewToPath(view: View): string {
   if (view.kind === 'flow') return `/flows/${view.id}`;
   if (view.kind === 'flows') return view.folder ? `/flows?folder=${encodeURIComponent(view.folder)}` : '/flows';
   if (view.kind === 'map') return '/map';
+  if (view.kind === 'search') return searchPath(view.search.q, view.search.kind, view.search.project);
   if (view.kind === 'settings') return '/settings';
   if (view.kind === 'projects') return '/projects';
   return '/';
@@ -279,6 +284,7 @@ export function PlatformShell() {
             onOpenProject={openProject}
             onOpenFlow={(id) => navigate({ kind: 'flow', id })}
             onOpenProjects={() => navigate({ kind: 'projects' })}
+            onSearch={(q, kind) => navigate({ kind: 'search', search: { q, kind } })}
           />
         )}
         {view.kind === 'projects' && (
@@ -316,6 +322,19 @@ export function PlatformShell() {
         {view.kind === 'map' && (
           <ServiceMapPage onOpenFlow={(id) => navigate({ kind: 'flow', id })} onOpenProject={openProject} />
         )}
+        {view.kind === 'search' && (
+          <SearchPage
+            state={view.search}
+            onChange={(search, opts) => {
+              const next: View = { kind: 'search', search };
+              // Typing follows in the address without filling the history; a filter is a step back.
+              if (opts?.replace) { window.history.replaceState(null, '', viewToPath(next)); setView(next); }
+              else navigate(next);
+            }}
+            onOpen={openProject}
+            onOpenFlow={(id) => navigate({ kind: 'flow', id })}
+          />
+        )}
         {view.kind === 'settings' && <SettingsPage />}
       </PageRegion>
     </div>
@@ -329,6 +348,7 @@ function pageTitle(view: View): string {
     case 'flows': return 'Flows';
     case 'flow': return 'Flow';
     case 'map': return 'Service map';
+    case 'search': return 'Search';
     case 'settings': return 'Settings';
     default: return 'Bench';
   }

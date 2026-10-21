@@ -13,6 +13,8 @@ import { computeRiskScore } from './risk';
 import { SLA_DAYS, ageDays, plural, type Profile } from './projectInsight';
 import { FindingsTrendChart, SurfaceChart, type FindingsWeek } from './charts';
 import { HomeSearch } from './HomeSearch';
+import { primeSearchIndex } from './SearchPage';
+import type { Kind } from './searchModel';
 
 // ─── Security overview ──────────────────────────────────────────────────
 // Written for whoever owns security across these projects. It answers, in order:
@@ -61,8 +63,10 @@ async function getJSON<T>(url: string, fallback: T): Promise<T> {
   try { const r = await fetch(url); return r.ok ? await r.json() : fallback; } catch { return fallback; }
 }
 
-export function HomePage({ onOpenProject, onOpenFlow, onOpenProjects }: {
+export function HomePage({ onOpenProject, onOpenFlow, onOpenProjects, onSearch }: {
   onOpenProject: (slug: string, hash?: string) => void;
+  /** Open the search page with q, on one kind's results or all of them. */
+  onSearch: (q: string, kind?: Kind) => void;
   onOpenFlow: (id: string) => void;
   onOpenProjects: () => void;
 }) {
@@ -94,7 +98,10 @@ export function HomePage({ onOpenProject, onOpenFlow, onOpenProjects }: {
         ]);
         return [p.slug, { findings, profile, features, coverage: coverage?.coveragePct != null ? Number(coverage.coveragePct) : null }];
       }));
-      if (live) setData(Object.fromEntries(loaded));
+      if (!live) return;
+      const next = Object.fromEntries(loaded);
+      setData(next);
+      primeSearchIndex(ps, next, fs);
     }).finally(() => { if (live) setLoading(false); });
     return () => { live = false; };
   }, []);
@@ -275,7 +282,7 @@ export function HomePage({ onOpenProject, onOpenFlow, onOpenProjects }: {
     <div className="home-page">
       <div className="home-header">
         <h1 className="overview-section-title">Bench</h1>
-        <HomeSearch projects={projects} data={data} onOpen={onOpenProject} />
+        <HomeSearch projects={projects} data={data} onOpen={onOpenProject} onSearch={onSearch} />
       </div>
 
       {/* 1 + 2: posture hero and next actions */}
