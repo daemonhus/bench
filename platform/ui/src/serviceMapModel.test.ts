@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  applyFilters, layoutMap, neighbourhood, connectionKey, DEFAULT_FILTERS, CARD_W,
+  applyFilters, layoutMap, neighbourhood, connectionKey, DEFAULT_FILTERS, CARD_W, ROW_CAP,
   type ServiceMapData, type MapFeature, type MapConnection,
 } from './serviceMapModel';
 
@@ -60,6 +60,52 @@ describe('layoutMap', () => {
     const internal = l.links.find((k) => k.internal)!;
     expect(internal.x1).toBe(internal.x2);
     expect(l.bounds.maxX).toBeGreaterThan(l.bounds.minX);
+  });
+});
+
+describe('layoutMap at scale', () => {
+  // Forty services of 200 features each; a few pairs joined, the rest on their own.
+  const many: ServiceMapData = {
+    services: Array.from({ length: 40 }, (_, i) => ({
+      slug: `svc${i}`, name: `Service ${String(i).padStart(2, '0')}`,
+      features: Array.from({ length: 200 }, (_, j) => ({ ...feat(`f${j}`, 'interface'), openFindings: j === 150 ? 2 : 0 })),
+    })),
+    connections: [conn('svc0:f199', 'svc1:f0'), conn('svc1:f0', 'svc2:f5'), conn('svc10:f3', 'svc11:f4')],
+    internal: [],
+  };
+  const v = applyFilters(many, { ...DEFAULT_FILTERS, scope: 'all' });
+  const l = layoutMap(v);
+  const card = (slug: string) => l.cards.find((c) => c.service.slug === slug)!;
+
+  it('caps a card at ROW_CAP rows, keeping connected and flagged features, and folds the rest', () => {
+    const c = card('svc0');
+    expect(c.rows).toHaveLength(ROW_CAP);
+    expect(c.more).toBe(200 - ROW_CAP);
+    expect(c.rows.map((f) => f.id)).toContain('f199'); // connected
+    expect(c.rows.map((f) => f.id)).toContain('f150'); // open findings
+    // A folded feature's connections land on the "+N more" row.
+    expect(card('svc1').rowY.get('f99')).toBe(card('svc1').moreY);
+  });
+
+  it('expands a card on request, and keeps pinned features in view', () => {
+    const e = layoutMap(v, { expanded: new Set(['svc3']), pinned: new Set(['svc4:f120']) });
+    expect(e.cards.find((c) => c.service.slug === 'svc3')!.rows).toHaveLength(200);
+    expect(e.cards.find((c) => c.service.slug === 'svc4')!.rows.map((f) => f.id)).toContain('f120');
+  });
+
+  it('packs the services into a screen-shaped area with no overlaps, not one column', () => {
+    const w = l.bounds.maxX - l.bounds.minX;
+    const h = l.bounds.maxY - l.bounds.minY;
+    expect(w / h).toBeGreaterThan(0.8);
+    expect(w / h).toBeLessThan(4);
+    const boxes = l.cards.map((c) => ({ x1: c.x, y1: c.y, x2: c.x + CARD_W, y2: c.y + c.h }));
+    for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
+      const a = boxes[i], b = boxes[j];
+      expect(a.x2 <= b.x1 || b.x2 <= a.x1 || a.y2 <= b.y1 || b.y2 <= a.y1, `${l.cards[i].service.slug} overlaps ${l.cards[j].service.slug}`).toBe(true);
+    }
+    // A joined group still runs left to right.
+    expect(card('svc0').x).toBeLessThan(card('svc1').x);
+    expect(card('svc1').x).toBeLessThan(card('svc2').x);
   });
 });
 

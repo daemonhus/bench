@@ -113,6 +113,10 @@ export const CARD_W = 300;
 export const HEADER_H = 46;
 export const ROW_H = 28;
 export const CARD_PAD = 8;
+/** Rows a card lists before the rest fold into "+N more" (a service can have hundreds). */
+export const ROW_CAP = 12;
+/** Space between packed groups and cards. */
+const GAP = 56;
 
 export interface CardLayout {
   service: MapService;
@@ -120,7 +124,13 @@ export interface CardLayout {
   x: number;
   y: number;
   h: number;
-  /** Feature id → the y (centre) of its row, relative to the card's top. */
+  /** The features listed, in order (all of them when the card is expanded). */
+  rows: MapFeature[];
+  /** Features folded into the "+N more" row, and that row's centre. */
+  more: number;
+  moreY: number;
+  /** Feature id → the y (centre) of its row, relative to the card's top; a folded feature's
+   *  connections land on the "+N more" row. */
   rowY: Map<string, number>;
 }
 
@@ -131,28 +141,92 @@ export interface MapLayout {
   bounds: { minX: number; minY: number; maxX: number; maxY: number };
 }
 
-export function cardHeight(s: MapService): number {
-  return HEADER_H + Math.max(1, s.features.length) * ROW_H + CARD_PAD;
+export interface LayoutOptions {
+  /** Services whose cards list every feature. */
+  expanded?: Set<string>;
+  /** Features (featureKey) kept in view before others: search matches, the selection. */
+  pinned?: Set<string>;
 }
 
-/** Lays the services out left to right in the direction their connections run. */
-export function layoutMap(v: VisibleMap): MapLayout {
-  const g = new dagre.graphlib.Graph({ multigraph: false });
-  g.setGraph({ rankdir: 'LR', nodesep: 48, ranksep: 140, marginx: 40, marginy: 40 });
-  g.setDefaultEdgeLabel(() => ({}));
-  for (const s of v.services) g.setNode(s.slug, { width: CARD_W, height: cardHeight(s) });
-  for (const c of v.connections) {
-    if (c.fromProject !== c.toProject && g.hasNode(c.fromProject) && g.hasNode(c.toProject)) g.setEdge(c.fromProject, c.toProject);
-  }
-  dagre.layout(g);
+/** The rows a card lists: connected and pinned features first, then those with open findings or
+ *  on flows, up to ROW_CAP; shown in the service's own order (kind, then title). */
+function cardRows(s: MapService, connected: Set<string>, opts: LayoutOptions): { rows: MapFeature[]; more: number } {
+  if (opts.expanded?.has(s.slug) || s.features.length <= ROW_CAP) return { rows: s.features, more: 0 };
+  const rank = (f: MapFeature) => {
+    const k = featureKey(s.slug, f.id);
+    return opts.pinned?.has(k) ? 0 : connected.has(k) ? 1 : f.openFindings > 0 ? 2 : f.flowCount > 0 ? 3 : 4;
+  };
+  const keep = new Set([...s.features].map((f, i) => ({ f, i })).sort((a, b) => rank(a.f) - rank(b.f) || a.i - b.i).slice(0, ROW_CAP).map((x) => x.f.id));
+  const rows = s.features.filter((f) => keep.has(f.id));
+  return { rows, more: s.features.length - rows.length };
+}
 
+export function cardHeight(rows: number, more: number): number {
+  return HEADER_H + Math.max(1, rows) * ROW_H + (more > 0 ? ROW_H : 0) + CARD_PAD;
+}
+
+interface Block { w: number; h: number; place: (x: number, y: number) => void; order: number; name: string }
+
+/**
+ * Lays the map out so it reads at any size. Services joined by connections form groups; each
+ * group runs left to right in the direction its connections go (dagre). The groups, then the
+ * services with no connections, are packed in rows to fill a screen-shaped area, rather than
+ * stacked in one column.
+ */
+export function layoutMap(v: VisibleMap, opts: LayoutOptions = {}): MapLayout {
+  const connected = new Set(v.connections.flatMap((c) => [featureKey(c.fromProject, c.fromFeature), featureKey(c.toProject, c.toFeature)]));
   const cards: CardLayout[] = v.services.map((s) => {
-    const n = g.node(s.slug);
-    const h = cardHeight(s);
-    const rowY = new Map(s.features.map((ft, i) => [ft.id, HEADER_H + i * ROW_H + ROW_H / 2]));
-    return { service: s, x: (n?.x ?? 0) - CARD_W / 2, y: (n?.y ?? 0) - h / 2, h, rowY };
+    const { rows, more } = cardRows(s, connected, opts);
+    const h = cardHeight(rows.length, more);
+    const moreY = HEADER_H + Math.max(1, rows.length) * ROW_H + ROW_H / 2;
+    const rowY = new Map(rows.map((ft, i) => [ft.id, HEADER_H + i * ROW_H + ROW_H / 2]));
+    for (const ft of s.features) if (!rowY.has(ft.id)) rowY.set(ft.id, moreY);
+    return { service: s, x: 0, y: 0, h, rows, more, moreY, rowY };
   });
   const bySlug = new Map(cards.map((c) => [c.service.slug, c]));
+
+  // Groups: services joined by a connection between two of them.
+  const parent = new Map(cards.map((c) => [c.service.slug, c.service.slug]));
+  const find = (x: string): string => { const p = parent.get(x)!; if (p === x) return x; const r = find(p); parent.set(x, r); return r; };
+  const edges = v.connections.filter((c) => c.fromProject !== c.toProject && bySlug.has(c.fromProject) && bySlug.has(c.toProject));
+  for (const c of edges) parent.set(find(c.fromProject), find(c.toProject));
+  const groups = new Map<string, CardLayout[]>();
+  for (const c of cards) groups.set(find(c.service.slug), [...(groups.get(find(c.service.slug)) ?? []), c]);
+
+  const blocks: Block[] = [];
+  for (const members of groups.values()) {
+    if (members.length === 1) {
+      const c = members[0];
+      blocks.push({ w: CARD_W, h: c.h, order: 1, name: c.service.name, place: (x, y) => { c.x = x; c.y = y; } });
+      continue;
+    }
+    const g = new dagre.graphlib.Graph({ multigraph: false });
+    g.setGraph({ rankdir: 'LR', nodesep: 48, ranksep: 140, marginx: 0, marginy: 0 });
+    g.setDefaultEdgeLabel(() => ({}));
+    const slugs = new Set(members.map((c) => c.service.slug));
+    for (const c of members) g.setNode(c.service.slug, { width: CARD_W, height: c.h });
+    for (const c of edges) if (slugs.has(c.fromProject) && slugs.has(c.toProject)) g.setEdge(c.fromProject, c.toProject);
+    dagre.layout(g);
+    const local = members.map((c) => { const n = g.node(c.service.slug); return { c, x: n.x - CARD_W / 2, y: n.y - c.h / 2 }; });
+    const minX = Math.min(...local.map((l) => l.x));
+    const minY = Math.min(...local.map((l) => l.y));
+    const w = Math.max(...local.map((l) => l.x + CARD_W)) - minX;
+    const h = Math.max(...local.map((l) => l.y + l.c.h)) - minY;
+    blocks.push({ w, h, order: 0, name: members[0].service.name, place: (x, y) => { for (const l of local) { l.c.x = x + l.x - minX; l.c.y = y + l.y - minY; } } });
+  }
+
+  // Bigger groups first, then lone services by name; packed in rows about 16:9 overall.
+  blocks.sort((a, b) => a.order - b.order || (a.order === 0 ? b.w * b.h - a.w * a.h : a.name.localeCompare(b.name)));
+  const area = blocks.reduce((n, b) => n + (b.w + GAP) * (b.h + GAP), 0);
+  const rowWidth = Math.max(Math.sqrt(area * 16 / 9), ...blocks.map((b) => b.w));
+  let x = 0, y = 0, shelf = 0;
+  for (const b of blocks) {
+    if (x > 0 && x + b.w > rowWidth) { x = 0; y += shelf + GAP; shelf = 0; }
+    b.place(x, y);
+    x += b.w + GAP;
+    shelf = Math.max(shelf, b.h);
+  }
+
   const links: MapLayout['links'] = [];
   for (const c of v.connections) {
     const a = bySlug.get(c.fromProject);

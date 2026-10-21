@@ -100,11 +100,52 @@
   pointer-events: none;
 }
 
-.smap-panel { width: 340px; }
-.smap-route { font-size: var(--font-size-small); color: var(--text-secondary); margin-bottom: 12px; line-height: 1.5; }
-.smap-facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 0 0 12px; font-size: var(--font-size-small); }
-.smap-facts dt { color: var(--text-muted); }
-.smap-facts dd { margin: 0; color: var(--text-primary); }
+.smap-panel { width: 360px; }
+
+/* The side panel: bench's badges and chips, a preview of the page, rows that open what they name. */
+.smap-p-header { align-items: flex-start; }
+.smap-p-head { display: flex; flex-direction: column; gap: 8px; min-width: 0; flex: 1; }
+.smap-p-title { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: var(--font-size-ui); font-weight: 600; color: var(--text-primary); line-height: 1.35; overflow-wrap: anywhere; }
+.smap-p-title .feature-method-badge { flex-shrink: 0; }
+.smap-p-proto { font-weight: 400; color: var(--text-muted); }
+.smap-p-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.smap-p-flag-link { text-decoration: none; cursor: pointer; }
+.smap-p-flag-link:hover { text-decoration: underline; }
+.smap-p-flag {
+  display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 999px;
+  font-size: var(--font-size-xs); color: var(--text-secondary); border: 1px solid var(--border-default);
+}
+.smap-p-flag--warn { color: var(--severity-medium); border-color: color-mix(in srgb, var(--severity-medium) 40%, transparent); background: color-mix(in srgb, var(--severity-medium) 10%, transparent); }
+.smap-p-flag--danger { color: var(--severity-critical); border-color: color-mix(in srgb, var(--severity-critical) 40%, transparent); background: color-mix(in srgb, var(--severity-critical) 10%, transparent); }
+.smap-p-inline { font: inherit; color: var(--accent-blue); background: none; border: none; padding: 0; cursor: pointer; }
+.smap-p-inline:hover { text-decoration: underline; }
+.smap-p-open {
+  align-self: flex-start; font: inherit; font-size: var(--font-size-small); color: var(--accent-blue);
+  background: none; border: none; padding: 2px 0; cursor: pointer;
+}
+.smap-p-open:hover { text-decoration: underline; }
+.smap-p-section { display: flex; flex-direction: column; gap: 8px; }
+.smap-p-section .smap-panel-sub { margin: 0; display: flex; align-items: baseline; gap: 6px; }
+.smap-p-count { font-family: var(--font-mono); font-weight: 400; letter-spacing: 0; color: var(--text-muted); }
+.smap-p-text { margin: 0; font-size: var(--font-size-small); line-height: 1.5; color: var(--text-secondary); }
+.smap-p-file { color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.smap-p-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.smap-p-row {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-width: 0; padding: 7px 9px; text-align: left;
+  font: inherit; font-size: var(--font-size-small); color: var(--text-primary); cursor: pointer;
+  background: var(--bg-primary); border: 1px solid var(--border-default); border-radius: var(--radius-sm);
+}
+.smap-p-row:hover { border-color: color-mix(in srgb, var(--accent-blue) 45%, var(--border-default)); }
+.smap-p-row:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 1px; }
+.smap-p-kind { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; font-size: var(--font-size-xs); color: var(--text-muted); font-family: var(--font-mono); }
+.smap-p-target { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.smap-p-service { font-size: var(--font-size-xs); color: var(--text-muted); }
+.smap-p-feature { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.smap-p-feature .feature-method-badge { flex-shrink: 0; font-size: 9px; padding: 0 4px; }
+.smap-p-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.smap-p-flags { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; flex-shrink: 0; }
+.smap-p-route { gap: 4px; }
+.smap-p-arrow { align-self: center; color: var(--text-muted); }
 .smap-panel-sub {
   margin: 16px 0 6px;
   font-size: var(--font-size-xs);
@@ -113,19 +154,7 @@
   text-transform: uppercase;
   color: var(--text-muted);
 }
-.smap-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: var(--font-size-small); }
-.smap-link-btn {
-  font: inherit;
-  color: var(--accent-blue);
-  background: none;
-  border: none;
-  padding: 2px 0;
-  text-align: left;
-  cursor: pointer;
-}
-.smap-link-btn:hover { text-decoration: underline; }
 .smap-muted { color: var(--text-muted); font-size: var(--font-size-small); }
-.smap-findings { margin-top: 10px; color: var(--severity-critical); font-size: var(--font-size-small); }
 
 @media (max-width: 639px) {
   .smap-toolbar { padding: 12px 16px 10px; }

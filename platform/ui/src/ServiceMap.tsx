@@ -11,9 +11,10 @@ import {
 } from './graphKit';
 import {
   applyFilters, layoutMap, neighbourhood, connectionKey, featureKey,
-  DEFAULT_FILTERS, ALL_EDGE_KINDS, ALL_FEATURE_KINDS, CARD_W, HEADER_H, ROW_H,
+  DEFAULT_FILTERS, ALL_EDGE_KINDS, ALL_FEATURE_KINDS, CARD_W, HEADER_H, ROW_H, ROW_CAP,
   type ServiceMapData, type MapFilters, type MapFields, type MapConnection, type MapFeature, type MapService, type FeatureScope,
 } from './serviceMapModel';
+import { SelectionPanel, type Selection } from './ServiceMapPanel';
 import './serviceMap.css';
 
 // The service map: every project as a service card listing its features, and the connections
@@ -46,11 +47,6 @@ try {
     localStorage.setItem(MAP_REMEMBER.key, formatQuery(writeQuery(MAP_QUERY, { ...f, q: '', archived: false, fields: FIELD_KEYS.filter((k) => fields[k]) })));
   }
 } catch { /* storage unavailable or unreadable: defaults */ }
-
-type Selection =
-  | { kind: 'connection'; key: string }
-  | { kind: 'feature'; slug: string; id: string }
-  | { kind: 'service'; slug: string };
 
 const SCOPES: { value: FeatureScope; label: string }[] = [
   { value: 'connected', label: 'Connected features' },
@@ -98,7 +94,19 @@ export function ServiceMapPage({ onOpenFlow, onOpenProject }: {
   }, [archived]);
 
   const visible = useMemo(() => (data ? applyFilters(data, filters) : null), [data, filters]);
-  const layout = useMemo(() => (visible ? layoutMap(visible) : null), [visible]);
+  const q = query.trim().toLowerCase();
+  const matches = (s: MapService, f: MapFeature) => !q || f.title.toLowerCase().includes(q) || (f.operation ?? '').toLowerCase().includes(q) || s.name.toLowerCase().includes(q);
+  // A card lists a dozen features until opened ("+N more"); search matches and the selected
+  // feature stay in view whatever the card folds away.
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+  const toggleExpanded = (slug: string) => setExpanded((prev) => { const n = new Set(prev); if (n.has(slug)) n.delete(slug); else n.add(slug); return n; });
+  const selectedKey = selection?.kind === 'feature' ? featureKey(selection.slug, selection.id) : '';
+  const pinned = useMemo(() => {
+    const keys = new Set<string>(selectedKey ? [selectedKey] : []);
+    if (q && visible) for (const s of visible.services) for (const f of s.features) if (f.title.toLowerCase().includes(q) || (f.operation ?? '').toLowerCase().includes(q)) keys.add(featureKey(s.slug, f.id));
+    return keys;
+  }, [q, visible, selectedKey]);
+  const layout = useMemo(() => (visible ? layoutMap(visible, { expanded, pinned }) : null), [visible, expanded, pinned]);
 
   // Fit when the set of visible services changes (first load, a service toggled).
   const serviceSig = visible?.services.map((s) => s.slug).join(',') ?? '';
@@ -110,8 +118,6 @@ export function ServiceMapPage({ onOpenFlow, onOpenProject }: {
     return () => cancelAnimationFrame(id);
   }, [layout, serviceSig]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const q = query.trim().toLowerCase();
-  const matches = (s: MapService, f: MapFeature) => !q || f.title.toLowerCase().includes(q) || (f.operation ?? '').toLowerCase().includes(q) || s.name.toLowerCase().includes(q);
   const focus = visible && hover ? neighbourhood(visible, hover) : null;
   const selectedConn = selection?.kind === 'connection' && visible ? visible.connections.find((c) => connectionKey(c) === selection.key) : undefined;
 
@@ -267,10 +273,29 @@ export function ServiceMapPage({ onOpenFlow, onOpenProject }: {
                         </text>
                       </g>
                       <line x1={0} x2={CARD_W} y1={HEADER_H - 6} y2={HEADER_H - 6} stroke={pal.cardBorder} />
-                      {s.features.length === 0 && (
+                      {card.rows.length === 0 && (
                         <text x={14} y={HEADER_H + ROW_H / 2 + 4} fontSize={11} fontStyle="italic" fill={pal.textSub}>No features match the filters</text>
                       )}
-                      {s.features.map((f) => {
+                      {(card.more > 0 || expanded.has(s.slug)) && s.features.length > ROW_CAP && (
+                        <g
+                          className="smap-more"
+                          transform={`translate(0, ${card.moreY - ROW_H / 2})`}
+                          role="button"
+                          tabIndex={0}
+                          aria-expanded={expanded.has(s.slug)}
+                          aria-label={expanded.has(s.slug) ? `Show fewer features of ${s.name}` : `Show ${card.more} more features of ${s.name}`}
+                          style={{ cursor: 'pointer' }}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={() => toggleExpanded(s.slug)}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleExpanded(s.slug); } }}
+                        >
+                          <rect x={4} y={1} width={CARD_W - 8} height={ROW_H - 2} rx={4} fill="transparent" />
+                          <text x={16} y={ROW_H / 2 + 4} fontSize={11} fontFamily="var(--font-sans, system-ui)" fill={pal.accent}>
+                            {expanded.has(s.slug) ? 'Show fewer' : `+ ${card.more} more`}
+                          </text>
+                        </g>
+                      )}
+                      {card.rows.map((f) => {
                         const y = card.rowY.get(f.id)! - ROW_H / 2;
                         const k = KIND[f.kind] ?? KIND.externality;
                         const fk = featureKey(s.slug, f.id);
@@ -445,102 +470,5 @@ function DisplayMenu({ filters, onChange, archived, onArchived }: {
         </div>
       )}
     </div>
-  );
-}
-
-function SelectionPanel({ data, selection, connection, visibleConnections, onClose, onSelect, onOpenFlow, onOpenProject }: {
-  data: ServiceMapData;
-  selection: Selection;
-  connection?: MapConnection;
-  visibleConnections: MapConnection[];
-  onClose: () => void;
-  onSelect: (s: Selection) => void;
-  onOpenFlow: (id: string) => void;
-  onOpenProject: (slug: string, hash?: string) => void;
-}) {
-  const service = (slug: string) => data.services.find((s) => s.slug === slug);
-  const feature = (slug: string, id: string) => service(slug)?.features.find((f) => f.id === id);
-  const featureLabel = (slug: string, id: string) => `${service(slug)?.name ?? slug} · ${feature(slug, id)?.title ?? id}`;
-  const flowList = (flows: { id: string; name: string }[]) => (
-    flows.length === 0 ? <div className="smap-muted">Not on any flow.</div> : (
-      <ul className="smap-list">
-        {flows.map((f) => <li key={f.id}><button type="button" className="smap-link-btn" onClick={() => onOpenFlow(f.id)}>{f.name}</button></li>)}
-      </ul>
-    )
-  );
-  const connList = (list: MapConnection[]) => (
-    list.length === 0 ? <div className="smap-muted">No connections shown.</div> : (
-      <ul className="smap-list">
-        {list.map((c) => (
-          <li key={connectionKey(c)}>
-            <button type="button" className="smap-link-btn" onClick={() => onSelect({ kind: 'connection', key: connectionKey(c) })}>
-              {featureLabel(c.fromProject, c.fromFeature)} → {featureLabel(c.toProject, c.toFeature)}
-            </button>
-            <span className="smap-muted"> {c.kind}{c.protocol ? ` · ${c.protocol}` : ''}</span>
-          </li>
-        ))}
-      </ul>
-    )
-  );
-
-  let title = '';
-  let body: React.ReactNode = null;
-  if (selection.kind === 'connection' && connection) {
-    title = 'Connection';
-    body = (
-      <>
-        <div className="smap-route">{featureLabel(connection.fromProject, connection.fromFeature)} <span aria-hidden>→</span> {featureLabel(connection.toProject, connection.toFeature)}</div>
-        <dl className="smap-facts">
-          <dt>Kind</dt><dd>{connection.kind}</dd>
-          {connection.protocol && <><dt>Protocol</dt><dd>{connection.protocol}</dd></>}
-          <dt>Identity</dt><dd>{connection.auth.length ? connection.auth.join(', ') : '—'}</dd>
-          <dt>Trust boundary</dt><dd>{connection.trustBoundary ? 'crossed' : 'no'}</dd>
-          <dt>Tainted data</dt><dd>{connection.tainted ? 'yes' : 'no'}</dd>
-          <dt>Seen</dt><dd>{connection.count} time{connection.count === 1 ? '' : 's'}</dd>
-        </dl>
-        <h3 className="smap-panel-sub">Flows</h3>
-        {flowList(connection.flows)}
-      </>
-    );
-  } else if (selection.kind === 'feature') {
-    const f = feature(selection.slug, selection.id);
-    title = f?.title ?? selection.id;
-    const mine = visibleConnections.filter((c) => (c.fromProject === selection.slug && c.fromFeature === selection.id) || (c.toProject === selection.slug && c.toFeature === selection.id));
-    body = f && (
-      <>
-        <div className="smap-route">{f.kind} on {service(selection.slug)?.name}{f.operation ? ` · ${f.operation}` : ''}</div>
-        {f.missing ? <div className="smap-muted">A flow names this feature, but the project no longer has it.</div> : (
-          <button type="button" className="baseline-action-btn baseline-action-btn-outline" onClick={() => onOpenProject(selection.slug, `#/feature/${f.id}`)}>Open feature</button>
-        )}
-        {f.openFindings > 0 && <div className="smap-findings">{f.openFindings} open finding{f.openFindings === 1 ? '' : 's'}</div>}
-        <h3 className="smap-panel-sub">Connections</h3>
-        {connList(mine)}
-        <h3 className="smap-panel-sub">Flows</h3>
-        {flowList(f.flows)}
-      </>
-    );
-  } else if (selection.kind === 'service') {
-    const s = service(selection.slug);
-    title = s?.name ?? selection.slug;
-    const out = visibleConnections.filter((c) => c.fromProject === selection.slug && c.toProject !== selection.slug);
-    const inc = visibleConnections.filter((c) => c.toProject === selection.slug && c.fromProject !== selection.slug);
-    body = s && (
-      <>
-        <button type="button" className="baseline-action-btn baseline-action-btn-outline" onClick={() => onOpenProject(s.slug)}>Open project</button>
-        <h3 className="smap-panel-sub">Calls out ({out.length})</h3>
-        {connList(out)}
-        <h3 className="smap-panel-sub">Called by ({inc.length})</h3>
-        {connList(inc)}
-      </>
-    );
-  }
-  return (
-    <aside className="map-step-panel smap-panel" aria-label={title || 'Details'}>
-      <div className="map-step-panel-header">
-        <span className="map-step-panel-link-label">{title}</span>
-        <button className="icon-btn map-step-panel-close" aria-label="Close" onClick={onClose}>✕</button>
-      </div>
-      <div className="map-step-panel-body">{body}</div>
-    </aside>
   );
 }

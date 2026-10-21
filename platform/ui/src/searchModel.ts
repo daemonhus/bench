@@ -50,7 +50,8 @@ export interface SearchData { findings: Finding[]; features: Feature[] }
 const best = (q: string, fields: [string | undefined | null, number][]) =>
   Math.max(0, ...fields.map(([text, w]) => matchText(q, text) * w));
 
-const methodOf = (f: Feature) => {
+/** An HTTP interface's method: its operation, or the title's first word ("POST /login"). */
+export const methodOf = (f: Pick<Feature, 'kind' | 'operation' | 'title'>) => {
   if (f.kind !== 'interface') return undefined;
   const op = f.operation?.toUpperCase();
   if (op && HTTP_METHODS.includes(op)) return op;

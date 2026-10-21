@@ -87,13 +87,18 @@ test('features shown: on flows by default, all on request; fields can be turned 
   await expect(page.locator('.smap-card[data-service="alpha"] .smap-feature', { hasText: 'POST /login' })).toBeVisible();
 });
 
-test('clicking a feature shows its connections and flows, and opens a flow', async ({ page }) => {
+test('clicking a feature previews it: badges, description, connections, flows; a flow opens', async ({ page }) => {
   await page.goto('/map');
   await page.locator('.smap-feature[data-feature^="beta:"]', { hasText: '/login' }).first().click();
   const panel = page.getByRole('complementary', { name: /login/ });
   await expect(panel).toBeVisible();
-  await expect(panel).toContainText('alpha · POST /login → beta · POST /login');
-  await panel.getByRole('button', { name: 'Cross project' }).click();
+  await expect(panel.locator('.smap-p-title .feature-method-badge')).toHaveText('POST');
+  await expect(panel.locator('.smap-p-head .select-tinted')).toHaveText(['Interface']);
+  // The connection is a row naming the feature at the other end; it selects that connection.
+  const row = panel.getByRole('button', { name: /call from alpha POST \/login/ });
+  await expect(row).toBeVisible();
+  await expect(panel.getByRole('button', { name: 'Flow Cross project' })).toBeVisible();
+  await panel.getByRole('button', { name: 'Flow Cross project' }).click();
   await expect(page).toHaveURL(/\/flows\//);
   await expect(page.getByRole('textbox', { name: 'Flow name' })).toHaveText('Cross project');
 });
@@ -106,8 +111,54 @@ test('a connection shows what it carries', async ({ page }) => {
   await hit.click({ force: true });
   await expect(page.getByRole('complementary', { name: 'Connection' })).toBeVisible();
   const panel = page.getByRole('complementary', { name: 'Connection' });
-  await expect(panel).toContainText('call');
-  await expect(panel).toContainText('user');
-  await expect(panel.locator('dd', { hasText: 'crossed' })).toBeVisible();
-  await expect(panel.locator('dd', { hasText: 'yes' })).toBeVisible();
+  await expect(panel.locator('.smap-p-title')).toContainText('Call');
+  await expect(panel.locator('.search-card-tag', { hasText: 'user' })).toBeVisible();
+  await expect(panel.locator('.smap-p-flag', { hasText: 'crosses a trust boundary' })).toBeVisible();
+  await expect(panel.locator('.smap-p-flag', { hasText: 'tainted data' })).toBeVisible();
+  // Each end is a row that selects its feature.
+  await panel.getByRole('button', { name: /^beta / }).click();
+  await expect(page.getByRole('complementary', { name: /login/ })).toBeVisible();
+});
+
+test('a feature\'s open findings are listed in its panel, and open the finding', async ({ page, request }) => {
+  const features = await (await request.get('/api/projects/beta/features')).json() as { id: string; title: string }[];
+  const login = features.find((f) => f.title.includes('/login'))!;
+  const [f0] = await (await request.get('/api/projects/beta/findings')).json() as { anchor: unknown }[];
+  const f = await (await request.post('/api/projects/beta/findings', {
+    data: { anchor: f0.anchor, severity: 'high', title: 'map panel finding', description: 'x', status: 'open', source: 'manual', features: [login.id] },
+  })).json() as { id: string };
+  try {
+    await page.goto('/map');
+    await page.locator(`.smap-feature[data-feature="beta:${login.id}"]`).click();
+    const panel = page.getByRole('complementary', { name: /login/ });
+    await expect(panel.locator('.smap-p-head .search-card-flag')).toHaveText(/open finding/);
+    const item = panel.getByRole('button', { name: 'Finding map panel finding' });
+    await expect(item).toBeVisible();
+    await expect(item.locator('.select-tinted')).toHaveText('High');
+    await item.click();
+    await expect(page).toHaveURL(new RegExp(`/p/beta#/finding/${f.id}$`));
+  } finally {
+    await request.delete(`/api/projects/beta/findings/${f.id}`);
+  }
+});
+
+test('a service with many features lists a dozen, and "+N more" opens the rest', async ({ page }) => {
+  // The map draws whatever the server sends: forty features on one service is enough to fold.
+  await page.route('**/api/service-map*', async (route) => {
+    const res = await route.fetch();
+    const body = await res.json();
+    const beta = body.services.find((s: { slug: string }) => s.slug === 'beta');
+    beta.features = [...beta.features, ...Array.from({ length: 40 }, (_, i) => ({ id: `extra${i}`, kind: 'interface', title: `/extra/${i}`, tags: [], openFindings: 0, flowCount: 1, flows: [] }))];
+    await route.fulfill({ response: res, json: body });
+  });
+  await page.goto('/map');
+  const card = page.locator('.smap-card[data-service="beta"]');
+  await expect(card.locator('.smap-feature')).toHaveCount(12);
+  const more = card.getByRole('button', { name: /^Show \d+ more features of beta$/ });
+  await more.click();
+  await expect(card.locator('.smap-feature').first()).toBeVisible();
+  expect(await card.locator('.smap-feature').count()).toBeGreaterThan(40);
+  // Expanded, the row sits below the visible canvas (panned, not scrolled): activate it in place.
+  await card.getByRole('button', { name: 'Show fewer features of beta' }).dispatchEvent('click');
+  await expect(card.locator('.smap-feature')).toHaveCount(12);
 });
