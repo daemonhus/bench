@@ -58,7 +58,7 @@ test.describe('phone layout', () => {
   test('every rail control is on screen and at least 44px wide', async ({ page }) => {
     await page.goto('/projects');
     const boxes = await page.locator('.platform-rail-btn').evaluateAll(els => els.map(e => { const r = e.getBoundingClientRect(); return { l: r.left, r: r.right, w: r.width, h: r.height }; }));
-    expect(boxes.length).toBe(3); // Bench, Projects, Flows + theme; Settings is hidden for now
+    expect(boxes.length).toBe(4); // Projects, Flows, Map + theme (the logo is not a rail button); Settings is hidden for now
     for (const b of boxes) { expect(b.l).toBeGreaterThanOrEqual(0); expect(b.r).toBeLessThanOrEqual(390); expect(b.w).toBeGreaterThanOrEqual(44); expect(b.h).toBeGreaterThanOrEqual(44); }
   });
 
@@ -477,9 +477,9 @@ test('the rail gives its few items room (desktop)', async ({ page }) => {
   await page.goto('/flows');
   const boxes = await page.locator('.platform-rail-group').first().locator('.platform-rail-btn')
     .evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => ({ top: r.top, h: r.height })));
-  expect(boxes).toHaveLength(2);
+  expect(boxes).toHaveLength(3); // Projects, Flows, Map
   for (const b of boxes) expect(b.h).toBeGreaterThanOrEqual(52);
-  expect(boxes[1].top - (boxes[0].top + boxes[0].h)).toBeGreaterThanOrEqual(12);
+  for (let i = 1; i < boxes.length; i++) expect(boxes[i].top - (boxes[i - 1].top + boxes[i - 1].h)).toBeGreaterThanOrEqual(12);
   // The active marker still sits on the rail's left edge.
   const spine = await page.locator('.platform-rail-btn-active').evaluate((e) => e.getBoundingClientRect().left + parseFloat(getComputedStyle(e, '::before').left));
   expect(Math.abs(Math.round(spine))).toBe(0);

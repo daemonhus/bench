@@ -1,16 +1,20 @@
+import { availableParallelism } from 'node:os';
 import { defineConfig, devices } from '@playwright/test';
 
 // The same e2e suite against the PRODUCTION build embedded in the Go server
 // (minified, no Vite, no StrictMode double effects): the platform UI build embedded in
 // benchd, served by benchd itself on :8095. Run: npx playwright test -c playwright.prod.config.ts
 const API = 8095;
+// Spec files run in parallel, each worker on its own seeded project (see e2e/helpers/input.ts).
+// Override with E2E_WORKERS=1 to run serially.
+const WORKERS = Number(process.env.E2E_WORKERS) || Math.max(1, Math.min(6, Math.floor(availableParallelism() / 2)));
 const FRESH_API = 8096;
 
 export default defineConfig({
   testDir: './e2e',
   testMatch: '*.spec.ts',
   fullyParallel: false,
-  workers: 1,
+  workers: WORKERS,
   retries: 0,
   reporter: [['list']],
   use: { baseURL: `http://localhost:${API}`, trace: 'retain-on-failure' },
@@ -23,7 +27,7 @@ export default defineConfig({
       // Builds the platform UI, embeds it, seeds data. (Builds once; the fresh server reuses the binary's dist.)
       command: 'node e2e/support/fixture-server.mjs',
       url: `http://localhost:${API}/api/projects`,
-      env: { E2E_API_PORT: String(API), E2E_PROD: '1' },
+      env: { E2E_PROJECTS: String(WORKERS), E2E_API_PORT: String(API), E2E_PROD: '1' },
       // Ready once seeded (benchd answers well before that).
       stdout: 'pipe',
       wait: { stdout: /\[fixture\] ready/ },
@@ -33,7 +37,7 @@ export default defineConfig({
     {
       command: 'node e2e/support/fixture-server.mjs',
       url: `http://localhost:${FRESH_API}/api/projects`,
-      env: { E2E_API_PORT: String(FRESH_API), E2E_FRESH: '1', E2E_PROD: '1' },
+      env: { E2E_PROJECTS: String(WORKERS), E2E_API_PORT: String(FRESH_API), E2E_FRESH: '1', E2E_PROD: '1' },
       // Ready once seeded (benchd answers well before that).
       stdout: 'pipe',
       wait: { stdout: /\[fixture\] ready/ },

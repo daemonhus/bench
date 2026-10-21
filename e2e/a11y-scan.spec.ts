@@ -42,8 +42,10 @@ for (const v of VIEWS) {
 test('axe: feature detail', async ({ page }) => {
   await openView(page, '/#/features', '[data-nav-area="features-list"]');
   const id = await page.locator('[data-feature-id]').first().getAttribute('data-feature-id');
+  // A hash-only navigation swaps the view in place: scan once the detail has replaced the list.
   await page.goto(appUrl(`/#/feature/${id}`));
-  await page.waitForSelector('.feature-detail');
+  await page.waitForSelector('.feature-detail .fd-title');
+  await expect(page.locator('[data-nav-area="features-list"]')).toHaveCount(0);
   expect(await scan(page)).toEqual([]);
 });
 
@@ -52,6 +54,7 @@ test('axe: finding detail', async ({ page }) => {
   const id = await page.locator('[data-finding-id]').first().getAttribute('data-finding-id');
   await page.goto(appUrl(`/#/finding/${id}`));
   await page.waitForSelector('.feature-detail .fd-title');
+  await expect(page.locator('[data-nav-area="findings-list"]')).toHaveCount(0);
   expect(await scan(page)).toEqual([]);
 });
 

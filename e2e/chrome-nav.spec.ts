@@ -16,8 +16,9 @@ const chromeDesc = (page: Page) =>
   page.evaluate(() => {
     const a = document.activeElement as HTMLElement | null;
     if (!a) return '';
-    // Document position makes controls with identical labels distinct.
-    const pos = Array.from(document.querySelectorAll('button, a[href], select')).indexOf(a);
+    // Position among the chrome's own controls makes those with identical labels distinct
+    // (not the whole document's: cards loading their code snippets would shift it mid-test).
+    const pos = Array.from(document.querySelectorAll('[data-chrome] button, [data-chrome] a[href], [data-chrome] select, .shortcuts-fab')).indexOf(a);
     return `${pos}:` + (a.getAttribute('title') || a.getAttribute('data-tooltip') || a.textContent || a.className).trim().slice(0, 24);
   });
 

@@ -29,13 +29,16 @@ export const test = base.extend({
 });
 export { expect };
 
-/** The project every spec runs against (registered by support/fixture-server.mjs). */
-export const PROJECT = 'e2e';
+/**
+ * The project this worker's specs run against. The fixture server seeds one identical project per
+ * worker (support/fixture-server.mjs), so parallel workers never see each other's writes.
+ */
+export const PROJECT = `e2e-${process.env.TEST_PARALLEL_INDEX ?? '0'}`;
 
-/** App URL for a workbench hash route: '/#/findings' opens `/p/e2e#/findings`; '/' is the project's landing route. */
+/** App URL for a workbench hash route: '/#/findings' opens `/p/e2e-0#/findings`; '/' is the project's landing route. */
 export const appUrl = (hash: string) => `/p/${PROJECT}${hash.replace(/^\//, '')}`;
 
-/** The project's REST path for a workbench endpoint: '/api/findings' is `/api/projects/e2e/findings`. */
+/** The project's REST path for a workbench endpoint: '/api/findings' is `/api/projects/e2e-0/findings`. */
 export const api = (path: string) => `/api/projects/${PROJECT}${path.replace(/^\/api/, '')}`;
 
 /** Park the mouse in a corner so a stale :hover can't leak into assertions. */

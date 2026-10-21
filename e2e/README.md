@@ -1,7 +1,11 @@
 # bench e2e
 
 Playwright suites for the workbench UI, run against an **isolated stack** (own ports, a throwaway
-data dir with one project, `e2e`, on a throwaway git repo, deterministic seed data) so they never touch a dev server or real data.
+data dir, deterministic seed data) so they never touch a dev server or real data.
+
+Spec files run in parallel: one worker per two cores, up to six (`E2E_WORKERS=1` runs them
+serially). The fixture seeds one identical project per worker (`e2e-0`, `e2e-1`, …), each on its
+own throwaway git repo, so a spec's writes are never seen by another worker.
 
 ```bash
 cd bench
@@ -11,7 +15,7 @@ npx vitest run                                       # unit tests (hooks, nav li
 ```
 
 The prod config runs the *same* suites against the platform UI build embedded in `benchd` (minified, no Vite, no
-StrictMode double effects) - the way users run bench. Specs open `/p/e2e#/...` and call `/api/projects/e2e/...` through `appUrl()` / `api()` in `helpers/input.ts`. Both configs should stay green.
+StrictMode double effects) - the way users run bench. Specs open `/p/e2e-N#/...` and call `/api/projects/e2e-N/...` (N is the worker) through `appUrl()` / `api()` in `helpers/input.ts`; never spell the project out. Both configs should stay green.
 
 ## Fixture (`e2e/support/`)
 - `fixture-repo.mjs` - deterministic repo: folders to expand, `CLAUDE.md` first in the tree (long, so it scrolls),
@@ -54,5 +58,5 @@ Escape/backdrop close, one at a time, closing on file choice).
 
 The behaviour specs (`BEHAVIOUR` in `playwright.e2e.config.ts`) also run in the `ultrawide` and
 `phone` projects: `npx playwright test -c playwright.e2e.config.ts --project=phone`. Specs that
-write to the shared backend (the link-edit modals) run in `chromium` only, since the projects run
-in parallel against one fixture. Styles live in `src/styles/responsive.css` (imported last).
+write a lot (the link-edit modals) run in `chromium` only. Under parallel load, wait for what a test
+depends on (a card's late-loading code snippet, the view a key opened) rather than for a fixed time. Styles live in `src/styles/responsive.css` (imported last).

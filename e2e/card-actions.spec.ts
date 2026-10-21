@@ -32,8 +32,13 @@ for (const l of LISTS) {
     test.beforeEach(async ({ page }) => {
       await openView(page, l.route, `[data-nav-area="${l.area}"]`);
       await expect(page.locator(l.card).first()).toBeVisible();
+
       await page.locator(`[data-nav-area="${l.area}"]`).focus(); // arrange: seeds item 0
       await expect.poll(() => navFocusedIds(page)).toHaveLength(1);
+      // The card's code snippet (and its expand buttons) arrives with a later request; under load
+      // it could land mid-test and shift the controls being walked. Wait for it (the seeded
+      // cards all have one; carry on if one ever doesn't).
+      await focusedCard(page).locator('.feature-snippet-row').first().waitFor({ timeout: 10_000 }).catch(() => {});
     });
 
     test('ArrowRight enters the focused card; the item stays the anchor', async ({ page }) => {

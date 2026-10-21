@@ -196,10 +196,11 @@ test.describe('Inline finding card', () => {
     const was = await header.getAttribute('aria-expanded');
     expect(was === 'true' || was === 'false').toBe(true);
     await header.focus();
+    await expect(header).toBeFocused();
     await page.keyboard.press('Enter');
-    expect(await header.getAttribute('aria-expanded')).not.toBe(was);
+    await expect(header).toHaveAttribute('aria-expanded', was === 'true' ? 'false' : 'true');
     await page.keyboard.press('Space');
-    expect(await header.getAttribute('aria-expanded')).toBe(was);
+    await expect(header).toHaveAttribute('aria-expanded', was!);
   });
 });
 
