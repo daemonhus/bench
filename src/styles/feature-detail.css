@@ -199,6 +199,12 @@
 }
 .fd-linked-item:hover { background: var(--bg-surface); box-shadow: inset 0 0 0 1px var(--border-default); color: var(--text-primary); }
 .fd-linked-desc { color: var(--text-muted); }
+/* Another project's feature or finding (a "<project>:<id>" link): its project leads. */
+.fd-linked-project {
+  margin-right: 6px; padding: 0 6px; border-radius: var(--radius-xs);
+  font-size: var(--font-size-xs); color: var(--text-muted); background: var(--bg-surface);
+}
+.fd-linked--other { margin-top: 6px; }
 /* Linked findings: severity dot, title, status; closed ones dimmed after the open ones. */
 .fd-finding-row { display: flex; align-items: center; gap: 8px; min-width: 0; text-decoration: none; }
 .fd-finding-dot { flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; }

@@ -168,7 +168,7 @@ No parameters.
 | `source` | string | no | Tool or scanner that found it. One of `pentest`, `tool`, `manual`, `mcp`. Default: `mcp`. |
 | `category` | string | no | Category label |
 | `external_id` | string | no | External identifier from source system (e.g. `F001`, `VULN-42`) |
-| `features` | string[] | no | Feature IDs to link to this finding |
+| `features` | string[] | no | Feature IDs to link to this finding; `"<project>:<id>"` for another project's feature |
 
 ### update_finding
 
@@ -187,7 +187,7 @@ No parameters.
 | `cve` | string | no | New CVE |
 | `category` | string | no | New category |
 | `external_id` | string | no | External identifier from source system |
-| `features` | string[] | no | Linked feature IDs (replaces full list) |
+| `features` | string[] | no | Linked feature IDs, `"<project>:<id>"` for another project's (replaces full list) |
 
 ### delete_finding / resolve_finding
 
@@ -302,7 +302,7 @@ Annotate an architectural feature: an API interface, data source/sink, dependenc
 | `status` | string | no | Initial status (default: `active`) |
 | `tags` | string[] | no | Optional tags |
 | `source` | string | no | Tool or scanner that identified the feature |
-| `linked_feature_ids` | array | no | Features to link - each item is an ID string or `{id, description}` object. Self-links return 400; unknown IDs return 404. |
+| `linked_feature_ids` | array | no | Features to link - each item is an ID string or `{id, project?, description}` object; another project's feature is `"<project>:<id>"` or `{id, project}`. Self-links return 400; unknown IDs return 404. |
 
 ### update_feature
 
@@ -321,7 +321,7 @@ Annotate an architectural feature: an API interface, data source/sink, dependenc
 | `commit` | string | no | New commit (re-anchors; recomputes line hash) |
 | `start` | int | no | New start line (re-anchors; recomputes line hash) |
 | `end` | int | no | New end line (re-anchors; recomputes line hash) |
-| `linked_feature_ids` | array | no | Replace all links - ID strings or `{id, description}` objects; pass `[]` to clear; omit to leave unchanged. Self-links return 400. |
+| `linked_feature_ids` | array | no | Replace all links - ID strings or `{id, project?, description}` objects (`"<project>:<id>"` for another project's); pass `[]` to clear; omit to leave unchanged. Self-links return 400. |
 
 ### delete_feature
 

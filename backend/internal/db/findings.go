@@ -43,11 +43,46 @@ func (d *DB) enrichWithFeatureIDs(findings []model.Finding) error {
 			findings[i].FeatureIDs = append(findings[i].FeatureIDs, featureID)
 		}
 	}
-	return rows.Err()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	// Other projects' features (see SetCrossLinks).
+	if d.cross != nil {
+		ids := make([]string, len(findings))
+		for i, f := range findings {
+			ids[i] = f.ID
+		}
+		refs, err := d.cross.FindingFeatures(ids)
+		if err != nil {
+			return fmt.Errorf("cross-project features: %w", err)
+		}
+		for i, f := range findings {
+			findings[i].FeatureIDs = append(findings[i].FeatureIDs, refs[f.ID]...)
+		}
+	}
+	return nil
 }
 
-// setFeatureIDs replaces all feature associations for a finding within an existing transaction.
-func setFeatureIDs(tx *sql.Tx, projectID, findingID string, featureIDs []string) error {
+// forgetCross drops the cross-project links of a deleted feature or finding.
+func (d *DB) forgetCross(kind, id string) error {
+	if d.cross == nil {
+		return nil
+	}
+	if err := d.cross.Forget(kind, id); err != nil {
+		return fmt.Errorf("cross-project links of %s %s: %w", kind, id, err)
+	}
+	return nil
+}
+
+// setFeatureIDs replaces all feature associations for a finding within an existing
+// transaction: this project's features here, other projects' in the cross store (last, so a
+// refused one rolls the whole write back).
+func (d *DB) setFeatureIDs(tx *sql.Tx, findingID string, all []string) error {
+	projectID := d.projectID
+	featureIDs, foreign, err := model.SplitRefs(d.cross, all)
+	if err != nil {
+		return err
+	}
 	if _, err := tx.Exec(`DELETE FROM finding_features WHERE finding_id = ? AND project_id = ?`, findingID, projectID); err != nil {
 		return fmt.Errorf("delete finding_features: %w", err)
 	}
@@ -63,6 +98,9 @@ func setFeatureIDs(tx *sql.Tx, projectID, findingID string, featureIDs []string)
 		if _, err := tx.Exec(`INSERT INTO finding_features (finding_id, feature_id, project_id) VALUES (?, ?, ?)`, findingID, fid, projectID); err != nil {
 			return fmt.Errorf("insert finding_features: %w", err)
 		}
+	}
+	if d.cross != nil {
+		return d.cross.SetFindingFeatures(findingID, foreign)
 	}
 	return nil
 }
@@ -183,7 +221,7 @@ func (d *DB) CreateFinding(f *model.Finding) error {
 		}
 
 		if len(f.FeatureIDs) > 0 {
-			if err := setFeatureIDs(tx, d.projectID, f.ID, f.FeatureIDs); err != nil {
+			if err := d.setFeatureIDs(tx, f.ID, f.FeatureIDs); err != nil {
 				return err
 			}
 		}
@@ -311,7 +349,7 @@ func (d *DB) UpdateFinding(id string, updates map[string]any) (*model.Finding, e
 		}
 
 		if hasFeatureIDs {
-			if err := setFeatureIDs(tx, d.projectID, id, newFeatureIDs); err != nil {
+			if err := d.setFeatureIDs(tx, id, newFeatureIDs); err != nil {
 				return err
 			}
 		}
@@ -418,7 +456,7 @@ func (d *DB) BatchCreateFindings(findings []model.Finding) ([]string, error) {
 				return nil, fmt.Errorf("insert finding %d (%s): %w", i, f.ID, err)
 			}
 			if len(f.FeatureIDs) > 0 {
-				if err := setFeatureIDs(tx, d.projectID, f.ID, f.FeatureIDs); err != nil {
+				if err := d.setFeatureIDs(tx, f.ID, f.FeatureIDs); err != nil {
 					return nil, fmt.Errorf("set feature IDs for finding %s: %w", f.ID, err)
 				}
 			}
@@ -505,6 +543,9 @@ func (d *DB) DeleteFinding(id string) error {
 		if n == 0 {
 			return fmt.Errorf("finding not found: %s", id)
 		}
-		return tx.Commit()
+		if err := tx.Commit(); err != nil {
+			return err
+		}
+		return d.forgetCross("finding", id)
 	})
 }

@@ -20,6 +20,7 @@ import { CommentThread } from './CommentThread';
 import { SelectDropdown, ToneChip } from './SelectDropdown';
 import { SEVERITY_OPTIONS, FINDING_STATUS_OPTIONS, METHOD_COLORS } from '../core/status-options';
 import { OriginHover, originHasContent } from './origin';
+import { useLinkedFeatures, useOpenRef } from '../core/cross-refs';
 
 interface FindingCardProps {
   finding: Finding;
@@ -32,6 +33,8 @@ interface FindingCardProps {
   onToggle: () => void;
   onScrollTo: () => void;
 }
+
+const NO_IDS: string[] = [];
 
 const KIND_COLORS: Record<string, string> = {
   interface:   'var(--kind-interface)',
@@ -151,12 +154,9 @@ export const FindingCard: React.FC<FindingCardProps> = ({
     featuresApi.list().then((f) => setFetchedFeatures(f as Feature[])).catch(() => {});
   }, [isExpanded, finding.features]);
 
-  const linkedFeatures = useMemo(() => {
-    if (!finding.features?.length) return [] as Feature[];
-    const source = fetchedFeatures ?? allFeatures;
-    const byId = new Map(source.map((f) => [f.id, f]));
-    return finding.features.map((id) => byId.get(id)).filter((f): f is Feature => f !== undefined);
-  }, [finding.features, fetchedFeatures, allFeatures]);
+  // This project's features, and other projects' (a "<project>:<id>" reference) resolved by the host.
+  const linkedFeatures = useLinkedFeatures(finding.features ?? NO_IDS, fetchedFeatures ?? allFeatures);
+  const openRef = useOpenRef();
 
   const snippet = useMemo(() => {
     if (!fileLines || !lineRange) return null;
@@ -339,9 +339,10 @@ export const FindingCard: React.FC<FindingCardProps> = ({
                 title={tooltipParts.join(' ')}
                 onClick={(e) => {
                   e.stopPropagation();
-                  window.location.hash = `#/feature/${feat.id}`;
+                  openRef(feat.id, 'feature');
                 }}
               >
+                {feat.projectName && <span className="feature-linked-badge-project">{feat.projectName}</span>}
                 {isInterface && method ? (
                   <span className="feature-method-badge" style={{ background: METHOD_COLORS[method] ?? fKindColor, fontSize: 9 }}>{method}</span>
                 ) : (

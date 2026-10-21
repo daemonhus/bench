@@ -5,7 +5,7 @@ import type { Feature } from '@bench/core/types';
 import { ageDays, plural } from './projectInsight';
 import { excerpt } from './searchModel';
 import { KindIcon } from './SearchParts';
-import { ago, optionOf, where, FeatureMark, LINKS_MAX, type SearchContext } from './SearchResultCard';
+import { ago, optionOf, where, FeatureMark, LINKS_MAX, key, refOf, type SearchContext } from './SearchResultCard';
 import type { ActivityItem } from './activityModel';
 
 // One item of the activity feed, at a glance: what happened and where, its severity and status,
@@ -74,11 +74,15 @@ export function ActivityCard({ item, ctx, onOpen, onOpenFlow }: {
     } else if (f.description) {
       text = excerpt(plain(f.description), '', 240);
     }
-    const affected = (f.features ?? []).map((id) => ctx.features.get(`${item.slug}:${id}`)).filter((x): x is Feature => !!x);
+    const affected = (f.features ?? []).map((id) => ({ ref: refOf(item.slug, id), ft: ctx.features.get(key(item.slug, id)) }))
+      .filter((x): x is { ref: [string, string]; ft: Feature } => !!x.ft);
     if (affected.length) {
       links = {
         label: 'Affects',
-        items: affected.slice(0, LINKS_MAX).map((ft) => linkChip(ft.id, <><FeatureMark f={ft} /><span>{ft.title}</span></>, () => onOpen(item.slug, `#/feature/${ft.id}`), `Feature ${ft.title}`)),
+        items: affected.slice(0, LINKS_MAX).map(({ ref: [slug, id], ft }) => {
+          const other = slug !== item.slug ? ctx.projects.get(slug)?.name ?? slug : '';
+          return linkChip(`${slug}:${id}`, <><FeatureMark f={ft} /><span>{other ? `${other} · ` : ''}{ft.title}</span></>, () => onOpen(slug, `#/feature/${id}`), `Feature ${ft.title}`);
+        }),
       };
       if (affected.length > LINKS_MAX) links.items.push(<span key="more" className="search-card-more">+{affected.length - LINKS_MAX}</span>);
     }

@@ -27,7 +27,9 @@ export interface SearchContext {
   threadSize: Map<string, number>;
 }
 
-const key = (slug: string, id: string) => `${slug}:${id}`;
+/** A feature or finding's key across projects: "<slug>:<id>"; an id that is already a
+ *  reference to another project's ("<project>:<id>") is its own key. */
+export const key = (slug: string, id: string) => (id.includes(':') ? id : `${slug}:${id}`);
 
 export function useSearchContext(projects: Project[], data: Record<string, SearchData>, flows: FlowSummary[], comments: Record<string, Comment[]> | null): SearchContext {
   return useMemo(() => {
@@ -83,6 +85,11 @@ export function FeatureMark({ f }: { f: Feature }) {
     : <span className="home-dot" style={{ background: KIND_COLORS[f.kind] }} aria-hidden="true" />;
 }
 export const LINKS_MAX = 4;
+/** The project and id a finding's feature id points at: its own project, or another's. */
+export const refOf = (slug: string, id: string): [string, string] => {
+  const at = id.indexOf(':');
+  return at > 0 ? [id.slice(0, at), id.slice(at + 1)] : [slug, id];
+};
 
 export function SearchResultCard({ h, q, ctx, onOpen, onOpenFlow }: {
   h: Hit;
@@ -124,11 +131,15 @@ export function SearchResultCard({ h, q, ctx, onOpen, onOpenFlow }: {
       !open && f.resolvedAt && `resolved ${ago(f.resolvedAt)}`,
       (f.commentCount ?? 0) > 0 && plural(f.commentCount!, 'comment'),
     );
-    const affected = (f.features ?? []).map((id) => ctx.features.get(key(h.slug, id))).filter((x): x is Feature => !!x);
+    const affected = (f.features ?? []).map((id) => ({ ref: refOf(h.slug, id), ft: ctx.features.get(key(h.slug, id)) }))
+      .filter((x): x is { ref: [string, string]; ft: Feature } => !!x.ft);
     if (affected.length) {
       links = {
         label: 'Affects',
-        items: affected.slice(0, LINKS_MAX).map((ft) => linkChip(ft.id, <><FeatureMark f={ft} /><span>{ft.title}</span></>, () => onOpen(h.slug, `#/feature/${ft.id}`), `Feature ${ft.title}`)),
+        items: affected.slice(0, LINKS_MAX).map(({ ref: [slug, id], ft }) => {
+          const other = slug !== h.slug ? ctx.projects.get(slug)?.name ?? slug : '';
+          return linkChip(`${slug}:${ft.id}`, <><FeatureMark f={ft} /><span>{other ? `${other} · ` : ''}{ft.title}</span></>, () => onOpen(slug, `#/feature/${id}`), `Feature ${ft.title}`);
+        }),
       };
       if (affected.length > LINKS_MAX) links.items.push(<span key="more" className="search-card-more">+{affected.length - LINKS_MAX}</span>);
     }

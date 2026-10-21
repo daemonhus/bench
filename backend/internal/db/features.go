@@ -116,6 +116,7 @@ func (d *DB) GetFeature(id string) (*model.Feature, error) {
 	slice := []model.Feature{*f}
 	_ = d.enrichWithLinkedFeatures(slice)
 	f.LinkedFeatures = slice[0].LinkedFeatures
+	f.CrossProjectFindings = slice[0].CrossProjectFindings
 	if err := d.enrichFeaturesWithOrigins(slice); err == nil {
 		f.Origin = slice[0].Origin
 	}
@@ -193,15 +194,54 @@ func (d *DB) enrichWithLinkedFeatures(features []model.Feature) error {
 			features[i].LinkedFeatures = append(features[i].LinkedFeatures, model.LinkedFeature{ID: fid, Description: desc})
 		}
 	}
-	return rows.Err()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	return d.enrichWithCrossLinks(features)
+}
+
+// enrichWithCrossLinks adds the links to and findings from other projects (see SetCrossLinks).
+func (d *DB) enrichWithCrossLinks(features []model.Feature) error {
+	if d.cross == nil || len(features) == 0 {
+		return nil
+	}
+	ids := make([]string, len(features))
+	for i, f := range features {
+		ids[i] = f.ID
+	}
+	links, err := d.cross.FeatureLinks(ids)
+	if err != nil {
+		return fmt.Errorf("cross-project links: %w", err)
+	}
+	findings, err := d.cross.FindingsOn(ids)
+	if err != nil {
+		return fmt.Errorf("cross-project findings: %w", err)
+	}
+	for i, f := range features {
+		features[i].LinkedFeatures = append(features[i].LinkedFeatures, links[f.ID]...)
+		features[i].CrossProjectFindings = findings[f.ID]
+	}
+	return nil
 }
 
 // ReplaceLinkedFeatures atomically replaces all feature links for the given feature (either direction).
-func (d *DB) ReplaceLinkedFeatures(featureID string, links []model.LinkedFeature) error {
-	for _, lf := range links {
+func (d *DB) ReplaceLinkedFeatures(featureID string, all []model.LinkedFeature) error {
+	// This project's links live here; links to other projects' features in the cross store.
+	var links, foreign []model.LinkedFeature
+	for _, lf := range all {
+		local, other, err := model.SplitRefs(d.cross, []string{lf.ID})
+		if err != nil {
+			return err
+		}
+		if len(other) > 0 {
+			foreign = append(foreign, model.LinkedFeature{ID: other[0], Description: lf.Description})
+			continue
+		}
+		lf.ID = local[0]
 		if lf.ID == featureID {
 			return fmt.Errorf("self-link not allowed: feature cannot link to itself")
 		}
+		links = append(links, lf)
 	}
 	return wq0(d.wq, func() error {
 		tx, err := d.conn.Begin()
@@ -216,6 +256,12 @@ func (d *DB) ReplaceLinkedFeatures(featureID string, links []model.LinkedFeature
 		for _, lf := range links {
 			if _, err := tx.Exec(`INSERT INTO feature_links (feature_id, linked_feature_id, description) VALUES (?, ?, ?)`, featureID, lf.ID, lf.Description); err != nil {
 				return fmt.Errorf("insert feature_link %s: %w", lf.ID, err)
+			}
+		}
+		// Last before committing, so a refused cross-project target leaves this project's links as they were.
+		if d.cross != nil {
+			if err := d.cross.SetFeatureLinks(featureID, foreign); err != nil {
+				return err
 			}
 		}
 		return tx.Commit()
@@ -364,7 +410,10 @@ func (d *DB) DeleteFeature(id string) error {
 			return fmt.Errorf("feature not found: %s", id)
 		}
 
-		return tx.Commit()
+		if err := tx.Commit(); err != nil {
+			return err
+		}
+		return d.forgetCross("feature", id)
 	})
 }
 

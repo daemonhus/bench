@@ -17,7 +17,8 @@ Features are architectural annotations that map the security-relevant surface of
   protocol?: string           // e.g. rest, grpc, graphql, websocket
   source?: string
   tags?: string[]
-  linkedFeatures?: { id: string; description?: string }[]  // bidirectional; populated in both directions
+  linkedFeatures?: { id: string; description?: string }[]  // bidirectional; populated in both directions; "<project>:<id>" for another project's
+  crossProjectFindings?: string[]  // other projects' findings affecting it, as "<project>:<id>"
   refs?: Ref[]                // external links (enriched inline)
   parameters?: FeatureParameter[]  // structured inputs/outputs; meaningful for kind: 'interface'
   createdAt: string
@@ -127,6 +128,22 @@ update_feature(id="feat-xyz", linked_feature_ids=[
 
 list_features(linked_to="feat-abc123")
 ```
+
+### Across projects
+
+On a server hosting several projects, a feature can link to another project's feature, and a finding can affect one: write `<project>:<id>` where an id goes (`billing:feat-9f3c`). Ids and project slugs never contain a colon, so a bare id is always this project's. The link reads from both ends, like any other: the other feature lists `<this-project>:<id>` in its `linkedFeatures`, and a feature lists the other projects' findings affecting it in `crossProjectFindings`. The target must exist (an unknown project or feature is a 400), and deleting either end drops the link. A standalone workbench has no other projects and refuses such references.
+
+```bash
+bench --project web features update --id feat-xyz --features "api:feat-abc123|calls the login endpoint"
+bench --project web findings update --id find-1 --features feat-xyz,api:feat-abc123
+```
+
+```
+update_feature(project="web", id="feat-xyz", linked_feature_ids=[{"project": "api", "id": "feat-abc123"}])
+update_finding(project="web", id="find-1", features=["feat-xyz", "api:feat-abc123"])
+```
+
+In the UI the link picker searches every project; another project's feature or finding is labelled with its project and opens there.
 
 ## Linking findings to features
 

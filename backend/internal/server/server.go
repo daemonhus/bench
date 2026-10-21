@@ -122,6 +122,9 @@ func NewPlatform(dataDir string) (*Platform, error) {
 	if err := setUpFlowGraph(conn, dataDir); err != nil {
 		return nil, err
 	}
+	if err := setUpCrossLinks(conn); err != nil {
+		return nil, err
+	}
 	if _, err := conn.Exec(`CREATE VIRTUAL TABLE IF NOT EXISTS flows_fts USING fts5(
 		flow_id UNINDEXED,
 		name, description, owner, tags,
@@ -273,7 +276,7 @@ func (p *Platform) getWorkbench(identifier string) (*workbench.Workbench, error)
 	}
 
 	dbPath := filepath.Join(p.dataDir, slug+".db")
-	wb, err = workbench.Open(repoPath, dbPath)
+	wb, err = workbench.Open(repoPath, dbPath, workbench.WithCrossLinks(p.crossLinksFor(slug)))
 	if err != nil {
 		return nil, err
 	}

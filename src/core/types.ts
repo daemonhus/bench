@@ -83,6 +83,7 @@ export interface Finding {
   resolvedAt?: string;
   lineHash?: string;
   commentCount?: number;
+  /** Features it affects: ids in this project, "<project>:<id>" for another project's. */
   features?: string[];
   refs?: Ref[];
   origin?: Origin;
@@ -312,7 +313,10 @@ export interface Feature {
   createdAt?: string;
   resolvedCommit?: string;
   lineHash?: string;
+  /** Links to features: ids in this project, "<project>:<id>" for another project's (core/cross-refs). */
   linkedFeatures?: LinkedFeature[];
+  /** Other projects' findings affecting this feature, as "<project>:<id>". */
+  crossProjectFindings?: string[];
   refs?: Ref[];
   parameters?: FeatureParameter[];
   origin?: Origin;

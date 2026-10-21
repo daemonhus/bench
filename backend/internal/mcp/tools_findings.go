@@ -223,7 +223,7 @@ func toolCreateFinding(deps *toolDeps) Tool {
 				"vector": {"type": "string", "description": "CVSS vector string"},
 				"score": {"type": "number", "description": "CVSS score"},
 				"source": {"type": "string", "description": "Source tool or scanner (default: mcp)"},
-				"features": {"type": "array", "items": {"type": "string"}, "description": "Feature IDs to associate with this finding"}
+				"features": {"type": "array", "items": {"type": "string"}, "description": "Feature IDs to associate with this finding; another project's feature (bench server) is \"<project>:<id>\""}
 			},
 			"required": ["severity", "title"]
 		}`),
@@ -337,7 +337,7 @@ func toolUpdateFinding(deps *toolDeps) Tool {
 				"commit": {"type": "string", "description": "New anchor commit"},
 				"start": {"type": "integer", "description": "Updated start line number"},
 				"end": {"type": "integer", "description": "Updated end line number"},
-				"features": {"type": "array", "items": {"type": "string"}, "description": "Feature IDs to associate (replaces full list)"}
+				"features": {"type": "array", "items": {"type": "string"}, "description": "Feature IDs to associate (replaces full list); another project's feature (bench server) is \"<project>:<id>\""}
 			},
 			"required": ["id"]
 		}`),
@@ -513,7 +513,7 @@ func toolBatchCreateFindings(deps *toolDeps) Tool {
 							"vector": {"type": "string", "description": "CVSS vector string"},
 							"score": {"type": "number", "description": "CVSS score"},
 							"source": {"type": "string", "description": "Source tool or scanner (default: mcp)"},
-							"features": {"type": "array", "items": {"type": "string"}, "description": "Feature IDs to associate with this finding"}
+							"features": {"type": "array", "items": {"type": "string"}, "description": "Feature IDs to associate with this finding; another project's feature (bench server) is \"<project>:<id>\""}
 						},
 						"required": ["severity", "title"]
 					},

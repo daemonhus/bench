@@ -6,6 +6,8 @@ import (
 	"strings"
 	"sync/atomic"
 
+	"bench/internal/model"
+
 	_ "modernc.org/sqlite"
 )
 
@@ -20,7 +22,13 @@ type DB struct {
 	// resolveCommit pins a ref given as an anchor commit (e.g. "HEAD") to its
 	// commit id; see SetCommitResolver.
 	resolveCommit func(ref string) (string, bool)
+	// cross keeps links to other projects' features and findings; see SetCrossLinks.
+	cross model.CrossLinks
 }
+
+// SetCrossLinks lets this project's features and findings link to other projects' ("<project>:<id>"
+// references). The server wires it to its own store; without it such references are refused.
+func (d *DB) SetCrossLinks(c model.CrossLinks) { d.cross = c }
 
 // SetCommitResolver makes every annotation write pin its anchor commit to a
 // commit id, so an anchor given as "HEAD" or a branch doesn't move with it. A

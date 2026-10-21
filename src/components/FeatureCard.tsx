@@ -16,6 +16,7 @@ import { SelectDropdown } from './SelectDropdown';
 import { FEATURE_STATUS_OPTIONS, METHOD_COLORS, HTTP_METHODS } from '../core/status-options';
 import { LinkManageModal } from './LinkManageModal';
 import { OriginHover, originHasContent } from './origin';
+import { useLinkedFeatures, useOpenRef } from '../core/cross-refs';
 
 interface FeatureCardProps {
   feature: Feature;
@@ -86,6 +87,10 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
 }) => {
   const storeFeatures = useAnnotationStore((s) => s.features);
   const allFeatures = allFeaturesProp ?? storeFeatures;
+  // Linked features: this project's, and other projects' ("<project>:<id>") resolved by the host.
+  const linkIds = useMemo(() => (feature.linkedFeatures ?? []).map((lf) => lf.id), [feature.linkedFeatures]);
+  const linkedViews = useLinkedFeatures(linkIds, allFeatures);
+  const openRef = useOpenRef();
   const viewMode = useUIStore((s) => s.viewMode);
   const deleteFeature = useAnnotationStore((s) => s.deleteFeature);
   const updateFeature = useAnnotationStore((s) => s.updateFeature);
@@ -289,7 +294,7 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
           )}
           {!compact && (() => {
             const linked = (feature.linkedFeatures ?? [])
-              .map((lf) => ({ lf, feat: allFeatures.find((f) => f.id === lf.id) }))
+              .map((lf) => ({ lf, feat: linkedViews.find((f) => f.id === lf.id) }))
               .filter((item): item is { lf: NonNullable<typeof item.lf>; feat: NonNullable<typeof item.feat> } => item.feat != null);
             if (refs.length === 0 && linked.length === 0) return null;
             return (
@@ -323,9 +328,10 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
                       title={tooltipParts.join(' ')}
                       onClick={(e) => {
                         e.stopPropagation();
-                        window.location.hash = `#/feature/${f.id}`;
+                        openRef(f.id, 'feature');
                       }}
                     >
+                      {f.projectName && <span className="feature-linked-badge-project">{f.projectName}</span>}
                       {isInterface && method ? (
                         <span className="feature-method-badge" style={{ background: METHOD_COLORS[method] ?? fKindColor, fontSize: 9 }}>{method}</span>
                       ) : (
@@ -386,7 +392,7 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
 
               {(() => {
                 const linked = (feature.linkedFeatures ?? [])
-                  .map((lf) => ({ lf, feat: allFeatures.find((f) => f.id === lf.id) }))
+                  .map((lf) => ({ lf, feat: linkedViews.find((f) => f.id === lf.id) }))
                   .filter((item): item is { lf: NonNullable<typeof item.lf>; feat: NonNullable<typeof item.feat> } => item.feat != null);
                 if (refs.length === 0 && linked.length === 0) return null;
                 return (
@@ -423,9 +429,10 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
                             title={tooltipParts.join(' ')}
                             onClick={(e) => {
                               e.stopPropagation();
-                              window.location.hash = `#/feature/${f.id}`;
+                              openRef(f.id, 'feature');
                             }}
                           >
+                            {f.projectName && <span className="feature-linked-badge-project">{f.projectName}</span>}
                             {isInterface && method ? (
                               <span className="feature-method-badge" style={{ background: METHOD_COLORS[method] ?? fKindColor, fontSize: 9 }}>{method}</span>
                             ) : (

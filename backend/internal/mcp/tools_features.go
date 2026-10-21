@@ -15,7 +15,8 @@ import (
 )
 
 // parseMCPLinkedFeatures converts the MCP linked_feature_ids array to model objects.
-// Each item may be a plain ID string or a {id, description?} object.
+// Each item may be a plain ID string ("<project>:<id>" for another project's feature) or a
+// {id, project?, description?} object.
 func parseMCPLinkedFeatures(items []json.RawMessage) []model.LinkedFeature {
 	links := make([]model.LinkedFeature, 0, len(items))
 	for _, raw := range items {
@@ -26,9 +27,13 @@ func parseMCPLinkedFeatures(items []json.RawMessage) []model.LinkedFeature {
 		}
 		var obj struct {
 			ID          string `json:"id"`
+			Project     string `json:"project"`
 			Description string `json:"description"`
 		}
 		if json.Unmarshal(raw, &obj) == nil && obj.ID != "" {
+			if obj.Project != "" {
+				obj.ID = model.CrossRef(obj.Project, obj.ID)
+			}
 			links = append(links, model.LinkedFeature{ID: obj.ID, Description: obj.Description})
 		}
 	}
@@ -206,7 +211,7 @@ func toolCreateFeature(deps *toolDeps) Tool {
 				"status": {"type": "string", "enum": ["draft","active"], "description": "Initial status (default: active)"},
 				"tags": {"type": "array", "items": {"type": "string"}, "description": "Optional tags"},
 				"source": {"type": "string", "description": "Tool or scanner that identified the feature"},
-				"linked_feature_ids": {"type": "array", "items": {"oneOf": [{"type": "string"}, {"type": "object", "properties": {"id": {"type": "string"}, "description": {"type": "string"}}, "required": ["id"]}]}, "description": "Features to link to"},
+				"linked_feature_ids": {"type": "array", "items": {"oneOf": [{"type": "string"}, {"type": "object", "properties": {"id": {"type": "string"}, "project": {"type": "string", "description": "Another project's slug, for a feature there (on the bench server)"}, "description": {"type": "string"}}, "required": ["id"]}]}, "description": "Features to link to. Another project's feature (bench server): \"<project>:<id>\" or {id, project}"},
 				"parameters": {"type": "array", "items": ` + paramItemSchema + `, "description": "Optional parameters documenting the interface contract (auth headers, path vars, query params, body fields)"}
 			},
 			"required": ["kind", "title"]
@@ -354,7 +359,7 @@ func toolUpdateFeature(deps *toolDeps) Tool {
 				"source": {"type": "string", "description": "Source tool or scanner"},
 				"start": {"type": "integer"},
 				"end": {"type": "integer"},
-				"linked_feature_ids": {"type": "array", "items": {"oneOf": [{"type": "string"}, {"type": "object", "properties": {"id": {"type": "string"}, "description": {"type": "string"}}, "required": ["id"]}]}, "description": "Replace all feature links - each item is an ID string or {id, description} object. Pass [] to clear. Omitting leaves links unchanged."},
+				"linked_feature_ids": {"type": "array", "items": {"oneOf": [{"type": "string"}, {"type": "object", "properties": {"id": {"type": "string"}, "project": {"type": "string", "description": "Another project's slug, for a feature there (on the bench server)"}, "description": {"type": "string"}}, "required": ["id"]}]}, "description": "Replace all feature links - each item is an ID string or {id, project?, description} object; another project's feature is \"<project>:<id>\" or {id, project}. Pass [] to clear. Omitting leaves links unchanged."},
 				"parameters": {"type": "array", "items": ` + paramItemSchema + `, "description": "Replace all parameters. Omitting this field leaves parameters unchanged."}
 			},
 			"required": ["id"]
@@ -446,6 +451,9 @@ func toolUpdateFeature(deps *toolDeps) Tool {
 						case map[string]any:
 							id2, _ := v["id"].(string)
 							desc, _ := v["description"].(string)
+							if project, _ := v["project"].(string); project != "" && id2 != "" {
+								id2 = model.CrossRef(project, id2)
+							}
 							if id2 != "" {
 								newLinkedFeatures = append(newLinkedFeatures, model.LinkedFeature{ID: id2, Description: desc})
 							}
@@ -563,7 +571,7 @@ func toolBatchCreateFeatures(deps *toolDeps) Tool {
 							"status": {"type": "string", "enum": ["draft","active"], "description": "Initial status (default: active)"},
 							"tags": {"type": "array", "items": {"type": "string"}, "description": "Optional tags"},
 							"source": {"type": "string", "description": "Tool or scanner that identified the feature"},
-							"linked_feature_ids": {"type": "array", "items": {"oneOf": [{"type": "string"}, {"type": "object", "properties": {"id": {"type": "string"}, "description": {"type": "string"}}, "required": ["id"]}]}, "description": "Features to link to - ID strings or {id, description} objects; forward references within the same batch are allowed"},
+							"linked_feature_ids": {"type": "array", "items": {"oneOf": [{"type": "string"}, {"type": "object", "properties": {"id": {"type": "string"}, "project": {"type": "string", "description": "Another project's slug, for a feature there (on the bench server)"}, "description": {"type": "string"}}, "required": ["id"]}]}, "description": "Features to link to - ID strings or {id, description} objects; forward references within the same batch are allowed"},
 							"parameters": {"type": "array", "items": ` + paramItemSchema + `, "description": "Optional parameters documenting the interface contract"}
 						},
 						"required": ["kind", "title"]

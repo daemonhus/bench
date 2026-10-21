@@ -14,6 +14,7 @@ import { RefProviderIcon } from './RefProviderIcon';
 import { OriginCard } from './OriginCard';
 import { LinkedFindingsCard } from './LinkedFindingsCard';
 import { LocationField, type LocationChange } from './LocationField';
+import { isCrossRef, foreignLabel, useForeignFeatures, useOpenRef } from '../core/cross-refs';
 import type {
   Feature, FeatureWithPosition, FeatureKind, FeatureStatus, FeatureParameter, AnnotationPosition, Origin, Ref, Finding,
 } from '../core/types';
@@ -113,7 +114,10 @@ export function FeatureDetailView({ featureId, onBack, findings }: Props) {
   }, [ready, featureId]);
 
   // Resolve linked-feature titles so the list reads as names, not raw ids.
-  const linkedIds = (feature?.linkedFeatures ?? []).map((l) => l.id).join(',');
+  // (This project's here; other projects' through the host, below.)
+  const linkedIds = (feature?.linkedFeatures ?? []).map((l) => l.id).filter((id) => !isCrossRef(id)).join(',');
+  const foreignLinked = useForeignFeatures((feature?.linkedFeatures ?? []).map((l) => l.id));
+  const openRef = useOpenRef();
   useEffect(() => {
     if (!linkedIds) { setLinkedLabels({}); return; }
     let cancelled = false;
@@ -334,7 +338,7 @@ export function FeatureDetailView({ featureId, onBack, findings }: Props) {
             {/* Host-contributed cards (the platform adds "Used in flows") */}
             {extensions.featureDetailAside?.(f.id)}
 
-            <LinkedFindingsCard featureId={f.id} findings={findings} />
+            <LinkedFindingsCard featureId={f.id} findings={findings} crossRefs={f.crossProjectFindings} />
 
 
             <OriginCard origin={f.origin ?? {}} onChange={patchOrigin} suggest={() => featuresApi.suggestOrigin(f.id)} />
@@ -353,10 +357,11 @@ export function FeatureDetailView({ featureId, onBack, findings }: Props) {
                     <button
                       key={l.id}
                       className="fd-linked-item"
-                      onClick={() => { window.location.hash = `#/feature/${l.id}`; }}
-                      title="Open linked feature"
+                      onClick={() => openRef(l.id, 'feature')}
+                      title={isCrossRef(l.id) ? 'Open linked feature in its project' : 'Open linked feature'}
                     >
-                      <span className="fd-mono">{linkedLabels[l.id] ?? l.id.slice(0, 8)}</span>
+                      {foreignLinked.get(l.id) && <span className="fd-linked-project">{foreignLinked.get(l.id)!.projectName}</span>}
+                      <span className="fd-mono">{foreignLabel(foreignLinked.get(l.id)) ?? linkedLabels[l.id] ?? l.id.slice(0, 8)}</span>
                       {l.description && <span className="fd-linked-desc"> — {l.description}</span>}
                     </button>
                   ))}

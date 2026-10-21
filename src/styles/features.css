@@ -702,6 +702,11 @@ button.feature-params-heading-toggle:hover {
 
 /* Linked-feature badge - matches the GitHub/GitLab ref chip style so both
    kinds of link flow inline on the same row. */
+/* Another project's feature on a link chip: the project's name leads. */
+.feature-linked-badge-project {
+  font-size: 10px; color: var(--text-muted); padding-right: 5px; border-right: 1px solid var(--border-muted);
+}
+
 .feature-linked-badge {
   display: inline-flex;
   align-items: center;
@@ -967,6 +972,12 @@ button.feature-params-heading-toggle:hover {
   align-items: center;
   gap: 7px;
   min-width: 0;
+}
+
+/* Another project's feature in the link picker. */
+.link-manage-result-project {
+  flex-shrink: 0; padding: 0 6px; border-radius: var(--radius-xs);
+  font-size: 10px; color: var(--text-muted); background: var(--bg-surface);
 }
 
 .link-manage-result-title {

@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -170,7 +171,7 @@ func (h *featuresHandlers) create(w http.ResponseWriter, r *http.Request) {
 	// Persist linked features if provided.
 	if len(linkedFeatures) > 0 {
 		if err := h.db.ReplaceLinkedFeatures(f.ID, linkedFeatures); err != nil {
-			if strings.Contains(err.Error(), "self-link") {
+			if strings.Contains(err.Error(), "self-link") || errors.Is(err, model.ErrUnknownFeature) {
 				writeError(w, http.StatusBadRequest, err.Error())
 				return
 			}
@@ -319,7 +320,7 @@ func (h *featuresHandlers) update(w http.ResponseWriter, r *http.Request) {
 
 	if replaceLinks {
 		if err := h.db.ReplaceLinkedFeatures(id, newLinkedFeatures); err != nil {
-			if strings.Contains(err.Error(), "self-link") {
+			if strings.Contains(err.Error(), "self-link") || errors.Is(err, model.ErrUnknownFeature) {
 				writeError(w, http.StatusBadRequest, err.Error())
 				return
 			}
@@ -411,6 +412,10 @@ func extractLinkedFeatures(updates map[string]any) (bool, []model.LinkedFeature)
 		case map[string]any:
 			id, _ := v["id"].(string)
 			desc, _ := v["description"].(string)
+			// Another project's feature: {"project": "billing", "id": "…"}, the same as "billing:…".
+			if project, _ := v["project"].(string); project != "" && id != "" {
+				id = model.CrossRef(project, id)
+			}
 			if id != "" {
 				links = append(links, model.LinkedFeature{ID: id, Description: desc})
 			}

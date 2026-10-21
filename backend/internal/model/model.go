@@ -108,28 +108,30 @@ type Ref struct {
 }
 
 type Finding struct {
-	ID              string   `json:"id"`
-	ExternalID      string   `json:"externalId,omitempty"`
-	Anchor          Anchor   `json:"anchor"`
-	Severity        string   `json:"severity"`
-	Title           string   `json:"title"`
-	Description     string   `json:"description"`
-	CWE             string   `json:"cwe"`
-	CVE             string   `json:"cve"`
-	Vector          string   `json:"vector"`
-	Score           float64  `json:"score"`
-	Status          string   `json:"status"`
-	Source          string   `json:"source"`
-	Category        string   `json:"category"`
-	CreatedAt       string   `json:"createdAt"`
-	ResolvedCommit  *string  `json:"resolvedCommit,omitempty"`
-	ResolvedAt      *string  `json:"resolvedAt,omitempty"`
-	LineHash        string   `json:"lineHash,omitempty"`
-	AnchorUpdatedAt *string  `json:"anchorUpdatedAt,omitempty"`
-	CommentCount    int      `json:"commentCount,omitempty"`
-	FeatureIDs      []string `json:"features,omitempty"`
-	Refs            []Ref    `json:"refs,omitempty"`
-	Origin          *Origin  `json:"origin,omitempty"`
+	ID              string  `json:"id"`
+	ExternalID      string  `json:"externalId,omitempty"`
+	Anchor          Anchor  `json:"anchor"`
+	Severity        string  `json:"severity"`
+	Title           string  `json:"title"`
+	Description     string  `json:"description"`
+	CWE             string  `json:"cwe"`
+	CVE             string  `json:"cve"`
+	Vector          string  `json:"vector"`
+	Score           float64 `json:"score"`
+	Status          string  `json:"status"`
+	Source          string  `json:"source"`
+	Category        string  `json:"category"`
+	CreatedAt       string  `json:"createdAt"`
+	ResolvedCommit  *string `json:"resolvedCommit,omitempty"`
+	ResolvedAt      *string `json:"resolvedAt,omitempty"`
+	LineHash        string  `json:"lineHash,omitempty"`
+	AnchorUpdatedAt *string `json:"anchorUpdatedAt,omitempty"`
+	CommentCount    int     `json:"commentCount,omitempty"`
+	// FeatureIDs are the features the finding affects: ids in this project, or
+	// "<project>:<id>" for another project's (see CrossLinks).
+	FeatureIDs []string `json:"features,omitempty"`
+	Refs       []Ref    `json:"refs,omitempty"`
+	Origin     *Origin  `json:"origin,omitempty"`
 }
 
 // Origin is the historical context of an annotation (finding or feature):
@@ -293,31 +295,36 @@ type FeatureParameter struct {
 }
 
 // LinkedFeature represents a bidirectional link between two features, with an optional description.
+// LinkedFeature is a link to another feature: an id in this project, or "<project>:<id>"
+// for a feature in another project of the server (see CrossLinks).
 type LinkedFeature struct {
 	ID          string `json:"id"`
 	Description string `json:"description,omitempty"`
 }
 
 type Feature struct {
-	ID              string             `json:"id"`
-	Anchor          Anchor             `json:"anchor"`
-	Kind            string             `json:"kind"` // interface|source|sink|dependency|externality
-	Title           string             `json:"title"`
-	Description     string             `json:"description,omitempty"`
-	Operation       string             `json:"operation,omitempty"` // HTTP method, gRPC method, GraphQL operation type, etc.
-	Direction       string             `json:"direction,omitempty"` // in|out
-	Protocol        string             `json:"protocol,omitempty"`
-	Status          string             `json:"status"` // draft|active|deprecated|removed|orphaned
-	Tags            []string           `json:"tags"`
-	Source          string             `json:"source,omitempty"`
-	CreatedAt       string             `json:"createdAt"`
-	ResolvedCommit  *string            `json:"resolvedCommit,omitempty"`
-	LineHash        string             `json:"lineHash,omitempty"`
-	AnchorUpdatedAt *string            `json:"anchorUpdatedAt,omitempty"`
-	LinkedFeatures  []LinkedFeature    `json:"linkedFeatures"`
-	Refs            []Ref              `json:"refs,omitempty"`
-	Parameters      []FeatureParameter `json:"parameters"`
-	Origin          *Origin            `json:"origin,omitempty"`
+	ID              string          `json:"id"`
+	Anchor          Anchor          `json:"anchor"`
+	Kind            string          `json:"kind"` // interface|source|sink|dependency|externality
+	Title           string          `json:"title"`
+	Description     string          `json:"description,omitempty"`
+	Operation       string          `json:"operation,omitempty"` // HTTP method, gRPC method, GraphQL operation type, etc.
+	Direction       string          `json:"direction,omitempty"` // in|out
+	Protocol        string          `json:"protocol,omitempty"`
+	Status          string          `json:"status"` // draft|active|deprecated|removed|orphaned
+	Tags            []string        `json:"tags"`
+	Source          string          `json:"source,omitempty"`
+	CreatedAt       string          `json:"createdAt"`
+	ResolvedCommit  *string         `json:"resolvedCommit,omitempty"`
+	LineHash        string          `json:"lineHash,omitempty"`
+	AnchorUpdatedAt *string         `json:"anchorUpdatedAt,omitempty"`
+	LinkedFeatures  []LinkedFeature `json:"linkedFeatures"`
+	// CrossProjectFindings are the other projects' findings that affect this feature, as
+	// "<project>:<id>" (this project's own are found from the findings' features).
+	CrossProjectFindings []string           `json:"crossProjectFindings,omitempty"`
+	Refs                 []Ref              `json:"refs,omitempty"`
+	Parameters           []FeatureParameter `json:"parameters"`
+	Origin               *Origin            `json:"origin,omitempty"`
 }
 
 type FeatureWithPosition struct {

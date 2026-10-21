@@ -58,7 +58,7 @@ A discovered vulnerability or security issue.
   score?: number      // CVSS score
   source?: string     // tool or scanner that found it
   category?: string
-  features?: string[]  // associated Feature IDs (join table; each must exist in the project)
+  features?: string[]  // associated Feature IDs (each must exist); "<project>:<id>" for another project's feature on the server
   refs?: Ref[]           // external references (enriched inline)
   origin?: FindingOrigin // historical context (enriched inline)
   createdAt: string
@@ -143,7 +143,8 @@ An architectural annotation marking a security-relevant surface: API endpoint, d
   protocol?: string           // e.g. rest, grpc, graphql, websocket
   source?: string
   tags?: string[]
-  linkedFeatures?: { id: string; description?: string }[]  // bidirectional; includes links from either direction
+  linkedFeatures?: { id: string; description?: string }[]  // bidirectional; includes links from either direction; "<project>:<id>" for another project's
+  crossProjectFindings?: string[]  // other projects' findings affecting this feature, "<project>:<id>"
   refs?: Ref[]                // external references (enriched inline)
   parameters?: FeatureParameter[]  // only meaningful for kind: 'interface'
   createdAt: string

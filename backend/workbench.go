@@ -38,6 +38,7 @@ type Option func(*options)
 
 type options struct {
 	requireProfile bool
+	crossLinks     model.CrossLinks
 }
 
 // WithRequireProfile controls the service-profile write gate (default true):
@@ -46,6 +47,13 @@ type options struct {
 // been configured.
 func WithRequireProfile(v bool) Option {
 	return func(o *options) { o.requireProfile = v }
+}
+
+// WithCrossLinks lets the project's features and findings link to other projects' features
+// ("<project>:<id>" references): the server's store of links that span projects. Without it
+// such references are refused.
+func WithCrossLinks(c model.CrossLinks) Option {
+	return func(o *options) { o.crossLinks = c }
 }
 
 // Open creates a standalone workbench with its own SQLite file.
@@ -72,6 +80,9 @@ func newWorkbench(repo *git.Repo, database *db.DB, opts ...Option) *Workbench {
 	o := options{requireProfile: true}
 	for _, opt := range opts {
 		opt(&o)
+	}
+	if o.crossLinks != nil {
+		database.SetCrossLinks(o.crossLinks)
 	}
 	// Annotations anchored to "HEAD" or a branch are stored at the commit it names now.
 	database.SetCommitResolver(func(ref string) (string, bool) {

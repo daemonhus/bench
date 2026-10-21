@@ -4,6 +4,8 @@ import { useModal } from '../hooks/useModal';
 import { useAnnotationStore } from '../stores/annotation-store';
 import { RefProviderIcon } from './RefProviderIcon';
 import { featuresApi } from '../core/api';
+import { useWorkbenchExtensions } from '../core/extensions';
+import { foreignAsFeature, isCrossRef, useForeignFeatures, type LinkedFeatureView } from '../core/cross-refs';
 import type { Ref, Feature, FeatureKind } from '../core/types';
 
 interface LinkManageModalProps {
@@ -267,12 +269,28 @@ export const LinkManageModal: React.FC<LinkManageModalProps> = ({
 
   const searchLower = linkSearch.toLowerCase().trim();
 
+  // On a bench server the picker offers other projects' features too (as "<project>:<id>").
+  const other = useWorkbenchExtensions().otherProjects;
+  const [foreignResults, setForeignResults] = useState<LinkedFeatureView[]>([]);
+  useEffect(() => {
+    if (!other || !searchLower) { setForeignResults([]); return; }
+    let live = true;
+    const t = setTimeout(() => {
+      other.searchFeatures(searchLower).then((list) => { if (live) setForeignResults(list.map(foreignAsFeature)); }).catch(() => {});
+    }, 150);
+    return () => { live = false; clearTimeout(t); };
+  }, [other, searchLower]);
+  const foreignLinked = useForeignFeatures(linkedIds);
+  const featureFor = (id: string): LinkedFeatureView | undefined => (isCrossRef(id)
+    ? (foreignLinked.get(id) ? foreignAsFeature(foreignLinked.get(id)!) : foreignResults.find((f) => f.id === id))
+    : modalFeatures.find((f) => f.id === id));
+
   // Unified picker: linked items always visible, search filters and adds unlinked candidates
-  const pickerItems = useMemo((): Array<{ feat: Feature; isLinked: boolean }> => {
+  const pickerItems = useMemo((): Array<{ feat: LinkedFeatureView; isLinked: boolean }> => {
     if (!searchLower) {
       return linkedIds
-        .map((id) => modalFeatures.find((f) => f.id === id))
-        .filter((f): f is Feature => f != null)
+        .map((id) => featureFor(id))
+        .filter((f): f is LinkedFeatureView => f != null)
         .map((feat) => ({ feat, isLinked: true }));
     }
     const matches = modalFeatures.filter(
@@ -285,11 +303,17 @@ export const LinkManageModal: React.FC<LinkManageModalProps> = ({
     );
     const linked = matches.filter((f) => linkedIds.includes(f.id));
     const unlinked = matches.filter((f) => !linkedIds.includes(f.id)).slice(0, 6);
+    // Other projects' matches after this project's; those already linked lead with the rest.
+    const otherLinked = linkedIds.filter(isCrossRef).map((id) => featureFor(id)).filter((f): f is LinkedFeatureView => !!f
+      && [f.title, f.kind, f.projectName ?? '', f.anchor.fileId ?? ''].some((t) => t.toLowerCase().includes(searchLower)));
+    const otherUnlinked = foreignResults.filter((f) => !linkedIds.includes(f.id)).slice(0, 6);
     return [
       ...linked.map((feat) => ({ feat, isLinked: true })),
+      ...otherLinked.map((feat) => ({ feat, isLinked: true })),
       ...unlinked.map((feat) => ({ feat, isLinked: false })),
+      ...otherUnlinked.map((feat) => ({ feat, isLinked: false })),
     ];
-  }, [searchLower, modalFeatures, linkedIds, entityId]);
+  }, [searchLower, modalFeatures, linkedIds, entityId, foreignResults, foreignLinked]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="overlay-backdrop" onClick={onClose}>
@@ -313,7 +337,7 @@ export const LinkManageModal: React.FC<LinkManageModalProps> = ({
                   ref={searchInputRef}
                   className="link-manage-search-input"
                   type="text"
-                  placeholder="Search to link a feature…"
+                  placeholder={other ? 'Search to link a feature, in any project…' : 'Search to link a feature…'}
                   value={linkSearch}
                   onChange={(e) => { setLinkSearch(e.target.value); setSelectedIndex(-1); }}
                   onClick={(e) => e.stopPropagation()}
@@ -372,6 +396,7 @@ export const LinkManageModal: React.FC<LinkManageModalProps> = ({
                                 : <span style={{ fontSize: 13, lineHeight: 1, color: 'var(--text-muted)' }}>+</span>}
                             </span>
                             {badge}
+                            {feat.projectName && <span className="link-manage-result-project">{feat.projectName}</span>}
                             <span className="link-manage-result-title">
                               {feat.kind === 'interface'
                                 ? <code className="feature-endpoint-path" style={{ fontSize: 12 }}>{feat.title}</code>

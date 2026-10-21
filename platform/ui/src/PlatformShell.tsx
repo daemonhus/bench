@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { WorkbenchView, type EditorConfig } from '@bench/WorkbenchView';
 import { useUIStore } from '@bench/stores/ui-store';
 import { OverviewPage } from './OverviewPage';
@@ -11,6 +11,7 @@ import { SearchPage, type SearchState } from './SearchPage';
 import { parseSearch, searchPath } from './searchModel';
 import { TabBarSearch } from './TabBarSearch';
 import { ActivityPage } from './ActivityPage';
+import { otherProjectsFor } from './otherProjects';
 import { getSettings } from './api';
 import './tokens.css';
 import './platform.css';
@@ -193,6 +194,16 @@ export function PlatformShell() {
     navigate({ kind: 'workbench', slug });
   }, [navigate]);
 
+  // Links to other projects' features: search them, resolve them, open them there. One per
+  // project, so the workbench's lookups don't rerun on every render of the shell.
+  const openProjectRef = useRef(openProject);
+  openProjectRef.current = openProject;
+  const workbenchSlug = view.kind === 'workbench' ? view.slug : '';
+  const otherProjects = useMemo(
+    () => (workbenchSlug ? otherProjectsFor(workbenchSlug, (slug, hash) => openProjectRef.current(slug, hash)) : undefined),
+    [workbenchSlug],
+  );
+
   // After a route change the control that was clicked/activated is usually gone
   // (its page unmounted) and focus drops to <body>. Park it on the content
   // region so keyboard users continue from the new page, not from the top.
@@ -323,6 +334,7 @@ export function PlatformShell() {
             className="platform-workbench"
             editorConfig={editorConfig}
             extensions={{
+              otherProjects,
               featureDetailAside: (featureId) => (
                 <FeatureFlowsCard projectSlug={view.slug} featureId={featureId} onOpenFlow={(id) => navigate({ kind: 'flow', id })} />
               ),

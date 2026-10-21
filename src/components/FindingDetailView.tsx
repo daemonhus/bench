@@ -13,6 +13,7 @@ import { LinkManageModal } from './LinkManageModal';
 import { CommentThread } from './CommentThread';
 import { OriginCard } from './OriginCard';
 import { LocationField, type LocationChange } from './LocationField';
+import { isCrossRef, foreignLabel, useForeignFeatures, useOpenRef } from '../core/cross-refs';
 import type {
   FindingWithPosition, Finding, AnnotationPosition, Ref, Severity, FindingStatus, Origin,
 } from '../core/types';
@@ -101,7 +102,10 @@ export function FindingDetailView({ findingId, onBack }: Props) {
   }, [ready, findingId]);
 
   // Resolve linked-feature titles so the list reads as names, not raw ids.
-  const featureIds = (finding?.features ?? []).join(',');
+  // (This project's here; other projects' through the host, below.)
+  const featureIds = (finding?.features ?? []).filter((id) => !isCrossRef(id)).join(',');
+  const foreignFeatures = useForeignFeatures(finding?.features ?? []);
+  const openRef = useOpenRef();
   useEffect(() => {
     if (!featureIds) { setFeatureLabels({}); return; }
     let cancelled = false;
@@ -284,10 +288,11 @@ export function FindingDetailView({ findingId, onBack }: Props) {
                     <button
                       key={id}
                       className="fd-linked-item"
-                      onClick={() => { window.location.hash = `#/feature/${id}`; }}
-                      title="Open linked feature"
+                      onClick={() => openRef(id, 'feature')}
+                      title={isCrossRef(id) ? 'Open linked feature in its project' : 'Open linked feature'}
                     >
-                      <span className="fd-mono">{featureLabels[id] ?? id.slice(0, 8)}</span>
+                      {foreignFeatures.get(id) && <span className="fd-linked-project">{foreignFeatures.get(id)!.projectName}</span>}
+                      <span className="fd-mono">{foreignLabel(foreignFeatures.get(id)) ?? featureLabels[id] ?? id.slice(0, 8)}</span>
                     </button>
                   ))}
                   {refs.map((r) => (
