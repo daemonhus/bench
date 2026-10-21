@@ -73,6 +73,7 @@ export const AnnotationFilters: React.FC<AnnotationFiltersProps> = ({
       className={`activity-filter-clear${hasActiveFilter ? ' activity-filter-clear-visible' : ''}`}
       onClick={onReset}
       title="Reset filters"
+      aria-label="Reset filters"
     >
       &#x2715;
     </button>

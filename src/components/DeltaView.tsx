@@ -15,6 +15,7 @@ import type { Finding, Comment, Feature, FeatureKind, GraphCommit, Severity, Lin
 import { COMMENT_TYPE_ICON, COMMENT_TYPE_LABEL } from '../core/types';
 import { InlineMarkdown } from '../core/markdown';
 import { useNavList } from '../core/use-nav-list';
+import { qp, useQueryState, hashQuery, type QuerySchema } from '../core/query-state';
 
 type FilterKind = 'comment' | 'merge' | 'finding-opened' | 'feature-created';
 
@@ -44,6 +45,15 @@ const KIND_LABELS: Record<FilterKind, string> = {
 
 const ALL_KINDS: FilterKind[] = ['finding-opened', 'feature-created', 'comment', 'merge'];
 const ALL_SEVERITIES: Severity[] = ['critical', 'high', 'medium', 'low', 'info'];
+
+// The activity filters live in the address (#/delta?kinds=comment&severity=high&source=mcp; see
+// query-state.ts).
+const ACTIVITY_QUERY: QuerySchema<{ kinds: FilterKind[]; severity: Severity[]; source: string[] | null }> = {
+  kinds: qp.set<FilterKind>('kinds', ALL_KINDS),
+  severity: qp.set<Severity>('severity', ALL_SEVERITIES),
+  source: qp.only('source'),
+};
+const ACTIVITY_URL = hashQuery('/delta');
 
 interface Props {
   baselineId?: string;
@@ -80,11 +90,16 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
   // Inline label editing
 
   // Activity filters
-  const [filterKinds, setFilterKinds] = useState<Set<FilterKind>>(new Set(ALL_KINDS));
+  const [aq, setAq] = useQueryState(ACTIVITY_QUERY, ACTIVITY_URL);
+  const filterKinds = useMemo(() => new Set(aq.kinds), [aq.kinds]);
+  const setFilterKinds = (update: Set<FilterKind> | ((prev: Set<FilterKind>) => Set<FilterKind>)) =>
+    setAq((s) => ({ kinds: [...(typeof update === 'function' ? update(new Set(s.kinds)) : update)] }));
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [expandedMerges, setExpandedMerges] = useState<Set<string>>(new Set());
-  const [filterSeverities, setFilterSeverities] = useState<Set<Severity>>(new Set(ALL_SEVERITIES));
-  const [filterActors, setFilterActors] = useState<Set<string> | null>(null); // null = all selected
+  const filterSeverities = useMemo(() => new Set(aq.severity), [aq.severity]);
+  const setFilterSeverities = (next: Set<Severity>) => setAq({ severity: [...next] });
+  const filterActors = useMemo(() => (aq.source ? new Set(aq.source) : null), [aq.source]); // null = all selected
+  const setFilterActors = (next: Set<string> | null) => setAq({ source: next ? [...next] : null });
   const [displayCount, setDisplayCount] = useState(50);
 
   // Use specific delta when viewing a past baseline, otherwise use the store's global delta

@@ -9,7 +9,15 @@ export function useRegexSearch(storageKey: string) {
     try { sessionStorage.setItem(storageKey, query); } catch {}
   }, [query, storageKey]);
 
-  const { matcher, isRegexValid } = useMemo(() => {
+  const { matcher, isRegexValid } = useRegexMatcher(query);
+
+  return { query, setQuery, matcher, isRegexValid };
+}
+
+/** A search box's matcher: the text as a case-insensitive regex, or as plain text when it isn't
+ *  one (isRegexValid false). For a query kept elsewhere, e.g. in the address. */
+export function useRegexMatcher(query: string) {
+  return useMemo(() => {
     const q = query.trim();
     if (!q) return { matcher: null, isRegexValid: true };
     try {
@@ -20,6 +28,4 @@ export function useRegexSearch(storageKey: string) {
       return { matcher: (text: string) => text.toLowerCase().includes(lower), isRegexValid: false };
     }
   }, [query]);
-
-  return { query, setQuery, matcher, isRegexValid };
 }

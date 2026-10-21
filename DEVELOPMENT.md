@@ -54,6 +54,27 @@ benchd (:8080)
 
 The CLI is an HTTP client only: it never imports `workbench` or `internal/*` or opens a database. Env vars `BENCH_URL` and `BENCH_PROJECT`; flags take precedence.
 
+## Filters, options and searches live in the address
+
+Any page that filters, sorts, searches or offers display options keeps that state in the URL, so a view can be linked, bookmarked, reloaded and stepped through with Back. Declare it once with `useQueryState` from `src/core/query-state.ts` instead of `useState`:
+
+```ts
+const MAP_QUERY: QuerySchema<MapQuery> = {
+  q: qp.string('q'),
+  hiddenServices: qp.list('hide').remembered(),
+  scope: qp.oneOf('show', ['connected', 'flows', 'all'], 'flows').remembered(),
+};
+const [state, setState] = useQueryState(MAP_QUERY, pathQuery('/map'), { key: 'service-map-query' });
+```
+
+- Platform pages put the query after the path (`pathQuery('/map')` → `/map?hide=beta`); workbench views after the hash route (`hashQuery('/findings')` → `#/findings?severity=high`).
+- Values at their default are left out; lists are comma-separated, and a present but empty list means none.
+- Changes replace the history entry; Back and Forward are followed.
+- `.remembered()` (or `.remembered('session')`) also keeps a field in browser storage, used when the address names none of the page's parameters. An address that names any is taken as the whole state.
+- Keep schemas and locations as module constants. Parameters a page doesn't own (the shell's `?folder=`) are left alone.
+
+Pages using it: Map, Flows, Projects, and the workbench's Findings, Features and Activity. Search (`/search?q=&kind=&project=`) is routed by the shell with the same names.
+
 ## Tests
 
 | What | Command |

@@ -1,3 +1,5 @@
+import { splitHash } from './query-state';
+
 export interface Route {
   mode: 'overview' | 'browse' | 'diff' | 'delta' | 'findings' | 'features' | 'profile' | 'feature-detail' | 'finding-detail';
   from?: string;
@@ -25,7 +27,8 @@ export interface Route {
  *   (empty or #/)         → delta mode (default)
  */
 export function parseRoute(hash: string): Route {
-  const raw = hash.replace(/^#\/?/, '');
+  // A view's filters ride after the route (#/findings?severity=high; see query-state.ts).
+  const raw = splitHash(hash)[0].replace(/^#\/?/, '');
   if (!raw) return { mode: 'delta' };
 
   const parts = raw.split('/');

@@ -8,7 +8,7 @@ import { test, expect } from './helpers/input';
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     try {
-      if (!sessionStorage.getItem('smap-reset')) { localStorage.removeItem('service-map-filters'); sessionStorage.setItem('smap-reset', '1'); }
+      if (!sessionStorage.getItem('smap-reset')) { localStorage.removeItem('service-map-query'); sessionStorage.setItem('smap-reset', '1'); }
     } catch { /* storage unavailable */ }
   });
 });
@@ -100,7 +100,11 @@ test('clicking a feature shows its connections and flows, and opens a flow', asy
 
 test('a connection shows what it carries', async ({ page }) => {
   await page.goto('/map');
-  await page.locator('.smap-link[data-connection*=":call:"] path[role="button"]').click({ force: true });
+  // Under load the map may still be laying out: wait for the line, then click it.
+  const hit = page.locator('.smap-link[data-connection*=":call:"] path[role="button"]');
+  await expect(hit).toHaveCount(1);
+  await hit.click({ force: true });
+  await expect(page.getByRole('complementary', { name: 'Connection' })).toBeVisible();
   const panel = page.getByRole('complementary', { name: 'Connection' });
   await expect(panel).toContainText('call');
   await expect(panel).toContainText('user');

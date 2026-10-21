@@ -16,7 +16,8 @@ interface FindingLite {
 }
 import { SearchBox } from './SearchBox';
 import { useModal } from '../hooks/useModal';
-import { useRegexSearch } from '../hooks/useRegexSearch';
+import { useRegexMatcher } from '../hooks/useRegexSearch';
+import { qp, useQueryState, hashQuery, type QuerySchema } from '../core/query-state';
 import type { Feature, FeatureKind, FeatureStatus, LineRange } from '../core/types';
 
 const ALL_STATUSES: FeatureStatus[] = ['draft', 'active', 'deprecated', 'removed', 'orphaned'];
@@ -36,6 +37,25 @@ const TABS: { id: FeaturesTab; label: string; kinds: FeatureKind[] }[] = [
   { id: 'dependencies',  label: 'Dependencies', kinds: ['dependency'] },
   { id: 'externalities', label: 'Externalities', kinds: ['externality'] },
 ];
+
+// The tab, sort and search live in the address (#/features?tab=dataflows&sort=file&q=login; see
+// query-state.ts). The sort is remembered; the search for this session.
+const FEATURES_QUERY: QuerySchema<{ tab: FeaturesTab; sort: FeatureSort; dir: 'asc' | 'desc'; q: string }> = {
+  tab: qp.oneOf<FeaturesTab>('tab', TABS.map((t) => t.id), 'interfaces'),
+  sort: qp.oneOf<FeatureSort>('sort', SORT_OPTIONS.map((o) => o.id), 'title').remembered(),
+  dir: qp.oneOf<'asc' | 'desc'>('order', ['asc', 'desc'], 'asc').remembered(),
+  q: qp.string('q').remembered('session'),
+};
+const FEATURES_URL = hashQuery('/features');
+const FEATURES_REMEMBER = { key: 'bench-features-query' };
+// The sort was kept in two entries of its own before.
+try {
+  const sort = localStorage.getItem('bench-features-sort-order');
+  const dir = localStorage.getItem('bench-features-sort-dir');
+  if ((sort || dir) && localStorage.getItem(FEATURES_REMEMBER.key) == null) {
+    localStorage.setItem(FEATURES_REMEMBER.key, [sort && `sort=${sort}`, dir && `order=${dir}`].filter(Boolean).join('&'));
+  }
+} catch { /* storage unavailable */ }
 
 // Create modal component
 interface CreateFeatureModalProps {
@@ -257,24 +277,11 @@ export const FeaturesView: React.FC = () => {
   const loadFeatures = useAnnotationStore((s) => s.loadFeatures);
   const [allFindings, setAllFindings] = useState<FindingLite[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<FeaturesTab>('interfaces');
-  // Sort by title unless the reviewer has chosen otherwise. The choice lives in
-  // localStorage, so it survives the session that made it; an unrecognised
-  // stored value falls back to the default rather than sorting by nothing.
-  const [sortOrder, setSortOrder] = useState<FeatureSort>(() => {
-    try {
-      const stored = localStorage.getItem('bench-features-sort-order');
-      return SORT_OPTIONS.some((o) => o.id === stored) ? (stored as FeatureSort) : 'title';
-    } catch { return 'title'; }
-  });
-  const { query: searchQuery, setQuery: setSearchQuery, matcher: searchMatcher, isRegexValid } =
-    useRegexSearch('bench-features-search');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>(() => {
-    try {
-      const stored = localStorage.getItem('bench-features-sort-dir');
-      return stored === 'desc' ? 'desc' : 'asc';
-    } catch { return 'asc'; }
-  });
+  const [fq, setFq] = useQueryState(FEATURES_QUERY, FEATURES_URL, FEATURES_REMEMBER);
+  const { tab: activeTab, sort: sortOrder, dir: sortDir, q: searchQuery } = fq;
+  const setActiveTab = (tab: FeaturesTab) => setFq({ tab });
+  const setSearchQuery = (q: string) => setFq({ q });
+  const { matcher: searchMatcher, isRegexValid } = useRegexMatcher(searchQuery);
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => {
     try {
       const stored = localStorage.getItem('bench-collapsed-features');
@@ -310,13 +317,6 @@ export const FeaturesView: React.FC = () => {
     localStorage.setItem('bench-collapsed-features', JSON.stringify([...collapsedIds]));
   }, [collapsedIds]);
 
-  useEffect(() => {
-    try { localStorage.setItem('bench-features-sort-order', sortOrder); } catch {}
-  }, [sortOrder]);
-
-  useEffect(() => {
-    try { localStorage.setItem('bench-features-sort-dir', sortDir); } catch {}
-  }, [sortDir]);
 
   const scrollToRange = useCallback((range?: LineRange) => {
     if (!range) return;
@@ -536,12 +536,8 @@ export const FeaturesView: React.FC = () => {
                     key={opt.id}
                     className={`features-sort-btn${isActive ? ' features-sort-btn-active' : ''}`}
                     onClick={() => {
-                      if (isActive) {
-                        setSortDir(d => d === 'asc' ? 'desc' : 'asc');
-                      } else {
-                        setSortOrder(opt.id);
-                        setSortDir('asc');
-                      }
+                      if (isActive) setFq({ dir: sortDir === 'asc' ? 'desc' : 'asc' });
+                      else setFq({ sort: opt.id, dir: 'asc' });
                     }}
                   >
                     {opt.label}

@@ -18,6 +18,7 @@ import { findingsApi, commentsApi, gitApi, featuresApi } from './core/api';
 import { useEvents } from './core/use-events';
 import { useBranchMap } from './core/use-branch-map';
 import { parseRoute, buildRoute, onRouteChange } from './core/router';
+import { splitHash } from './core/query-state';
 import { BrowseView } from './components/BrowseView';
 import { DiffView } from './components/DiffView';
 import { FileTree, type SeverityIndicator } from './components/FileTree';
@@ -637,7 +638,8 @@ export function App() {
   const updateRoute = useCallback(
     (mode: ViewMode, from?: string, to?: string, path?: string, featureId?: string) => {
       const newHash = buildRoute(mode as Parameters<typeof buildRoute>[0], from, to, path, featureId);
-      if (window.location.hash !== newHash) {
+      // The same route keeps its query (the view's filters, query-state.ts).
+      if (splitHash(window.location.hash)[0] !== newHash) {
         if (isHandlingHashChange.current) {
           window.history.replaceState(null, '', newHash);
         } else {

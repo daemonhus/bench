@@ -9,6 +9,7 @@ import { FindingMiniCard, useHoverCard } from '@bench/components/mini-cards';
 import { isOpenFinding, SEVERITY_RANK } from '@bench/core/finding-categories';
 import type { Finding as BenchFinding } from '@bench/core/types';
 import { remoteToHttp, repoLabel } from './repoLinks';
+import { qp, useQueryState, pathQuery, type QuerySchema } from '@bench/core/query-state';
 
 export { remoteToHttp, repoLabel };
 
@@ -20,6 +21,13 @@ const PROJECT_SORTS: { id: SortKey; label: string; defaultDir: 'asc' | 'desc' }[
   { id: 'risk', label: 'Risk', defaultDir: 'desc' },
   { id: 'size', label: 'Size', defaultDir: 'desc' },
 ];
+
+// The sort lives in the address (/projects?sort=risk&order=desc; see bench's query-state.ts).
+const PROJECTS_QUERY: QuerySchema<{ sortKey: SortKey; sortDir: 'asc' | 'desc' }> = {
+  sortKey: qp.oneOf<SortKey>('sort', PROJECT_SORTS.map((s) => s.id), 'name'),
+  sortDir: qp.oneOf<'asc' | 'desc'>('order', ['asc', 'desc'], 'asc'),
+};
+const PROJECTS_URL = pathQuery('/projects');
 
 interface ProjectListProps {
   projects: Project[];
@@ -380,8 +388,7 @@ function ProjectCard({ project: p, weights, onSelect, onOpen, onEdit }: {
 export function ProjectList({ projects, loading, weights = DEFAULT_RISK_WEIGHTS, onSelect, onOpen, onRefresh, toolbar, countLabel }: ProjectListProps) {
   const [showModal, setShowModal] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
-  const [sortKey, setSortKey] = useState<SortKey>('name');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [{ sortKey, sortDir }, setSort] = useQueryState(PROJECTS_QUERY, PROJECTS_URL);
 
   const sorted = useMemo(() => {
     const key = (p: Project): number | string => {
@@ -411,7 +418,7 @@ export function ProjectList({ projects, loading, weights = DEFAULT_RISK_WEIGHTS,
           </h2>
           <div className="project-list-header-actions">
             {toolbar}
-            <SortToggle<SortKey> options={PROJECT_SORTS} value={sortKey} dir={sortDir} onChange={(k, d) => { setSortKey(k); setSortDir(d); }} />
+            <SortToggle<SortKey> options={PROJECT_SORTS} value={sortKey} dir={sortDir} onChange={(k, d) => setSort({ sortKey: k, sortDir: d })} />
             <button className="baseline-action-btn baseline-action-btn-primary add-project-trigger" onClick={() => setShowModal(true)}>
               + Add project
             </button>

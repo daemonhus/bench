@@ -10,7 +10,8 @@ import { FindingCard } from './FindingCard';
 import { FindingsMetrics } from './FindingsMetrics';
 import { AnnotationFilters, ALL_SEVERITIES } from './AnnotationFilters';
 import { SearchBox } from './SearchBox';
-import { useRegexSearch } from '../hooks/useRegexSearch';
+import { useRegexMatcher } from '../hooks/useRegexSearch';
+import { qp, useQueryState, hashQuery, splitHash, type QuerySchema } from '../core/query-state';
 import type { Feature, Finding, Severity, LineRange } from '../core/types';
 import { parseRoute } from '../core/router';
 
@@ -27,6 +28,25 @@ function sortBySeverity(a: Finding, b: Finding): number {
 type FindingsKind = 'open' | 'closed';
 const ALL_FINDING_KINDS: FindingsKind[] = ['open', 'closed'];
 const KIND_LABELS: Record<FindingsKind, string> = { open: 'Open', closed: 'Closed' };
+
+// The list's filters and search live in the address (#/findings?status=open,closed&severity=high
+// &source=mcp&q=xss; see query-state.ts). Status and search are remembered for this session.
+const FINDINGS_QUERY: QuerySchema<{ status: FindingsKind[]; severity: Severity[]; source: string[] | null; q: string }> = {
+  status: qp.set<FindingsKind>('status', ALL_FINDING_KINDS, ['open']).remembered('session'),
+  severity: qp.set<Severity>('severity', ALL_SEVERITIES),
+  source: qp.only('source'),
+  q: qp.string('q').remembered('session'),
+};
+const FINDINGS_URL = hashQuery('/findings');
+const FINDINGS_REMEMBER = { key: 'bench-findings-query' };
+
+/** #/findings/severity/{level} (the platform's risk table links it) is #/findings?severity={level}. */
+function canonicaliseSeverityRoute() {
+  const s = parseRoute(window.location.hash).severityFilter;
+  if (s && (ALL_SEVERITIES as string[]).includes(s)) {
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.search}#/findings?severity=${s}`);
+  }
+}
 
 /** The 8-char id prefix cards show in their header. */
 const shortCode = (id: string) => id.slice(0, 8);
@@ -48,20 +68,16 @@ export const FindingsView: React.FC = () => {
   const [collapseSnippetsTick, setCollapseSnippetsTick] = useState(0);
   const [collapsedSnippetIds, setCollapsedSnippetIds] = useState<Set<string>>(new Set());
   const [metricsOpen, setMetricsOpen] = useState(true);
-  const [filterKinds, setFilterKinds] = useState<Set<FindingsKind>>(() => {
-    try {
-      const saved = sessionStorage.getItem('bench-filter-kinds');
-      if (saved) {
-        const arr = JSON.parse(saved) as FindingsKind[];
-        return new Set(arr.filter((k) => ALL_FINDING_KINDS.includes(k)));
-      }
-    } catch {}
-    return new Set<FindingsKind>(['open']);
-  });
-
+  // A severity link is rewritten to the query before the filters are read, and again if one is
+  // followed while the list is open.
+  useState(canonicaliseSeverityRoute);
   useEffect(() => {
-    sessionStorage.setItem('bench-filter-kinds', JSON.stringify([...filterKinds]));
-  }, [filterKinds]);
+    window.addEventListener('hashchange', canonicaliseSeverityRoute);
+    return () => window.removeEventListener('hashchange', canonicaliseSeverityRoute);
+  }, []);
+  const [fq, setFq] = useQueryState(FINDINGS_QUERY, FINDINGS_URL, FINDINGS_REMEMBER);
+  const filterKinds = useMemo(() => new Set(fq.status), [fq.status]);
+  const setFilterKinds = (update: (prev: Set<FindingsKind>) => Set<FindingsKind>) => setFq((s) => ({ status: [...update(new Set(s.status))] }));
 
   useEffect(() => {
     localStorage.setItem('bench-collapsed-findings', JSON.stringify([...collapsedIds]));
@@ -98,8 +114,10 @@ export const FindingsView: React.FC = () => {
   const clearRouteFilters = () => {
     setFilterFeatureId(null);
     setFilterFindingId(null);
-    if (window.location.hash.startsWith('#/findings/')) {
-      window.location.hash = '#/findings';
+    // The filters in the query stay.
+    const [route, query] = splitHash(window.location.hash);
+    if (route.startsWith('#/findings/')) {
+      window.location.hash = `#/findings${query ? `?${query}` : ''}`;
     }
   };
   const storeFeatures = useAnnotationStore((s) => s.features);
@@ -122,22 +140,13 @@ export const FindingsView: React.FC = () => {
   }, [filterFindingId]);
 
   // Filters
-  // #/findings/severity/{level} (e.g. from the platform's risk table) preselects one severity.
-  const severitiesFromRoute = (hash: string): Set<Severity> => {
-    const s = parseRoute(hash).severityFilter as Severity | undefined;
-    return s && (ALL_SEVERITIES as readonly string[]).includes(s) ? new Set([s]) : new Set(ALL_SEVERITIES);
-  };
-  const [filterSeverities, setFilterSeverities] = useState<Set<Severity>>(() => severitiesFromRoute(window.location.hash));
-  useEffect(() => {
-    const onHash = () => {
-      if (parseRoute(window.location.hash).severityFilter) setFilterSeverities(severitiesFromRoute(window.location.hash));
-    };
-    window.addEventListener('hashchange', onHash);
-    return () => window.removeEventListener('hashchange', onHash);
-  }, []);
-  const [filterActors, setFilterActors] = useState<Set<string> | null>(null); // null = all
-  const { query: searchQuery, setQuery: setSearchQuery, matcher: searchMatcher, isRegexValid } =
-    useRegexSearch('bench-findings-search');
+  const filterSeverities = useMemo(() => new Set(fq.severity), [fq.severity]);
+  const setFilterSeverities = (next: Set<Severity>) => setFq({ severity: [...next] });
+  const filterActors = useMemo(() => (fq.source ? new Set(fq.source) : null), [fq.source]); // null = all
+  const setFilterActors = (next: Set<string> | null) => setFq({ source: next ? [...next] : null });
+  const searchQuery = fq.q;
+  const setSearchQuery = (q: string) => setFq({ q });
+  const { matcher: searchMatcher, isRegexValid } = useRegexMatcher(searchQuery);
 
   const loadFeatures = useAnnotationStore((s) => s.loadFeatures);
 
@@ -372,16 +381,12 @@ export const FindingsView: React.FC = () => {
             )}
             <AnnotationFilters
               severities={filterSeverities}
-              onSeveritiesChange={(next) => {
-                setFilterSeverities(next);
-                // A hand-picked filter replaces a #/findings/severity/… deep link, so a reload keeps it.
-                if (parseRoute(window.location.hash).severityFilter) window.location.hash = '#/findings';
-              }}
+              onSeveritiesChange={setFilterSeverities}
               actors={allActors}
               selectedActors={filterActors}
               onActorsChange={setFilterActors}
               hasActiveFilter={hasActiveFilter}
-              onReset={() => { setFilterSeverities(new Set(ALL_SEVERITIES)); setFilterActors(null); setSearchQuery(''); clearRouteFilters(); }}
+              onReset={() => { setFq({ severity: ALL_SEVERITIES, source: null, q: '' }); clearRouteFilters(); }}
             />
             {/* Last in the row: expands into the free space (see control-rhythm.css). */}
             <SearchBox value={searchQuery} onChange={setSearchQuery} invalid={!isRegexValid} shortcut={['/']} expand />

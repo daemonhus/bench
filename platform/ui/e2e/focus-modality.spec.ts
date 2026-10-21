@@ -39,7 +39,8 @@ test.describe('P1. Rail navigation: keyboard and mouse land in the same place', 
     await page.keyboard.press('Tab');
     await expect(flows).toBeFocused();
     await page.keyboard.press('Enter');
-    await expect(page).toHaveURL(/\/flows$/);
+    // The remembered layout (table, set for this file) shows in the address.
+    await expect(page).toHaveURL(/\/flows(\?layout=table)?$/);
     await expect(flows).toHaveAttribute('aria-current', 'page');
     await expect(flows).toBeFocused();
     expect(await lastInput(page)).toBe('keyboard');
@@ -47,7 +48,7 @@ test.describe('P1. Rail navigation: keyboard and mouse land in the same place', 
     await page.locator('.platform-rail-btn[title="Projects"]').click();
     await expect(page).toHaveURL(/\/projects$/);
     await flows.click();
-    await expect(page).toHaveURL(/\/flows$/);
+    await expect(page).toHaveURL(/\/flows(\?layout=table)?$/);
     await expect(flows).toHaveAttribute('aria-current', 'page');
     expect(await lastInput(page)).toBe('pointer');
   });

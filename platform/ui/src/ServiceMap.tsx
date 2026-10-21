@@ -3,6 +3,7 @@ import { SelectDropdown } from '@bench/components/SelectDropdown';
 import { MultiSelectDropdown } from '@bench/components/MultiSelectDropdown';
 import { SearchBox } from '@bench/components/SearchBox';
 import { Skeleton } from '@bench/components/Skeleton';
+import { qp, useQueryState, pathQuery, writeQuery, formatQuery, type QuerySchema } from '@bench/core/query-state';
 import { EDGE_KINDS, type EdgeKind, type FeatureKind } from './flows';
 import {
   usePalette, usePanZoom, GraphControls, ArrowMarkers, horizontalPath, parseMethod, badgeW, truncate,
@@ -11,7 +12,7 @@ import {
 import {
   applyFilters, layoutMap, neighbourhood, connectionKey, featureKey,
   DEFAULT_FILTERS, ALL_EDGE_KINDS, ALL_FEATURE_KINDS, CARD_W, HEADER_H, ROW_H,
-  type ServiceMapData, type MapFilters, type MapConnection, type MapFeature, type MapService, type FeatureScope,
+  type ServiceMapData, type MapFilters, type MapFields, type MapConnection, type MapFeature, type MapService, type FeatureScope,
 } from './serviceMapModel';
 import './serviceMap.css';
 
@@ -20,22 +21,31 @@ import './serviceMap.css';
 // feature. Filters pick services, connection kinds and feature kinds; the cards re-lay out
 // as they change. Hover a feature or service to follow its connections; click one for detail.
 
-const FILTERS_KEY = 'service-map-filters';
-
-function loadFilters(): MapFilters {
-  try {
-    const raw = localStorage.getItem(FILTERS_KEY);
-    if (raw) {
-      const saved = JSON.parse(raw);
-      return { ...DEFAULT_FILTERS, ...saved, fields: { ...DEFAULT_FILTERS.fields, ...saved.fields } };
-    }
-  } catch { /* storage unavailable or stale: defaults */ }
-  return DEFAULT_FILTERS;
-}
-
-function saveFilters(f: MapFilters) {
-  try { localStorage.setItem(FILTERS_KEY, JSON.stringify(f)); } catch { /* not persisted */ }
-}
+// The filters, the search and the display options live in the address (/map?hide=beta&show=all;
+// see bench's query-state.ts); the filters and fields are remembered for a bare /map.
+const FIELD_KEYS = ['operation', 'protocol', 'flows', 'findings'] as const;
+type MapQuery = Omit<MapFilters, 'fields'> & { q: string; archived: boolean; fields: (keyof MapFields)[] };
+const MAP_QUERY: QuerySchema<MapQuery> = {
+  q: qp.string('q'),
+  hiddenServices: qp.list('hide').remembered(),
+  connectionKinds: qp.set('connections', ALL_EDGE_KINDS).remembered(),
+  featureKinds: qp.set('kinds', ALL_FEATURE_KINDS).remembered(),
+  scope: qp.oneOf<FeatureScope>('show', ['connected', 'flows', 'all'], DEFAULT_FILTERS.scope).remembered(),
+  internal: qp.bool('internal').remembered(),
+  archived: qp.bool('archived'),
+  fields: qp.set('fields', FIELD_KEYS, FIELD_KEYS.filter((k) => DEFAULT_FILTERS.fields[k])).remembered(),
+};
+const MAP_URL = pathQuery('/map');
+const MAP_REMEMBER = { key: 'service-map-query' };
+// The filters were kept as JSON before.
+try {
+  const old = localStorage.getItem('service-map-filters');
+  if (old && localStorage.getItem(MAP_REMEMBER.key) == null) {
+    const f = { ...DEFAULT_FILTERS, ...JSON.parse(old) } as MapFilters;
+    const fields = { ...DEFAULT_FILTERS.fields, ...f.fields };
+    localStorage.setItem(MAP_REMEMBER.key, formatQuery(writeQuery(MAP_QUERY, { ...f, q: '', archived: false, fields: FIELD_KEYS.filter((k) => fields[k]) })));
+  }
+} catch { /* storage unavailable or unreadable: defaults */ }
 
 type Selection =
   | { kind: 'connection'; key: string }
@@ -54,15 +64,21 @@ export function ServiceMapPage({ onOpenFlow, onOpenProject }: {
 }) {
   const [data, setData] = useState<ServiceMapData | null>(null);
   const [error, setError] = useState('');
-  const [archived, setArchived] = useState(false);
-  const [filters, setFiltersState] = useState<MapFilters>(loadFilters);
-  const [query, setQuery] = useState('');
+  const [mq, setMq] = useQueryState(MAP_QUERY, MAP_URL, MAP_REMEMBER);
+  const { q: query, archived } = mq;
+  const setQuery = (q: string) => setMq({ q });
+  const setArchived = (on: boolean) => setMq({ archived: on });
+  const filters = useMemo<MapFilters>(() => ({
+    hiddenServices: mq.hiddenServices, connectionKinds: mq.connectionKinds, featureKinds: mq.featureKinds,
+    scope: mq.scope, internal: mq.internal,
+    fields: Object.fromEntries(FIELD_KEYS.map((k) => [k, mq.fields.includes(k)])) as unknown as MapFields,
+  }), [mq]);
   const [hover, setHover] = useState<{ slug: string; feature?: string } | null>(null);
   const [selection, setSelection] = useState<Selection | null>(null);
   const { pal, KIND } = usePalette();
   const { pz, dragging, canvasRef, handlers, fitTo, zoomIn, zoomOut } = usePanZoom();
 
-  const setFilters = (f: MapFilters) => { setFiltersState(f); saveFilters(f); };
+  const setFilters = ({ fields, ...rest }: MapFilters) => setMq({ ...rest, fields: FIELD_KEYS.filter((k) => fields[k]) });
 
   useEffect(() => {
     let live = true;

@@ -5,6 +5,7 @@ import { useResizeDrag } from '@bench/hooks/useResizeDrag';
 import { RefProviderIcon } from '@bench/components/RefProviderIcon';
 import { SelectDropdown, ToneChip } from '@bench/components/SelectDropdown';
 import { Skeleton, SkeletonRows } from '@bench/components/Skeleton';
+import { qp, useQueryState, pathQuery, type QuerySchema } from '@bench/core/query-state';
 import { EditableText, SaveIndicator } from '@bench/components/EditableText';
 import { FlowGraphView } from './FlowGraph';
 import { outline, edgeKey, reachableFrom, type GraphEdge } from './flowOutline';
@@ -740,26 +741,41 @@ const FLOW_SORTS: { id: FlowSort; label: string; defaultDir: 'asc' | 'desc' }[] 
   { id: 'stepCount', label: 'Steps', defaultDir: 'desc' },
   { id: 'risk', label: 'Risk', defaultDir: 'desc' },
 ];
-const LAYOUT_KEY = 'flows-layout';
-
-function readLayout(): ListLayout {
-  try { return localStorage.getItem(LAYOUT_KEY) === 'table' ? 'table' : 'gallery'; } catch { return 'gallery'; }
-}
+// The search and filters (one Linear-style string), sort, layout and page live in the address
+// (/flows?q=status:active&sort=name&order=asc; see bench's query-state.ts). The shell owns
+// ?folder=. The layout is remembered for a bare /flows.
+interface FlowsQuery { filter: string; sort: FlowSort; order: 'asc' | 'desc'; layout: ListLayout; page: number }
+const FLOWS_QUERY: QuerySchema<FlowsQuery> = {
+  filter: qp.string('q'),
+  sort: qp.oneOf<FlowSort>('sort', FLOW_SORTS.map((s) => s.id), 'updated'),
+  order: qp.oneOf<'asc' | 'desc'>('order', ['asc', 'desc'], 'desc'),
+  layout: qp.oneOf<ListLayout>('layout', ['gallery', 'table'], 'gallery').remembered(),
+  page: qp.int('page', 1, 1),
+};
+const FLOWS_URL = pathQuery('/flows');
+const FLOWS_REMEMBER = { key: 'flows-list' };
+// The layout was kept on its own before.
+try {
+  const old = localStorage.getItem('flows-layout');
+  if (old && localStorage.getItem(FLOWS_REMEMBER.key) == null) localStorage.setItem(FLOWS_REMEMBER.key, `layout=${old}`);
+} catch { /* storage unavailable */ }
 
 export function FlowsListPage({ folderId, onOpen, onOpenFolder }: FlowsListPageProps) {
   const [page, setPage] = useState<FlowsPage>({ items: [], total: 0, offset: 0, limit: PAGE_LIMIT });
   const [facets, setFacets] = useState<FlowFacets>({ project: [], tag: [], owner: [], status: [] });
   const [folders, setFolders] = useState<FlowFolder[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('');
-  const [sort, setSort] = useState<FlowSort>('updated');
-  const [order, setOrder] = useState<'asc' | 'desc'>('desc');
-  const [offset, setOffset] = useState(0);
+  const [fq, setFq] = useQueryState(FLOWS_QUERY, FLOWS_URL, FLOWS_REMEMBER);
+  const { filter, sort, order, layout } = fq;
+  const offset = (fq.page - 1) * PAGE_LIMIT;
+  // A new search, filter, sort or folder starts again at the first page.
+  const setFilter = (next: string) => setFq({ filter: next, page: 1 });
+  const setOffset = (next: number) => setFq({ page: Math.floor(next / PAGE_LIMIT) + 1 });
+  const setLayout = (next: ListLayout) => setFq({ layout: next });
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [projectsList, setProjectsList] = useState<Project[]>([]);
   const [views, setViews] = useState<FlowView[]>([]);
-  const [layout, setLayoutState] = useState<ListLayout>(readLayout);
   const [dialog, setDialog] = useState<
     | { kind: 'new-folder' }
     | { kind: 'rename'; folder: FlowFolder }
@@ -772,11 +788,6 @@ export function FlowsListPage({ folderId, onOpen, onOpenFolder }: FlowsListPageP
   const filterState = useMemo(() => parseFilter(filter), [filter]);
   // A search or filter looks across every folder; otherwise the page shows one folder.
   const searching = filter.trim() !== '';
-
-  function setLayout(next: ListLayout) {
-    setLayoutState(next);
-    try { localStorage.setItem(LAYOUT_KEY, next); } catch { /* per-viewer convenience only */ }
-  }
 
   // Build server-side filter params from the FilterState
   const filterParams = useMemo(() => ({
@@ -817,15 +828,11 @@ export function FlowsListPage({ folderId, onOpen, onOpenFolder }: FlowsListPageP
     listFlowViews().then(setViews).catch(() => {});
   }, []);
 
-  // Reset to page 0 when filters, sort or folder change (but not offset itself)
-  const prevKey = useRef(`${filter}|${sort}|${order}|${folderId}`);
+  // Another folder starts at the first page (filters, sort and order reset it as they're set).
+  const prevFolder = useRef(folderId);
   useEffect(() => {
-    const key = `${filter}|${sort}|${order}|${folderId}`;
-    if (key !== prevKey.current) {
-      prevKey.current = key;
-      setOffset(0);
-    }
-  }, [filter, sort, order, folderId]);
+    if (folderId !== prevFolder.current) { prevFolder.current = folderId; setOffset(0); }
+  }, [folderId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // A folder that no longer exists (deleted elsewhere, stale link) falls back to the top level.
   useEffect(() => {
@@ -983,7 +990,7 @@ export function FlowsListPage({ folderId, onOpen, onOpenFolder }: FlowsListPageP
           >&#x2715;</button>
         </div>
         <div className="flows-filter-bar-end">
-          <SortToggle<FlowSort> options={FLOW_SORTS} value={sort} dir={order} onChange={(v, d) => { setSort(v); setOrder(d); }} />
+          <SortToggle<FlowSort> options={FLOW_SORTS} value={sort} dir={order} onChange={(v, d) => setFq({ sort: v, order: d, page: 1 })} />
           <div className="activity-kind-toggles flows-layout-toggle" role="group" aria-label="Layout">
             {(['gallery', 'table'] as const).map((l) => (
               <button
