@@ -84,6 +84,7 @@ Pages using it: Activity, Map, Flows, Projects, and the workbench's Findings, Fe
 | Workbench e2e (production-embedded, served by benchd) | `npx playwright test -c playwright.prod.config.ts` |
 | Platform e2e | `cd platform/ui && npx playwright test` (isolated ports 5184/8092) |
 | Go | `(cd backend && go test ./...)` |
+| CI's steps in a fresh clone of HEAD (run before a push) | `npm run verify:clean` |
 
 The server embeds `backend/internal/server/dist` at compile time; `platform/dev.sh` and the e2e fixture create it.
 

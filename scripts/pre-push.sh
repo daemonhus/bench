@@ -2,10 +2,17 @@
 #
 # Pre-push checks: the CI gates that are cheap to run locally, in CI's order.
 #
-#   npm run verify          # everything
-#   scripts/pre-push.sh     # same thing
+#   npm run verify                  # everything, against this checkout's installed packages
+#   scripts/pre-push.sh             # same thing
+#   scripts/pre-push.sh --clean     # the same checks in a fresh clone of HEAD, installing from scratch
 #
 # Mirrors .github/workflows/ci.yml (backend and frontend jobs).
+#
+# The default run uses the packages already installed here, so it can't tell whether a clean
+# install gives the checks what they need (a test importing a package CI hasn't installed yet).
+# --clean can: it clones HEAD (committed work only) into a temp directory and runs CI's own
+# steps there, read from ci.yml (scripts/ci-local.py): the same installs and checks in the same
+# order, so it can't drift from CI. A few minutes slower; run it before a push.
 #
 # Deliberately NOT run here: the Docker buildx job (multi-arch, minutes long -
 # CI covers it) and Playwright e2e (needs browsers and a live backend).
@@ -16,6 +23,17 @@
 set -uo pipefail
 
 cd "$(dirname "$0")/.."
+
+if [ "${1:-}" = "--clean" ]; then
+  tmp="$(mktemp -d "${TMPDIR:-/tmp}/bench-verify.XXXXXX")"
+  trap 'rm -rf "$tmp"' EXIT
+  echo "fresh clone of $(git rev-parse --short HEAD) in $tmp"
+  git clone -q --no-hardlinks "$(pwd)" "$tmp/bench" || exit 1
+  cd "$tmp/bench" || exit 1
+  # CI's own steps (scripts/ci-local.py reads them from ci.yml), installs included, in its order.
+  python3 scripts/ci-local.py
+  exit $?
+fi
 
 RED=$'\033[31m'; GREEN=$'\033[32m'; DIM=$'\033[2m'; BOLD=$'\033[1m'; OFF=$'\033[0m'
 FAILED=()

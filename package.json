@@ -7,7 +7,8 @@
     "test": "vitest run",
     "verify": "scripts/pre-push.sh",
     "test:watch": "vitest",
-    "test:e2e": "playwright test -c playwright.e2e.config.ts"
+    "test:e2e": "playwright test -c playwright.e2e.config.ts",
+    "verify:clean": "scripts/pre-push.sh --clean"
   },
   "dependencies": {
     "@visx/hierarchy": "^3.12.0",
