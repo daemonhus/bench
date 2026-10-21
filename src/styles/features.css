@@ -5,8 +5,8 @@
   overflow-y: auto;
   flex: 1;
   padding-bottom: 60vh;
-  max-inline-size: var(--page-max);
-  margin-inline: auto;
+  /* Spans the panel (the wheel works over the margins); the side padding keeps the column. */
+  padding-inline: max(0px, calc((100% - var(--page-max)) / 2));
   inline-size: 100%;
 }
 

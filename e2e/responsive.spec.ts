@@ -223,6 +223,39 @@ for (const size of Object.keys(SIZES) as Size[]) {
   });
 }
 
+// ── Ultrawide: the page column is centred, and the wheel over the empty margins still scrolls it ─
+test.describe('ultrawide: the margins scroll the page', () => {
+  for (const v of VIEWS.filter((x) => ['Overview', 'Changes', 'Findings', 'Features', 'Profile'].includes(x.name))) {
+    test(`${v.name}: the wheel over the left margin scrolls the page`, async ({ page }) => {
+      await go(page, 'ultrawide', v.hash, v.ready);
+      // The content column starts well inside the panel: the strip left of it is empty margin.
+      const probe = await page.evaluate(() => {
+        const panel = document.querySelector('.main-panel')!.getBoundingClientRect();
+        return { x: panel.left + 40, y: panel.top + panel.height / 2 };
+      });
+      const scroller = () => page.evaluate(({ x, y }) => {
+        for (let e = document.elementFromPoint(x, y) as HTMLElement | null; e; e = e.parentElement) {
+          const s = getComputedStyle(e).overflowY;
+          if ((s === 'auto' || s === 'scroll') && e.scrollHeight > e.clientHeight) return e.scrollTop;
+        }
+        return null;
+      }, probe);
+      // A page that fits the screen has nothing to scroll.
+      // (Only page-sized scrollers: a panel's own list, like the Overview's commit log, doesn't count.)
+      const overflows = await page.evaluate(() => {
+        const w = document.querySelector('.main-panel')!.clientWidth;
+        return [...document.querySelectorAll<HTMLElement>('.main-panel *')]
+          .some((e) => /auto|scroll/.test(getComputedStyle(e).overflowY) && e.scrollHeight > e.clientHeight + 4 && e.clientWidth > w / 2);
+      });
+      test.skip(!overflows, 'the page fits the screen');
+      expect(await scroller(), 'the scroller reaches under the margin').not.toBeNull();
+      await page.mouse.move(probe.x, probe.y);
+      await page.mouse.wheel(0, 400);
+      await expect.poll(scroller).toBeGreaterThan(0);
+    });
+  }
+});
+
 // ── Phone: Browse's file panel and activity sidebar are off-canvas drawers ─────────────────────
 test.describe('phone: Browse drawers', () => {
   const open = async (page: Page) => {

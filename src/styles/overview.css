@@ -726,12 +726,12 @@
 }
 
 /* ----- Findings View (standalone tab) ----- */
+/* The view is the scroller and spans the whole panel, so the wheel scrolls the list from the
+   margins too; the --page-max column is kept by the side padding. */
 .findings-view {
-  padding: 28px var(--page-gutter) 60vh;
+  padding: 28px max(var(--page-gutter), calc((100% - var(--page-max)) / 2 + var(--page-gutter))) 60vh;
   overflow-y: auto;
   flex: 1;
-  max-inline-size: var(--page-max);
-  margin-inline: auto;
   inline-size: 100%;
 }
 
