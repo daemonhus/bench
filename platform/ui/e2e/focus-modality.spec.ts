@@ -254,7 +254,7 @@ test.describe('P7. Inline editing keeps focus', () => {
     const field = page.locator('.editable[role="textbox"]').first();
     await field.click();
     await expect(page.locator('.editable-input').first()).toBeFocused();
-    const other = page.getByRole('button', { name: 'Map', exact: true });
+    const other = page.locator('.flow-detail-tab-bar').getByRole('button', { name: 'Map', exact: true });
     await other.click();
     await expect(page.locator('.editable-input')).toHaveCount(0);
     await expect(other).toBeFocused(); // not stolen back by the field
@@ -265,7 +265,7 @@ test.describe('P8. Flow map is keyboard-operable', () => {
   test('Tab reaches a node, arrows move between nodes, Enter selects, Escape clears', async ({ page }) => {
     const id = await flowId(page, 'Login path');
     await page.goto(`/flows/${id}`);
-    await page.getByRole('button', { name: 'Map', exact: true }).click();
+    await page.locator('.flow-detail-tab-bar').getByRole('button', { name: 'Map', exact: true }).click();
     await page.waitForSelector('.flow-graph-node');
     const nodes = page.locator('.flow-graph-node');
     expect(await nodes.count()).toBe(4);
@@ -289,7 +289,7 @@ test.describe('P8. Flow map is keyboard-operable', () => {
   test('mouse click selects and the same node is then keyboard-navigable', async ({ page }) => {
     const id = await flowId(page, 'Login path');
     await page.goto(`/flows/${id}`);
-    await page.getByRole('button', { name: 'Map', exact: true }).click();
+    await page.locator('.flow-detail-tab-bar').getByRole('button', { name: 'Map', exact: true }).click();
     await page.waitForSelector('.flow-graph-node');
     await page.locator('.flow-graph-node').nth(1).click();
     await expect(page.locator('.flow-graph-node[aria-pressed="true"]')).toHaveCount(1);

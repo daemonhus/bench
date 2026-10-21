@@ -24,35 +24,7 @@ func newTestPlatform(t *testing.T) (*Platform, http.Handler) {
 	}
 	t.Cleanup(p.Close)
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/flows/facets", p.listFlowFacets)
-	mux.HandleFunc("GET /api/flows", p.listFlows)
-	mux.HandleFunc("POST /api/flows", p.createFlow)
-	mux.HandleFunc("GET /api/flows/{id}", p.getFlow)
-	mux.HandleFunc("PATCH /api/flows/{id}", p.updateFlow)
-	mux.HandleFunc("DELETE /api/flows/{id}", p.deleteFlow)
-	mux.HandleFunc("POST /api/flows/{id}/steps", p.addFlowStep)
-	mux.HandleFunc("PATCH /api/flows/{id}/steps/{stepId}", p.updateFlowStep)
-	mux.HandleFunc("DELETE /api/flows/{id}/steps/{stepId}", p.removeFlowStep)
-	mux.HandleFunc("PUT /api/flows/{id}/steps", p.setFlowSteps)
-	mux.HandleFunc("POST /api/flows/{id}/steps/{stepId}/move", p.moveFlowStep)
-	mux.HandleFunc("PUT /api/flows/{id}/links/{fromId}/{toId}", p.setFlowLink)
-	mux.HandleFunc("DELETE /api/flows/{id}/links/{fromId}/{toId}", p.deleteFlowLink)
-	mux.HandleFunc("GET /api/flow-views", p.listFlowViews)
-	mux.HandleFunc("POST /api/flow-views", p.createFlowView)
-	mux.HandleFunc("PATCH /api/flow-views/{id}", p.updateFlowView)
-	mux.HandleFunc("DELETE /api/flow-views/{id}", p.deleteFlowView)
-	p.registerFolderRoutes(mux)
-	// Findings route
-	mux.HandleFunc("GET /api/flows/{id}/findings", p.listFlowFindings)
-	// Baseline routes
-	mux.HandleFunc("GET /api/flows/{id}/baselines", p.listFlowBaselines)
-	mux.HandleFunc("POST /api/flows/{id}/baselines", p.createFlowBaseline)
-	mux.HandleFunc("GET /api/flows/{id}/baselines/latest", p.latestFlowBaseline)
-	mux.HandleFunc("GET /api/flows/{id}/baselines/{bId}", p.getFlowBaseline)
-	mux.HandleFunc("DELETE /api/flows/{id}/baselines/{bId}", p.deleteFlowBaseline)
-	mux.HandleFunc("GET /api/flows/{id}/delta", p.getFlowDelta)
-	return p, mux
+	return p, p.Handler()
 }
 
 func do(t *testing.T, h http.Handler, method, path, body string) *httptest.ResponseRecorder {
@@ -349,18 +321,25 @@ func TestFlows_StepPositionIncrement(t *testing.T) {
 func TestFlows_StepUpdate(t *testing.T) {
 	_, h := newTestPlatform(t)
 	f := createTestFlow(t, h, "Flow", "draft")
+	first := addTestStep(t, h, f.ID, "p", "feat-0")
 	s := addTestStep(t, h, f.ID, "p", "feat-1")
 
-	w := do(t, h, "PATCH", "/api/flows/"+f.ID+"/steps/"+s.ID, `{"note":"important","branchCondition":"if error"}`)
+	w := do(t, h, "PATCH", "/api/flows/"+f.ID+"/steps/"+s.ID, `{"note":"important","actor":"admin","controls":["authz:rbac"," "],"branchCondition":"if error"}`)
 	if w.Code != 200 {
 		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
 	}
 	updated := mustDecode[FlowStep](t, w)
-	if updated.Note != "important" {
-		t.Errorf("note=%q want important", updated.Note)
+	if updated.Note != "important" || updated.Actor != "admin" || len(updated.Controls) != 1 || updated.Controls[0] != "authz:rbac" {
+		t.Errorf("updated step = %+v", updated)
 	}
-	if updated.BranchCondition != "if error" {
-		t.Errorf("branchCondition=%q want if error", updated.BranchCondition)
+	// branchCondition labels the edge into the step.
+	got := mustDecode[Flow](t, do(t, h, "GET", "/api/flows/"+f.ID, ""))
+	if len(got.Edges) != 1 || got.Edges[0].FromStepID != first.ID || got.Edges[0].Condition != "if error" {
+		t.Errorf("edges = %+v", got.Edges)
+	}
+	// An entry point has no edge in to label.
+	if w := do(t, h, "PATCH", "/api/flows/"+f.ID+"/steps/"+first.ID, `{"branchCondition":"x"}`); w.Code != 400 {
+		t.Errorf("condition on an entry point: %d, want 400", w.Code)
 	}
 }
 
@@ -390,6 +369,10 @@ func TestFlows_StepMove(t *testing.T) {
 	if moved.Position != 0 {
 		t.Errorf("after move up, position=%d want 0", moved.Position)
 	}
+	got := mustDecode[Flow](t, do(t, h, "GET", "/api/flows/"+f.ID, ""))
+	if len(got.Edges) != 1 || got.Edges[0].FromStepID != s1.ID {
+		t.Errorf("after move up the path should start at the moved step: %+v", got.Edges)
+	}
 }
 
 func TestFlows_StepMoveInvalidDir(t *testing.T) {
@@ -406,7 +389,7 @@ func TestFlows_SetSteps(t *testing.T) {
 	_, h := newTestPlatform(t)
 	f := createTestFlow(t, h, "Flow", "draft")
 
-	// setFlowSteps requires exactly one root (no parentClientId).
+	// The tree-era shape (parentClientId + links) is still accepted.
 	body := `{
 		"steps": [
 			{"clientId":"c1","projectSlug":"p","featureId":"f1"},
@@ -427,26 +410,30 @@ func TestFlows_SetSteps(t *testing.T) {
 	if len(got.Steps) != 3 {
 		t.Errorf("steps=%d want 3", len(got.Steps))
 	}
-	if len(got.Links) != 1 {
-		t.Errorf("links=%d want 1", len(got.Links))
+	if len(got.Edges) != 3 {
+		t.Errorf("edges=%d want 3 (two branches and the link)", len(got.Edges))
 	}
 }
 
-// ── Links ─────────────────────────────────────────────────────────────────────
+// ── Edges ─────────────────────────────────────────────────────────────────────
 
-func TestFlows_LinkSetAndDelete(t *testing.T) {
+func TestFlows_EdgeSetAndDelete(t *testing.T) {
 	_, h := newTestPlatform(t)
 	f := createTestFlow(t, h, "Flow", "draft")
 	s1 := addTestStep(t, h, f.ID, "p", "f1")
 	s2 := addTestStep(t, h, f.ID, "p", "f2")
 
-	// Set link with all fields
-	linkPath := "/api/flows/" + f.ID + "/links/" + s1.ID + "/" + s2.ID
-	w := do(t, h, "PUT", linkPath, `{"description":"on error","comment":"check auth first","tags":["auth","high-risk"]}`)
+	// Set the edge with all fields
+	linkPath := "/api/flows/" + f.ID + "/edges/" + s1.ID + "/" + s2.ID
+	w := do(t, h, "PUT", linkPath, `{"description":"on error","comment":"check auth first","tags":["auth","high-risk"],
+		"kind":"call","protocol":"grpc","condition":"on error","auth":"mtls","trustBoundary":true,"data":"session id","tainted":true}`)
 	if w.Code != 200 {
-		t.Fatalf("set link status=%d body=%s", w.Code, w.Body.String())
+		t.Fatalf("set edge status=%d body=%s", w.Code, w.Body.String())
 	}
-	lnk := mustDecode[FlowLink](t, w)
+	lnk := mustDecode[FlowEdge](t, w)
+	if lnk.Kind != "call" || lnk.Protocol != "grpc" || lnk.Condition != "on error" || lnk.Auth != "mtls" || !lnk.TrustBoundary || lnk.Data != "session id" || !lnk.Tainted {
+		t.Errorf("edge = %+v", lnk)
+	}
 	if lnk.Description != "on error" {
 		t.Errorf("description=%q want on error", lnk.Description)
 	}
@@ -463,14 +450,17 @@ func TestFlows_LinkSetAndDelete(t *testing.T) {
 		t.Fatalf("get flow status=%d", wg.Code)
 	}
 	got := mustDecode[Flow](t, wg)
-	if len(got.Links) != 1 {
-		t.Fatalf("expected 1 link, got %d", len(got.Links))
+	if len(got.Edges) != 1 {
+		t.Fatalf("expected 1 edge, got %d", len(got.Edges))
 	}
-	if got.Links[0].Comment != "check auth first" {
-		t.Errorf("round-trip comment=%q", got.Links[0].Comment)
+	if got.Edges[0].Comment != "check auth first" {
+		t.Errorf("round-trip comment=%q", got.Edges[0].Comment)
 	}
-	if len(got.Links[0].Tags) != 2 {
-		t.Errorf("round-trip tags=%v", got.Links[0].Tags)
+	if len(got.Edges[0].Tags) != 2 || !got.Edges[0].Tainted {
+		t.Errorf("round-trip edge=%+v", got.Edges[0])
+	}
+	if w := do(t, h, "PUT", linkPath, `{"kind":"teleport"}`); w.Code != 400 {
+		t.Errorf("unknown kind: %d, want 400", w.Code)
 	}
 
 	// Delete link
@@ -486,9 +476,9 @@ func TestFlows_LinkSetAndDelete(t *testing.T) {
 	}
 }
 
-func TestFlows_LinkOnUnknownFlow(t *testing.T) {
+func TestFlows_EdgeOnUnknownFlow(t *testing.T) {
 	_, h := newTestPlatform(t)
-	w := do(t, h, "PUT", "/api/flows/ghost/links/a/b", `{}`)
+	w := do(t, h, "PUT", "/api/flows/ghost/edges/a/b", `{}`)
 	if w.Code != 404 {
 		t.Fatalf("status=%d want 404", w.Code)
 	}
@@ -566,8 +556,10 @@ func TestFlowsRouteParity(t *testing.T) {
 		{"DELETE", "/api/flows/test-id/steps/step-id", ""},
 		{"PUT", "/api/flows/test-id/steps", `{"steps":[]}`},
 		{"POST", "/api/flows/test-id/steps/step-id/move", ""},
-		{"PUT", "/api/flows/test-id/links/from-id/to-id", `{}`},
-		{"DELETE", "/api/flows/test-id/links/from-id/to-id", ""},
+		{"PUT", "/api/flows/test-id/edges/from-id/to-id", `{}`},
+		{"DELETE", "/api/flows/test-id/edges/from-id/to-id", ""},
+		{"GET", "/api/flows/test-id/export", ""},
+		{"GET", "/api/service-map", ""},
 		{"GET", "/api/flow-views", ""},
 		{"POST", "/api/flow-views", `{"name":"v"}`},
 		{"PATCH", "/api/flow-views/view-id", `{}`},
@@ -939,13 +931,13 @@ func TestFlows_AddStep_InvalidParent(t *testing.T) {
 	}
 }
 
-// ── Fix #1: links always present ──────────────────────────────────────────────
+// ── Fix #1: edges always present ──────────────────────────────────────────────
 
-func TestFlows_Get_LinksAlwaysPresent(t *testing.T) {
+func TestFlows_Get_EdgesAlwaysPresent(t *testing.T) {
 	_, h := newTestPlatform(t)
 	f := createTestFlow(t, h, "flow", "draft")
 
-	// GET on a flow with no explicit links must include "links" key as an array.
+	// GET on a flow with no explicit edges must include "edges" key as an array.
 	w := do(t, h, "GET", "/api/flows/"+f.ID, "")
 	if w.Code != 200 {
 		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
@@ -955,16 +947,16 @@ func TestFlows_Get_LinksAlwaysPresent(t *testing.T) {
 	if err := json.NewDecoder(w.Body).Decode(&raw); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	linksRaw, ok := raw["links"]
+	edgesRaw, ok := raw["edges"]
 	if !ok {
-		t.Fatal("links key must always be present in flows_get response")
+		t.Fatal("edges key must always be present in flows_get response")
 	}
-	var links []any
-	if err := json.Unmarshal(linksRaw, &links); err != nil {
-		t.Fatalf("links must be an array, got: %s", linksRaw)
+	var edges []any
+	if err := json.Unmarshal(edgesRaw, &edges); err != nil {
+		t.Fatalf("edges must be an array, got: %s", edgesRaw)
 	}
-	if len(links) != 0 {
-		t.Errorf("expected empty links array, got %d", len(links))
+	if len(edges) != 0 {
+		t.Errorf("expected empty edges array, got %d", len(edges))
 	}
 }
 
@@ -1148,12 +1140,12 @@ func TestFlows_Get_ClearsStaleTombstone(t *testing.T) {
 	}
 }
 
-// A flow with no steps still returns them as an empty array, like links.
+// A flow with no steps still returns them as an empty array, like edges.
 func TestFlows_GetEmptyFlowHasStepsArray(t *testing.T) {
 	_, h := newTestPlatform(t)
 	f := mustDecode[Flow](t, do(t, h, "POST", "/api/flows", `{"name":"Empty"}`))
 	body := do(t, h, "GET", "/api/flows/"+f.ID, "").Body.String()
-	if !strings.Contains(body, `"steps":[]`) || !strings.Contains(body, `"links":[]`) {
+	if !strings.Contains(body, `"steps":[]`) || !strings.Contains(body, `"edges":[]`) {
 		t.Errorf("body = %s", body)
 	}
 }

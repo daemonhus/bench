@@ -112,7 +112,7 @@ func TestMCP_FlowsToolsAdvertised(t *testing.T) {
 	want := []string{
 		"flows_list", "flows_get", "flows_create", "flows_update", "flows_delete",
 		"flows_add_step", "flows_update_step", "flows_remove_step", "flows_move_step",
-		"flows_set_steps", "flows_set_link", "flows_delete_link",
+		"flows_set_steps", "flows_export", "flows_set_edge", "flows_delete_edge", "get_service_map",
 		"flows_list_facets",
 		"flows_set_baseline", "flows_list_baselines", "flows_get_baseline",
 		"flows_get_delta", "flows_delete_baseline",
@@ -328,43 +328,47 @@ func TestMCP_FlowsBaselineRoundTrip(t *testing.T) {
 	}
 }
 
-// ── flows_delete_link ─────────────────────────────────────────────────────────
+// ── flows_delete_edge ─────────────────────────────────────────────────────────
 
-func TestMCP_FlowsDeleteLink(t *testing.T) {
+func TestMCP_FlowsDeleteEdge(t *testing.T) {
 	h, p := newTestMCP(t)
 
-	// Seed a flow and two steps with a link directly in the DB.
+	// Seed a flow and two steps with an edge directly in the DB.
 	p.db.Exec(`INSERT INTO flows (id, name, description, status, owner, tags, created_at, updated_at)
 		VALUES ('fl1', 'link flow', '', 'active', '', '[]', datetime('now'), datetime('now'))`)
 	p.db.Exec(`INSERT INTO flow_steps (id, flow_id, project_slug, feature_id, position)
 		VALUES ('s1', 'fl1', 'proj', 'f1', 1),
 		       ('s2', 'fl1', 'proj', 'f2', 2)`)
-	p.db.Exec(`INSERT INTO flow_step_links (flow_id, from_step_id, to_step_id, description)
+	p.db.Exec(`INSERT INTO flow_edges (flow_id, from_step_id, to_step_id, description)
 		VALUES ('fl1', 's1', 's2', 'hop')`)
 
-	// Verify link is present before deletion.
+	// Verify the edge is present before deletion.
 	var count int
-	p.db.QueryRow(`SELECT COUNT(*) FROM flow_step_links WHERE flow_id='fl1'`).Scan(&count)
+	p.db.QueryRow(`SELECT COUNT(*) FROM flow_edges WHERE flow_id='fl1'`).Scan(&count)
 	if count != 1 {
-		t.Fatal("precondition: link should exist")
+		t.Fatal("precondition: edge should exist")
 	}
 
-	// Delete the link via MCP.
-	resp := mcpCall(t, h, "flows_delete_link", map[string]any{
+	// Delete the edge via MCP.
+	resp := mcpCall(t, h, "flows_delete_edge", map[string]any{
 		"flow_id": "fl1", "from_step_id": "s1", "to_step_id": "s2",
 	})
 	if mcpIsError(t, resp) {
-		t.Fatalf("delete_link error: %s", mcpResultText(t, resp))
+		t.Fatalf("delete_edge error: %s", mcpResultText(t, resp))
 	}
 
-	// Link must be gone.
-	p.db.QueryRow(`SELECT COUNT(*) FROM flow_step_links WHERE flow_id='fl1'`).Scan(&count)
+	// The edge must be gone, the steps kept.
+	p.db.QueryRow(`SELECT COUNT(*) FROM flow_edges WHERE flow_id='fl1'`).Scan(&count)
 	if count != 0 {
-		t.Fatal("link should have been deleted")
+		t.Fatal("edge should have been deleted")
+	}
+	p.db.QueryRow(`SELECT COUNT(*) FROM flow_steps WHERE flow_id='fl1'`).Scan(&count)
+	if count != 2 {
+		t.Fatalf("steps left = %d, want 2", count)
 	}
 }
 
-func TestMCP_FlowsSetLink_WithCommentAndTags(t *testing.T) {
+func TestMCP_FlowsSetEdge_AllFields(t *testing.T) {
 	h, p := newTestMCP(t)
 
 	p.db.Exec(`INSERT INTO flows (id, name, description, status, owner, tags, created_at, updated_at)
@@ -373,18 +377,23 @@ func TestMCP_FlowsSetLink_WithCommentAndTags(t *testing.T) {
 		VALUES ('a1', 'fl3', 'proj', 'f1', 1),
 		       ('b1', 'fl3', 'proj', 'f2', 2)`)
 
-	resp := mcpCall(t, h, "flows_set_link", map[string]any{
-		"flow_id":      "fl3",
-		"from_step_id": "a1",
-		"to_step_id":   "b1",
-		"description":  "on error",
-		"comment":      "needs review",
-		"tags":         []string{"auth", "external"},
+	resp := mcpCall(t, h, "flows_set_edge", map[string]any{
+		"flow_id":        "fl3",
+		"from_step_id":   "a1",
+		"to_step_id":     "b1",
+		"description":    "on error",
+		"comment":        "needs review",
+		"tags":           []string{"auth", "external"},
+		"kind":           "async",
+		"protocol":       "kafka",
+		"auth":           "service",
+		"trust_boundary": true,
+		"tainted":        true,
 	})
 	if mcpIsError(t, resp) {
-		t.Fatalf("set_link error: %s", mcpResultText(t, resp))
+		t.Fatalf("set_edge error: %s", mcpResultText(t, resp))
 	}
-	var lnk FlowLink
+	var lnk FlowEdge
 	if err := json.Unmarshal([]byte(mcpResultText(t, resp)), &lnk); err != nil {
 		t.Fatalf("decode link: %v", err)
 	}
@@ -397,18 +406,21 @@ func TestMCP_FlowsSetLink_WithCommentAndTags(t *testing.T) {
 	if len(lnk.Tags) != 2 || lnk.Tags[0] != "auth" {
 		t.Errorf("tags=%v", lnk.Tags)
 	}
+	if lnk.Kind != "async" || lnk.Protocol != "kafka" || lnk.Auth != "service" || !lnk.TrustBoundary || !lnk.Tainted {
+		t.Errorf("edge = %+v", lnk)
+	}
 }
 
-func TestMCP_FlowsDeleteLink_NotFound(t *testing.T) {
+func TestMCP_FlowsDeleteEdge_NotFound(t *testing.T) {
 	h, p := newTestMCP(t)
 	p.db.Exec(`INSERT INTO flows (id, name, description, status, owner, tags, created_at, updated_at)
 		VALUES ('fl2', 'f', '', 'active', '', '[]', datetime('now'), datetime('now'))`)
 
-	resp := mcpCall(t, h, "flows_delete_link", map[string]any{
+	resp := mcpCall(t, h, "flows_delete_edge", map[string]any{
 		"flow_id": "fl2", "from_step_id": "no-such", "to_step_id": "also-no",
 	})
 	if !mcpIsError(t, resp) {
-		t.Fatal("expected isError=true when link does not exist")
+		t.Fatal("expected isError=true when the edge does not exist")
 	}
 }
 
@@ -551,15 +563,9 @@ func TestMCP_FlowsSetSteps(t *testing.T) {
 	if len(got.Steps) != 2 {
 		t.Errorf("expected 2 steps after set_steps, got %d", len(got.Steps))
 	}
-	// Find the child step and verify branch condition.
-	var child *FlowStep
-	for i := range got.Steps {
-		if got.Steps[i].BranchCondition == "if admin" {
-			child = &got.Steps[i]
-		}
-	}
-	if child == nil {
-		t.Error("child step with branchCondition not found")
+	// The tree-era parent_client_id + branch_condition became a labelled edge.
+	if len(got.Edges) != 1 || got.Edges[0].Condition != "if admin" {
+		t.Errorf("edges = %+v, want one edge labelled 'if admin'", got.Edges)
 	}
 }
 

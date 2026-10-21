@@ -361,27 +361,34 @@ func TestMCP_CrossProjectFeaturesAndLinks(t *testing.T) {
 	if s1.Tombstoned || s2.Tombstoned {
 		t.Fatalf("steps should resolve: %+v %+v", s1, s2)
 	}
-	var link FlowLink
-	mcpOK(t, h, "flows_set_link", map[string]any{"flow_id": flow.ID, "from_step_id": s2.ID, "to_step_id": s1.ID, "description": "session cookie"}, &link)
-	if link.Description != "session cookie" {
-		t.Fatalf("link: %+v", link)
+	var link FlowEdge
+	mcpOK(t, h, "flows_set_edge", map[string]any{"flow_id": flow.ID, "from_step_id": s2.ID, "to_step_id": s1.ID, "description": "session cookie", "kind": "response"}, &link)
+	if link.Description != "session cookie" || link.Kind != "response" {
+		t.Fatalf("edge: %+v", link)
 	}
 	var got Flow
 	mcpOK(t, h, "flows_get", map[string]any{"flow_id": flow.ID}, &got)
-	if len(got.Links) != 1 || got.Links[0].FromStepID != s2.ID {
-		t.Fatalf("cross-project link not stored: %+v", got.Links)
+	if len(got.Edges) != 2 {
+		t.Fatalf("cross-project edges not stored: %+v", got.Edges)
 	}
 
-	// Links never leave their flow, and a step cannot link to itself.
+	// The service map shows the two projects connected by both edges.
+	var sm ServiceMap
+	mcpOK(t, h, "get_service_map", map[string]any{}, &sm)
+	if len(sm.Services) != 2 || len(sm.Connections) != 2 {
+		t.Fatalf("service map: %+v", sm)
+	}
+
+	// Edges never leave their flow, and a step cannot lead to itself.
 	var other Flow
 	mcpOK(t, h, "flows_create", map[string]any{"name": "Other"}, &other)
 	var foreign FlowStep
 	mcpOK(t, h, "flows_add_step", map[string]any{"flow_id": other.ID, "project_slug": b, "feature_id": fb}, &foreign)
-	if r := mcpCall(t, h, "flows_set_link", map[string]any{"flow_id": flow.ID, "from_step_id": s1.ID, "to_step_id": foreign.ID}); !mcpIsError(t, r) {
-		t.Error("link to a step of another flow should fail")
+	if r := mcpCall(t, h, "flows_set_edge", map[string]any{"flow_id": flow.ID, "from_step_id": s1.ID, "to_step_id": foreign.ID}); !mcpIsError(t, r) {
+		t.Error("an edge to a step of another flow should fail")
 	}
-	if r := mcpCall(t, h, "flows_set_link", map[string]any{"flow_id": flow.ID, "from_step_id": s1.ID, "to_step_id": s1.ID}); !mcpIsError(t, r) {
-		t.Error("self link should fail")
+	if r := mcpCall(t, h, "flows_set_edge", map[string]any{"flow_id": flow.ID, "from_step_id": s1.ID, "to_step_id": s1.ID}); !mcpIsError(t, r) {
+		t.Error("a self edge should fail")
 	}
 
 	// Flow findings + facets aggregate across projects.
@@ -429,12 +436,18 @@ func TestMCP_FlowsUpdateStep_SnakeCase(t *testing.T) {
 	h, _ := newTestMCP(t)
 	var flow Flow
 	mcpOK(t, h, "flows_create", map[string]any{"name": "f"}, &flow)
-	var step FlowStep
+	var first, step FlowStep
+	mcpOK(t, h, "flows_add_step", map[string]any{"flow_id": flow.ID, "project_slug": "p", "feature_id": "w"}, &first)
 	mcpOK(t, h, "flows_add_step", map[string]any{"flow_id": flow.ID, "project_slug": "p", "feature_id": "x"}, &step)
 	var updated FlowStep
-	mcpOK(t, h, "flows_update_step", map[string]any{"flow_id": flow.ID, "step_id": step.ID, "branch_condition": "if admin"}, &updated)
-	if updated.BranchCondition != "if admin" {
-		t.Fatalf("branch_condition not applied: %+v", updated)
+	mcpOK(t, h, "flows_update_step", map[string]any{"flow_id": flow.ID, "step_id": step.ID, "branch_condition": "if admin", "actor": "admin", "controls": []string{"authz"}}, &updated)
+	if updated.Actor != "admin" || len(updated.Controls) != 1 {
+		t.Fatalf("actor/controls not applied: %+v", updated)
+	}
+	var got Flow
+	mcpOK(t, h, "flows_get", map[string]any{"flow_id": flow.ID}, &got)
+	if len(got.Edges) != 1 || got.Edges[0].Condition != "if admin" {
+		t.Fatalf("branch_condition not applied to the edge in: %+v", got.Edges)
 	}
 	if r := mcpCall(t, h, "flows_update_step", map[string]any{"flow_id": flow.ID}); !mcpIsError(t, r) || !strings.Contains(mcpResultText(t, r), "step_id is required") {
 		t.Fatal("missing step_id should be reported")

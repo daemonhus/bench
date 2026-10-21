@@ -2314,3 +2314,117 @@
 /* The status pill is taller than the title line; let it overhang rather than push the
    folder path and tabs down, so the header keeps the list page's rhythm. */
 .flow-detail-status { margin-block: -8px; }
+
+/* ── Flow graph editing: hops, joins and loops, actor/controls, step menu ── */
+
+.flow-detail-page { position: relative; }
+
+.flow-edge-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  min-width: 0;
+}
+.flow-edge-main .flow-edge-text { flex: 1 1 200px; min-width: 0; }
+.flow-edge--selected .flow-edge-line { color: var(--accent-blue); }
+
+.flow-edge-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.flow-edge-chip {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  line-height: 1;
+  padding: 3px 6px;
+  border-radius: var(--radius-xs);
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--text-muted) 12%, transparent);
+  white-space: nowrap;
+}
+.flow-edge-chip--warn { color: var(--severity-medium); background: color-mix(in srgb, var(--severity-medium) 12%, transparent); }
+.flow-edge-chip--danger { color: var(--severity-critical); background: color-mix(in srgb, var(--severity-critical) 12%, transparent); }
+
+.flow-edge-tools { display: inline-flex; gap: 2px; margin-left: auto; }
+.flow-edge-details,
+.flow-edge-insert {
+  font: inherit;
+  font-size: var(--font-size-xs);
+  padding: 2px 6px;
+  color: var(--text-muted);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+}
+.flow-edge-details:hover,
+.flow-edge-insert:hover { color: var(--text-primary); border-color: var(--border-default); }
+
+.flow-extra-edge {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin: 2px 18px 4px 68px;
+  font-size: var(--font-size-small);
+  color: var(--text-secondary);
+}
+.flow-extra-edge-glyph { color: var(--accent-blue); width: 14px; text-align: center; }
+.flow-extra-edge-target {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 2px 0;
+  text-align: left;
+  cursor: pointer;
+}
+.flow-extra-edge-target:hover { color: var(--text-primary); text-decoration: underline; }
+.flow-extra-edge-label { font-style: italic; color: var(--text-muted); }
+
+.flow-branch-entry { color: var(--text-muted); background: color-mix(in srgb, var(--text-muted) 10%, transparent); cursor: default; }
+
+.flow-step-who {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin: 2px 0 4px;
+  font-size: var(--font-size-small);
+}
+.flow-step-who > .flow-step-who-label:not(:first-child) { margin-left: 14px; }
+.flow-step-who .flow-step-actor.editable,
+.flow-step-who .flow-step-actor { display: inline-block; width: auto; min-width: 90px; margin: 0; }
+.flow-step-who-label {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.flow-step-actor { min-width: 80px; color: var(--text-secondary); }
+
+.flow-step-menu-wrap { display: inline-flex; }
+.flow-step-menu { min-width: 240px; }
+
+.flow-export-btn { height: 28px; }
+
+.map-edge-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.map-edge-cross {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  margin: -4px 0 10px;
+}
+.map-edge-flags { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 12px; }
+.map-edge-flag { display: flex; align-items: center; gap: 8px; font-size: var(--font-size-small); color: var(--text-secondary); cursor: pointer; }
+.map-edge-actions { margin-top: 8px; }
+
+.baselines-delta-detail { margin-left: 8px; font-size: var(--font-size-xs); color: var(--text-muted); }
+.flow-edge-condition {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent-blue);
+  background: color-mix(in srgb, var(--accent-blue) 10%, transparent);
+  border-radius: var(--radius-xs);
+  padding: 3px 8px;
+}

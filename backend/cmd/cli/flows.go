@@ -5,10 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
-// flows: cross-project walkthroughs built from features on any project.
+// flows: cross-project request journeys: steps (features on any project) joined by typed edges.
 
 func flowPath(id string, rest ...string) string {
 	p := "/api/flows/" + url.PathEscape(id)
@@ -59,7 +60,7 @@ func init() {
 	)
 	mpCommands = append(mpCommands,
 		mpCmd{Group: "flows", Name: "list", Desc: "List flows, optionally filtered.", Flags: listFlags, Run: flowList},
-		mpCmd{Group: "flows", Name: "get", Desc: "Get a flow with its steps and links.",
+		mpCmd{Group: "flows", Name: "get", Desc: "Get a flow with its steps and edges.",
 			Args:  []string{"id"},
 			Flags: []flagDef{{Name: "id", Desc: "Flow ID", Required: true}},
 			Run:   func(c *cli, in *mpInput) error { return c.emit("GET", flowPath(in.str("id")), nil) }},
@@ -93,73 +94,147 @@ func init() {
 			},
 			Run: flowDelete},
 
-		// ── steps ──
-		mpCmd{Group: "flows", Name: "add-step", Desc: "Add a step (a feature on some project) to a flow.",
+		// ── steps (a flow is a graph: steps joined by typed edges) ──
+		mpCmd{Group: "flows", Name: "add-step", Desc: "Add a step (a feature on some project) to a flow and connect it. Without --after/--before/--from/--entry it is appended to the end of the main path. The edge flags describe the edge that leads into the new step.",
 			Args: []string{"flow"},
 			Flags: []flagDef{
 				{Name: "flow", Desc: "Flow ID", Required: true},
 				{Name: "feature", Desc: "Feature ID", Required: true},
 				{Name: "project", Desc: "Project slug the feature lives on (default: global --project / BENCH_PROJECT)"},
-				{Name: "parent", Desc: "Parent step ID (default: top level)"},
-				{Name: "condition", Desc: "Branch condition (label for this branch under its parent)"},
 				{Name: "note", Desc: "Step note"},
+				{Name: "actor", Desc: "Who is acting at this step (anonymous, user, admin, service:billing, ...)"},
+				{Name: "controls", Desc: "Comma-separated checks applied at this step (authn:jwt, authz:rbac, ...)", Type: "list"},
+				{Name: "after", Desc: "Insert after this step (it takes over that step's outgoing edges)"},
+				{Name: "before", Desc: "Insert before this step (it takes over that step's incoming edges)"},
+				{Name: "from", Desc: "Branch out of this step"},
+				{Name: "parent", Desc: "Same as --from"},
+				{Name: "entry", Desc: "Add as a new, unconnected entry point", Type: "bool"},
+				{Name: "kind", Desc: "Edge kind [next|call|async|read|write|response]"},
+				{Name: "protocol", Desc: "Protocol of the hop (http, grpc, sql, kafka, ...)"},
+				{Name: "condition", Desc: "When this path is taken (branch label, e.g. \"if user is admin\")"},
+				{Name: "auth", Desc: "Identity the hop carries (none, user, service, mtls, api-key, ...)"},
+				{Name: "trust-boundary", Desc: "The hop crosses a trust boundary [true|false]"},
+				{Name: "data", Desc: "What travels on the hop"},
+				{Name: "tainted", Desc: "The data is attacker-controlled [true|false]"},
+				{Name: "description", Desc: "Short label shown on the edge"},
+				{Name: "comment", Desc: "Longer review note for the edge"},
+				{Name: "tags", Desc: "Comma-separated edge tags (e.g. auth,high-risk)", Type: "list"},
 			},
 			Run: flowAddStep},
-		mpCmd{Group: "flows", Name: "update-step", Desc: "Update a step's note or branch condition.",
+		mpCmd{Group: "flows", Name: "update-step", Desc: "Update a step: note, actor, controls, or point it at another feature (keeping its place and edges). --condition sets the condition on the one edge into the step.",
 			Args: []string{"flow", "step"},
 			Flags: []flagDef{
 				{Name: "flow", Desc: "Flow ID", Required: true},
 				{Name: "step", Desc: "Step ID", Required: true},
 				{Name: "note", Desc: "New note"},
-				{Name: "condition", Desc: "New branch condition"},
+				{Name: "actor", Desc: "New actor"},
+				{Name: "controls", Desc: "New comma-separated controls (replaces the list; \"\" clears)", Type: "list"},
+				{Name: "feature", Desc: "Point the step at this feature"},
+				{Name: "project", Desc: "Point the step at a feature on this project"},
+				{Name: "condition", Desc: "Condition on the edge into this step"},
 			},
 			Run: flowUpdateStep},
-		mpCmd{Group: "flows", Name: "remove-step", Desc: "Remove a step (and its children) from a flow.",
+		mpCmd{Group: "flows", Name: "remove-step", Desc: "Remove a step. By default the gap is closed (what led into it leads on to what it led to); --mode subtree also removes the steps only reachable through it; --mode isolate removes just the step and its edges.",
 			Args: []string{"flow", "step"},
 			Flags: []flagDef{
 				{Name: "flow", Desc: "Flow ID", Required: true},
 				{Name: "step", Desc: "Step ID", Required: true},
+				{Name: "mode", Desc: "How to remove it [splice|subtree|isolate] (default: splice)"},
 			},
 			Run: func(c *cli, in *mpInput) error {
-				return c.emit("DELETE", flowPath(in.str("flow"), "steps", in.str("step")), nil)
+				if err := checkEnum(in, "mode", false, "splice", "subtree", "isolate"); err != nil {
+					return err
+				}
+				q := url.Values{}
+				if m := in.str("mode"); m != "" {
+					q.Set("mode", m)
+				}
+				return c.emit("DELETE", withQuery(flowPath(in.str("flow"), "steps", in.str("step")), q), nil)
 			}},
-		mpCmd{Group: "flows", Name: "move-step", Desc: "Move a step up or down among its siblings.",
+		mpCmd{Group: "flows", Name: "move-step", Desc: "Move a step one place (up/down: among its sibling branches, else along the path), or to a place: --after, --before, --from (re-parent as a branch of that step) or --entry. The edge flags describe the edge into it at its new place.",
 			Args: []string{"flow", "step", "direction"},
 			Flags: []flagDef{
 				{Name: "flow", Desc: "Flow ID", Required: true},
 				{Name: "step", Desc: "Step ID", Required: true},
-				{Name: "direction", Desc: "Direction [up|down]", Required: true},
+				{Name: "direction", Desc: "Direction [up|down] (or give a place instead)"},
+				{Name: "after", Desc: "Put it after this step"},
+				{Name: "before", Desc: "Put it before this step"},
+				{Name: "from", Desc: "Make it a branch of this step"},
+				{Name: "parent", Desc: "Same as --from"},
+				{Name: "entry", Desc: "Make it an unconnected entry point", Type: "bool"},
+				{Name: "kind", Desc: "Edge kind [next|call|async|read|write|response]"},
+				{Name: "protocol", Desc: "Protocol of the hop (http, grpc, sql, kafka, ...)"},
+				{Name: "condition", Desc: "When this path is taken (branch label, e.g. \"if user is admin\")"},
+				{Name: "auth", Desc: "Identity the hop carries (none, user, service, mtls, api-key, ...)"},
+				{Name: "trust-boundary", Desc: "The hop crosses a trust boundary [true|false]"},
+				{Name: "data", Desc: "What travels on the hop"},
+				{Name: "tainted", Desc: "The data is attacker-controlled [true|false]"},
+				{Name: "description", Desc: "Short label shown on the edge"},
+				{Name: "comment", Desc: "Longer review note for the edge"},
+				{Name: "tags", Desc: "Comma-separated edge tags (e.g. auth,high-risk)", Type: "list"},
 			},
 			Run: flowMoveStep},
-		mpCmd{Group: "flows", Name: "set-steps", Desc: "Replace a flow's entire step tree and links from JSON. Format: {\"steps\": [{clientId, parentClientId?, projectSlug, featureId, branchCondition?, note?}], \"links\": [{fromClientId, toClientId, description?, comment?, tags?}]}; exactly one step has no parentClientId (the root). Step IDs are reassigned; the response maps clientId to new ID.",
+		mpCmd{Group: "flows", Name: "set-steps", Desc: "Replace a flow's whole graph from JSON: {\"steps\": [{clientId, projectSlug, featureId, note?, actor?, controls?}], \"edges\": [{from, to, kind?, protocol?, condition?, auth?, trustBoundary?, data?, tainted?, description?, comment?, tags?, position?}]} (from/to are clientIds). Loops and joins are fine. The output of 'flows export' is accepted, so export, edit, set-steps round-trips. Step IDs are reassigned; the response maps clientId to new ID.",
 			Args: []string{"flow"},
 			Flags: []flagDef{
 				{Name: "flow", Desc: "Flow ID", Required: true},
-				{Name: "input", Desc: "JSON file with {steps, links} (default: stdin)", Type: "file"},
+				{Name: "input", Desc: "JSON file with {steps, edges} (default: stdin)", Type: "file"},
 			},
 			Run: flowSetSteps},
-
-		// ── links ──
-		mpCmd{Group: "flows", Name: "set-link", Desc: "Create or update the link between two steps (they may be on different projects). On an existing link, flags left out keep their current value; pass \"\" to clear one.",
-			Args: []string{"flow", "from", "to"},
+		mpCmd{Group: "flows", Name: "export", Desc: "Print a flow as one JSON document {name, description, status, owner, tags, steps, edges}: what 'flows import' and 'flows set-steps' take.",
+			Args:  []string{"flow"},
+			Flags: []flagDef{{Name: "flow", Desc: "Flow ID", Required: true}},
+			Run: func(c *cli, in *mpInput) error {
+				return c.emit("GET", flowPath(in.str("flow"), "export"), nil)
+			}},
+		mpCmd{Group: "flows", Name: "import", Desc: "Create a flow, with its whole graph, from a JSON document (the 'flows export' shape).",
 			Flags: []flagDef{
-				{Name: "flow", Desc: "Flow ID", Required: true},
-				{Name: "from", Desc: "From step ID", Required: true},
-				{Name: "to", Desc: "To step ID", Required: true},
-				{Name: "description", Desc: "Short label shown on the edge in the graph"},
-				{Name: "comment", Desc: "Longer annotation / review note for this link"},
-				{Name: "tags", Desc: "Comma-separated tags (e.g. auth,high-risk)", Type: "list"},
+				{Name: "input", Desc: "JSON file (default: stdin)", Type: "file"},
+				{Name: "name", Desc: "Name for the new flow (default: the document's name)"},
+				{Name: "folder", Desc: "Folder to create it in (id or path)"},
 			},
-			Run: flowSetLink},
-		mpCmd{Group: "flows", Name: "delete-link", Desc: "Delete the link between two steps.",
+			Run: flowImport},
+
+		// ── edges ──
+		mpCmd{Group: "flows", Name: "set-edge", Desc: "Create or update the edge from one step to another (they may be on different projects: one service calling another). On an existing edge, flags left out keep their current value; pass \"\" to clear one.",
 			Args: []string{"flow", "from", "to"},
 			Flags: []flagDef{
 				{Name: "flow", Desc: "Flow ID", Required: true},
-				{Name: "from", Desc: "From step ID", Required: true},
-				{Name: "to", Desc: "To step ID", Required: true},
+				{Name: "from", Desc: "Step the edge leaves", Required: true},
+				{Name: "to", Desc: "Step it leads to", Required: true},
+				{Name: "position", Desc: "Order among the edges leaving --from", Type: "int"},
+				{Name: "kind", Desc: "Edge kind [next|call|async|read|write|response]"},
+				{Name: "protocol", Desc: "Protocol of the hop (http, grpc, sql, kafka, ...)"},
+				{Name: "condition", Desc: "When this path is taken (branch label, e.g. \"if user is admin\")"},
+				{Name: "auth", Desc: "Identity the hop carries (none, user, service, mtls, api-key, ...)"},
+				{Name: "trust-boundary", Desc: "The hop crosses a trust boundary [true|false]"},
+				{Name: "data", Desc: "What travels on the hop"},
+				{Name: "tainted", Desc: "The data is attacker-controlled [true|false]"},
+				{Name: "description", Desc: "Short label shown on the edge"},
+				{Name: "comment", Desc: "Longer review note for the edge"},
+				{Name: "tags", Desc: "Comma-separated edge tags (e.g. auth,high-risk)", Type: "list"},
+			},
+			Run: flowSetEdge},
+		mpCmd{Group: "flows", Name: "delete-edge", Desc: "Delete the edge between two steps (the steps stay).",
+			Args: []string{"flow", "from", "to"},
+			Flags: []flagDef{
+				{Name: "flow", Desc: "Flow ID", Required: true},
+				{Name: "from", Desc: "Step the edge leaves", Required: true},
+				{Name: "to", Desc: "Step it leads to", Required: true},
 			},
 			Run: func(c *cli, in *mpInput) error {
-				return c.emit("DELETE", flowPath(in.str("flow"), "links", in.str("from"), in.str("to")), nil)
+				return c.emit("DELETE", flowPath(in.str("flow"), "edges", in.str("from"), in.str("to")), nil)
+			}},
+
+		// ── service map ──
+		mpCmd{Group: "map", Name: "show", Desc: "Print the service map: services (projects) with their features, and the connections between them from flows' cross-project edges.",
+			Flags: []flagDef{{Name: "archived", Desc: "Include archived flows' edges", Type: "bool"}},
+			Run: func(c *cli, in *mpInput) error {
+				q := url.Values{}
+				if in.flag("archived") {
+					q.Set("archived", "1")
+				}
+				return c.emit("GET", withQuery("/api/service-map", q), nil)
 			}},
 
 		// ── discovery / review ──
@@ -399,6 +474,55 @@ func flowDelete(c *cli, in *mpInput) error {
 	return nil
 }
 
+// edgeFlags collects the edge flags given into a REST edge body (only those passed are sent).
+func edgeFlags(in *mpInput) (map[string]any, error) {
+	if err := checkEnum(in, "kind", false, "next", "call", "async", "read", "write", "response"); err != nil {
+		return nil, err
+	}
+	edge := map[string]any{}
+	for flag, key := range map[string]string{"kind": "kind", "protocol": "protocol", "condition": "condition", "auth": "auth",
+		"data": "data", "description": "description", "comment": "comment"} {
+		if in.has(flag) {
+			edge[key] = in.str(flag)
+		}
+	}
+	for flag, key := range map[string]string{"trust-boundary": "trustBoundary", "tainted": "tainted"} {
+		if in.has(flag) {
+			switch strings.ToLower(in.str(flag)) {
+			case "true", "yes", "1", "":
+				edge[key] = true
+			case "false", "no", "0":
+				edge[key] = false
+			default:
+				return nil, fmt.Errorf("--%s must be true or false, got %q", flag, in.str(flag))
+			}
+		}
+	}
+	if in.has("tags") {
+		tags := in.list("tags")
+		if tags == nil {
+			tags = []string{}
+		}
+		edge["tags"] = tags
+	}
+	return edge, nil
+}
+
+// placeFlags adds the placement flags given to body.
+func placeFlags(in *mpInput, body map[string]any) {
+	for _, k := range []string{"after", "before", "from"} {
+		if v := in.str(k); v != "" {
+			body[k] = v
+		}
+	}
+	if v := in.str("parent"); v != "" && body["from"] == nil {
+		body["from"] = v
+	}
+	if in.flag("entry") {
+		body["entry"] = true
+	}
+}
+
 func flowAddStep(c *cli, in *mpInput) error {
 	project := in.str("project")
 	if project == "" {
@@ -407,13 +531,27 @@ func flowAddStep(c *cli, in *mpInput) error {
 	if project == "" {
 		return errors.New("--project is required (or set the global --project / BENCH_PROJECT)")
 	}
-	data, status, err := c.req("POST", flowPath(in.str("flow"), "steps"), map[string]any{
-		"projectSlug":     project,
-		"featureId":       in.str("feature"),
-		"parentStepId":    in.str("parent"),
-		"branchCondition": in.str("condition"),
-		"note":            in.str("note"),
-	})
+	body := map[string]any{
+		"projectSlug": project,
+		"featureId":   in.str("feature"),
+	}
+	for _, k := range []string{"note", "actor"} {
+		if in.has(k) {
+			body[k] = in.str(k)
+		}
+	}
+	if in.has("controls") {
+		body["controls"] = in.list("controls")
+	}
+	placeFlags(in, body)
+	edge, err := edgeFlags(in)
+	if err != nil {
+		return err
+	}
+	if len(edge) > 0 {
+		body["edge"] = edge
+	}
+	data, status, err := c.req("POST", flowPath(in.str("flow"), "steps"), body)
 	if err != nil {
 		return err
 	}
@@ -438,29 +576,54 @@ func flowAddStep(c *cli, in *mpInput) error {
 
 func flowUpdateStep(c *cli, in *mpInput) error {
 	obj := map[string]any{}
-	if in.has("note") {
-		obj["note"] = in.str("note")
+	for flag, key := range map[string]string{"note": "note", "actor": "actor", "feature": "featureId", "project": "projectSlug", "condition": "branchCondition"} {
+		if in.has(flag) {
+			obj[key] = in.str(flag)
+		}
 	}
-	if in.has("condition") {
-		obj["branchCondition"] = in.str("condition")
+	if in.has("controls") {
+		controls := in.list("controls")
+		if controls == nil {
+			controls = []string{}
+		}
+		obj["controls"] = controls
 	}
 	if len(obj) == 0 {
-		return errors.New("nothing to update: pass --note and/or --condition")
+		return errors.New("nothing to update: pass --note, --actor, --controls, --feature, --project and/or --condition")
 	}
 	return c.emit("PATCH", flowPath(in.str("flow"), "steps", in.str("step")), obj)
 }
 
 func flowMoveStep(c *cli, in *mpInput) error {
-	var dir string
-	switch strings.ToLower(in.str("direction")) {
-	case "up":
-		dir = "-1"
-	case "down":
-		dir = "1"
-	default:
+	body := map[string]any{}
+	placeFlags(in, body)
+	edge, err := edgeFlags(in)
+	if err != nil {
+		return err
+	}
+	q := url.Values{}
+	switch d := strings.ToLower(in.str("direction")); {
+	case d == "up":
+		q.Set("dir", "-1")
+	case d == "down":
+		q.Set("dir", "1")
+	case d != "":
 		return fmt.Errorf("direction must be 'up' or 'down', got %q", in.str("direction"))
 	}
-	return c.emit("POST", withQuery(flowPath(in.str("flow"), "steps", in.str("step"), "move"), url.Values{"dir": {dir}}), nil)
+	if len(q) > 0 && len(body) > 0 {
+		return errors.New("give a direction or a place (--after, --before, --from, --entry), not both")
+	}
+	if len(q) == 0 && len(body) == 0 {
+		return errors.New("give a direction (up|down) or a place: --after, --before, --from or --entry")
+	}
+	if len(edge) > 0 {
+		body["edge"] = edge
+	}
+	var payload any
+	if len(body) > 0 {
+		payload = body
+	}
+	return c.emit("POST", withQuery(flowPath(in.str("flow"), "steps", in.str("step"), "move"), q), payload)
 }
 
 func flowSetSteps(c *cli, in *mpInput) error {
@@ -469,24 +632,48 @@ func flowSetSteps(c *cli, in *mpInput) error {
 		return err
 	}
 	if !json.Valid(raw) {
-		return errors.New("input is not valid JSON (expected {\"steps\": [...], \"links\": [...]})")
+		return errors.New("input is not valid JSON (expected {\"steps\": [...], \"edges\": [...]})")
 	}
 	return c.emit("PUT", flowPath(in.str("flow"), "steps"), raw)
 }
 
-func flowSetLink(c *cli, in *mpInput) error {
-	// Only the flags given are sent: on an existing link the server keeps the
-	// fields left out (pass "" to clear one).
-	obj := map[string]any{}
-	for _, k := range []string{"description", "comment"} {
-		if in.has(k) {
-			obj[k] = in.str(k)
+func flowImport(c *cli, in *mpInput) error {
+	raw, err := c.readInput(in.str("input"))
+	if err != nil {
+		return err
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		return errors.New("input is not a JSON object (expected the 'flows export' shape)")
+	}
+	if v := in.str("name"); v != "" {
+		doc["name"] = v
+	}
+	if f := in.str("folder"); f != "" {
+		id, err := c.resolveFolderRef(f)
+		if err != nil {
+			return err
 		}
+		doc["folderId"] = id
 	}
-	if tags := in.list("tags"); tags != nil {
-		obj["tags"] = tags
+	return c.emit("POST", "/api/flows", doc)
+}
+
+func flowSetEdge(c *cli, in *mpInput) error {
+	// Only the flags given are sent: on an existing edge the server keeps the
+	// fields left out (pass "" to clear one).
+	edge, err := edgeFlags(in)
+	if err != nil {
+		return err
 	}
-	return c.emit("PUT", flowPath(in.str("flow"), "links", in.str("from"), in.str("to")), obj)
+	if in.has("position") {
+		n, err := strconv.Atoi(in.str("position"))
+		if err != nil {
+			return fmt.Errorf("--position must be a number, got %q", in.str("position"))
+		}
+		edge["position"] = n
+	}
+	return c.emit("PUT", flowPath(in.str("flow"), "edges", in.str("from"), in.str("to")), edge)
 }
 
 func flowViewUpdate(c *cli, in *mpInput) error {

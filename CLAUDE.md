@@ -517,7 +517,7 @@ Bench exposes MCP tools and a CLI. Tool schemas and CLI `--help` are the source 
 
 **Tool groups:** git, findings, comments, features, refs, baselines, analytics, reconcile, profile.
 
-**Multi-project only:** projects, baselines-all, catalog (cross-project feature search), flows (steps, links, folders, baselines, views). See `bench <category> --help`.
+**Multi-project only:** projects, baselines-all, catalog (cross-project feature search), flows (steps and typed edges, export/import, folders, baselines, views), map (the service map). See `bench <category> --help`.
 
 **Always use `bench git` for code access** - do not reach around the CLI to the filesystem (`cat`, `grep`, `git -C`, etc.). Use:
 - `bench git commits` - HEAD commit and recent history

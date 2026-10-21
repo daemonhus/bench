@@ -58,13 +58,14 @@ type mpCmd struct {
 var mpGroups = []mpGroup{
 	{Name: "projects", Desc: "Projects: list, register, update, remove repositories under review"},
 	{Name: "baselines-all", Desc: "Recent baselines across every project", Default: "list"},
-	{Name: "flows", Desc: "Flows: cross-project feature walkthroughs - steps, links, baselines, folders, views"},
+	{Name: "flows", Desc: "Flows: cross-project request journeys - steps joined by typed edges, baselines, folders, views"},
 	{Parent: "flows", Name: "folders", Desc: "Flow folders: organise flows into nested folders",
 		Note: "A <folder> is a folder id or a path of names (auth/login); / or root is the top level.\nRelated: flows list --folder, flows create --folder, flows move <flow-id>... --folder <folder>"},
 	{Parent: "flows", Name: "baseline", Aliases: []string{"baselines"}, Desc: "Flow baselines: snapshot a flow's state and compare against it later",
 		Note: "Related: flows delta, flows findings"},
 	{Parent: "flows", Name: "views", Desc: "Saved flow views: named, optionally shared, flow list queries"},
 	{Name: "catalog", Desc: "Cross-project feature catalog: search features across all projects"},
+	{Name: "map", Desc: "Service map: projects as services, their features, and the connections flows record between them", Default: "show"},
 }
 
 // groupPath returns the full path ("flows folders") of a group.

@@ -6,6 +6,7 @@ import { HomePage } from './HomePage';
 import { FeatureFlowsCard } from './FeatureFlowsCard';
 import { SettingsPage } from './SettingsPage';
 import { FlowsListPage, FlowDetailPage } from './flows';
+import { ServiceMapPage } from './ServiceMap';
 import { getSettings } from './api';
 import './tokens.css';
 import './platform.css';
@@ -21,6 +22,7 @@ type View =
   | { kind: 'workbench'; slug: string }
   | { kind: 'settings' }
   | { kind: 'flows'; folder?: string }
+  | { kind: 'map' }
   | { kind: 'flow'; id: string };
 
 function parseView(): View {
@@ -37,6 +39,7 @@ function parseView(): View {
     const folder = new URLSearchParams(window.location.search).get('folder') ?? '';
     return folder ? { kind: 'flows', folder } : { kind: 'flows' };
   }
+  if (path === '/map') return { kind: 'map' };
   if (SETTINGS_ENABLED && path === '/settings') return { kind: 'settings' };
   if (path === '/projects') return { kind: 'projects' };
   return { kind: 'home' };
@@ -46,6 +49,7 @@ function viewToPath(view: View): string {
   if (view.kind === 'workbench') return `/p/${view.slug}`;
   if (view.kind === 'flow') return `/flows/${view.id}`;
   if (view.kind === 'flows') return view.folder ? `/flows?folder=${encodeURIComponent(view.folder)}` : '/flows';
+  if (view.kind === 'map') return '/map';
   if (view.kind === 'settings') return '/settings';
   if (view.kind === 'projects') return '/projects';
   return '/';
@@ -78,6 +82,17 @@ function FlowsIcon() {
       <circle cx="12.75" cy="3.75" r="1.75" />
       <circle cx="12.75" cy="12.25" r="1.75" />
       <path d="M4.9 7.3 11.1 4.4M4.9 8.7l6.2 2.9" />
+    </svg>
+  );
+}
+
+function MapIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1.75" y="2.25" width="4.5" height="4" rx="1" />
+      <rect x="9.75" y="2.25" width="4.5" height="4" rx="1" />
+      <rect x="5.75" y="9.75" width="4.5" height="4" rx="1" />
+      <path d="M6.25 4.25h3.5M4 6.25v1.5c0 .8.6 1.5 1.5 1.5h.25M12 6.25v1.5c0 .8-.6 1.5-1.5 1.5h-.25" />
     </svg>
   );
 }
@@ -223,6 +238,15 @@ export function PlatformShell() {
             <FlowsIcon />
             <span className="platform-rail-label">Flows</span>
           </button>
+          <button
+            className={`platform-rail-btn${view.kind === 'map' ? ' platform-rail-btn-active' : ''}`}
+            title="Service map"
+            aria-current={view.kind === 'map' ? 'page' : undefined}
+            onClick={() => navigate({ kind: 'map' })}
+          >
+            <MapIcon />
+            <span className="platform-rail-label">Map</span>
+          </button>
         </div>
 
         <div className="platform-rail-group platform-rail-group-end">
@@ -289,6 +313,9 @@ export function PlatformShell() {
             onOpenProject={openProject}
           />
         )}
+        {view.kind === 'map' && (
+          <ServiceMapPage onOpenFlow={(id) => navigate({ kind: 'flow', id })} onOpenProject={openProject} />
+        )}
         {view.kind === 'settings' && <SettingsPage />}
       </PageRegion>
     </div>
@@ -301,6 +328,7 @@ function pageTitle(view: View): string {
     case 'projects': return 'Projects';
     case 'flows': return 'Flows';
     case 'flow': return 'Flow';
+    case 'map': return 'Service map';
     case 'settings': return 'Settings';
     default: return 'Bench';
   }

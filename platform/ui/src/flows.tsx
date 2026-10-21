@@ -7,6 +7,7 @@ import { SelectDropdown, ToneChip } from '@bench/components/SelectDropdown';
 import { Skeleton, SkeletonRows } from '@bench/components/Skeleton';
 import { EditableText, SaveIndicator } from '@bench/components/EditableText';
 import { FlowGraphView } from './FlowGraph';
+import { outline, edgeKey, reachableFrom, type GraphEdge } from './flowOutline';
 import {
   parseFilter, buildFilter,
   FilterSearch, TokenFilterDropdown, SortToggle,
@@ -48,13 +49,12 @@ export const flowStatusOption = (s: string) => FLOW_STATUS_OPTIONS.find((o) => o
 
 export interface FlowStep {
   id: string;
-  // Tree structure. Root steps have parentStepId === null. Position is the
-  // ordinal among siblings sharing the same parent — NOT an absolute index in
-  // the flow. Depth-first traversal yields the display order (1, 2, 3…).
+  // A flow is a graph (steps + edges); the page shows it as an outline (see flowGraph.ts).
+  // These three come from that outline: the step it is reached from (null for an entry
+  // point), its place among that step's branches, and the condition on the edge it is
+  // reached by.
   parentStepId: string | null;
   position: number;
-  // When the parent has 2+ children, every child carries a free-text condition.
-  // When the parent has 1 child, this is empty and not rendered (linear case).
   branchCondition?: string;
   projectSlug: string;
   featureId: string;
@@ -66,19 +66,49 @@ export interface FlowStep {
   featureOperation?: string;
   featureProtocol?: string;
   note: string;
+  /** Who is acting at this step (anonymous, user, admin, service:billing, …). */
+  actor: string;
+  /** Checks applied at this step (authn:jwt, authz:rbac, validation, …). */
+  controls: string[];
   // Set when the underlying feature is gone (tombstone pattern).
   tombstoned?: boolean;
   // From bench reconciler: 'exact' | 'moved' | 'orphaned' (absent = exact)
   confidence?: string;
 }
 
-export interface FlowStepLink {
+export type EdgeKind = 'next' | 'call' | 'async' | 'read' | 'write' | 'response';
+export const EDGE_KINDS: { value: EdgeKind; label: string; hint: string }[] = [
+  { value: 'next', label: 'Next', hint: 'Then (no particular mechanism)' },
+  { value: 'call', label: 'Call', hint: 'A synchronous request' },
+  { value: 'async', label: 'Async', hint: 'A message or event' },
+  { value: 'read', label: 'Read', hint: 'Reads from a store' },
+  { value: 'write', label: 'Write', hint: 'Writes to a store' },
+  { value: 'response', label: 'Response', hint: 'A reply back' },
+];
+
+/** One hop of a flow: from one step to the next, and what travels on it. */
+export interface FlowEdge {
   fromStepId: string;
   toStepId: string;
+  /** Order among the edges leaving fromStepId. */
+  position: number;
+  kind: EdgeKind;
+  protocol: string;
+  /** When this path is taken (a branch label). */
+  condition: string;
+  /** The identity the hop carries (none, user, service, mtls, …). */
+  auth: string;
+  trustBoundary: boolean;
+  /** What travels on the hop. */
+  data: string;
+  /** The data is attacker-controlled. */
+  tainted: boolean;
   description: string;
   comment: string;
   tags: string[];
 }
+
+export type EdgePatch = Partial<Omit<FlowEdge, 'fromStepId' | 'toStepId'>>;
 
 export interface Flow {
   id: string;
@@ -91,7 +121,9 @@ export interface Flow {
   createdAt: string;
   updatedAt: string;
   steps: FlowStep[];
-  links: FlowStepLink[];
+  edges: FlowEdge[];
+  /** Edges outside the outline: joins into a step shown earlier, and loops back. */
+  extraEdges: FlowEdge[];
 }
 
 export type FeatureKind = 'interface' | 'source' | 'sink' | 'dependency' | 'externality';
@@ -112,27 +144,69 @@ export interface FeatureRef {
 
 const API = '/api/flows';
 
+export function normalizeEdge(e: any): FlowEdge {
+  return {
+    fromStepId: e.fromStepId,
+    toStepId: e.toStepId,
+    position: e.position ?? 0,
+    kind: e.kind || 'next',
+    protocol: e.protocol ?? '',
+    condition: e.condition ?? '',
+    auth: e.auth ?? '',
+    trustBoundary: !!e.trustBoundary,
+    data: e.data ?? '',
+    tainted: !!e.tainted,
+    description: e.description ?? '',
+    comment: e.comment ?? '',
+    tags: e.tags ?? [],
+  };
+}
+
+/** Lay the graph out as an outline: each step's parent, branch order and branch condition. */
+function withOutline<T extends { id: string; position: number }>(steps: T[], edges: GraphEdge[]) {
+  const o = outline(steps, edges);
+  const entryOrder = new Map(o.entries.map((id, i) => [id, i]));
+  return {
+    outline: o,
+    steps: steps.map((s) => {
+      const via = o.via.get(s.id);
+      return {
+        ...s,
+        stepOrder: s.position,
+        parentStepId: o.parent.get(s.id) ?? null,
+        position: via ? via.position : (entryOrder.get(s.id) ?? s.position),
+        branchCondition: via?.condition ?? '',
+      };
+    }),
+  };
+}
+
 // The backend embeds feature data in a nested `feature` object.
 // Flatten it into the flat fields the UI components expect.
 function normalizeFlow(f: any): Flow {
-  return {
-    ...f,
-    links: (f.links ?? []).map((l: any) => ({
-      ...l,
-      comment: l.comment ?? '',
-      tags: l.tags ?? [],
-    })),
-    steps: (f.steps ?? []).map((s: any) => ({
-      ...s,
-      parentStepId: s.parentStepId ?? null,
-      projectName: s.feature?.projectName ?? s.projectName ?? '',
-      featureTitle: s.feature?.title ?? s.featureTitle ?? '',
-      featureKind: s.feature?.kind ?? s.featureKind ?? 'interface',
-      featureOperation: s.feature?.operation ?? s.featureOperation,
-      featureProtocol: s.feature?.protocol ?? s.featureProtocol,
-      confidence: s.feature?.confidence ?? s.confidence,
-    })),
-  };
+  const edges: FlowEdge[] = (f.edges ?? []).map(normalizeEdge);
+  const flat = (f.steps ?? []).map((s: any) => ({
+    ...s,
+    note: s.note ?? '',
+    actor: s.actor ?? '',
+    controls: s.controls ?? [],
+    projectName: s.feature?.projectName ?? s.projectName ?? '',
+    featureTitle: s.feature?.title ?? s.featureTitle ?? '',
+    featureKind: s.feature?.kind ?? s.featureKind ?? 'interface',
+    featureOperation: s.feature?.operation ?? s.featureOperation,
+    featureProtocol: s.feature?.protocol ?? s.featureProtocol,
+    confidence: s.feature?.confidence ?? s.confidence,
+  }));
+  const { outline: o, steps } = withOutline(flat, edges);
+  const extra = new Set(o.extra.map(edgeKey));
+  return { ...f, steps, edges, extraEdges: edges.filter((e) => extra.has(edgeKey(e))) };
+}
+
+/** A flow list item's outline, as steps the shape glyphs can draw. */
+export function shapeSteps(summary: Pick<FlowSummary, 'shape' | 'shapeEdges'>): FlowStep[] {
+  const nodes = summary.shape ?? [];
+  const edges = (summary.shapeEdges ?? []).map(([fromStepId, toStepId], i) => ({ fromStepId, toStepId, position: i }));
+  return withOutline(nodes, edges).steps as unknown as FlowStep[];
 }
 
 // FlowSummary is the lightweight list-page representation returned by the paginated endpoint.
@@ -152,8 +226,9 @@ export interface FlowSummary {
   baselineCount?: number;
   openFindings?: FlowFindingCounts;
   openFindingsTotal?: number;
-  /** Step tree skeleton, for drawing the flow's outline. */
-  shape?: { id: string; parentStepId?: string; position: number; projectSlug?: string; featureId?: string }[];
+  /** Step skeleton and its edges ([from, to] in branch order), for drawing the flow's outline. */
+  shape?: { id: string; position: number; projectSlug?: string; featureId?: string }[];
+  shapeEdges?: [string, string][];
 }
 
 export interface FlowBaselineSnapshotStep {
@@ -161,16 +236,17 @@ export interface FlowBaselineSnapshotStep {
   projectSlug: string;
   featureId: string;
   note: string;
-  branchCondition?: string;
-  parentStepId: string | null;
+  actor?: string;
+  controls?: string[];
   position: number;
   feature?: { title: string; kind: string; operation?: string; protocol?: string };
 }
 
 export interface FlowBaselineSnapshot {
+  version?: number;
   flow: { id: string; name: string; description: string; status: string; tags: string[]; owner: string };
   steps: FlowBaselineSnapshotStep[];
-  links: { fromStepId: string; toStepId: string; description: string }[];
+  edges: FlowEdge[];
 }
 
 export interface FlowBaseline {
@@ -201,6 +277,9 @@ export interface FlowDelta {
   removedSteps: FlowDeltaStep[];
   changedSteps: FlowDeltaChange[];
   movedAnchors: { stepId: string; from: unknown; to: unknown; confidence: string }[];
+  addedEdges: FlowEdge[];
+  removedEdges: FlowEdge[];
+  changedEdges: { fromStepId: string; toStepId: string; changes: string[] }[];
 }
 
 export interface FlowFindingItem {
@@ -479,9 +558,9 @@ function FlowShape({ steps, large = false }: { steps: FlowStep[]; large?: boolea
 
 // A flow's outline drawn large and faint behind its gallery card: the same tidy-tree layout
 // as the card glyph and the map, scaled to the card and faded out towards the text.
-function FlowCardBackdrop({ shape }: { shape: NonNullable<FlowSummary['shape']> }) {
-  if (shape.length === 0) return null;
-  const steps = shape.map((n) => ({ ...n, parentStepId: n.parentStepId || null })) as unknown as FlowStep[];
+function FlowCardBackdrop({ flow }: { flow: Pick<FlowSummary, 'shape' | 'shapeEdges'> }) {
+  if (!flow.shape?.length) return null;
+  const steps = shapeSteps(flow);
   const { nodes, edges } = layoutShape(steps);
   if (nodes.length === 0) return null;
   const minX = Math.min(...nodes.map((n) => n.x));
@@ -519,58 +598,64 @@ function childrenOf(steps: FlowStep[], parentStepId: string | null): FlowStep[] 
     .sort((a, b) => a.position - b.position);
 }
 
-export async function addStep(
-  flowId: string,
-  ref: FeatureRef,
-  parentStepId: string | null,
-  branchCondition?: string,
-): Promise<FlowStep> {
-  const r = await fetch(`${API}/${flowId}/steps`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ parentStepId, branchCondition: branchCondition ?? '', projectSlug: ref.projectSlug, featureId: ref.id }),
+/** Where a new or moved step goes; none = the end of the main path. */
+export interface StepPlace {
+  after?: string;
+  before?: string;
+  /** A new branch out of this step. */
+  from?: string;
+  entry?: boolean;
+}
+
+async function send(method: string, url: string, body?: unknown): Promise<Response> {
+  const r = await fetch(url, {
+    method,
+    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (!r.ok) throw new Error(await r.text());
+  return r;
+}
+
+export async function addStep(flowId: string, ref: FeatureRef, place: StepPlace = {}, edge?: EdgePatch): Promise<FlowStep> {
+  const r = await send('POST', `${API}/${flowId}/steps`, { ...place, projectSlug: ref.projectSlug, featureId: ref.id, ...(edge ? { edge } : {}) });
   return r.json();
 }
 
 export async function updateStep(
   flowId: string,
   stepId: string,
-  patch: Partial<Pick<FlowStep, 'note' | 'branchCondition'>>,
+  patch: Partial<Pick<FlowStep, 'note' | 'actor' | 'controls' | 'featureId' | 'projectSlug'>>,
 ): Promise<void> {
-  const r = await fetch(`${API}/${flowId}/steps/${stepId}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(patch),
-  });
-  if (!r.ok) throw new Error(await r.text());
+  await send('PATCH', `${API}/${flowId}/steps/${stepId}`, patch);
 }
 
-export async function removeStep(flowId: string, stepId: string): Promise<void> {
-  const r = await fetch(`${API}/${flowId}/steps/${stepId}`, { method: 'DELETE' });
-  if (!r.ok) throw new Error(await r.text());
-  // 204 No Content — no body to parse
+/** splice closes the gap; subtree also removes the steps only reachable through it. */
+export async function removeStep(flowId: string, stepId: string, mode: 'splice' | 'subtree' | 'isolate' = 'splice'): Promise<void> {
+  await send('DELETE', `${API}/${flowId}/steps/${stepId}?mode=${mode}`);
 }
 
 export async function moveStep(flowId: string, stepId: string, direction: -1 | 1): Promise<void> {
-  const r = await fetch(`${API}/${flowId}/steps/${stepId}/move?dir=${direction}`, { method: 'POST' });
-  if (!r.ok) throw new Error(await r.text());
+  await send('POST', `${API}/${flowId}/steps/${stepId}/move?dir=${direction}`);
 }
 
-export async function setLink(
-  flowId: string,
-  fromStepId: string,
-  toStepId: string,
-  patch: { description?: string; comment?: string; tags?: string[] },
-): Promise<FlowStepLink> {
-  const r = await fetch(`${API}/${flowId}/links/${fromStepId}/${toStepId}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(patch),
-  });
-  if (!r.ok) throw new Error(await r.text());
-  return r.json();
+/** Take a step out (closing the gap) and put it back at place. */
+export async function moveStepTo(flowId: string, stepId: string, place: StepPlace, edge?: EdgePatch): Promise<void> {
+  await send('POST', `${API}/${flowId}/steps/${stepId}/move`, { ...place, ...(edge ? { edge } : {}) });
+}
+
+export async function setEdge(flowId: string, fromStepId: string, toStepId: string, patch: EdgePatch): Promise<FlowEdge> {
+  const r = await send('PUT', `${API}/${flowId}/edges/${fromStepId}/${toStepId}`, patch);
+  return normalizeEdge(await r.json());
+}
+
+export async function deleteEdge(flowId: string, fromStepId: string, toStepId: string): Promise<void> {
+  await send('DELETE', `${API}/${flowId}/edges/${fromStepId}/${toStepId}`);
+}
+
+/** The flow as one JSON document (what POST /api/flows and PUT …/steps take back). */
+export async function exportFlow(flowId: string): Promise<unknown> {
+  return (await send('GET', `${API}/${flowId}/export`)).json();
 }
 
 // ─── Baseline REST client ─────────────────────────────────────────────────
@@ -1089,7 +1174,7 @@ function FlowCard({ flow, projectsList, index, showFolder, onOpen, onMove }: {
   const folderPath = index.path(flow.folderId);
   return (
     <div className="flow-card" data-flow-id={flow.id} {...dragSourceProps(item)} onClick={() => onOpen(flow.id)}>
-      {flow.shape && <FlowCardBackdrop shape={flow.shape} />}
+      {flow.shape && <FlowCardBackdrop flow={flow} />}
       <div className="flow-card-top">
         <ToneChip label={flowStatusOption(flow.status)?.label ?? flow.status} tone={flowStatusOption(flow.status)?.tone} title="Status" />
         <ItemMenu item={item} index={index} currentFolderId={flow.folderId ?? ''} onMove={onMove} />
@@ -1171,12 +1256,11 @@ const KIND_COLORS: Record<FeatureKind, string> = {
   externality: 'kind-externality',
 };
 
-// Picker context: the parent the new step will attach to, plus an optional
-// branchCondition when we're adding a labeled branch (rather than a linear
-// continuation).
+// Picker context: where the picked feature goes (as a new step), or the step whose feature
+// it replaces (repoint).
 interface PickerContext {
-  parentStepId: string | null;
-  branchCondition?: string;
+  place: StepPlace;
+  repoint?: string;
 }
 
 
@@ -1533,23 +1617,40 @@ function BaselinesPanel({ flowId, onClose, inline }: { flowId: string; onClose: 
           ) : delta ? (
             <div className="baselines-delta">
               <div className="baselines-delta-title">Changes since this baseline</div>
-              {delta.addedSteps.length === 0 && delta.removedSteps.length === 0 && delta.changedSteps.length === 0 ? (
+              {[delta.addedSteps, delta.removedSteps, delta.changedSteps, delta.addedEdges ?? [], delta.removedEdges ?? [], delta.changedEdges ?? []].every((l) => l.length === 0) ? (
                 <div className="baselines-delta-empty">No changes since this baseline.</div>
               ) : (
                 <>
                   {delta.addedSteps.length > 0 && (
                     <div className="baselines-delta-section">
-                      <span className="baselines-delta-label baselines-delta-added">+ {delta.addedSteps.length} added</span>
+                      <span className="baselines-delta-label baselines-delta-added">+ {delta.addedSteps.length} step{delta.addedSteps.length === 1 ? '' : 's'} added</span>
                     </div>
                   )}
                   {delta.removedSteps.length > 0 && (
                     <div className="baselines-delta-section">
-                      <span className="baselines-delta-label baselines-delta-removed">− {delta.removedSteps.length} removed</span>
+                      <span className="baselines-delta-label baselines-delta-removed">− {delta.removedSteps.length} step{delta.removedSteps.length === 1 ? '' : 's'} removed</span>
                     </div>
                   )}
                   {delta.changedSteps.length > 0 && (
                     <div className="baselines-delta-section">
-                      <span className="baselines-delta-label baselines-delta-changed">~ {delta.changedSteps.length} changed</span>
+                      <span className="baselines-delta-label baselines-delta-changed">~ {delta.changedSteps.length} step{delta.changedSteps.length === 1 ? '' : 's'} changed</span>
+                      <span className="baselines-delta-detail">{[...new Set(delta.changedSteps.flatMap((c) => c.changes))].join(', ')}</span>
+                    </div>
+                  )}
+                  {(delta.addedEdges ?? []).length > 0 && (
+                    <div className="baselines-delta-section">
+                      <span className="baselines-delta-label baselines-delta-added">+ {delta.addedEdges.length} connection{delta.addedEdges.length === 1 ? '' : 's'} added</span>
+                    </div>
+                  )}
+                  {(delta.removedEdges ?? []).length > 0 && (
+                    <div className="baselines-delta-section">
+                      <span className="baselines-delta-label baselines-delta-removed">− {delta.removedEdges.length} connection{delta.removedEdges.length === 1 ? '' : 's'} removed</span>
+                    </div>
+                  )}
+                  {(delta.changedEdges ?? []).length > 0 && (
+                    <div className="baselines-delta-section">
+                      <span className="baselines-delta-label baselines-delta-changed">~ {delta.changedEdges.length} connection{delta.changedEdges.length === 1 ? '' : 's'} changed</span>
+                      <span className="baselines-delta-detail">{[...new Set(delta.changedEdges.flatMap((c) => c.changes))].join(', ')}</span>
                     </div>
                   )}
                 </>
@@ -1699,12 +1800,21 @@ interface StepFeatureDetail {
 }
 
 function MapStepPanel({
-  step, onClose, onOpenProject,
+  step, flowId, withSave, onRefresh, onClose, onOpenProject,
 }: {
   step: FlowStep;
+  flowId: string;
+  withSave: <T>(fn: () => Promise<T>) => Promise<T>;
+  onRefresh: () => void;
   onClose: () => void;
   onOpenProject: (slug: string, hash?: string) => void;
 }) {
+  const [actor, setActor] = useState(step.actor);
+  useEffect(() => setActor(step.actor), [step.id, step.actor]);
+  const saveStep = async (patch: Partial<Pick<FlowStep, 'actor' | 'controls'>>) => {
+    await withSave(() => updateStep(flowId, step.id, patch));
+    onRefresh();
+  };
   const { method, path: opPath } = parseOpMethod(step.featureOperation ?? step.featureProtocol ?? '');
   const [detail, setDetail] = useState<StepFeatureDetail | null>(null);
   const author = useDisplayName();
@@ -1831,6 +1941,21 @@ function MapStepPanel({
         {step.tombstoned && (
           <p className="map-step-panel-tombstoned">This feature has been removed from the project.</p>
         )}
+        <div className="map-step-panel-field">
+          <label className="map-step-panel-label" htmlFor="map-step-actor">Actor</label>
+          <input
+            id="map-step-actor"
+            className="finding-edit-input map-step-panel-input"
+            value={actor}
+            onChange={(e) => setActor(e.target.value)}
+            onBlur={() => { if (actor !== step.actor) saveStep({ actor }); }}
+            placeholder="Who acts here (anonymous, user, service:billing…)"
+          />
+        </div>
+        <div className="map-step-panel-field">
+          <label className="map-step-panel-label">Controls</label>
+          <TagEditor tags={step.controls} onChange={(controls) => saveStep({ controls })} placeholder="authn, authz, validation…" />
+        </div>
         {step.note && (
           <div className="map-step-panel-field">
             <label className="map-step-panel-label">Step note</label>
@@ -1951,12 +2076,37 @@ function MapStepPanel({
   );
 }
 
-// ─── MapLinkPanel ─────────────────────────────────────────────────────────
+// ─── MapEdgePanel ─────────────────────────────────────────────────────────
 
-function MapLinkPanel({
-  link, fromStep, toStep, flowId, onClose, onRefresh, withSave,
+const AUTH_SUGGESTIONS = ['none', 'user', 'admin', 'service', 'mtls', 'api-key', 'session-cookie', 'jwt'];
+
+/** Short chips describing a hop: its kind (unless plain "next"), protocol, auth and flags. */
+export function edgeChips(e: FlowEdge): { key: string; label: string; tone?: 'warn' | 'danger' }[] {
+  const chips: { key: string; label: string; tone?: 'warn' | 'danger' }[] = [];
+  if (e.kind !== 'next') chips.push({ key: 'kind', label: e.protocol ? `${e.kind} · ${e.protocol}` : e.kind });
+  else if (e.protocol) chips.push({ key: 'kind', label: e.protocol });
+  if (e.auth) chips.push({ key: 'auth', label: `auth: ${e.auth}` });
+  if (e.trustBoundary) chips.push({ key: 'tb', label: 'trust boundary', tone: 'warn' });
+  if (e.tainted) chips.push({ key: 'taint', label: 'tainted', tone: 'danger' });
+  return chips;
+}
+
+function EdgeChips({ edge }: { edge: FlowEdge }) {
+  const chips = edgeChips(edge);
+  if (chips.length === 0) return null;
+  return (
+    <span className="flow-edge-chips">
+      {chips.map((c) => (
+        <span key={c.key} className={`flow-edge-chip${c.tone ? ` flow-edge-chip--${c.tone}` : ''}`}>{c.label}</span>
+      ))}
+    </span>
+  );
+}
+
+function MapEdgePanel({
+  edge, fromStep, toStep, flowId, onClose, onRefresh, withSave,
 }: {
-  link: FlowStepLink;
+  edge: FlowEdge;
   fromStep: FlowStep;
   toStep: FlowStep;
   flowId: string;
@@ -1964,35 +2114,38 @@ function MapLinkPanel({
   onRefresh: () => void;
   withSave: <T>(fn: () => Promise<T>) => Promise<T>;
 }) {
-  const [description, setDescription] = useState(link.description);
-  const [comment, setComment] = useState(link.comment);
-  const [tagInput, setTagInput] = useState(link.tags.join(', '));
-  const commentRef = useAutosize(comment);
+  const [draft, setDraft] = useState(edge);
+  const [tagInput, setTagInput] = useState(edge.tags.join(', '));
+  const commentRef = useAutosize(draft.comment);
   const { width, onResizeStart } = useMapPanelWidth();
 
+  // Reset only when another connection is opened: a refresh after saving one field must not
+  // wipe what is being typed into the next.
   useEffect(() => {
-    setDescription(link.description);
-    setComment(link.comment);
-    setTagInput(link.tags.join(', '));
-  }, [link.fromStepId, link.toStepId]);
+    setDraft(edge);
+    setTagInput(edge.tags.join(', '));
+  }, [edge.fromStepId, edge.toStepId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function parsedTags() {
-    return tagInput.split(',').map((t) => t.trim()).filter(Boolean);
-  }
-
-  async function save() {
-    const tags = parsedTags();
-    const changed =
-      description !== link.description ||
-      comment !== link.comment ||
-      tags.join(',') !== link.tags.join(',');
+  async function save(patch: EdgePatch) {
+    const changed = (Object.keys(patch) as (keyof EdgePatch)[]).some((k) => JSON.stringify(patch[k]) !== JSON.stringify(edge[k]));
     if (!changed) return;
-    await withSave(() => setLink(flowId, link.fromStepId, link.toStepId, { description, comment, tags }));
+    await withSave(() => setEdge(flowId, edge.fromStepId, edge.toStepId, patch));
+    onRefresh();
+  }
+  const text = (k: 'protocol' | 'condition' | 'auth' | 'data' | 'description') => ({
+    value: draft[k],
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => setDraft({ ...draft, [k]: e.target.value }),
+    onBlur: () => save({ [k]: draft[k] }),
+  });
+
+  async function remove() {
+    await withSave(() => deleteEdge(flowId, edge.fromStepId, edge.toStepId));
+    onClose();
     onRefresh();
   }
 
   return (
-    <div className="map-step-panel" style={{ width }}>
+    <div className="map-step-panel" style={{ width }} aria-label="Connection">
       <div className="map-step-panel-resize-handle" onMouseDown={onResizeStart} />
       <div className="map-step-panel-header">
         <span className="map-step-panel-link-label">Connection</span>
@@ -2006,39 +2159,169 @@ function MapLinkPanel({
           <span className={`flow-step-kind kind-${toStep.featureKind}`}>{toStep.featureKind}</span>
           <span className="map-link-panel-title">{toStep.featureTitle || toStep.featureId}</span>
         </div>
-        <div className="map-step-panel-field">
-          <label className="map-step-panel-label">Label</label>
-          <input
-            className="finding-edit-input map-step-panel-input"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            onBlur={save}
-            placeholder="Short label shown on the edge…"
-          />
+        {fromStep.projectSlug !== toStep.projectSlug && (
+          <div className="map-edge-cross">Crosses from {fromStep.projectName || fromStep.projectSlug} to {toStep.projectName || toStep.projectSlug}</div>
+        )}
+        <div className="map-edge-grid">
+          <div className="map-step-panel-field">
+            <label className="map-step-panel-label">Kind</label>
+            <SelectDropdown<EdgeKind>
+              label="Connection kind"
+              options={EDGE_KINDS.map((k) => ({ value: k.value, label: k.label }))}
+              value={draft.kind}
+              onChange={(kind) => { setDraft({ ...draft, kind }); save({ kind }); }}
+            />
+          </div>
+          <div className="map-step-panel-field">
+            <label className="map-step-panel-label" htmlFor="edge-protocol">Protocol</label>
+            <input id="edge-protocol" className="finding-edit-input map-step-panel-input" placeholder="http, grpc, sql…" {...text('protocol')} />
+          </div>
         </div>
         <div className="map-step-panel-field">
-          <label className="map-step-panel-label">Comment</label>
+          <label className="map-step-panel-label" htmlFor="edge-condition">Condition</label>
+          <input id="edge-condition" className="finding-edit-input map-step-panel-input" placeholder="When this path is taken (if user is admin…)" {...text('condition')} />
+        </div>
+        <div className="map-step-panel-field">
+          <label className="map-step-panel-label" htmlFor="edge-auth">Identity carried</label>
+          <input id="edge-auth" list="edge-auth-options" className="finding-edit-input map-step-panel-input" placeholder="none, user, service, mtls…" {...text('auth')} />
+          <datalist id="edge-auth-options">{AUTH_SUGGESTIONS.map((a) => <option key={a} value={a} />)}</datalist>
+        </div>
+        <div className="map-step-panel-field">
+          <label className="map-step-panel-label" htmlFor="edge-data">Data</label>
+          <input id="edge-data" className="finding-edit-input map-step-panel-input" placeholder="What travels on this hop" {...text('data')} />
+        </div>
+        <div className="map-edge-flags">
+          <label className="map-edge-flag">
+            <input type="checkbox" checked={draft.trustBoundary} onChange={(e) => { setDraft({ ...draft, trustBoundary: e.target.checked }); save({ trustBoundary: e.target.checked }); }} />
+            Crosses a trust boundary
+          </label>
+          <label className="map-edge-flag">
+            <input type="checkbox" checked={draft.tainted} onChange={(e) => { setDraft({ ...draft, tainted: e.target.checked }); save({ tainted: e.target.checked }); }} />
+            Attacker-controlled data
+          </label>
+        </div>
+        <div className="map-step-panel-field">
+          <label className="map-step-panel-label" htmlFor="edge-label">Label</label>
+          <input id="edge-label" className="finding-edit-input map-step-panel-input" placeholder="Short label shown on the edge…" {...text('description')} />
+        </div>
+        <div className="map-step-panel-field">
+          <label className="map-step-panel-label" htmlFor="edge-comment">Comment</label>
           <textarea
+            id="edge-comment"
             ref={commentRef}
             className="finding-edit-textarea map-step-panel-textarea"
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            onBlur={save}
+            value={draft.comment}
+            onChange={(e) => setDraft({ ...draft, comment: e.target.value })}
+            onBlur={() => save({ comment: draft.comment })}
             placeholder="Review note for this connection…"
             rows={3}
           />
         </div>
         <div className="map-step-panel-field">
-          <label className="map-step-panel-label">Tags</label>
+          <label className="map-step-panel-label" htmlFor="edge-tags">Tags</label>
           <input
+            id="edge-tags"
             className="finding-edit-input map-step-panel-input"
             value={tagInput}
             onChange={(e) => setTagInput(e.target.value)}
-            onBlur={save}
+            onBlur={() => save({ tags: tagInput.split(',').map((t) => t.trim()).filter(Boolean) })}
             placeholder="auth, high-risk, external…"
           />
         </div>
+        <div className="map-edge-actions">
+          <button className="flows-btn-danger" onClick={remove}>Remove connection</button>
+        </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Step menu (connect, move, change feature, remove with branch) ─────
+
+function StepMenu({ flow, step, numbers, onConnect, onMove, onRepoint, onRemoveBranch }: {
+  flow: Flow;
+  step: FlowStep;
+  numbers: Map<string, number>;
+  onConnect: (toStepId: string) => void;
+  onMove: (place: StepPlace) => void;
+  onRepoint: () => void;
+  onRemoveBranch?: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [view, setView] = useState<'menu' | 'connect' | 'after' | 'branch'>('menu');
+  const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (refocus: boolean) => {
+      setOpen(false); setView('menu');
+      if (refocus) triggerRef.current?.focus({ preventScroll: true });
+    };
+    const onMouse = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) close(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); close(true); } };
+    document.addEventListener('mousedown', onMouse);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onMouse); document.removeEventListener('keydown', onKey); };
+  }, [open]);
+  useEffect(() => {
+    if (open) ref.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+  }, [open, view]);
+
+  const onMenuKey = (e: React.KeyboardEvent) => {
+    const items = [...(ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
+    const i = items.indexOf(document.activeElement as HTMLElement);
+    if (e.key === 'ArrowDown') { e.preventDefault(); items[(i + 1) % items.length]?.focus(); }
+    if (e.key === 'ArrowUp') { e.preventDefault(); items[(i - 1 + items.length) % items.length]?.focus(); }
+  };
+  const run = (fn: () => void) => { setOpen(false); setView('menu'); fn(); };
+
+  // Targets in reading order. Connecting skips steps already connected to; moving skips the
+  // steps after this one on its own branch (they would be left behind) only for "after".
+  const others = [...flow.steps].filter((s) => s.id !== step.id).sort((a, b) => (numbers.get(a.id) ?? 0) - (numbers.get(b.id) ?? 0));
+  const connected = new Set(flow.edges.filter((e) => e.fromStepId === step.id).map((e) => e.toStepId));
+  const targets = view === 'connect' ? others.filter((s) => !connected.has(s.id)) : others;
+  const label = (s: FlowStep) => `${numbers.get(s.id) ?? '?'}. ${s.featureTitle || s.featureId}`;
+  const title = `step ${numbers.get(step.id) ?? ''}`;
+
+  return (
+    <div className="flow-card-menu-wrap flow-step-menu-wrap" ref={ref}>
+      <button
+        ref={triggerRef}
+        type="button"
+        className="flow-step-action"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={`More actions for ${title}`}
+        title="Connect, move, change feature"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span className="flow-step-action-glyph">⋯</span>
+        <span className="flow-step-action-label">More</span>
+      </button>
+      {open && (
+        <div className="flow-card-menu flow-step-menu" role="menu" aria-label={view === 'menu' ? `Actions for ${title}` : view === 'connect' ? 'Connect to' : 'Move to'} onKeyDown={onMenuKey}>
+          {view === 'menu' ? (
+            <>
+              <button type="button" role="menuitem" onClick={() => setView('connect')}>Connect to another step…</button>
+              <button type="button" role="menuitem" onClick={() => setView('after')}>Move after…</button>
+              <button type="button" role="menuitem" onClick={() => setView('branch')}>Move to a branch of…</button>
+              <button type="button" role="menuitem" onClick={() => run(() => onMove({ entry: true }))}>Make an entry point</button>
+              <button type="button" role="menuitem" onClick={() => run(onRepoint)}>Change feature…</button>
+              {onRemoveBranch && <button type="button" role="menuitem" className="danger" onClick={() => run(onRemoveBranch)}>Remove with the steps after it</button>}
+            </>
+          ) : targets.length === 0 ? (
+            <span className="flow-card-menu-empty">No other steps to choose</span>
+          ) : targets.map((s) => (
+            <button key={s.id} type="button" role="menuitem" onClick={() => run(() => {
+              if (view === 'connect') onConnect(s.id);
+              else onMove(view === 'after' ? { after: s.id } : { from: s.id });
+            })}>
+              <span>{label(s)}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -2056,7 +2339,8 @@ export function FlowDetailPage({ flowId, onBack, onOpenProject }: FlowDetailPage
   const [picker, setPicker] = useState<PickerContext | null>(null);
   const [activeTab, setActiveTab] = useState<'flow' | 'map' | 'findings' | 'baselines'>('flow');
   const [selectedMapStepId, setSelectedMapStepId] = useState<string | null>(null);
-  const [selectedMapLinkKey, setSelectedMapLinkKey] = useState<string | null>(null); // "fromId:toId"
+  // The selected connection ("fromId:toId"), on the map or the outline: its side panel shows.
+  const [selectedEdgeKey, setSelectedEdgeKey] = useState<string | null>(null);
   // Steps whose branch blocks are currently expanded (collapsed by default).
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   // Save state for the auto-save indicator.
@@ -2177,14 +2461,16 @@ export function FlowDetailPage({ flowId, onBack, onOpenProject }: FlowDetailPage
   }
   const f = flow;
 
-  const linkBetween = (fromId: string, toId: string) =>
-    f.links.find((l) => l.fromStepId === fromId && l.toStepId === toId);
+  const edgeBetween = (fromId: string, toId: string) =>
+    f.edges.find((l) => l.fromStepId === fromId && l.toStepId === toId);
 
   async function handleAddFeature(ref: FeatureRef) {
     if (!picker) return;
-    const newStep = await withSave(() => addStep(f.id, ref, picker.parentStepId, picker.branchCondition));
-    if (picker.branchCondition !== undefined) {
-      // Expand the new branch child so it's immediately visible.
+    if (picker.repoint) {
+      await withSave(() => updateStep(f.id, picker.repoint!, { projectSlug: ref.projectSlug, featureId: ref.id }));
+    } else {
+      const newStep = await withSave(() => addStep(f.id, ref, picker.place));
+      // Expand the new step's branch so it's immediately visible.
       setExpanded((s) => new Set(s).add(newStep.id));
     }
     setPicker(null);
@@ -2222,6 +2508,31 @@ export function FlowDetailPage({ flowId, onBack, onOpenProject }: FlowDetailPage
     });
   }
 
+  const selectedEdge = selectedEdgeKey ? f.edges.find((e) => edgeKey(e) === selectedEdgeKey) : undefined;
+  const selFrom = selectedEdge && f.steps.find((st) => st.id === selectedEdge.fromStepId);
+  const selTo = selectedEdge && f.steps.find((st) => st.id === selectedEdge.toStepId);
+  const selectedEdgePanel = selectedEdge && selFrom && selTo ? (
+    <MapEdgePanel
+      edge={selectedEdge}
+      fromStep={selFrom}
+      toStep={selTo}
+      flowId={f.id}
+      onClose={() => setSelectedEdgeKey(null)}
+      onRefresh={refresh}
+      withSave={withSave}
+    />
+  ) : null;
+
+  async function downloadExport() {
+    const doc = await exportFlow(f.id);
+    const blob = new Blob([JSON.stringify(doc, null, 2) + '\n'], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${f.name.replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '') || 'flow'}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
   return (
     <FeatureIndexContext.Provider value={featureIndex}>
     <div className={`flow-detail-page ${picker ? 'picker-open' : ''}`}>
@@ -2250,6 +2561,7 @@ export function FlowDetailPage({ flowId, onBack, onOpenProject }: FlowDetailPage
           </div>
           <div className="flow-detail-toolbar-right">
             <SaveIndicator saving={saving > 0} savedAt={savedAt} />
+            <button type="button" className="baseline-action-btn baseline-action-btn-outline flow-export-btn" onClick={downloadExport} title="Download this flow as JSON (for flows import / set-steps)">Export</button>
             {/* The flow's outline, at the right edge of the header; the header grows to hold it,
                 so the tab bar always sits below. */}
             {f.steps.length > 0 && (
@@ -2279,39 +2591,26 @@ export function FlowDetailPage({ flowId, onBack, onOpenProject }: FlowDetailPage
           <div className="flow-map-wrap">
             <FlowGraphView
               steps={f.steps}
-              links={f.links}
+              edges={f.edges}
               selectedStepId={selectedMapStepId}
-              onSelectStep={(id) => { setSelectedMapStepId(id); setSelectedMapLinkKey(null); }}
-              selectedLinkKey={selectedMapLinkKey}
-              onSelectLink={(key) => { setSelectedMapLinkKey(key); setSelectedMapStepId(null); }}
+              onSelectStep={(id) => { setSelectedMapStepId(id); setSelectedEdgeKey(null); }}
+              selectedEdgeKey={selectedEdgeKey}
+              onSelectEdge={(key) => { setSelectedEdgeKey(key); setSelectedMapStepId(null); }}
             />
             {selectedMapStepId && (() => {
               const sel = f.steps.find((s) => s.id === selectedMapStepId);
               return sel ? (
                 <MapStepPanel
                   step={sel}
+                  flowId={f.id}
+                  withSave={withSave}
+                  onRefresh={refresh}
                   onClose={() => setSelectedMapStepId(null)}
                   onOpenProject={onOpenProject}
                 />
               ) : null;
             })()}
-            {selectedMapLinkKey && (() => {
-              const [fromId, toId] = selectedMapLinkKey.split(':');
-              const lnk = f.links.find((l) => l.fromStepId === fromId && l.toStepId === toId);
-              const fromStep = f.steps.find((s) => s.id === fromId);
-              const toStep = f.steps.find((s) => s.id === toId);
-              return lnk && fromStep && toStep ? (
-                <MapLinkPanel
-                  link={lnk}
-                  fromStep={fromStep}
-                  toStep={toStep}
-                  flowId={f.id}
-                  onClose={() => setSelectedMapLinkKey(null)}
-                  onRefresh={refresh}
-                  withSave={withSave}
-                />
-              ) : null;
-            })()}
+            {selectedEdgePanel}
           </div>
         ) : activeTab === 'findings' ? (
           <FindingsPanel flowId={f.id} steps={f.steps} onClose={() => setActiveTab('flow')} onOpenProject={onOpenProject} inline />
@@ -2348,8 +2647,8 @@ export function FlowDetailPage({ flowId, onBack, onOpenProject }: FlowDetailPage
                 <span className="flow-detail-stat-label">Steps</span>
               </div>
               <div className="flow-detail-stat">
-                <span className="flow-detail-stat-num">{f.links.length}</span>
-                <span className="flow-detail-stat-label">Links</span>
+                <span className="flow-detail-stat-num">{f.edges.length}</span>
+                <span className="flow-detail-stat-label">Connections</span>
               </div>
               <div className="flow-detail-stat">
                 <span className="flow-detail-stat-num">{detailFindings?.total ?? 0}</span>
@@ -2362,7 +2661,7 @@ export function FlowDetailPage({ flowId, onBack, onOpenProject }: FlowDetailPage
                 <p className="flow-empty-primer">Start with the first externally-reachable interface in this path — the entry point where a request or event enters the system.</p>
                 <button
                   className="baseline-action-btn baseline-action-btn-primary"
-                  onClick={() => setPicker({ parentStepId: null })}
+                  onClick={() => setPicker({ place: {} })}
                 >
                   + Add first step
                 </button>
@@ -2375,7 +2674,9 @@ export function FlowDetailPage({ flowId, onBack, onOpenProject }: FlowDetailPage
                 editing={editing}
                 expanded={expanded}
                 stepNumbers={stepNumbers}
-                linkBetween={linkBetween}
+                edgeBetween={edgeBetween}
+                selectedEdgeKey={selectedEdgeKey}
+                onSelectEdge={setSelectedEdgeKey}
                 onToggleExpand={toggleExpanded}
                 onOpenPicker={(ctx) => setPicker(ctx)}
                 onOpenProject={onOpenProject}
@@ -2387,6 +2688,7 @@ export function FlowDetailPage({ flowId, onBack, onOpenProject }: FlowDetailPage
         )}
       </div>
 
+      {activeTab === 'flow' && selectedEdgePanel}
       {picker && (
         <FeaturePicker
           projects={projects}
@@ -2401,6 +2703,11 @@ export function FlowDetailPage({ flowId, onBack, onOpenProject }: FlowDetailPage
 }
 
 // ─── Subtree: recursive renderer ────────────────────────────────────────
+//
+// Renders the flow's outline (flowOutline.ts): a single child continues the path inline; two
+// or more are branches, each announced by a connector carrying its edge's condition. Edges
+// the outline doesn't follow (joins into a step shown earlier, loops back) are listed under
+// the step they leave.
 
 interface SubtreeProps {
   flow: Flow;
@@ -2409,7 +2716,9 @@ interface SubtreeProps {
   editing: boolean;
   expanded: Set<string>;
   stepNumbers: Map<string, number>;
-  linkBetween: (fromId: string, toId: string) => FlowStepLink | undefined;
+  edgeBetween: (fromId: string, toId: string) => FlowEdge | undefined;
+  selectedEdgeKey: string | null;
+  onSelectEdge: (key: string | null) => void;
   onToggleExpand: (stepId: string) => void;
   onOpenPicker: (ctx: PickerContext) => void;
   onOpenProject: (slug: string, hash?: string) => void;
@@ -2440,21 +2749,25 @@ function Subtree(props: SubtreeProps) {
 
   // Branching: each child is announced by a connector arrow + condition
   // label, with its subtree indented underneath. No card — just an arrow
-  // glyph in the gutter so any depth of nesting stays legible.
+  // glyph in the gutter so any depth of nesting stays legible. At the top level the
+  // "branches" are the flow's entry points.
   return (
     <div className="flow-branch-group">
       {children.map((c) => {
         const collapsed = !props.expanded.has(c.id);
         const count = 1 + countDescendants(flow.steps, c.id);
+        const edge = parentStepId ? props.edgeBetween(parentStepId, c.id) : undefined;
         return (
           <div key={c.id} className="flow-branch-wrap">
             <BranchConnector
               step={c}
               flow={flow}
+              edge={edge}
               editing={editing}
               collapsed={collapsed}
               stepCount={count}
               onToggle={() => props.onToggleExpand(c.id)}
+              onSelectEdge={props.onSelectEdge}
               withSave={props.withSave}
               onRefresh={props.onRefresh}
             />
@@ -2469,9 +2782,9 @@ function Subtree(props: SubtreeProps) {
       {editing && (
         <button
           className="flow-add-branch"
-          onClick={() => props.onOpenPicker({ parentStepId, branchCondition: '' })}
+          onClick={() => props.onOpenPicker({ place: parentStepId ? { from: parentStepId } : { entry: true } })}
         >
-          ⤵ add branch
+          {parentStepId ? '⤵ add branch' : '⤵ add entry point'}
         </button>
       )}
     </div>
@@ -2497,18 +2810,21 @@ interface StepNodeProps extends SubtreeProps {
 }
 
 function StepNode(props: StepNodeProps) {
-  const { flow, step, editing, stepNumbers, linkBetween, onOpenPicker, onOpenProject, onRefresh } = props;
+  const { flow, step, editing, stepNumbers, edgeBetween, onOpenPicker, onOpenProject, onRefresh, onSelectEdge } = props;
   const childs = childrenOf(flow.steps, step.id);
   const isTerminal = childs.length === 0;
-  // For a single-child continuation we render the edge description.
+  // For a single-child continuation we render the edge between them.
   const next = childs.length === 1 ? childs[0] : null;
-  const link = next ? linkBetween(step.id, next.id) : undefined;
+  const edge = next ? edgeBetween(step.id, next.id) : undefined;
+  const extra = flow.extraEdges.filter((e) => e.fromStepId === step.id);
   const num = stepNumbers.get(step.id) ?? 0;
   const { dismissed, dismiss } = useWarningDismiss(flow.id, step.id);
   const warnings = useMemo(
     () => stepWarnings(flow, step).filter((w) => !dismissed.has(w.type)),
     [flow, step, dismissed],
   );
+  const hasAfter = flow.edges.some((e) => e.fromStepId === step.id);
+  const save = async (fn: () => Promise<unknown>) => { await props.withSave(fn); onRefresh(); };
 
   return (
     <div className="flow-node">
@@ -2519,24 +2835,55 @@ function StepNode(props: StepNodeProps) {
         terminal={isTerminal}
         warnings={warnings}
         onDismissWarning={dismiss}
-        onNoteChange={async (note) => { await props.withSave(() => updateStep(flow.id, step.id, { note })); onRefresh(); }}
-        onConditionChange={async (branchCondition) => { await props.withSave(() => updateStep(flow.id, step.id, { branchCondition })); onRefresh(); }}
-        onRemove={async () => { await props.withSave(() => removeStep(flow.id, step.id)); onRefresh(); }}
-        onMoveUp={async () => { await props.withSave(() => moveStep(flow.id, step.id, -1)); onRefresh(); }}
-        onMoveDown={async () => { await props.withSave(() => moveStep(flow.id, step.id, 1)); onRefresh(); }}
+        onNoteChange={(note) => save(() => updateStep(flow.id, step.id, { note }))}
+        onActorChange={(actor) => save(() => updateStep(flow.id, step.id, { actor }))}
+        onControlsChange={(controls) => save(() => updateStep(flow.id, step.id, { controls }))}
+        onRemove={() => save(() => removeStep(flow.id, step.id))}
+        onMoveUp={() => save(() => moveStep(flow.id, step.id, -1))}
+        onMoveDown={() => save(() => moveStep(flow.id, step.id, 1))}
         onJumpToProject={() => onOpenProject(step.projectSlug, `#/feature/${step.featureId}`)}
-        onBranchFromHere={() => onOpenPicker({ parentStepId: step.id, branchCondition: '' })}
-        onContinue={() => onOpenPicker({ parentStepId: step.id })}
+        onBranchFromHere={() => onOpenPicker({ place: { from: step.id } })}
+        onContinue={() => onOpenPicker({ place: { after: step.id } })}
         onOpenProject={onOpenProject}
+        menu={editing ? (
+          <StepMenu
+            flow={flow}
+            step={step}
+            numbers={stepNumbers}
+            onConnect={(to) => save(() => setEdge(flow.id, step.id, to, {}))}
+            onMove={(place) => save(() => moveStepTo(flow.id, step.id, place))}
+            onRepoint={() => onOpenPicker({ place: {}, repoint: step.id })}
+            onRemoveBranch={hasAfter && reachableFrom(flow.edges, step.id).size > 0 ? () => save(() => removeStep(flow.id, step.id, 'subtree')) : undefined}
+          />
+        ) : null}
       />
-      {next && (
-        <EdgeDescription
-          description={link?.description ?? ''}
+      {extra.map((e) => {
+        const to = flow.steps.find((st) => st.id === e.toStepId);
+        if (!to) return null;
+        const n = stepNumbers.get(to.id) ?? 0;
+        const loop = n <= num;
+        return (
+          <div key={edgeKey(e)} className="flow-extra-edge">
+            <span className="flow-extra-edge-glyph" aria-hidden>{loop ? '↺' : '↪'}</span>
+            <button type="button" className="flow-extra-edge-target" onClick={() => onSelectEdge(edgeKey(e))} title="Connection details">
+              {loop ? 'loops back to' : 'also leads to'} step {n}: {to.featureTitle || to.featureId}
+              {(e.condition || e.description) && <span className="flow-extra-edge-label"> — {e.condition || e.description}</span>}
+            </button>
+            <EdgeChips edge={e} />
+            {editing && (
+              <button type="button" className="flow-step-action flow-step-action-danger" onClick={() => save(() => deleteEdge(flow.id, e.fromStepId, e.toStepId))} aria-label={`Remove the connection to step ${n}`} title="Remove this connection">×</button>
+            )}
+          </div>
+        );
+      })}
+      {next && edge && (
+        <EdgeRow
+          edge={edge}
           editing={editing}
-          onChange={async (description) => {
-            await props.withSave(() => setLink(flow.id, step.id, next.id, { description }));
-            onRefresh();
-          }}
+          selected={props.selectedEdgeKey === edgeKey(edge)}
+          onChange={(description) => save(() => setEdge(flow.id, step.id, next.id, { description }))}
+          onDetails={() => onSelectEdge(edgeKey(edge))}
+          onInsert={() => onOpenPicker({ place: { after: step.id } })}
         />
       )}
       {/* Recurse: render subtree (either the linear continuation, or branches) */}
@@ -2547,23 +2894,25 @@ function StepNode(props: StepNodeProps) {
 
 // ─── Branch connector (the ↳ arrow that announces a labeled branch) ────
 //
-// Replaces the previous card-style BranchBlock. Renders as a single row in
-// the same gutter+content grid as steps and edges, so the arrow lines up
-// with step numbers and ↓ glyphs. The subtree is rendered separately and
-// indented by the caller.
+// A single row in the same gutter+content grid as steps and edges, so the arrow lines up
+// with step numbers and ↓ glyphs. Its label is the condition on the edge into the branch.
+// The subtree is rendered separately and indented by the caller.
 
 interface BranchConnectorProps {
   step: FlowStep;
   flow: Flow;
+  /** The edge into the branch (absent for an entry point). */
+  edge?: FlowEdge;
   editing: boolean;
   collapsed: boolean;
   stepCount: number;
   onToggle: () => void;
+  onSelectEdge: (key: string | null) => void;
   withSave: <T>(fn: () => Promise<T>) => Promise<T>;
   onRefresh: () => void;
 }
 
-function BranchConnector({ step, editing, collapsed, stepCount, onToggle, flow, withSave, onRefresh }: BranchConnectorProps) {
+function BranchConnector({ step, edge, editing, collapsed, stepCount, onToggle, onSelectEdge, flow, withSave, onRefresh }: BranchConnectorProps) {
   const [editingCondition, setEditingCondition] = useState(false);
   const [draftCondition, setDraftCondition] = useState(step.branchCondition ?? '');
 
@@ -2573,8 +2922,8 @@ function BranchConnector({ step, editing, collapsed, stepCount, onToggle, flow, 
 
   async function commitCondition() {
     setEditingCondition(false);
-    if (draftCondition !== (step.branchCondition ?? '')) {
-      await withSave(() => updateStep(flow.id, step.id, { branchCondition: draftCondition }));
+    if (edge && draftCondition !== (step.branchCondition ?? '')) {
+      await withSave(() => setEdge(flow.id, edge.fromStepId, edge.toStepId, { condition: draftCondition }));
       onRefresh();
     }
   }
@@ -2583,7 +2932,9 @@ function BranchConnector({ step, editing, collapsed, stepCount, onToggle, flow, 
     <div className="flow-branch-connector">
       <div className="flow-branch-arrow" aria-hidden>↳</div>
       <div className="flow-branch-label">
-        {editingCondition ? (
+        {!edge ? (
+          <span className="flow-branch-condition flow-branch-entry">entry point</span>
+        ) : editingCondition ? (
           <input
             autoFocus
             className="flow-branch-condition-input"
@@ -2611,6 +2962,10 @@ function BranchConnector({ step, editing, collapsed, stepCount, onToggle, flow, 
               : (editing ? 'untitled branch — click to label' : 'untitled branch')}
           </button>
         )}
+        {edge && <EdgeChips edge={edge} />}
+        {edge && (
+          <button type="button" className="flow-edge-details" onClick={() => onSelectEdge(edgeKey(edge))} title="Connection details">details</button>
+        )}
         <button
           type="button"
           className="flow-branch-toggle"
@@ -2632,7 +2987,6 @@ type StepWarning = { type: string; message: string };
 
 function stepWarnings(flow: Flow, step: FlowStep): StepWarning[] {
   const warnings: StepWarning[] = [];
-  const siblings = flow.steps.filter((s) => s.parentStepId === step.parentStepId);
   const parent = step.parentStepId ? flow.steps.find((s) => s.id === step.parentStepId) : null;
   const parentChildren = parent ? flow.steps.filter((s) => s.parentStepId === parent.id) : [];
 
@@ -2641,12 +2995,16 @@ function stepWarnings(flow: Flow, step: FlowStep): StepWarning[] {
     warnings.push({ type: 'untitled-branch', message: 'Branch has no label — add a condition to distinguish this path.' });
   }
 
-  // 2. Cross-project hop: previous sibling (by position) is a different project and neither is dependency/sink.
-  const prevSibling = siblings.filter((s) => s.position < step.position).sort((a, b) => b.position - a.position)[0];
-  if (prevSibling && prevSibling.projectSlug !== step.projectSlug &&
-      step.featureKind !== 'dependency' && prevSibling.featureKind !== 'dependency' &&
-      step.featureKind !== 'sink' && prevSibling.featureKind !== 'sink') {
-    warnings.push({ type: 'cross-project-hop', message: `Crosses from ${prevSibling.projectSlug} to ${step.projectSlug} without a dependency link.` });
+  // 2. Cross-project hop: every edge in from a step on another project should say what the
+  // hop is (its kind), unless one end is a dependency or sink.
+  for (const e of flow.edges.filter((ed) => ed.toStepId === step.id)) {
+    const from = flow.steps.find((s) => s.id === e.fromStepId);
+    if (from && from.projectSlug !== step.projectSlug && e.kind === 'next' &&
+        step.featureKind !== 'dependency' && from.featureKind !== 'dependency' &&
+        step.featureKind !== 'sink' && from.featureKind !== 'sink') {
+      warnings.push({ type: 'cross-project-hop', message: `Crosses from ${from.projectSlug} to ${step.projectSlug} without saying how (set the connection's kind: call, async, …).` });
+      break;
+    }
   }
 
   // 3. Orphaned anchor in an active flow.
@@ -2683,7 +3041,8 @@ interface StepRowProps {
   warnings: StepWarning[];
   onDismissWarning: (type: string) => void;
   onNoteChange: (note: string) => void;
-  onConditionChange: (condition: string) => void;
+  onActorChange: (actor: string) => void;
+  onControlsChange: (controls: string[]) => void;
   onRemove: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
@@ -2691,12 +3050,13 @@ interface StepRowProps {
   onBranchFromHere: () => void;
   onContinue: () => void;
   onOpenProject: (slug: string, hash?: string) => void;
+  menu: React.ReactNode;
 }
 
 function StepRow({
   step, number, editing, terminal, warnings, onDismissWarning,
-  onNoteChange, onRemove, onMoveUp, onMoveDown,
-  onJumpToProject, onBranchFromHere, onContinue, onOpenProject,
+  onNoteChange, onActorChange, onControlsChange, onRemove, onMoveUp, onMoveDown,
+  onJumpToProject, onBranchFromHere, onContinue, onOpenProject, menu,
 }: StepRowProps) {
   const featureIndex = useContext(FeatureIndexContext);
   const detail = featureIndex.get(`${step.projectSlug}:${step.featureId}`);
@@ -2754,21 +3114,34 @@ function StepRow({
                   <span className="flow-step-action-glyph">⤵</span>
                   <span className="flow-step-action-label">Branch</span>
                 </button>
-                <button className="flow-step-action" onClick={onMoveUp} title="Move up among siblings">
+                <button className="flow-step-action" onClick={onMoveUp} title="Move up (along the path, or among sibling branches)">
                   <span className="flow-step-action-glyph">↑</span>
                   <span className="flow-step-action-label">Up</span>
                 </button>
-                <button className="flow-step-action" onClick={onMoveDown} title="Move down among siblings">
+                <button className="flow-step-action" onClick={onMoveDown} title="Move down (along the path, or among sibling branches)">
                   <span className="flow-step-action-glyph">↓</span>
                   <span className="flow-step-action-label">Down</span>
                 </button>
-                <button className="flow-step-action flow-step-action-danger" onClick={onRemove} title="Remove step (and any descendants)">
+                {menu}
+                <button className="flow-step-action flow-step-action-danger" onClick={onRemove} title="Remove step (the steps around it are joined up)">
                   <span className="flow-step-action-glyph">×</span>
                   <span className="flow-step-action-label">Remove</span>
                 </button>
               </>
             )}
           </div>
+        </div>
+        <div className="flow-step-who">
+          <span className="flow-step-who-label">Actor</span>
+          <EditableText
+            value={step.actor}
+            onChange={onActorChange}
+            className="flow-step-actor"
+            placeholder={editing ? 'who acts here…' : '—'}
+            readOnly={!editing}
+          />
+          <span className="flow-step-who-label">Controls</span>
+          <TagEditor tags={step.controls} onChange={onControlsChange} readOnly={!editing} placeholder="authn, authz…" />
         </div>
         <EditableText
           value={step.note}
@@ -2853,25 +3226,36 @@ function StepRow({
   );
 }
 
-// ─── Edge description ──────────────────────────────────────────────────
+// ─── Edge row (the hop between two steps of a path) ────────────────────
 
-interface EdgeDescriptionProps {
-  description: string;
+interface EdgeRowProps {
+  edge: FlowEdge;
   editing: boolean;
+  selected: boolean;
   onChange: (s: string) => void;
+  onDetails: () => void;
+  onInsert: () => void;
 }
 
-function EdgeDescription({ description, editing, onChange }: EdgeDescriptionProps) {
+function EdgeRow({ edge, editing, selected, onChange, onDetails, onInsert }: EdgeRowProps) {
   return (
-    <div className="flow-edge">
+    <div className={`flow-edge${selected ? ' flow-edge--selected' : ''}`}>
       <div className="flow-edge-line">↓</div>
-      <EditableText
-        value={description}
-        onChange={onChange}
-        className="flow-edge-text"
-        placeholder={editing ? 'How data moves between these steps…' : ''}
-        readOnly={!editing}
-      />
+      <div className="flow-edge-main">
+        {edge.condition && <span className="flow-edge-condition"><InlineText text={edge.condition} /></span>}
+        <EdgeChips edge={edge} />
+        <EditableText
+          value={edge.description}
+          onChange={onChange}
+          className="flow-edge-text"
+          placeholder={editing ? 'How data moves between these steps…' : ''}
+          readOnly={!editing}
+        />
+        <span className="flow-edge-tools">
+          <button type="button" className="flow-edge-details" onClick={onDetails} title="Connection details: kind, protocol, identity, trust boundary, data">details</button>
+          {editing && <button type="button" className="flow-edge-insert" onClick={onInsert} title="Insert a step here">+ insert step</button>}
+        </span>
+      </div>
     </div>
   );
 }
@@ -2893,7 +3277,9 @@ function FeaturePicker({ projects, context, onPick, onClose }: FeaturePickerProp
   const [kindFilter, setKindFilter] = useState<FeatureKind | ''>('');
   const [results, setResults] = useState<FeatureRef[]>([]);
   const [loading, setLoading] = useState(false);
-  const isBranch = context.branchCondition !== undefined;
+  const isBranch = context.place.from !== undefined;
+  const title = context.repoint ? 'Change feature' : isBranch ? 'Branch from step' : context.place.entry ? 'Add entry point'
+    : context.place.after || context.place.before ? 'Insert step' : 'Add step';
   // Remember what opened the panel (read during the first render, before the
   // search box autofocuses) and give focus back when it closes.
   const opener = useRef<HTMLElement | null>(document.activeElement as HTMLElement | null);
@@ -2916,18 +3302,22 @@ function FeaturePicker({ projects, context, onPick, onClose }: FeaturePickerProp
   return (
     <aside
       className="flow-picker"
-      aria-label={isBranch ? 'Branch from step' : 'Add step'}
+      aria-label={title}
       onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } }}
     >
       <div className="flow-picker-header">
         <div>
-          <div className="flow-picker-title">{isBranch ? 'Branch from step' : 'Add step'}</div>
+          <div className="flow-picker-title">{title}</div>
           <div className="flow-picker-subtitle">
-            {isBranch
-              ? 'Choose the first feature for this branch. You can label the branch after.'
-              : context.parentStepId === null
-                ? 'First step of this flow.'
-                : 'Continues the current path.'}
+            {context.repoint
+              ? 'The step keeps its place and connections; only the feature changes.'
+              : isBranch
+                ? 'Choose the first feature for this branch. You can label the branch after.'
+                : context.place.entry
+                  ? 'Another way into this flow, not connected to the others yet.'
+                  : context.place.after || context.place.before
+                    ? 'Goes between this step and the next; the path continues after it.'
+                    : 'Continues the current path.'}
           </div>
         </div>
         <button className="flow-picker-close" aria-label="Close" onClick={onClose}>×</button>

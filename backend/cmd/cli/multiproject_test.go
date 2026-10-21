@@ -328,22 +328,36 @@ func TestMultiProjectCommands_Requests(t *testing.T) {
 
 		// steps
 		{name: "flows add-step", args: []string{"flows", "add-step", "fl1", "--project", "svc", "--feature", "feat-1", "--parent", "s0", "--condition", "ok", "--note", "n"},
-			method: "POST", uri: "/api/flows/fl1/steps", body: `{"projectSlug":"svc","featureId":"feat-1","parentStepId":"s0","branchCondition":"ok","note":"n"}`},
+			method: "POST", uri: "/api/flows/fl1/steps", body: `{"projectSlug":"svc","featureId":"feat-1","from":"s0","edge":{"condition":"ok"},"note":"n"}`},
 		{name: "flows add-step global project default", env: map[string]string{"BENCH_PROJECT": "envsvc"}, args: []string{"flows", "add-step", "--flow", "fl1", "--feature", "feat-1"},
-			method: "POST", uri: "/api/flows/fl1/steps", body: `{"projectSlug":"envsvc","featureId":"feat-1","parentStepId":"","branchCondition":"","note":""}`},
+			method: "POST", uri: "/api/flows/fl1/steps", body: `{"projectSlug":"envsvc","featureId":"feat-1"}`},
+		{name: "flows add-step placed with an edge", args: []string{"flows", "add-step", "fl1", "--project", "svc", "--feature", "f", "--after", "s1",
+			"--actor", "admin", "--controls", "authn,authz", "--kind", "call", "--protocol", "grpc", "--auth", "mtls", "--trust-boundary", "true", "--tainted", "false", "--data", "token", "--tags", "pii"},
+			method: "POST", uri: "/api/flows/fl1/steps", body: `{"projectSlug":"svc","featureId":"f","after":"s1","actor":"admin","controls":["authn","authz"],
+				"edge":{"kind":"call","protocol":"grpc","auth":"mtls","trustBoundary":true,"tainted":false,"data":"token","tags":["pii"]}}`},
+		{name: "flows add-step entry", args: []string{"flows", "add-step", "fl1", "--project", "svc", "--feature", "f", "--entry"},
+			method: "POST", uri: "/api/flows/fl1/steps", body: `{"projectSlug":"svc","featureId":"f","entry":true}`},
 		{name: "flows update-step", args: []string{"flows", "update-step", "fl1", "s1", "--note", "hello"},
 			method: "PATCH", uri: "/api/flows/fl1/steps/s1", body: `{"note":"hello"}`},
+		{name: "flows update-step repoint", args: []string{"flows", "update-step", "fl1", "s1", "--feature", "f2", "--project", "web", "--actor", "user", "--controls", "", "--condition", "if x"},
+			method: "PATCH", uri: "/api/flows/fl1/steps/s1", body: `{"featureId":"f2","projectSlug":"web","actor":"user","controls":[],"branchCondition":"if x"}`},
 		{name: "flows remove-step", args: []string{"flows", "remove-step", "fl1", "s1"}, method: "DELETE", uri: "/api/flows/fl1/steps/s1"},
+		{name: "flows remove-step subtree", args: []string{"flows", "remove-step", "fl1", "s1", "--mode", "subtree"}, method: "DELETE", uri: "/api/flows/fl1/steps/s1?mode=subtree"},
 		{name: "flows move-step", args: []string{"flows", "move-step", "fl1", "s1", "up"}, method: "POST", uri: "/api/flows/fl1/steps/s1/move?dir=-1"},
 		{name: "flows move-step flags", args: []string{"flows", "move-step", "--flow", "fl1", "--step", "s1", "--direction", "down"}, method: "POST", uri: "/api/flows/fl1/steps/s1/move?dir=1"},
+		{name: "flows move-step to a place", args: []string{"flows", "move-step", "fl1", "s1", "--from", "s0", "--condition", "retry"},
+			method: "POST", uri: "/api/flows/fl1/steps/s1/move", body: `{"from":"s0","edge":{"condition":"retry"}}`},
+		{name: "flows export", args: []string{"flows", "export", "fl1"}, method: "GET", uri: "/api/flows/fl1/export"},
 
-		// links
-		{name: "flows set-link", args: []string{"flows", "set-link", "fl1", "s1", "s2", "--description", "calls", "--tags", "auth"},
-			method: "PUT", uri: "/api/flows/fl1/links/s1/s2", body: `{"description":"calls","tags":["auth"]}`},
-		// Only given flags are sent, so the server keeps the link's other fields.
-		{name: "flows set-link partial", args: []string{"flows", "set-link", "fl1", "s1", "s2", "--comment", ""},
-			method: "PUT", uri: "/api/flows/fl1/links/s1/s2", body: `{"comment":""}`},
-		{name: "flows delete-link", args: []string{"flows", "delete-link", "fl1", "s1", "s2"}, method: "DELETE", uri: "/api/flows/fl1/links/s1/s2"},
+		// edges
+		{name: "flows set-edge", args: []string{"flows", "set-edge", "fl1", "s1", "s2", "--description", "calls", "--tags", "auth", "--kind", "async", "--position", "0"},
+			method: "PUT", uri: "/api/flows/fl1/edges/s1/s2", body: `{"description":"calls","tags":["auth"],"kind":"async","position":0}`},
+		// Only given flags are sent, so the server keeps the edge's other fields.
+		{name: "flows set-edge partial", args: []string{"flows", "set-edge", "fl1", "s1", "s2", "--comment", ""},
+			method: "PUT", uri: "/api/flows/fl1/edges/s1/s2", body: `{"comment":""}`},
+		{name: "flows delete-edge", args: []string{"flows", "delete-edge", "fl1", "s1", "s2"}, method: "DELETE", uri: "/api/flows/fl1/edges/s1/s2"},
+		{name: "map show", args: []string{"map", "show", "--archived"}, method: "GET", uri: "/api/service-map?archived=1"},
+		{name: "map", args: []string{"map"}, method: "GET", uri: "/api/service-map"},
 
 		// discovery / review
 		{name: "flows facets", args: []string{"flows", "facets", "--status", "active", "--project", "a,b"},

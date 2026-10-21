@@ -1,0 +1,140 @@
+/* Service map: a full-height page; the toolbar on top, the canvas filling the rest. */
+
+.smap-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--bg-primary);
+}
+
+.smap-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--border-default);
+}
+.smap-head { display: flex; align-items: baseline; gap: 12px; }
+.smap-title { margin: 0; }
+.smap-summary { font-size: var(--font-size-small); color: var(--text-muted); }
+.smap-filter-bar { flex: 1; margin-bottom: 0; }
+.smap-filter-bar .activity-filters { margin-left: 0; flex-wrap: wrap; row-gap: 8px; max-width: 100%; }
+.smap-swatch { display: block; flex-shrink: 0; }
+
+/* Display: bench's dropdown holding checkboxes, in sections. */
+.smap-display-menu { min-width: 250px; }
+.smap-display-title {
+  padding: 8px 14px 4px;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.smap-display-menu > [role="group"] + [role="group"] { margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--border-default); }
+.smap-display-item {
+  position: relative;
+  gap: 8px;
+  padding: 9px 14px;
+  font-size: var(--font-size-small);
+  white-space: nowrap;
+  cursor: pointer;
+}
+/* The real checkbox covers the row, unseen; bench's check mark shows its state. */
+.smap-display-input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.smap-display-item:has(.smap-display-input:focus-visible) { outline: 2px solid var(--accent-blue); outline-offset: -2px; }
+
+/* The key, bottom left on the canvas. */
+.smap-legend {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  max-width: calc(100% - 32px);
+  padding: 8px 12px;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  pointer-events: none;
+}
+.smap-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+.smap-legend-boundary { width: 4px; height: 12px; border-radius: 1px; }
+
+.smap-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
+.smap-canvas { flex: 1; height: 100%; }
+.smap-card { transition: transform 360ms ease, opacity 160ms; }
+.smap-link { transition: opacity 160ms; }
+.smap-feature:focus-visible,
+.smap-card-header:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: -2px; }
+
+.smap-empty {
+  margin: auto;
+  max-width: 460px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: var(--font-size-small);
+}
+.smap-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  padding: 8px 14px;
+  font-size: var(--font-size-small);
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm, 6px);
+  pointer-events: none;
+}
+
+.smap-panel { width: 340px; }
+.smap-route { font-size: var(--font-size-small); color: var(--text-secondary); margin-bottom: 12px; line-height: 1.5; }
+.smap-facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 0 0 12px; font-size: var(--font-size-small); }
+.smap-facts dt { color: var(--text-muted); }
+.smap-facts dd { margin: 0; color: var(--text-primary); }
+.smap-panel-sub {
+  margin: 16px 0 6px;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.smap-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: var(--font-size-small); }
+.smap-link-btn {
+  font: inherit;
+  color: var(--accent-blue);
+  background: none;
+  border: none;
+  padding: 2px 0;
+  text-align: left;
+  cursor: pointer;
+}
+.smap-link-btn:hover { text-decoration: underline; }
+.smap-muted { color: var(--text-muted); font-size: var(--font-size-small); }
+.smap-findings { margin-top: 10px; color: var(--severity-critical); font-size: var(--font-size-small); }
+
+@media (max-width: 639px) {
+  .smap-toolbar { padding: 12px 16px 10px; }
+  .smap-legend { display: none; }
+  /* The filters take their own rows: search across, then the dropdowns wrapping left. */
+  .smap-filter-bar { flex-basis: 100%; justify-content: flex-start; gap: 6px; }
+  .smap-search { flex-basis: 100%; }
+  .smap-filter-bar .activity-filters-label { display: none; }
+  .smap-filter-bar .activity-filters,
+  .smap-filter-bar .flows-filter-bar-end { display: contents; }
+  .smap-panel { width: 100%; }
+}

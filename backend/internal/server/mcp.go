@@ -212,8 +212,10 @@ var platformRoutes = map[string]restRoute{
 	"flows_list":        {method: "GET", path: "/api/flows", query: flowsListQuery},
 	"flows_list_facets": {method: "GET", path: "/api/flows/facets", query: flowsListQuery},
 	"flows_get":         {method: "GET", path: "/api/flows/{flow_id}"},
-	"flows_create":      {method: "POST", path: "/api/flows", body: translateFolderArgs},
-	"flows_update":      {method: "PATCH", path: "/api/flows/{flow_id}", body: translateFolderArgs},
+	"flows_create": {method: "POST", path: "/api/flows", body: func(b map[string]json.RawMessage) map[string]json.RawMessage {
+		return translateFolderArgs(translateSetStepsArgs(b))
+	}},
+	"flows_update": {method: "PATCH", path: "/api/flows/{flow_id}", body: translateFolderArgs},
 
 	// folders
 	"flows_list_folders":  {method: "GET", path: "/api/flow-folders"},
@@ -223,15 +225,17 @@ var platformRoutes = map[string]restRoute{
 	"flows_move":          {method: "POST", path: "/api/flows/move", body: translateFolderArgs},
 
 	// steps
-	"flows_add_step":    {method: "POST", path: "/api/flows/{flow_id}/steps", body: translateStepArgs},
+	"flows_add_step":    {method: "POST", path: "/api/flows/{flow_id}/steps", body: translateAddStepArgs},
 	"flows_update_step": {method: "PATCH", path: "/api/flows/{flow_id}/steps/{step_id}", body: translateStepArgs},
-	"flows_remove_step": {method: "DELETE", path: "/api/flows/{flow_id}/steps/{step_id}"},
-	"flows_move_step":   {method: "POST", path: "/api/flows/{flow_id}/steps/{step_id}/move", query: flowsMoveQuery, body: dropBody},
+	"flows_remove_step": {method: "DELETE", path: "/api/flows/{flow_id}/steps/{step_id}", query: removeStepQuery},
+	"flows_move_step":   {method: "POST", path: "/api/flows/{flow_id}/steps/{step_id}/move", query: flowsMoveQuery, body: translateMoveStepArgs},
 	"flows_set_steps":   {method: "PUT", path: "/api/flows/{flow_id}/steps", body: translateSetStepsArgs},
+	"flows_export":      {method: "GET", path: "/api/flows/{flow_id}/export"},
 
 	// links
-	"flows_set_link":    {method: "PUT", path: "/api/flows/{flow_id}/links/{from_step_id}/{to_step_id}"},
-	"flows_delete_link": {method: "DELETE", path: "/api/flows/{flow_id}/links/{from_step_id}/{to_step_id}"},
+	"flows_set_edge":    {method: "PUT", path: "/api/flows/{flow_id}/edges/{from_step_id}/{to_step_id}", body: translateEdgeArgs},
+	"flows_delete_edge": {method: "DELETE", path: "/api/flows/{flow_id}/edges/{from_step_id}/{to_step_id}"},
+	"get_service_map":   {method: "GET", path: "/api/service-map", query: archivedQuery},
 
 	// baselines, delta, findings
 	"flows_set_baseline":    {method: "POST", path: "/api/flows/{flow_id}/baselines"},
@@ -574,9 +578,6 @@ func confirmQuery(args map[string]json.RawMessage) string {
 	return ""
 }
 
-// dropBody sends no body (the route takes everything from path and query).
-func dropBody(map[string]json.RawMessage) map[string]json.RawMessage { return nil }
-
 // renameKeys returns a body transform that renames top-level keys.
 func renameKeys(renames map[string]string) func(map[string]json.RawMessage) map[string]json.RawMessage {
 	return func(body map[string]json.RawMessage) map[string]json.RawMessage {
@@ -592,14 +593,76 @@ func renameKeys(renames map[string]string) func(map[string]json.RawMessage) map[
 	}
 }
 
-// translateStepArgs translates snake_case step params → camelCase REST body
-// (flows_add_step, flows_update_step).
+// translateStepArgs translates snake_case step params → camelCase REST body (flows_update_step).
 var translateStepArgs = renameKeys(map[string]string{
 	"project_slug":     "projectSlug",
 	"feature_id":       "featureId",
 	"parent_step_id":   "parentStepId",
 	"branch_condition": "branchCondition",
 })
+
+// edgeArgKeys are the edge properties a tool takes flat, with their REST names.
+var edgeArgKeys = map[string]string{
+	"kind": "kind", "protocol": "protocol", "condition": "condition", "auth": "auth",
+	"trust_boundary": "trustBoundary", "data": "data", "tainted": "tainted",
+	"description": "description", "comment": "comment", "tags": "tags", "position": "position",
+}
+
+// translateEdgeArgs renames flows_set_edge's properties to the REST body.
+var translateEdgeArgs = renameKeys(map[string]string{"trust_boundary": "trustBoundary"})
+
+// nestEdgeArgs moves the flat edge properties of a step tool into the body's "edge" object
+// (the edge that leads into the step) and renames the rest.
+func nestEdgeArgs(rest map[string]string) func(map[string]json.RawMessage) map[string]json.RawMessage {
+	return func(body map[string]json.RawMessage) map[string]json.RawMessage {
+		out := map[string]json.RawMessage{}
+		edge := map[string]json.RawMessage{}
+		for k, v := range body {
+			if name, ok := edgeArgKeys[k]; ok {
+				edge[name] = v
+			} else if name, ok := rest[k]; ok {
+				out[name] = v
+			} else {
+				out[k] = v
+			}
+		}
+		if len(edge) > 0 {
+			out["edge"], _ = json.Marshal(edge)
+		}
+		return out
+	}
+}
+
+// translateAddStepArgs builds flows_add_step's REST body.
+var translateAddStepArgs = nestEdgeArgs(map[string]string{
+	"project_slug": "projectSlug", "feature_id": "featureId",
+	"parent_step_id": "parentStepId", "branch_condition": "branchCondition",
+})
+
+// translateMoveStepArgs builds flows_move_step's body (direction goes in the query).
+func translateMoveStepArgs(body map[string]json.RawMessage) map[string]json.RawMessage {
+	delete(body, "direction")
+	return nestEdgeArgs(map[string]string{"parent_step_id": "parentStepId"})(body)
+}
+
+// removeStepQuery forwards flows_remove_step's mode.
+func removeStepQuery(args map[string]json.RawMessage) string {
+	if m := pathParam(args, "mode"); m != "" {
+		return "?mode=" + url.QueryEscape(m)
+	}
+	return ""
+}
+
+// archivedQuery forwards archived: true as ?archived=1.
+func archivedQuery(args map[string]json.RawMessage) string {
+	if raw, ok := args["archived"]; ok {
+		var b bool
+		if json.Unmarshal(raw, &b) == nil && b {
+			return "?archived=1"
+		}
+	}
+	return ""
+}
 
 // translateFolderArgs translates snake_case folder params → camelCase REST body.
 var translateFolderArgs = renameKeys(map[string]string{
@@ -619,9 +682,10 @@ func translateSetStepsArgs(body map[string]json.RawMessage) map[string]json.RawM
 		"feature_id":       "featureId",
 		"branch_condition": "branchCondition",
 	})
-	linkRename := renameKeys(map[string]string{
+	edgeRename := renameKeys(map[string]string{
 		"from_client_id": "fromClientId",
 		"to_client_id":   "toClientId",
+		"trust_boundary": "trustBoundary",
 	})
 	renameEach := func(raw json.RawMessage, fn func(map[string]json.RawMessage) map[string]json.RawMessage) json.RawMessage {
 		var items []map[string]json.RawMessage
@@ -639,8 +703,8 @@ func translateSetStepsArgs(body map[string]json.RawMessage) map[string]json.RawM
 		switch k {
 		case "steps":
 			out[k] = renameEach(v, stepRename)
-		case "links":
-			out[k] = renameEach(v, linkRename)
+		case "edges", "links":
+			out[k] = renameEach(v, edgeRename)
 		default:
 			out[k] = v
 		}
@@ -815,7 +879,7 @@ func platformToolDefs() []json.RawMessage {
 		}`),
 		json.RawMessage(`{
 			"name": "flows_get",
-			"description": "Get a flow by ID including its full step tree and explicit links. Always returns links: [] (never null) even when no explicit links exist. Steps may have tombstoned: true if their backing feature is unreachable — check tombstonedReason for diagnosis: project_not_registered (project not in list_projects), feature_not_found (feature deleted or ID wrong), or fetch_error (other error). Each step includes featureId and projectSlug — to inspect the underlying feature annotation call get_feature with {project: step.projectSlug, id: step.featureId}.",
+			"description": "Get a flow by ID with its steps and edges (always arrays, never null). A flow is a graph: each edge {fromStepId, toStepId, position, kind, protocol, condition, auth, trustBoundary, data, tainted, description, comment, tags} is one hop; steps with no edge into them are entry points, several edges out of a step are branches (ordered by position). Steps carry note, actor and controls. Steps may have tombstoned: true if their backing feature is unreachable — check tombstonedReason for diagnosis: project_not_registered (project not in list_projects), feature_not_found (feature deleted or ID wrong), or fetch_error (other error). Each step includes featureId and projectSlug — to inspect the underlying feature annotation call get_feature with {project: step.projectSlug, id: step.featureId}.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
@@ -826,10 +890,41 @@ func platformToolDefs() []json.RawMessage {
 		}`),
 		json.RawMessage(`{
 			"name": "flows_create",
-			"description": "Create a new flow. Status defaults to draft. Valid statuses: draft, active, archived. Tags are free-form strings used for filtering via flows_list and flows_list_facets. Returns the created flow with id — save this for all subsequent step/baseline operations.",
+			"description": "Create a new flow. Status defaults to draft. Valid statuses: draft, active, archived. Tags are free-form strings used for filtering via flows_list and flows_list_facets. Optionally pass steps and edges (as for flows_set_steps, or a flows_export document) to create the whole graph at once. Returns the created flow with id — save this for all subsequent step/baseline operations.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
+					"steps":       {"type": "array", "description": "Steps of the new flow (as flows_set_steps)", "items": {
+								"type": "object",
+								"properties": {
+									"client_id":    {"type": "string", "description": "Caller-assigned id, used by edges' from/to"},
+									"project_slug": {"type": "string", "description": "Project slug"},
+									"feature_id":   {"type": "string", "description": "Feature annotation ID"},
+									"note":         {"type": "string", "description": "Step note"},
+									"actor":        {"type": "string", "description": "Who is acting at this step"},
+									"controls":     {"type": "array", "items": {"type": "string"}, "description": "Checks applied at this step"}
+								},
+								"required": ["client_id", "project_slug", "feature_id"]
+							}},
+					"edges":       {"type": "array", "description": "Edges of the new flow (as flows_set_steps)", "items": {
+								"type": "object",
+								"properties": {
+									"from": {"type": "string", "description": "client_id of the step the edge leaves"},
+									"to":   {"type": "string", "description": "client_id of the step it leads to"},
+									"kind":           {"type": "string", "description": "What the hop is [next|call|async|read|write|response] (default next)"},
+									"protocol":       {"type": "string", "description": "Protocol of the hop (http, grpc, sql, kafka, ...)"},
+									"condition":      {"type": "string", "description": "When this path is taken (a branch label, e.g. 'if user is admin')"},
+									"auth":           {"type": "string", "description": "Identity the hop carries (none, user, service, mtls, api-key, ...)"},
+									"trust_boundary": {"type": "boolean", "description": "The hop crosses a trust boundary"},
+									"data":           {"type": "string", "description": "What travels on the hop"},
+									"tainted":        {"type": "boolean", "description": "The data is attacker-controlled"},
+									"description":    {"type": "string", "description": "Short label shown on the edge"},
+									"comment":        {"type": "string", "description": "Longer review note (not shown on the edge)"},
+									"tags":           {"type": "array", "items": {"type": "string"}, "description": "Tags for this edge"},
+									"position": {"type": "integer", "description": "Order among the edges leaving 'from' (default: order given)"}
+								},
+								"required": ["from", "to"]
+							}},
 					"name":        {"type": "string", "description": "Flow name"},
 					"description": {"type": "string", "description": "Flow description"},
 					"tags":        {"type": "array", "items": {"type": "string"}, "description": "Tags for filtering"},
@@ -943,131 +1038,198 @@ func platformToolDefs() []json.RawMessage {
 			}
 		}`),
 
-		// ── steps ──
+		// ── steps (a flow is a graph: steps joined by typed edges) ──
 		json.RawMessage(`{
 			"name": "flows_add_step",
-			"description": "Add a step to a flow. Steps in one flow can come from different projects. project_slug must match a registered project (see list_projects). feature_id must be a feature annotation ID in that project — find one with search_features (across projects) or list_features with {project: project_slug}. If either is unknown, the step is created but marked tombstoned: true with tombstonedReason explaining why (project_not_registered | feature_not_found | fetch_error). Use parent_step_id to attach a child step; combine with branch_condition to model conditional paths (e.g. 'if user is admin'). Omit parent_step_id to append at root level. Returns the created FlowStep including the server-assigned id needed for flows_set_link or flows_update_step.",
+			"description": "Add a step to a flow and connect it. A step is one feature on one project (steps in a flow can come from different projects: that is how a flow follows a request across services). project_slug must be a registered project (list_projects); feature_id a feature in it (search_features across projects, or list_features with {project}). An unknown project or feature still creates the step, marked tombstoned with tombstonedReason (project_not_registered | feature_not_found). Where it goes — give at most one: after (insert after that step: it takes over that step's outgoing edges), before (insert before it: it takes over the incoming edges), from (a new branch out of that step; parent_step_id is the same), entry: true (a new entry point, unconnected). With none, the step is appended to the end of the main path (follow the first edge out of the first entry point), or becomes the first step of an empty flow. The kind/protocol/condition/auth/... fields describe the edge that leads into the new step. Returns the created step with its id.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
 					"flow_id":          {"type": "string", "description": "Flow ID"},
 					"project_slug":     {"type": "string", "description": "Project slug (from list_projects)"},
 					"feature_id":       {"type": "string", "description": "Feature annotation ID (from search_features or list_features)"},
-					"parent_step_id":   {"type": "string", "description": "Parent step ID (omit to append at root level)"},
-					"branch_condition": {"type": "string", "description": "Branch condition label (e.g. 'if user is admin')"},
-					"note":             {"type": "string", "description": "Step note / reviewer annotation"}
+					"note":             {"type": "string", "description": "Step note / reviewer annotation"},
+					"actor":            {"type": "string", "description": "Who is acting at this step (anonymous, user, admin, service:billing, ...)"},
+					"controls":         {"type": "array", "items": {"type": "string"}, "description": "Checks applied at this step (authn:jwt, authz:rbac, validation:schema, rate-limit, ...)"},
+					"after":            {"type": "string", "description": "Insert after this step ID"},
+					"before":           {"type": "string", "description": "Insert before this step ID"},
+					"from":             {"type": "string", "description": "Branch out of this step ID"},
+					"parent_step_id":   {"type": "string", "description": "Same as from"},
+					"entry":            {"type": "boolean", "description": "Add as a new, unconnected entry point"},
+					"branch_condition": {"type": "string", "description": "Same as condition"},
+					"kind":           {"type": "string", "description": "What the hop is [next|call|async|read|write|response] (default next)"},
+					"protocol":       {"type": "string", "description": "Protocol of the hop (http, grpc, sql, kafka, ...)"},
+					"condition":      {"type": "string", "description": "When this path is taken (a branch label, e.g. 'if user is admin')"},
+					"auth":           {"type": "string", "description": "Identity the hop carries (none, user, service, mtls, api-key, ...)"},
+					"trust_boundary": {"type": "boolean", "description": "The hop crosses a trust boundary"},
+					"data":           {"type": "string", "description": "What travels on the hop"},
+					"tainted":        {"type": "boolean", "description": "The data is attacker-controlled"},
+					"description":    {"type": "string", "description": "Short label shown on the edge"},
+					"comment":        {"type": "string", "description": "Longer review note (not shown on the edge)"},
+					"tags":           {"type": "array", "items": {"type": "string"}, "description": "Tags for this edge"}
 				},
 				"required": ["flow_id", "project_slug", "feature_id"]
 			}
 		}`),
 		json.RawMessage(`{
 			"name": "flows_update_step",
-			"description": "Update a flow step's note or branch condition. To point a step at a different feature, remove it and add a new one.",
+			"description": "Update a step: its note, actor, controls, or point it at another feature (project_slug and/or feature_id) keeping its place and edges. branch_condition sets the condition on the one edge that leads into the step (an error if several do: use flows_set_edge). Only the fields you pass change. To move a step use flows_move_step.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
 					"flow_id":          {"type": "string", "description": "Flow ID"},
 					"step_id":          {"type": "string", "description": "Step ID"},
 					"note":             {"type": "string", "description": "New note"},
-					"branch_condition": {"type": "string", "description": "New branch condition"}
+					"actor":            {"type": "string", "description": "New actor"},
+					"controls":         {"type": "array", "items": {"type": "string"}, "description": "New controls (replaces the list)"},
+					"project_slug":     {"type": "string", "description": "Point the step at a feature on this project"},
+					"feature_id":       {"type": "string", "description": "Point the step at this feature"},
+					"branch_condition": {"type": "string", "description": "Condition on the edge into this step"}
 				},
 				"required": ["flow_id", "step_id"]
 			}
 		}`),
 		json.RawMessage(`{
 			"name": "flows_remove_step",
-			"description": "Remove a step from a flow (cascades to child steps and to links touching them).",
+			"description": "Remove a step. mode splice (default) closes the gap: every step that led into it now leads on to every step it led to, so removing the middle of a path keeps the rest. mode subtree also removes the steps that were only reachable through it (a whole branch). mode isolate removes just the step and its edges.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
 					"flow_id": {"type": "string", "description": "Flow ID"},
-					"step_id": {"type": "string", "description": "Step ID"}
+					"step_id": {"type": "string", "description": "Step ID"},
+					"mode":    {"type": "string", "description": "splice (default) | subtree | isolate"}
 				},
 				"required": ["flow_id", "step_id"]
 			}
 		}`),
 		json.RawMessage(`{
 			"name": "flows_move_step",
-			"description": "Move a step up (-1) or down (1) among its siblings.",
+			"description": "Move a step. direction -1/1 (or up/down) moves it one place: among its sibling branches when the step before it branches, otherwise along the path, swapping with the step before or after it (an entry point moves among the entry points). Or give a place — after, before, from (a branch of that step: this is how to re-parent) or entry — and the step is taken out (the gap closed) and put back there; edge fields describe the edge into it at its new place.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
 					"flow_id":   {"type": "string", "description": "Flow ID"},
 					"step_id":   {"type": "string", "description": "Step ID"},
-					"direction": {"type": "integer", "description": "Direction: -1 (up) or 1 (down); \"up\"/\"down\" are also accepted"}
+					"direction": {"type": "integer", "description": "-1 (up) or 1 (down); \"up\"/\"down\" are also accepted"},
+					"after":     {"type": "string", "description": "Put it after this step ID"},
+					"before":    {"type": "string", "description": "Put it before this step ID"},
+					"from":      {"type": "string", "description": "Make it a branch of this step ID"},
+					"entry":     {"type": "boolean", "description": "Make it an unconnected entry point"},
+					"kind":           {"type": "string", "description": "What the hop is [next|call|async|read|write|response] (default next)"},
+					"protocol":       {"type": "string", "description": "Protocol of the hop (http, grpc, sql, kafka, ...)"},
+					"condition":      {"type": "string", "description": "When this path is taken (a branch label, e.g. 'if user is admin')"},
+					"auth":           {"type": "string", "description": "Identity the hop carries (none, user, service, mtls, api-key, ...)"},
+					"trust_boundary": {"type": "boolean", "description": "The hop crosses a trust boundary"},
+					"data":           {"type": "string", "description": "What travels on the hop"},
+					"tainted":        {"type": "boolean", "description": "The data is attacker-controlled"},
+					"description":    {"type": "string", "description": "Short label shown on the edge"},
+					"comment":        {"type": "string", "description": "Longer review note (not shown on the edge)"},
+					"tags":           {"type": "array", "items": {"type": "string"}, "description": "Tags for this edge"}
 				},
-				"required": ["flow_id", "step_id", "direction"]
+				"required": ["flow_id", "step_id"]
 			}
 		}`),
 		json.RawMessage(`{
 			"name": "flows_set_steps",
-			"description": "Replace the entire step tree in one atomic transaction — all existing steps and links are deleted first. Use client_id/parent_client_id to express the tree; the server assigns real IDs. Returns {flow, stepIds} where stepIds maps each client_id to its server-assigned step ID — use these immediately in flows_set_link without a separate flows_get round-trip. Include links in the same call to set explicit cross-branch connections atomically. Useful for bulk import; for incremental edits prefer flows_add_step.",
+			"description": "Replace a flow's whole graph in one atomic call: every existing step and edge is deleted first. Give steps with caller-chosen client_ids and edges between them (from/to are client_ids); the edges leaving one step keep the order given unless position is set. Loops and joins (several edges into one step) are fine; a step leading to itself, duplicate edges and unknown client_ids are rejected. The shape is what flows_export returns, so export, edit, set_steps round-trips. Returns {flow, stepIds} (client_id -> new step ID). The tree form (parent_client_id + branch_condition per step, links) is still accepted.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
 					"flow_id": {"type": "string", "description": "Flow ID"},
-					"steps": {
-						"type": "array",
-						"description": "Ordered step definitions — exactly one step must have no parent_client_id (the root)",
-						"items": {
-							"type": "object",
-							"properties": {
-								"client_id":        {"type": "string", "description": "Caller-assigned temporary ID (used to reference this step in parent_client_id and links)"},
-								"parent_client_id": {"type": "string", "description": "client_id of the parent step (omit for root)"},
-								"branch_condition": {"type": "string", "description": "Branch condition label"},
-								"project_slug":     {"type": "string", "description": "Project slug"},
-								"feature_id":       {"type": "string", "description": "Feature annotation ID"},
-								"note":             {"type": "string", "description": "Step note"}
-							},
-							"required": ["client_id", "project_slug", "feature_id"]
-						}
-					},
-					"links": {
-						"type": "array",
-						"description": "Explicit links between steps, which may be in different projects (optional)",
-						"items": {
-							"type": "object",
-							"properties": {
-								"from_client_id": {"type": "string", "description": "client_id of the source step"},
-								"to_client_id":   {"type": "string", "description": "client_id of the target step"},
-								"description":    {"type": "string", "description": "Edge label"}
-							},
-							"required": ["from_client_id", "to_client_id"]
-						}
-					}
+					"steps": {"type": "array", "description": "The steps", "items": {
+								"type": "object",
+								"properties": {
+									"client_id":    {"type": "string", "description": "Caller-assigned id, used by edges' from/to"},
+									"project_slug": {"type": "string", "description": "Project slug"},
+									"feature_id":   {"type": "string", "description": "Feature annotation ID"},
+									"note":         {"type": "string", "description": "Step note"},
+									"actor":        {"type": "string", "description": "Who is acting at this step"},
+									"controls":     {"type": "array", "items": {"type": "string"}, "description": "Checks applied at this step"}
+								},
+								"required": ["client_id", "project_slug", "feature_id"]
+							}},
+					"edges": {"type": "array", "description": "The edges", "items": {
+								"type": "object",
+								"properties": {
+									"from": {"type": "string", "description": "client_id of the step the edge leaves"},
+									"to":   {"type": "string", "description": "client_id of the step it leads to"},
+									"kind":           {"type": "string", "description": "What the hop is [next|call|async|read|write|response] (default next)"},
+									"protocol":       {"type": "string", "description": "Protocol of the hop (http, grpc, sql, kafka, ...)"},
+									"condition":      {"type": "string", "description": "When this path is taken (a branch label, e.g. 'if user is admin')"},
+									"auth":           {"type": "string", "description": "Identity the hop carries (none, user, service, mtls, api-key, ...)"},
+									"trust_boundary": {"type": "boolean", "description": "The hop crosses a trust boundary"},
+									"data":           {"type": "string", "description": "What travels on the hop"},
+									"tainted":        {"type": "boolean", "description": "The data is attacker-controlled"},
+									"description":    {"type": "string", "description": "Short label shown on the edge"},
+									"comment":        {"type": "string", "description": "Longer review note (not shown on the edge)"},
+									"tags":           {"type": "array", "items": {"type": "string"}, "description": "Tags for this edge"},
+									"position": {"type": "integer", "description": "Order among the edges leaving 'from' (default: order given)"}
+								},
+								"required": ["from", "to"]
+							}}
 				},
 				"required": ["flow_id", "steps"]
 			}
 		}`),
-
-		// ── links ──
 		json.RawMessage(`{
-			"name": "flows_set_link",
-			"description": "Create or update an explicit link between two steps of the same flow. The steps may belong to different projects — that is how a flow models one service calling into another (a cross-project link). Links supplement the parent/child tree — use them to model data paths that skip levels, loops, or shared dependencies. description is shown as an edge label in the graph view. comment is a longer review note not displayed on the edge. tags support filtering. All fields are optional — omit all to create a link with no metadata. On an existing link, omitted fields keep their current value (pass an empty string or [] to clear one). To remove a link use flows_delete_link.",
+			"name": "flows_export",
+			"description": "Export a flow as {name, description, status, owner, tags, steps, edges} with each step's id as its client_id: the shape flows_create and flows_set_steps take, for copying, editing or reviewing a flow as one document.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"flow_id": {"type": "string", "description": "Flow ID"}
+				},
+				"required": ["flow_id"]
+			}
+		}`),
+
+		// ── edges ──
+		json.RawMessage(`{
+			"name": "flows_set_edge",
+			"description": "Create or update the edge from one step to another (the steps may be on different projects: a cross-project edge is one service calling another). Describe the hop: kind [next|call|async|read|write|response], protocol, condition (when this path is taken), auth (identity carried), trust_boundary, data (what travels), tainted (attacker-controlled), description (edge label), comment, tags, position (order among the edges leaving from_step_id). On an existing edge omitted fields keep their value (pass \"\" or [] to clear). Remove with flows_delete_edge.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
 					"flow_id":      {"type": "string", "description": "Flow ID"},
-					"from_step_id": {"type": "string", "description": "Source step ID"},
-					"to_step_id":   {"type": "string", "description": "Target step ID"},
-					"description":  {"type": "string", "description": "Short label shown on the edge in the graph"},
-					"comment":      {"type": "string", "description": "Longer annotation / review note (not displayed on edge)"},
-					"tags":         {"type": "array", "items": {"type": "string"}, "description": "Categorisation tags for this link"}
+					"from_step_id": {"type": "string", "description": "Step the edge leaves"},
+					"to_step_id":   {"type": "string", "description": "Step it leads to"},
+					"kind":           {"type": "string", "description": "What the hop is [next|call|async|read|write|response] (default next)"},
+					"protocol":       {"type": "string", "description": "Protocol of the hop (http, grpc, sql, kafka, ...)"},
+					"condition":      {"type": "string", "description": "When this path is taken (a branch label, e.g. 'if user is admin')"},
+					"auth":           {"type": "string", "description": "Identity the hop carries (none, user, service, mtls, api-key, ...)"},
+					"trust_boundary": {"type": "boolean", "description": "The hop crosses a trust boundary"},
+					"data":           {"type": "string", "description": "What travels on the hop"},
+					"tainted":        {"type": "boolean", "description": "The data is attacker-controlled"},
+					"description":    {"type": "string", "description": "Short label shown on the edge"},
+					"comment":        {"type": "string", "description": "Longer review note (not shown on the edge)"},
+					"tags":           {"type": "array", "items": {"type": "string"}, "description": "Tags for this edge"},
+					"position":     {"type": "integer", "description": "Order among the edges leaving from_step_id"}
 				},
 				"required": ["flow_id", "from_step_id", "to_step_id"]
 			}
 		}`),
 		json.RawMessage(`{
-			"name": "flows_delete_link",
-			"description": "Delete an explicit link between two steps of a flow.",
+			"name": "flows_delete_edge",
+			"description": "Delete the edge between two steps of a flow (the steps stay).",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
 					"flow_id":      {"type": "string", "description": "Flow ID"},
-					"from_step_id": {"type": "string", "description": "Source step ID"},
-					"to_step_id":   {"type": "string", "description": "Target step ID"}
+					"from_step_id": {"type": "string", "description": "Step the edge leaves"},
+					"to_step_id":   {"type": "string", "description": "Step it leads to"}
 				},
 				"required": ["flow_id", "from_step_id", "to_step_id"]
+			}
+		}`),
+		json.RawMessage(`{
+			"name": "get_service_map",
+			"description": "The service map: every project as a service with its features (kind, operation, protocol, open findings, how many flows use it) and the connections between services that flows record — each edge whose steps are on different projects, merged by (from feature, to feature, kind, protocol), with the auth values seen, whether any crosses a trust boundary or carries tainted data, and the flows it comes from. internal lists the same-project edges. Archived flows are left out unless archived: true.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"archived": {"type": "boolean", "description": "Include archived flows' edges"}
+				},
+				"required": []
 			}
 		}`),
 
@@ -1098,7 +1260,7 @@ func platformToolDefs() []json.RawMessage {
 		}`),
 		json.RawMessage(`{
 			"name": "flows_get_baseline",
-			"description": "Get a specific baseline snapshot including full step/link data at the time the baseline was taken. Pass baseline_id: 'latest' as a shortcut for the most recent baseline (equivalent to taking the first item from flows_list_baselines).",
+			"description": "Get a specific baseline snapshot including its full steps and edges at the time the baseline was taken. Pass baseline_id: 'latest' as a shortcut for the most recent baseline (equivalent to taking the first item from flows_list_baselines).",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
@@ -1110,7 +1272,7 @@ func platformToolDefs() []json.RawMessage {
 		}`),
 		json.RawMessage(`{
 			"name": "flows_get_delta",
-			"description": "Compute what changed in a flow since a baseline. Returns since (the baseline used), addedSteps, removedSteps, changedSteps, movedAnchors. Errors if the flow has no baseline yet. Pass since_baseline_id to diff against a specific baseline; omit to use the latest. Use flows_list_findings after reviewing delta to see if any new security issues correspond to changed files.",
+			"description": "Compute what changed in a flow since a baseline. Returns since (the baseline used), addedSteps, removedSteps, changedSteps (feature, note, actor, controls, effectiveAnchor), movedAnchors, and addedEdges, removedEdges, changedEdges (which edge fields changed, e.g. condition, kind, auth). Errors if the flow has no baseline yet. Pass since_baseline_id to diff against a specific baseline; omit to use the latest. Use flows_list_findings after reviewing delta to see if any new security issues correspond to changed files.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {

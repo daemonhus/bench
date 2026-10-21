@@ -52,8 +52,17 @@ test('axe: flow detail and map', async ({ page }) => {
   await page.goto(`/flows/${id}`);
   await page.waitForSelector('button.flow-step-title-link');
   expect(await violations(page)).toEqual([]);
-  await page.getByRole('button', { name: 'Map', exact: true }).click();
+  await page.locator('.flow-detail-tab-bar').getByRole('button', { name: 'Map', exact: true }).click();
   await page.waitForSelector('.flow-graph-node');
+  expect(await violations(page)).toEqual([]);
+});
+
+test('axe: service map, with a selection open', async ({ page }) => {
+  await page.goto('/map');
+  await page.waitForSelector('.smap-card');
+  expect(await violations(page)).toEqual([]);
+  await page.locator('.smap-feature').first().click();
+  await expect(page.locator('.smap-panel')).toBeVisible();
   expect(await violations(page)).toEqual([]);
 });
 

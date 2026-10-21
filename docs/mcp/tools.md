@@ -285,8 +285,8 @@ Only on the aggregate `/mcp`. They take project slugs explicitly where needed, n
 |---|---|---|
 | `flows_list` | `query?`, `status?`, `tag?`, `project?`, `owner?`, `folder?`, `sort?`, `order?`, `limit?`, `offset?` | `sort`: `updated` \| `created` \| `name` \| `stepCount` \| `risk`. Returns `{items, total, offset, limit}`. |
 | `flows_list_facets` | same filters as `flows_list` | Values with counts. |
-| `flows_get` | `flow_id` | Step tree and `links`; unreachable steps are `tombstoned` with a reason. |
-| `flows_create` | `name`, `description?`, `tags?`, `status?`, `owner?`, `folder_id?` | |
+| `flows_get` | `flow_id` | `steps` and `edges`; unreachable steps are `tombstoned` with a reason. |
+| `flows_create` | `name`, `description?`, `tags?`, `status?`, `owner?`, `folder_id?`, `steps?`, `edges?` | With `steps`/`edges` (as `flows_set_steps`, or a `flows_export` document) the graph is created in the same call. |
 | `flows_update` | `flow_id`, plus any of the above | |
 | `flows_delete` | `flow_id`, `confirm?` | Dry-run until `confirm: true`. |
 
@@ -294,13 +294,15 @@ Only on the aggregate `/mcp`. They take project slugs explicitly where needed, n
 
 | Tool | Arguments | Notes |
 |---|---|---|
-| `flows_add_step` | `flow_id`, `project_slug`, `feature_id`, `parent_step_id?`, `branch_condition?`, `note?` | |
-| `flows_update_step` | `flow_id`, `step_id`, `note?`, `branch_condition?` | |
-| `flows_remove_step` | `flow_id`, `step_id` | Cascades to children and their links. |
-| `flows_move_step` | `flow_id`, `step_id`, `direction` | `-1` up, `1` down. |
-| `flows_set_steps` | `flow_id`, `steps`, `links?` | Replaces the tree atomically; returns `stepIds` keyed by `client_id`. |
-| `flows_set_link` | `flow_id`, `from_step_id`, `to_step_id`, `description?`, `comment?`, `tags?` | Steps may be on different projects. Self-links and steps from another flow are rejected. |
-| `flows_delete_link` | `flow_id`, `from_step_id`, `to_step_id` | |
+| `flows_add_step` | `flow_id`, `project_slug`, `feature_id`, `note?`, `actor?`, `controls?`, one of `after?` / `before?` / `from?` (= `parent_step_id`) / `entry?`, and the edge fields for the edge into the step | Without a place it is appended to the end of the main path. |
+| `flows_update_step` | `flow_id`, `step_id`, `note?`, `actor?`, `controls?`, `project_slug?`, `feature_id?`, `branch_condition?` | A new feature keeps the step's place and edges; `branch_condition` labels the one edge into the step. |
+| `flows_remove_step` | `flow_id`, `step_id`, `mode?` | `splice` (default) joins the steps before it to the steps after; `subtree` also removes the steps only reachable through it; `isolate`. |
+| `flows_move_step` | `flow_id`, `step_id`, `direction?` or one of `after?` / `before?` / `from?` / `entry?`, edge fields | `-1`/`1` moves one place along the path or among sibling branches; a place takes the step out and puts it there (re-parent with `from`). |
+| `flows_set_steps` | `flow_id`, `steps`, `edges?` | Replaces the graph atomically (`edges` use `from`/`to` client_ids); returns `stepIds` keyed by `client_id`. The tree form (`parent_client_id`, `links`) is still accepted. |
+| `flows_export` | `flow_id` | The flow as one document, in the shape `flows_create` and `flows_set_steps` take. |
+| `flows_set_edge` | `flow_id`, `from_step_id`, `to_step_id`, `kind?`, `protocol?`, `condition?`, `auth?`, `trust_boundary?`, `data?`, `tainted?`, `description?`, `comment?`, `tags?`, `position?` | Creates or partially updates the edge. Steps may be on different projects; self edges and steps of another flow are rejected. |
+| `flows_delete_edge` | `flow_id`, `from_step_id`, `to_step_id` | The steps stay. |
+| `get_service_map` | `archived?` | Services with their features, and the connections flows record between them. |
 
 ### baselines and findings
 
@@ -309,7 +311,7 @@ Only on the aggregate `/mcp`. They take project slugs explicitly where needed, n
 | `flows_set_baseline` | `flow_id`, `reviewer?`, `summary?` | |
 | `flows_list_baselines` | `flow_id` | Newest first. |
 | `flows_get_baseline` | `flow_id`, `baseline_id` | `latest` works as an id. |
-| `flows_get_delta` | `flow_id`, `since_baseline_id?` | Added, removed, changed steps and moved anchors. |
+| `flows_get_delta` | `flow_id`, `since_baseline_id?` | Added, removed, changed steps and edges, and moved anchors. |
 | `flows_delete_baseline` | `flow_id`, `baseline_id`, `confirm?` | Dry-run until `confirm: true`. |
 | `flows_list_findings` | `flow_id` | Open findings on the flow's features, by severity. |
 

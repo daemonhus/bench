@@ -222,8 +222,11 @@ func TestFlowList_IncludesShapeSkeleton(t *testing.T) {
 		t.Fatalf("empty flow shape: %+v", items)
 	}
 	shape := items[1].Shape
-	if len(shape) != 2 || shape[0].ParentStepID != "" || shape[1].ParentStepID != root.ID {
+	if len(shape) != 2 || shape[0].ID != root.ID {
 		t.Fatalf("shape = %+v", shape)
+	}
+	if e := items[1].ShapeEdges; len(e) != 1 || e[0] != [2]string{root.ID, shape[1].ID} {
+		t.Fatalf("shape edges = %+v", e)
 	}
 	if shape[0].ProjectSlug != "proj" || shape[0].FeatureID != "feat-a" || shape[1].FeatureID != "feat-b" {
 		t.Fatalf("shape should name each step's feature: %+v", shape)

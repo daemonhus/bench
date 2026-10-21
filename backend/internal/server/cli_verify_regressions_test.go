@@ -80,40 +80,40 @@ func TestFlows_CreateUpdateResponsesReflectStoredRow(t *testing.T) {
 	}
 }
 
-// set-link replaced every field, so editing the edge label (UI) or passing
-// one flag (CLI) wiped the link's comment and tags.
-func TestFlows_SetLinkKeepsOmittedFields(t *testing.T) {
+// set-edge (then set-link) replaced every field, so editing the edge label (UI) or passing
+// one flag (CLI) wiped the edge's comment and tags.
+func TestFlows_SetEdgeKeepsOmittedFields(t *testing.T) {
 	_, h := newTestPlatform(t)
 	f := createTestFlow(t, h, "F", "draft")
 	a := addTestStep(t, h, f.ID, "svc", "a")
-	b := addTestStep(t, h, f.ID, "web", "b")
-	path := fmt.Sprintf("/api/flows/%s/links/%s/%s", f.ID, a.ID, b.ID)
-	if w := do(t, h, "PUT", path, `{"description":"calls","comment":"note","tags":["auth"]}`); w.Code != 200 {
-		t.Fatalf("set link: %d %s", w.Code, w.Body.String())
+	b := addTestStep(t, h, f.ID, "web", "b") // appended: a -> b
+	path := fmt.Sprintf("/api/flows/%s/edges/%s/%s", f.ID, a.ID, b.ID)
+	if w := do(t, h, "PUT", path, `{"description":"calls","comment":"note","tags":["auth"],"kind":"call","auth":"service"}`); w.Code != 200 {
+		t.Fatalf("set edge: %d %s", w.Code, w.Body.String())
 	}
 	w := do(t, h, "PUT", path, `{"description":"calls v2"}`)
-	l := mustDecode[FlowLink](t, w)
-	if l.Description != "calls v2" || l.Comment != "note" || len(l.Tags) != 1 {
+	l := mustDecode[FlowEdge](t, w)
+	if l.Description != "calls v2" || l.Comment != "note" || len(l.Tags) != 1 || l.Kind != "call" || l.Auth != "service" {
 		t.Errorf("partial update response: %+v", l)
 	}
 	got := mustDecode[Flow](t, do(t, h, "GET", "/api/flows/"+f.ID, ""))
-	if len(got.Links) != 1 || got.Links[0].Comment != "note" || got.Links[0].Tags[0] != "auth" {
-		t.Errorf("stored link after partial update: %+v", got.Links)
+	if len(got.Edges) != 1 || got.Edges[0].Comment != "note" || got.Edges[0].Tags[0] != "auth" {
+		t.Errorf("stored edge after partial update: %+v", got.Edges)
 	}
 	// Explicit empty values still clear.
 	do(t, h, "PUT", path, `{"comment":"","tags":[]}`)
 	got = mustDecode[Flow](t, do(t, h, "GET", "/api/flows/"+f.ID, ""))
-	if got.Links[0].Comment != "" || len(got.Links[0].Tags) != 0 || got.Links[0].Description != "calls v2" {
-		t.Errorf("clearing fields: %+v", got.Links[0])
+	if got.Edges[0].Comment != "" || len(got.Edges[0].Tags) != 0 || got.Edges[0].Description != "calls v2" {
+		t.Errorf("clearing fields: %+v", got.Edges[0])
 	}
-	// An empty body creates a bare link.
-	if w := do(t, h, "PUT", fmt.Sprintf("/api/flows/%s/links/%s/%s", f.ID, b.ID, a.ID), ""); w.Code != 200 {
-		t.Errorf("empty-body link: %d %s", w.Code, w.Body.String())
+	// An empty body creates a bare edge (here the way back: a loop).
+	if w := do(t, h, "PUT", fmt.Sprintf("/api/flows/%s/edges/%s/%s", f.ID, b.ID, a.ID), ""); w.Code != 200 {
+		t.Errorf("empty-body edge: %d %s", w.Code, w.Body.String())
 	}
 }
 
-// set-steps accepted what add-step/set-link reject: steps without a feature,
-// self-links, and duplicate links (which surfaced as a 500).
+// set-steps accepted what add-step/set-edge reject: steps without a feature,
+// self-edges, and duplicate edges (which surfaced as a 500).
 func TestFlows_SetStepsValidatesStepsAndLinks(t *testing.T) {
 	_, h := newTestPlatform(t)
 	f := createTestFlow(t, h, "F", "draft")

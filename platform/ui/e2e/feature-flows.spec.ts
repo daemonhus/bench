@@ -5,9 +5,9 @@ import { test, expect } from './helpers/input';
 
 test('a feature page lists its flows with the step number and role, and links to the flow', async ({ page, request }) => {
   const flows = (await (await request.get('/api/flows?limit=200')).json()).items as
-    { id: string; name: string; shape: { id: string; parentStepId?: string; position: number; projectSlug: string; featureId: string }[] }[];
+    { id: string; name: string; shape: { id: string; position: number; projectSlug: string; featureId: string }[]; shapeEdges: [string, string][] }[];
   const login = flows.find((f) => f.name === 'Login path')!;
-  const root = login.shape.find((n) => !n.parentStepId)!; // step 1, the entry point
+  const root = login.shape.find((n) => !login.shapeEdges.some(([, to]) => to === n.id))!; // step 1, the entry point
   const users = flows.filter((f) => f.shape.some((n) => n.projectSlug === root.projectSlug && n.featureId === root.featureId));
 
   await page.goto(`/p/${root.projectSlug}#/feature/${root.featureId}`);

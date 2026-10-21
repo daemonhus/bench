@@ -265,26 +265,10 @@ func (p *Platform) loadFlowWithSteps(flowID string) (*Flow, error) {
 		f.Tags = []string{}
 	}
 
-	rows, err := p.db.Query(
-		`SELECT id, parent_step_id, position, branch_condition, project_slug, feature_id, note
-		 FROM flow_steps WHERE flow_id=? ORDER BY position`,
-		flowID,
-	)
+	steps, err := p.loadFlowSteps(flowID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var s FlowStep
-		var parentID *string
-		if err := rows.Scan(&s.ID, &parentID, &s.Position, &s.BranchCondition,
-			&s.ProjectSlug, &s.FeatureID, &s.Note); err != nil {
-			return nil, err
-		}
-		if parentID != nil {
-			s.ParentStepID = *parentID
-		}
-		f.Steps = append(f.Steps, s)
-	}
+	f.Steps = steps
 	return &f, nil
 }

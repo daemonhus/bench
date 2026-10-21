@@ -76,10 +76,15 @@ await call('PUT', `/api/flows/${login.id}/steps`, {
   ],
   links: [],
 });
-const cross = await call('POST', '/api/flows', { name: 'Cross project', description: 'Spans alpha and beta', status: 'draft', owner: 'e2e', tags: ['edge'] });
-await call('PUT', `/api/flows/${cross.id}/steps`, {
-  steps: [step('a', '', 'alpha', 0, 'alpha entry'), step('b', 'a', 'beta', 0, 'beta entry'), step('c', 'b', 'beta', 1, 'beta read')],
-  links: [],
+// The graph form, created in one call: alpha calls beta across a trust boundary, beta reads its store.
+const ref = (clientId, project, idx, note, extra = {}) => ({ clientId, projectSlug: project, featureId: featureIds[project][idx], note, ...extra });
+await call('POST', '/api/flows', {
+  name: 'Cross project', description: 'Spans alpha and beta', status: 'draft', owner: 'e2e', tags: ['edge'],
+  steps: [ref('a', 'alpha', 0, 'alpha entry', { actor: 'anonymous' }), ref('b', 'beta', 0, 'beta entry', { controls: ['authn:jwt'] }), ref('c', 'beta', 1, 'beta read')],
+  edges: [
+    { from: 'a', to: 'b', kind: 'call', protocol: 'http', auth: 'user', trustBoundary: true, data: 'credentials', tainted: true },
+    { from: 'b', to: 'c', kind: 'read', protocol: 'sql' },
+  ],
 });
 await call('POST', '/api/flows', { name: 'Empty flow', description: '', status: 'draft', owner: '', tags: [] });
 await call('POST', '/api/flow-views', { name: 'Drafts', query: 'status:draft', owner: 'e2e', isShared: false });

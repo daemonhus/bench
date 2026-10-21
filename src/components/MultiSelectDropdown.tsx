@@ -7,7 +7,8 @@ export function MultiSelectDropdown<T extends string>({
   onChange,
 }: {
   label: string;
-  options: { value: T; label: string }[];
+  /** `icon`: a mark drawn before the label (a colour dot, a line style). */
+  options: { value: T; label: string; icon?: React.ReactNode }[];
   selected: Set<T>;
   onChange: (next: Set<T>) => void;
 }) {
@@ -120,6 +121,7 @@ export function MultiSelectDropdown<T extends string>({
                   onClick={() => toggleAt(i)}
                 >
                   <span className="multi-select-check" />
+                  {opt.icon}
                   {opt.label}
                 </button>
                 <button

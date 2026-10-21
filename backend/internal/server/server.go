@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/fs"
 	"log"
 	"net/http"
@@ -28,6 +27,8 @@ type Platform struct {
 	db          *sql.DB
 	workbenches map[string]*workbench.Workbench
 	mu          sync.RWMutex
+	// flowMu serialises flow graph edits (each reads the graph, then rewrites edges).
+	flowMu sync.Mutex
 }
 
 type RiskData struct {
@@ -79,7 +80,7 @@ func Run(dataDir, addr string) error {
 
 func NewPlatform(dataDir string) (*Platform, error) {
 	dbPath := filepath.Join(dataDir, "platform.db")
-	conn, err := sql.Open("sqlite", dbPath+"?_pragma=journal_mode(wal)&_pragma=foreign_keys(on)")
+	conn, err := sql.Open("sqlite", dbPath+"?_pragma=journal_mode(wal)&_pragma=foreign_keys(on)&_pragma=busy_timeout(5000)")
 	if err != nil {
 		return nil, err
 	}
@@ -110,25 +111,15 @@ func NewPlatform(dataDir string) (*Platform, error) {
 	)`); err != nil {
 		return nil, err
 	}
-	if _, err := conn.Exec(`CREATE TABLE IF NOT EXISTS flow_steps (
-		id               TEXT PRIMARY KEY,
-		flow_id          TEXT NOT NULL REFERENCES flows(id) ON DELETE CASCADE,
-		parent_step_id   TEXT REFERENCES flow_steps(id) ON DELETE CASCADE,
-		position         INTEGER NOT NULL DEFAULT 0,
-		branch_condition TEXT NOT NULL DEFAULT '',
-		project_slug     TEXT NOT NULL,
-		feature_id       TEXT NOT NULL,
-		note             TEXT NOT NULL DEFAULT '',
-		tombstoned        INTEGER NOT NULL DEFAULT 0,
-		tombstoned_reason TEXT NOT NULL DEFAULT '',
-		created_at        TEXT NOT NULL DEFAULT (datetime('now'))
-	)`); err != nil {
-		return nil, err
+	// Old databases need tombstoned_reason before converting (older still lack it).
+	if _, err := conn.Exec(`SELECT id FROM flow_steps LIMIT 0`); err == nil {
+		if _, err := conn.Exec(`SELECT tombstoned_reason FROM flow_steps LIMIT 0`); err != nil {
+			if _, err2 := conn.Exec(`ALTER TABLE flow_steps ADD COLUMN tombstoned_reason TEXT NOT NULL DEFAULT ''`); err2 != nil {
+				return nil, err2
+			}
+		}
 	}
-	if _, err := conn.Exec(`CREATE INDEX IF NOT EXISTS flow_steps_flow_idx ON flow_steps(flow_id)`); err != nil {
-		return nil, err
-	}
-	if _, err := conn.Exec(`CREATE INDEX IF NOT EXISTS flow_steps_parent_idx ON flow_steps(parent_step_id)`); err != nil {
+	if err := setUpFlowGraph(conn, dataDir); err != nil {
 		return nil, err
 	}
 	if _, err := conn.Exec(`CREATE VIRTUAL TABLE IF NOT EXISTS flows_fts USING fts5(
@@ -179,34 +170,6 @@ func NewPlatform(dataDir string) (*Platform, error) {
 		updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 	)`); err != nil {
 		return nil, err
-	}
-	if _, err := conn.Exec(`CREATE TABLE IF NOT EXISTS flow_step_links (
-		flow_id      TEXT NOT NULL REFERENCES flows(id) ON DELETE CASCADE,
-		from_step_id TEXT NOT NULL REFERENCES flow_steps(id) ON DELETE CASCADE,
-		to_step_id   TEXT NOT NULL REFERENCES flow_steps(id) ON DELETE CASCADE,
-		description  TEXT NOT NULL DEFAULT '',
-		comment      TEXT NOT NULL DEFAULT '',
-		tags         TEXT NOT NULL DEFAULT '[]',
-		PRIMARY KEY (from_step_id, to_step_id)
-	)`); err != nil {
-		return nil, err
-	}
-	// Migration: tombstoned_reason column on flow_steps (added after initial release).
-	if _, err := conn.Exec(`SELECT tombstoned_reason FROM flow_steps LIMIT 0`); err != nil {
-		if _, err2 := conn.Exec(`ALTER TABLE flow_steps ADD COLUMN tombstoned_reason TEXT NOT NULL DEFAULT ''`); err2 != nil {
-			return nil, err2
-		}
-	}
-	// Migrations for existing databases that predate comment/tags columns.
-	if _, err := conn.Exec(`SELECT comment FROM flow_step_links LIMIT 0`); err != nil {
-		if _, err2 := conn.Exec(`ALTER TABLE flow_step_links ADD COLUMN comment TEXT NOT NULL DEFAULT ''`); err2 != nil {
-			return nil, err2
-		}
-	}
-	if _, err := conn.Exec(`SELECT tags FROM flow_step_links LIMIT 0`); err != nil {
-		if _, err2 := conn.Exec(`ALTER TABLE flow_step_links ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'`); err2 != nil {
-			return nil, err2
-		}
 	}
 	if _, err := conn.Exec(`CREATE TABLE IF NOT EXISTS flow_baselines (
 		id         TEXT PRIMARY KEY,
@@ -684,18 +647,18 @@ type Flow struct {
 	CreatedAt   string     `json:"createdAt"`
 	UpdatedAt   string     `json:"updatedAt"`
 	Steps       []FlowStep `json:"steps"`
-	Links       []FlowLink `json:"links"`
+	Edges       []FlowEdge `json:"edges"`
 }
 
-// MarshalJSON always writes steps and links as arrays, so a flow with no steps
+// MarshalJSON always writes steps and edges as arrays, so a flow with no steps
 // reads as `"steps": []` rather than a missing key or null.
 func (f Flow) MarshalJSON() ([]byte, error) {
 	type plain Flow
 	if f.Steps == nil {
 		f.Steps = []FlowStep{}
 	}
-	if f.Links == nil {
-		f.Links = []FlowLink{}
+	if f.Edges == nil {
+		f.Edges = []FlowEdge{}
 	}
 	return json.Marshal(plain(f))
 }
@@ -710,28 +673,23 @@ type FeatureSnapshot struct {
 	EffectiveAnchor json.RawMessage `json:"effectiveAnchor,omitempty"`
 }
 
+// FlowStep is one stop of a flow: a feature on a project, with what is true there.
 type FlowStep struct {
-	ID               string           `json:"id"`
-	FlowID           string           `json:"flowId"`
-	ParentStepID     string           `json:"parentStepId,omitempty"`
-	Position         int              `json:"position"`
-	BranchCondition  string           `json:"branchCondition"`
-	ProjectSlug      string           `json:"projectSlug"`
-	FeatureID        string           `json:"featureId"`
-	Note             string           `json:"note"`
+	ID     string `json:"id"`
+	FlowID string `json:"flowId"`
+	// Position is the step's place in the flow's step order (it orders entry points).
+	Position    int    `json:"position"`
+	ProjectSlug string `json:"projectSlug"`
+	FeatureID   string `json:"featureId"`
+	Note        string `json:"note"`
+	// Actor is who is acting at this step (anonymous, user, admin, service:billing, ...).
+	Actor string `json:"actor"`
+	// Controls are the checks applied here (authn, authz, validation, rate limit, ...).
+	Controls         []string         `json:"controls"`
 	Tombstoned       bool             `json:"tombstoned"`
 	TombstonedReason string           `json:"tombstonedReason,omitempty"`
 	CreatedAt        string           `json:"createdAt"`
 	Feature          *FeatureSnapshot `json:"feature,omitempty"`
-}
-
-type FlowLink struct {
-	FlowID      string   `json:"flowId"`
-	FromStepID  string   `json:"fromStepId"`
-	ToStepID    string   `json:"toStepId"`
-	Description string   `json:"description"`
-	Comment     string   `json:"comment"`
-	Tags        []string `json:"tags"`
 }
 
 func scanFlow(row *sql.Row) (*Flow, error) {
@@ -746,57 +704,92 @@ func scanFlow(row *sql.Row) (*Flow, error) {
 	return &f, nil
 }
 
-func (p *Platform) loadFlowSteps(flowID string) ([]FlowStep, error) {
-	rows, err := p.db.Query(
-		`SELECT id, flow_id, COALESCE(parent_step_id,''), position, branch_condition, project_slug, feature_id, note, tombstoned, COALESCE(tombstoned_reason,''), created_at
-		 FROM flow_steps WHERE flow_id = ? ORDER BY position`,
-		flowID,
-	)
-	if err != nil {
-		return nil, err
+const stepCols = `id, flow_id, position, project_slug, feature_id, note, actor, controls, tombstoned, COALESCE(tombstoned_reason,''), created_at`
+
+func scanStep(sc interface{ Scan(...any) error }) (FlowStep, error) {
+	var s FlowStep
+	var tombInt int
+	var controls string
+	if err := sc.Scan(&s.ID, &s.FlowID, &s.Position, &s.ProjectSlug, &s.FeatureID, &s.Note, &s.Actor, &controls, &tombInt, &s.TombstonedReason, &s.CreatedAt); err != nil {
+		return s, err
 	}
-	defer rows.Close()
-	var steps []FlowStep
-	for rows.Next() {
-		var s FlowStep
-		var tombInt int
-		if err := rows.Scan(&s.ID, &s.FlowID, &s.ParentStepID, &s.Position, &s.BranchCondition, &s.ProjectSlug, &s.FeatureID, &s.Note, &tombInt, &s.TombstonedReason, &s.CreatedAt); err != nil {
-			return nil, err
-		}
-		s.Tombstoned = tombInt != 0
-		steps = append(steps, s)
+	s.Tombstoned = tombInt != 0
+	if json.Unmarshal([]byte(controls), &s.Controls) != nil || s.Controls == nil {
+		s.Controls = []string{}
 	}
-	if steps == nil {
-		steps = []FlowStep{}
-	}
-	return steps, nil
+	return s, nil
 }
 
-func (p *Platform) loadFlowLinks(flowID string) ([]FlowLink, error) {
-	rows, err := p.db.Query(
-		`SELECT flow_id, from_step_id, to_step_id, description, comment, tags FROM flow_step_links WHERE flow_id = ?`,
-		flowID,
-	)
+func (p *Platform) loadFlowSteps(flowID string) ([]FlowStep, error) {
+	rows, err := p.db.Query(`SELECT `+stepCols+` FROM flow_steps WHERE flow_id = ? ORDER BY position, rowid`, flowID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var links []FlowLink
+	steps := []FlowStep{}
 	for rows.Next() {
-		var l FlowLink
-		var tagsJSON string
-		if err := rows.Scan(&l.FlowID, &l.FromStepID, &l.ToStepID, &l.Description, &l.Comment, &tagsJSON); err != nil {
+		s, err := scanStep(rows)
+		if err != nil {
 			return nil, err
 		}
-		if err := json.Unmarshal([]byte(tagsJSON), &l.Tags); err != nil {
-			l.Tags = []string{}
+		steps = append(steps, s)
+	}
+	return steps, rows.Err()
+}
+
+func (p *Platform) loadFlowStep(flowID, stepID string) (*FlowStep, error) {
+	s, err := scanStep(p.db.QueryRow(`SELECT `+stepCols+` FROM flow_steps WHERE id = ? AND flow_id = ?`, stepID, flowID))
+	if err != nil {
+		return nil, err
+	}
+	return &s, nil
+}
+
+// enrichStep attaches the step's feature snapshot and keeps its tombstone in step with
+// whether the feature still resolves.
+func (p *Platform) enrichStep(s *FlowStep) {
+	if s == nil {
+		return
+	}
+	snap, err := p.fetchFeatureSnapshot(s.ProjectSlug, s.FeatureID)
+	tomb, reason := false, ""
+	if err != nil {
+		tomb, reason = true, "feature_not_found"
+		if _, wbErr := p.getWorkbench(s.ProjectSlug); wbErr != nil {
+			reason = "project_not_registered"
 		}
-		links = append(links, l)
+	} else {
+		s.Feature = snap
+		if snap.Confidence == "orphaned" {
+			tomb, reason = true, "feature_not_found"
+		}
 	}
-	if links == nil {
-		links = []FlowLink{}
+	if tomb != s.Tombstoned || reason != s.TombstonedReason {
+		s.Tombstoned, s.TombstonedReason = tomb, reason
+		p.db.Exec(`UPDATE flow_steps SET tombstoned=?, tombstoned_reason=? WHERE id=?`, b2i(tomb), reason, s.ID)
 	}
-	return links, nil
+}
+
+// loadFullFlow loads a flow with its steps (feature snapshots attached) and edges.
+func (p *Platform) loadFullFlow(id string) (*Flow, error) {
+	row := p.db.QueryRow(`SELECT id, name, description, status, owner, tags, COALESCE(folder_id,''), created_at, updated_at FROM flows WHERE id = ?`, id)
+	f, err := scanFlow(row)
+	if err != nil {
+		return nil, err
+	}
+	if f.Steps, err = p.loadFlowSteps(id); err != nil {
+		return nil, err
+	}
+	var wg sync.WaitGroup
+	for i := range f.Steps {
+		wg.Add(1)
+		go func(s *FlowStep) { defer wg.Done(); p.enrichStep(s) }(&f.Steps[i])
+	}
+	wg.Wait()
+	if f.Edges, err = loadFlowEdges(p.db, id); err != nil {
+		return nil, err
+	}
+	return f, nil
 }
 
 // FlowSummary is the lightweight list-page representation of a flow (no steps/links).
@@ -816,17 +809,18 @@ type FlowSummary struct {
 	BaselineCount     int                    `json:"baselineCount"`
 	OpenFindings      *FindingSeverityCounts `json:"openFindings,omitempty"`
 	OpenFindingsTotal int                    `json:"openFindingsTotal,omitempty"`
-	// Shape is the step tree skeleton (no feature data), enough to draw the flow's outline.
-	Shape []FlowShapeNode `json:"shape"`
+	// Shape is the step skeleton (no feature data) and ShapeEdges its edges as [from, to]
+	// pairs in branch order: enough to draw the flow's outline.
+	Shape      []FlowShapeNode `json:"shape"`
+	ShapeEdges [][2]string     `json:"shapeEdges"`
 }
 
 // FlowShapeNode is one step in a FlowSummary's outline.
 type FlowShapeNode struct {
-	ID           string `json:"id"`
-	ParentStepID string `json:"parentStepId,omitempty"`
-	Position     int    `json:"position"`
-	ProjectSlug  string `json:"projectSlug"`
-	FeatureID    string `json:"featureId"`
+	ID          string `json:"id"`
+	Position    int    `json:"position"`
+	ProjectSlug string `json:"projectSlug"`
+	FeatureID   string `json:"featureId"`
 }
 
 // FlowsPage is the paginated response for GET /api/flows.
@@ -1043,7 +1037,7 @@ func (p *Platform) listFlows(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, FlowsPage{Items: items, Total: total, Offset: offset, Limit: limit})
 }
 
-// attachFlowShapes loads every listed flow's step skeleton in one query.
+// attachFlowShapes loads every listed flow's step skeleton and edges in two queries.
 func (p *Platform) attachFlowShapes(items []FlowSummary) error {
 	if len(items) == 0 {
 		return nil
@@ -1053,24 +1047,41 @@ func (p *Platform) attachFlowShapes(items []FlowSummary) error {
 	for i, it := range items {
 		idx[it.ID] = i
 		args[i] = it.ID
+		items[i].Shape, items[i].ShapeEdges = []FlowShapeNode{}, [][2]string{}
 	}
-	rows, err := p.db.Query(`SELECT flow_id, id, COALESCE(parent_step_id,''), position, project_slug, feature_id FROM flow_steps
-		WHERE flow_id IN (`+strings.TrimSuffix(strings.Repeat("?,", len(items)), ",")+`) ORDER BY position`, args...)
+	in := `(` + strings.TrimSuffix(strings.Repeat("?,", len(items)), ",") + `)`
+	rows, err := p.db.Query(`SELECT flow_id, id, position, project_slug, feature_id FROM flow_steps
+		WHERE flow_id IN `+in+` ORDER BY position, rowid`, args...)
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
 	for rows.Next() {
 		var flowID string
 		var n FlowShapeNode
-		if err := rows.Scan(&flowID, &n.ID, &n.ParentStepID, &n.Position, &n.ProjectSlug, &n.FeatureID); err != nil {
+		if err := rows.Scan(&flowID, &n.ID, &n.Position, &n.ProjectSlug, &n.FeatureID); err != nil {
+			rows.Close()
 			return err
 		}
 		if i, ok := idx[flowID]; ok {
 			items[i].Shape = append(items[i].Shape, n)
 		}
 	}
-	return rows.Err()
+	rows.Close()
+	erows, err := p.db.Query(`SELECT flow_id, from_step_id, to_step_id FROM flow_edges WHERE flow_id IN `+in+` ORDER BY from_step_id, position, rowid`, args...)
+	if err != nil {
+		return err
+	}
+	defer erows.Close()
+	for erows.Next() {
+		var flowID, from, to string
+		if err := erows.Scan(&flowID, &from, &to); err != nil {
+			return err
+		}
+		if i, ok := idx[flowID]; ok {
+			items[i].ShapeEdges = append(items[i].ShapeEdges, [2]string{from, to})
+		}
+	}
+	return erows.Err()
 }
 
 // FacetItem is a single facet value with its count.
@@ -1320,6 +1331,8 @@ func (p *Platform) createFlow(w http.ResponseWriter, r *http.Request) {
 		Owner       string   `json:"owner"`
 		Tags        []string `json:"tags"`
 		FolderID    string   `json:"folderId"`
+		// Optionally the whole graph at once (the export shape): created atomically.
+		graphInput
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid JSON", 400)
@@ -1327,6 +1340,10 @@ func (p *Platform) createFlow(w http.ResponseWriter, r *http.Request) {
 	}
 	if ok, err := p.folderExists(req.FolderID); err != nil || !ok {
 		http.Error(w, "folder not found", 400)
+		return
+	}
+	if err := req.graphInput.normalize(); err != nil {
+		http.Error(w, err.Error(), 400)
 		return
 	}
 	if req.Name == "" {
@@ -1345,77 +1362,44 @@ func (p *Platform) createFlow(w http.ResponseWriter, r *http.Request) {
 	}
 	tagsJSON, _ := json.Marshal(req.Tags)
 	id := randomID()
-	if _, err := p.db.Exec(
-		`INSERT INTO flows (id, name, description, status, owner, tags, folder_id) VALUES (?, ?, ?, ?, ?, ?, NULLIF(?, ''))`,
-		id, req.Name, req.Description, req.Status, req.Owner, string(tagsJSON), req.FolderID,
-	); err != nil {
+	p.flowMu.Lock()
+	err := func() error {
+		defer p.flowMu.Unlock()
+		tx, err := p.db.Begin()
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback()
+		if _, err := tx.Exec(
+			`INSERT INTO flows (id, name, description, status, owner, tags, folder_id) VALUES (?, ?, ?, ?, ?, ?, NULLIF(?, ''))`,
+			id, req.Name, req.Description, req.Status, req.Owner, string(tagsJSON), req.FolderID,
+		); err != nil {
+			return err
+		}
+		if _, err := writeGraph(tx, id, req.graphInput); err != nil {
+			return err
+		}
+		return tx.Commit()
+	}()
+	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	f := Flow{ID: id, Name: req.Name, Description: req.Description, Status: req.Status, Owner: req.Owner, Tags: req.Tags, FolderID: req.FolderID, Steps: []FlowStep{}, Links: []FlowLink{}}
-	_ = p.db.QueryRow(`SELECT created_at, updated_at FROM flows WHERE id = ?`, id).Scan(&f.CreatedAt, &f.UpdatedAt)
+	f, err := p.loadFullFlow(id)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
 	w.WriteHeader(201)
 	writeJSON(w, f)
 }
 
 func (p *Platform) getFlow(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	row := p.db.QueryRow(`SELECT id, name, description, status, owner, tags, COALESCE(folder_id,''), created_at, updated_at FROM flows WHERE id = ?`, id)
-	f, err := scanFlow(row)
+	f, err := p.loadFullFlow(r.PathValue("id"))
 	if err == sql.ErrNoRows {
 		http.Error(w, "not found", 404)
 		return
 	}
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-	f.Steps, err = p.loadFlowSteps(id)
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-	// Enrich steps with feature snapshots in parallel.
-	type result struct {
-		idx  int
-		snap *FeatureSnapshot
-		err  error
-	}
-	ch := make(chan result, len(f.Steps))
-	for i, s := range f.Steps {
-		go func(idx int, slug, featureID string) {
-			snap, err := p.fetchFeatureSnapshot(slug, featureID)
-			ch <- result{idx, snap, err}
-		}(i, s.ProjectSlug, s.FeatureID)
-	}
-	for range f.Steps {
-		res := <-ch
-		i := res.idx
-		if res.err != nil {
-			reason := "fetch_error"
-			if _, wbErr := p.getWorkbench(f.Steps[i].ProjectSlug); wbErr != nil {
-				reason = "project_not_registered"
-			} else {
-				reason = "feature_not_found"
-			}
-			f.Steps[i].Tombstoned = true
-			f.Steps[i].TombstonedReason = reason
-			p.db.Exec(`UPDATE flow_steps SET tombstoned=1, tombstoned_reason=? WHERE id=?`, reason, f.Steps[i].ID)
-		} else {
-			f.Steps[i].Feature = res.snap
-			if res.snap.Confidence == "orphaned" {
-				f.Steps[i].Tombstoned = true
-				f.Steps[i].TombstonedReason = "feature_not_found"
-				p.db.Exec(`UPDATE flow_steps SET tombstoned=1, tombstoned_reason='feature_not_found' WHERE id=?`, f.Steps[i].ID)
-			} else if f.Steps[i].Tombstoned {
-				// The feature resolves again: tombstones must clear when it recovers.
-				f.Steps[i].Tombstoned = false
-				f.Steps[i].TombstonedReason = ""
-				p.db.Exec(`UPDATE flow_steps SET tombstoned=0, tombstoned_reason='' WHERE id=?`, f.Steps[i].ID)
-			}
-		}
-	}
-	f.Links, err = p.loadFlowLinks(id)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
@@ -1494,13 +1478,13 @@ func (p *Platform) updateFlow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Respond with the flow as stored: fresh updatedAt, and its real steps and
-	// links (this is a metadata update; they are unchanged, not emptied).
+	// edges (this is a metadata update; they are unchanged, not emptied).
 	_ = p.db.QueryRow(`SELECT updated_at FROM flows WHERE id = ?`, id).Scan(&cur.UpdatedAt)
 	if cur.Steps, err = p.loadFlowSteps(id); err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	if cur.Links, err = p.loadFlowLinks(id); err != nil {
+	if cur.Edges, err = loadFlowEdges(p.db, id); err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
@@ -1518,570 +1502,6 @@ func (p *Platform) deleteFlow(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "not found", 404)
 		return
 	}
-	w.WriteHeader(204)
-}
-
-func (p *Platform) addFlowStep(w http.ResponseWriter, r *http.Request) {
-	flowID := r.PathValue("id")
-	var req struct {
-		ParentStepID    string `json:"parentStepId"`
-		BranchCondition string `json:"branchCondition"`
-		ProjectSlug     string `json:"projectSlug"`
-		FeatureID       string `json:"featureId"`
-		Note            string `json:"note"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid JSON", 400)
-		return
-	}
-	if req.ProjectSlug == "" || req.FeatureID == "" {
-		http.Error(w, "projectSlug and featureId are required", 400)
-		return
-	}
-
-	var exists int
-	p.db.QueryRow(`SELECT 1 FROM flows WHERE id = ?`, flowID).Scan(&exists)
-	if exists == 0 {
-		http.Error(w, "flow not found", 404)
-		return
-	}
-
-	if req.ParentStepID != "" {
-		var parentExists int
-		p.db.QueryRow(`SELECT 1 FROM flow_steps WHERE id=? AND flow_id=?`, req.ParentStepID, flowID).Scan(&parentExists)
-		if parentExists == 0 {
-			http.Error(w, "parentStepId not found in this flow", 400)
-			return
-		}
-	}
-
-	var pos int
-	if req.ParentStepID != "" {
-		p.db.QueryRow(`SELECT COALESCE(MAX(position)+1,0) FROM flow_steps WHERE flow_id=? AND parent_step_id=?`, flowID, req.ParentStepID).Scan(&pos)
-	} else {
-		p.db.QueryRow(`SELECT COALESCE(MAX(position)+1,0) FROM flow_steps WHERE flow_id=? AND parent_step_id IS NULL`, flowID).Scan(&pos)
-	}
-
-	id := randomID()
-	var parentArg any
-	if req.ParentStepID != "" {
-		parentArg = req.ParentStepID
-	}
-	if _, err := p.db.Exec(
-		`INSERT INTO flow_steps (id, flow_id, parent_step_id, position, branch_condition, project_slug, feature_id, note) VALUES (?,?,?,?,?,?,?,?)`,
-		id, flowID, parentArg, pos, req.BranchCondition, req.ProjectSlug, req.FeatureID, req.Note,
-	); err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-	p.db.Exec(`UPDATE flows SET updated_at=datetime('now') WHERE id=?`, flowID)
-
-	s := FlowStep{ID: id, FlowID: flowID, ParentStepID: req.ParentStepID, Position: pos,
-		BranchCondition: req.BranchCondition, ProjectSlug: req.ProjectSlug, FeatureID: req.FeatureID, Note: req.Note}
-	_ = p.db.QueryRow(`SELECT created_at FROM flow_steps WHERE id = ?`, id).Scan(&s.CreatedAt)
-
-	// Enrich with feature snapshot; determine tombstone reason at creation time.
-	snap, snapErr := p.fetchFeatureSnapshot(req.ProjectSlug, req.FeatureID)
-	if snapErr != nil {
-		reason := "fetch_error"
-		if _, wbErr := p.getWorkbench(req.ProjectSlug); wbErr != nil {
-			reason = "project_not_registered"
-		} else {
-			reason = "feature_not_found"
-		}
-		s.Tombstoned = true
-		s.TombstonedReason = reason
-		p.db.Exec(`UPDATE flow_steps SET tombstoned=1, tombstoned_reason=? WHERE id=?`, reason, id)
-	} else {
-		s.Feature = snap
-		if snap.Confidence == "orphaned" {
-			s.Tombstoned = true
-			s.TombstonedReason = "feature_not_found"
-			p.db.Exec(`UPDATE flow_steps SET tombstoned=1, tombstoned_reason='feature_not_found' WHERE id=?`, id)
-		}
-	}
-
-	w.WriteHeader(201)
-	writeJSON(w, s)
-}
-
-func (p *Platform) updateFlowStep(w http.ResponseWriter, r *http.Request) {
-	flowID := r.PathValue("id")
-	stepID := r.PathValue("stepId")
-	var req struct {
-		Note            *string `json:"note"`
-		BranchCondition *string `json:"branchCondition"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid JSON", 400)
-		return
-	}
-
-	var s FlowStep
-	var parentID sql.NullString
-	var tombInt int
-	err := p.db.QueryRow(
-		`SELECT id, flow_id, parent_step_id, position, branch_condition, project_slug, feature_id, note, tombstoned, created_at FROM flow_steps WHERE id=? AND flow_id=?`,
-		stepID, flowID,
-	).Scan(&s.ID, &s.FlowID, &parentID, &s.Position, &s.BranchCondition, &s.ProjectSlug, &s.FeatureID, &s.Note, &tombInt, &s.CreatedAt)
-	if err == sql.ErrNoRows {
-		http.Error(w, "not found", 404)
-		return
-	}
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-	s.ParentStepID = parentID.String
-	s.Tombstoned = tombInt != 0
-
-	if req.Note != nil {
-		s.Note = *req.Note
-	}
-	if req.BranchCondition != nil {
-		s.BranchCondition = *req.BranchCondition
-	}
-	if _, err := p.db.Exec(
-		`UPDATE flow_steps SET note=?, branch_condition=? WHERE id=?`,
-		s.Note, s.BranchCondition, stepID,
-	); err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-	p.db.Exec(`UPDATE flows SET updated_at=datetime('now') WHERE id=?`, flowID)
-	writeJSON(w, s)
-}
-
-func (p *Platform) removeFlowStep(w http.ResponseWriter, r *http.Request) {
-	flowID := r.PathValue("id")
-	stepID := r.PathValue("stepId")
-	res, err := p.db.Exec(`DELETE FROM flow_steps WHERE id=? AND flow_id=?`, stepID, flowID)
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-	if n, _ := res.RowsAffected(); n == 0 {
-		http.Error(w, "not found", 404)
-		return
-	}
-	p.db.Exec(`UPDATE flows SET updated_at=datetime('now') WHERE id=?`, flowID)
-	w.WriteHeader(204)
-}
-
-func (p *Platform) moveFlowStep(w http.ResponseWriter, r *http.Request) {
-	flowID := r.PathValue("id")
-	stepID := r.PathValue("stepId")
-
-	var dir int
-	switch r.URL.Query().Get("dir") {
-	case "-1":
-		dir = -1
-	case "1":
-		dir = 1
-	default:
-		http.Error(w, "dir must be -1 or 1", 400)
-		return
-	}
-
-	var pos int
-	var parentID sql.NullString
-	err := p.db.QueryRow(`SELECT position, parent_step_id FROM flow_steps WHERE id=? AND flow_id=?`, stepID, flowID).
-		Scan(&pos, &parentID)
-	if err == sql.ErrNoRows {
-		http.Error(w, "not found", 404)
-		return
-	}
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-
-	// Find the actual neighbour in sorted order rather than assuming
-	// sequential positions (gaps form when steps are deleted).
-	var neighbourQuery string
-	var neighbourArgs []any
-	if dir == -1 {
-		if parentID.Valid {
-			neighbourQuery = `SELECT id, position FROM flow_steps WHERE flow_id=? AND parent_step_id=? AND position<? AND id!=? ORDER BY position DESC LIMIT 1`
-			neighbourArgs = []any{flowID, parentID.String, pos, stepID}
-		} else {
-			neighbourQuery = `SELECT id, position FROM flow_steps WHERE flow_id=? AND parent_step_id IS NULL AND position<? AND id!=? ORDER BY position DESC LIMIT 1`
-			neighbourArgs = []any{flowID, pos, stepID}
-		}
-	} else {
-		if parentID.Valid {
-			neighbourQuery = `SELECT id, position FROM flow_steps WHERE flow_id=? AND parent_step_id=? AND position>? AND id!=? ORDER BY position ASC LIMIT 1`
-			neighbourArgs = []any{flowID, parentID.String, pos, stepID}
-		} else {
-			neighbourQuery = `SELECT id, position FROM flow_steps WHERE flow_id=? AND parent_step_id IS NULL AND position>? AND id!=? ORDER BY position ASC LIMIT 1`
-			neighbourArgs = []any{flowID, pos, stepID}
-		}
-	}
-
-	var swapID string
-	var swapPos int
-	p.db.QueryRow(neighbourQuery, neighbourArgs...).Scan(&swapID, &swapPos)
-
-	tx, err := p.db.Begin()
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-	defer tx.Rollback()
-
-	if swapID != "" {
-		tx.Exec(`UPDATE flow_steps SET position=? WHERE id=?`, swapPos, stepID)
-		tx.Exec(`UPDATE flow_steps SET position=? WHERE id=?`, pos, swapID)
-	}
-	tx.Exec(`UPDATE flows SET updated_at=datetime('now') WHERE id=?`, flowID)
-
-	if err := tx.Commit(); err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-
-	var s FlowStep
-	var pID sql.NullString
-	var tombInt int
-	p.db.QueryRow(
-		`SELECT id, flow_id, parent_step_id, position, branch_condition, project_slug, feature_id, note, tombstoned, created_at FROM flow_steps WHERE id=?`, stepID,
-	).Scan(&s.ID, &s.FlowID, &pID, &s.Position, &s.BranchCondition, &s.ProjectSlug, &s.FeatureID, &s.Note, &tombInt, &s.CreatedAt)
-	s.ParentStepID = pID.String
-	s.Tombstoned = tombInt != 0
-	writeJSON(w, s)
-}
-
-// setFlowStepInput is the request body for PUT /flows/{id}/steps
-type setFlowStepInput struct {
-	ClientID        string `json:"clientId"`
-	ParentClientID  string `json:"parentClientId"`
-	BranchCondition string `json:"branchCondition"`
-	ProjectSlug     string `json:"projectSlug"`
-	FeatureID       string `json:"featureId"`
-	Note            string `json:"note"`
-}
-
-type setFlowLinkInput struct {
-	FromClientID string   `json:"fromClientId"`
-	ToClientID   string   `json:"toClientId"`
-	Description  string   `json:"description"`
-	Comment      string   `json:"comment"`
-	Tags         []string `json:"tags"`
-}
-
-func (p *Platform) setFlowSteps(w http.ResponseWriter, r *http.Request) {
-	flowID := r.PathValue("id")
-
-	var req struct {
-		Steps []setFlowStepInput `json:"steps"`
-		Links []setFlowLinkInput `json:"links"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid JSON", 400)
-		return
-	}
-
-	if err := validateStepTree(req.Steps); err != nil {
-		http.Error(w, err.Error(), 400)
-		return
-	}
-	if err := validateStepLinks(req.Steps, req.Links); err != nil {
-		http.Error(w, err.Error(), 400)
-		return
-	}
-
-	var exists int
-	p.db.QueryRow(`SELECT 1 FROM flows WHERE id = ?`, flowID).Scan(&exists)
-	if exists == 0 {
-		http.Error(w, "flow not found", 404)
-		return
-	}
-
-	tx, err := p.db.Begin()
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-	defer tx.Rollback()
-
-	tx.Exec(`DELETE FROM flow_step_links WHERE flow_id=?`, flowID)
-	tx.Exec(`DELETE FROM flow_steps WHERE flow_id=?`, flowID)
-
-	// Map clientId → server-assigned ID
-	idMap := make(map[string]string, len(req.Steps))
-	for _, s := range req.Steps {
-		idMap[s.ClientID] = randomID()
-	}
-
-	// Insert steps: roots first (parentClientId == ""), then children.
-	// Since the tree is acyclic and single-rooted, sort by depth.
-	inserted := make(map[string]bool)
-	posCounter := make(map[string]int)
-
-	var insertStep func(s setFlowStepInput) error
-	insertStep = func(s setFlowStepInput) error {
-		if inserted[s.ClientID] {
-			return nil
-		}
-		if s.ParentClientID != "" && !inserted[s.ParentClientID] {
-			// Insert parent first.
-			for _, candidate := range req.Steps {
-				if candidate.ClientID == s.ParentClientID {
-					if err := insertStep(candidate); err != nil {
-						return err
-					}
-					break
-				}
-			}
-		}
-		serverID := idMap[s.ClientID]
-		var parentArg any
-		posKey := ""
-		if s.ParentClientID != "" {
-			parentServerID := idMap[s.ParentClientID]
-			parentArg = parentServerID
-			posKey = parentServerID
-		}
-		pos := posCounter[posKey]
-		posCounter[posKey]++
-		_, err := tx.Exec(
-			`INSERT INTO flow_steps (id, flow_id, parent_step_id, position, branch_condition, project_slug, feature_id, note) VALUES (?,?,?,?,?,?,?,?)`,
-			serverID, flowID, parentArg, pos, s.BranchCondition, s.ProjectSlug, s.FeatureID, s.Note,
-		)
-		if err != nil {
-			return err
-		}
-		inserted[s.ClientID] = true
-		return nil
-	}
-
-	for _, s := range req.Steps {
-		if err := insertStep(s); err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
-	}
-
-	for _, l := range req.Links {
-		fromID, ok1 := idMap[l.FromClientID]
-		toID, ok2 := idMap[l.ToClientID]
-		if !ok1 || !ok2 {
-			http.Error(w, fmt.Sprintf("link references unknown clientId: %s → %s", l.FromClientID, l.ToClientID), 400)
-			return
-		}
-		if l.Tags == nil {
-			l.Tags = []string{}
-		}
-		lTagsJSON, _ := json.Marshal(l.Tags)
-		if _, err := tx.Exec(
-			`INSERT INTO flow_step_links (flow_id, from_step_id, to_step_id, description, comment, tags) VALUES (?,?,?,?,?,?)`,
-			flowID, fromID, toID, l.Description, l.Comment, string(lTagsJSON),
-		); err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
-	}
-
-	tx.Exec(`UPDATE flows SET updated_at=datetime('now') WHERE id=?`, flowID)
-
-	if err := tx.Commit(); err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-
-	// Capture enriched flow via getFlow, then wrap with the clientId→stepId map.
-	flowRec := httptest.NewRecorder()
-	p.getFlow(flowRec, r)
-	if flowRec.Code >= 400 {
-		w.WriteHeader(flowRec.Code)
-		w.Write(flowRec.Body.Bytes())
-		return
-	}
-	var enrichedFlow Flow
-	json.Unmarshal(flowRec.Body.Bytes(), &enrichedFlow)
-	writeJSON(w, struct {
-		Flow    Flow              `json:"flow"`
-		StepIds map[string]string `json:"stepIds"`
-	}{Flow: enrichedFlow, StepIds: idMap})
-}
-
-// validateStepLinks applies the rules addFlowStep and setFlowLink enforce one
-// at a time to a whole set-steps payload: every step names a feature, and
-// links join two distinct known steps, at most once per (from, to) pair.
-func validateStepLinks(steps []setFlowStepInput, links []setFlowLinkInput) error {
-	known := make(map[string]bool, len(steps))
-	for _, s := range steps {
-		if s.ProjectSlug == "" || s.FeatureID == "" {
-			return fmt.Errorf("step %q: projectSlug and featureId are required", s.ClientID)
-		}
-		known[s.ClientID] = true
-	}
-	seen := make(map[[2]string]bool, len(links))
-	for _, l := range links {
-		if !known[l.FromClientID] || !known[l.ToClientID] {
-			return fmt.Errorf("link references unknown clientId: %s → %s", l.FromClientID, l.ToClientID)
-		}
-		if l.FromClientID == l.ToClientID {
-			return fmt.Errorf("link %s → %s: a step cannot link to itself", l.FromClientID, l.ToClientID)
-		}
-		key := [2]string{l.FromClientID, l.ToClientID}
-		if seen[key] {
-			return fmt.Errorf("duplicate link %s → %s", l.FromClientID, l.ToClientID)
-		}
-		seen[key] = true
-	}
-	return nil
-}
-
-func validateStepTree(steps []setFlowStepInput) error {
-	if len(steps) == 0 {
-		return nil
-	}
-
-	seen := make(map[string]bool, len(steps))
-	for _, s := range steps {
-		if s.ClientID == "" {
-			return fmt.Errorf("each step must have a non-empty clientId")
-		}
-		if seen[s.ClientID] {
-			return fmt.Errorf("duplicate clientId: %q", s.ClientID)
-		}
-		seen[s.ClientID] = true
-	}
-
-	var roots int
-	for _, s := range steps {
-		if s.ParentClientID == "" {
-			roots++
-		} else if !seen[s.ParentClientID] {
-			return fmt.Errorf("step %q references unknown parentClientId %q", s.ClientID, s.ParentClientID)
-		}
-	}
-	if roots != 1 {
-		return fmt.Errorf("exactly one root step (parentClientId null/empty) required, found %d", roots)
-	}
-
-	// Cycle detection via DFS.
-	children := make(map[string][]string, len(steps))
-	for _, s := range steps {
-		if s.ParentClientID != "" {
-			children[s.ParentClientID] = append(children[s.ParentClientID], s.ClientID)
-		}
-	}
-	visited := make(map[string]int, len(steps)) // 0=unvisited,1=in-progress,2=done
-	var dfs func(id string) error
-	dfs = func(id string) error {
-		if visited[id] == 1 {
-			return fmt.Errorf("cycle detected at step %q", id)
-		}
-		if visited[id] == 2 {
-			return nil
-		}
-		visited[id] = 1
-		for _, child := range children[id] {
-			if err := dfs(child); err != nil {
-				return err
-			}
-		}
-		visited[id] = 2
-		return nil
-	}
-	for _, s := range steps {
-		if s.ParentClientID == "" {
-			if err := dfs(s.ClientID); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func (p *Platform) setFlowLink(w http.ResponseWriter, r *http.Request) {
-	flowID := r.PathValue("id")
-	fromID := r.PathValue("fromId")
-	toID := r.PathValue("toId")
-
-	// Fields left out of the body keep their current value on an existing
-	// link (and default to empty on a new one), so editing one field - e.g.
-	// the edge label - doesn't wipe the comment and tags.
-	var req struct {
-		Description *string   `json:"description"`
-		Comment     *string   `json:"comment"`
-		Tags        *[]string `json:"tags"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && err != io.EOF {
-		http.Error(w, "invalid JSON", 400)
-		return
-	}
-
-	var exists int
-	p.db.QueryRow(`SELECT 1 FROM flows WHERE id = ?`, flowID).Scan(&exists)
-	if exists == 0 {
-		http.Error(w, "flow not found", 404)
-		return
-	}
-	if fromID == toID {
-		http.Error(w, "a step cannot link to itself", 400)
-		return
-	}
-	// Both ends must be steps of this flow. They may belong to different projects
-	// (that is what makes a link cross-project), but never to a different flow.
-	var inFlow int
-	p.db.QueryRow(`SELECT COUNT(*) FROM flow_steps WHERE flow_id = ? AND id IN (?, ?)`, flowID, fromID, toID).Scan(&inFlow)
-	if inFlow != 2 {
-		http.Error(w, "both steps must belong to this flow", 400)
-		return
-	}
-
-	link := FlowLink{FlowID: flowID, FromStepID: fromID, ToStepID: toID, Tags: []string{}}
-	var curTags string
-	if err := p.db.QueryRow(`SELECT description, comment, tags FROM flow_step_links WHERE flow_id=? AND from_step_id=? AND to_step_id=?`, flowID, fromID, toID).
-		Scan(&link.Description, &link.Comment, &curTags); err == nil {
-		if json.Unmarshal([]byte(curTags), &link.Tags) != nil || link.Tags == nil {
-			link.Tags = []string{}
-		}
-	}
-	if req.Description != nil {
-		link.Description = *req.Description
-	}
-	if req.Comment != nil {
-		link.Comment = *req.Comment
-	}
-	if req.Tags != nil {
-		link.Tags = *req.Tags
-		if link.Tags == nil {
-			link.Tags = []string{}
-		}
-	}
-
-	tagsJSON, _ := json.Marshal(link.Tags)
-	if _, err := p.db.Exec(
-		`INSERT INTO flow_step_links (flow_id, from_step_id, to_step_id, description, comment, tags) VALUES (?,?,?,?,?,?)
-		 ON CONFLICT(from_step_id, to_step_id) DO UPDATE SET
-		   description=excluded.description, comment=excluded.comment, tags=excluded.tags`,
-		flowID, fromID, toID, link.Description, link.Comment, string(tagsJSON),
-	); err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-	p.db.Exec(`UPDATE flows SET updated_at=datetime('now') WHERE id=?`, flowID)
-	writeJSON(w, link)
-}
-
-func (p *Platform) deleteFlowLink(w http.ResponseWriter, r *http.Request) {
-	flowID := r.PathValue("id")
-	fromID := r.PathValue("fromId")
-	toID := r.PathValue("toId")
-	res, err := p.db.Exec(`DELETE FROM flow_step_links WHERE flow_id=? AND from_step_id=? AND to_step_id=?`, flowID, fromID, toID)
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-	if n, _ := res.RowsAffected(); n == 0 {
-		http.Error(w, "not found", 404)
-		return
-	}
-	p.db.Exec(`UPDATE flows SET updated_at=datetime('now') WHERE id=?`, flowID)
 	w.WriteHeader(204)
 }
 
@@ -2347,8 +1767,10 @@ func (p *Platform) registerPlatformRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/flows/{id}/steps/{stepId}", p.removeFlowStep)
 	mux.HandleFunc("PUT /api/flows/{id}/steps", p.setFlowSteps)
 	mux.HandleFunc("POST /api/flows/{id}/steps/{stepId}/move", p.moveFlowStep)
-	mux.HandleFunc("PUT /api/flows/{id}/links/{fromId}/{toId}", p.setFlowLink)
-	mux.HandleFunc("DELETE /api/flows/{id}/links/{fromId}/{toId}", p.deleteFlowLink)
+	mux.HandleFunc("PUT /api/flows/{id}/edges/{fromId}/{toId}", p.setFlowEdge)
+	mux.HandleFunc("DELETE /api/flows/{id}/edges/{fromId}/{toId}", p.deleteFlowEdge)
+	mux.HandleFunc("GET /api/flows/{id}/export", p.exportFlow)
+	mux.HandleFunc("GET /api/service-map", p.serviceMap)
 	mux.HandleFunc("GET /api/flows/{id}/baselines", p.listFlowBaselines)
 	mux.HandleFunc("GET /api/flows/{id}/baselines/latest", p.latestFlowBaseline)
 	mux.HandleFunc("GET /api/flows/{id}/baselines/{bId}", p.getFlowBaseline)

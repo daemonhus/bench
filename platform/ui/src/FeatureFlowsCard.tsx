@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { listAllFlows, flowStatusOption, type FlowSummary } from './flows';
+import { outline, stepNumbers } from './flowOutline';
 import { ToneChip } from '@bench/components/SelectDropdown';
 import { SkeletonRows } from '@bench/components/Skeleton';
 
@@ -7,21 +8,10 @@ import { SkeletonRows } from '@bench/components/Skeleton';
 // feature, as "Flow name, step N", with where it sits in the path and what else the flow touches.
 // Rendered into bench's feature detail side column through WorkbenchView's extensions.
 
-type ShapeNode = NonNullable<FlowSummary['shape']>[number];
-
-/** Step numbers as the flow page shows them: depth-first, siblings by position. */
-function numberSteps(shape: ShapeNode[]): Map<string, number> {
-  const kids = new Map<string, ShapeNode[]>();
-  for (const n of shape) {
-    const k = n.parentStepId ?? '';
-    kids.set(k, [...(kids.get(k) ?? []), n]);
-  }
-  for (const list of kids.values()) list.sort((a, b) => a.position - b.position);
-  const out = new Map<string, number>();
-  let i = 1;
-  const walk = (parent: string) => { for (const n of kids.get(parent) ?? []) { out.set(n.id, i++); walk(n.id); } };
-  walk('');
-  return out;
+/** Step numbers as the flow page shows them: the outline's reading order. */
+function numberSteps(flow: FlowSummary): Map<string, number> {
+  const o = outline(flow.shape ?? [], (flow.shapeEdges ?? []).map(([fromStepId, toStepId], i) => ({ fromStepId, toStepId, position: i })));
+  return stepNumbers(o);
 }
 
 interface Use {
@@ -38,10 +28,10 @@ function usesOf(flows: FlowSummary[], slug: string, featureId: string): Use[] {
     const shape = flow.shape ?? [];
     const here = shape.filter((n) => n.projectSlug === slug && n.featureId === featureId);
     if (here.length === 0) continue;
-    const nums = numberSteps(shape);
-    const hasChildren = (id: string) => shape.some((n) => n.parentStepId === id);
+    const nums = numberSteps(flow);
+    const edges = flow.shapeEdges ?? [];
     const first = here[0];
-    const role = !first.parentStepId && nums.get(first.id) === 1 ? 'entry point' : !hasChildren(first.id) ? 'end of path' : 'mid-path';
+    const role = !edges.some(([, to]) => to === first.id) ? 'entry point' : !edges.some(([from]) => from === first.id) ? 'end of path' : 'mid-path';
     out.push({
       flow,
       steps: here.map((n) => nums.get(n.id) ?? 0).sort((a, b) => a - b),

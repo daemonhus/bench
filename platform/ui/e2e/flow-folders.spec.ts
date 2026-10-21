@@ -353,7 +353,7 @@ test('the flow page puts its title above the folder path and tabs, as the list p
   expect(Math.abs(path.y - listPath.y)).toBeLessThanOrEqual(6);
   expect(Math.abs(title.y + title.height / 2 - (listTitle.y + listTitle.height / 2))).toBeLessThanOrEqual(6);
   // Still shown on the other tabs.
-  await page.getByRole('button', { name: 'Map', exact: true }).click();
+  await page.locator('.flow-detail-tab-bar').getByRole('button', { name: 'Map', exact: true }).click();
   await expect(page.locator('.flow-detail-heading .flow-detail-name')).toBeVisible();
 });
 
