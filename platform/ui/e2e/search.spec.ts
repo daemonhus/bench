@@ -8,7 +8,7 @@ import type { APIRequestContext, Page } from '@playwright/test';
 // Each test adds twelve "quartz" findings (six per project) and removes them after.
 
 const box = (page: Page) => page.getByRole('combobox', { name: 'Search everything' });
-const dropdown = (page: Page) => page.locator('#home-search-results');
+const dropdown = (page: Page) => page.locator('.home-search-results');
 const pageBox = (page: Page) => page.locator('.search-page-box input');
 const tab = (page: Page, name: RegExp) => page.locator('.search-page-tab', { hasText: name });
 
@@ -187,5 +187,34 @@ test('axe: search page', async ({ page, request }) => {
     await page.goto('/search?q=quartz');
     await expect(page.locator('.search-page-row').first()).toBeVisible();
     expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  });
+});
+
+test('a project\'s tab bar searches every project: ⌘K focuses it, a hit opens, Enter opens the search page', async ({ page, request }) => {
+  await withQuartz(request, async () => {
+    await page.goto('/p/alpha#/overview');
+    const bar = page.locator('.tab-bar-search').getByRole('combobox', { name: 'Search everything' });
+    await expect(bar).toBeVisible();
+    await page.locator('.tab-bar-project-name').focus();
+    await page.keyboard.press('ControlOrMeta+k');
+    await expect(bar).toBeFocused();
+    await bar.fill('quartz leak beta 3');
+    const results = page.locator('.tab-bar-search .home-search-results');
+    const hit = results.getByRole('option', { name: /quartz leak beta 3/ }).first();
+    await expect(hit).toBeVisible();
+    await hit.click();
+    await expect(page).toHaveURL(/\/p\/beta#\/finding\//);
+    await expect(page.locator('.fd-title')).toHaveText('quartz leak beta 3');
+
+    // In the same project, a hit moves the workbench in place.
+    await bar.fill('quartz leak beta 5');
+    await results.getByRole('option', { name: /quartz leak beta 5/ }).first().click();
+    await expect(page.locator('.fd-title')).toHaveText('quartz leak beta 5');
+
+    await bar.fill('quartz');
+    await expect(results.getByRole('option').first()).toBeVisible();
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL(/\/search\?q=quartz$/);
+    await expect(page.locator('.search-page-summary')).toHaveText('12 results for “quartz”');
   });
 });

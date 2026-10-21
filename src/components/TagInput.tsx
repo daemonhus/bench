@@ -82,6 +82,8 @@ export const TagInput: React.FC<TagInputProps> = ({
           type="text"
           value={draft}
           placeholder={value.length === 0 ? placeholder : ''}
+          // The placeholder goes once there are tags; the field keeps its name.
+          aria-label={placeholder.replace(/…$/, '')}
           onChange={(e) => { setDraft(e.target.value); setHighlight(0); }}
           onFocus={() => setOpen(true)}
           onBlur={() => {

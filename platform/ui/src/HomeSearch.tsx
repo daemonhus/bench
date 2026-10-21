@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { useDeferredValue, useEffect, useId, useMemo, useState } from 'react';
 import { SearchBox } from '@bench/components/SearchBox';
 import type { Project } from './api';
 import { searchAll, summarise, SECTION_TITLE, KIND_NOUN, type Hit, type Kind, type SearchData } from './searchModel';
@@ -8,6 +8,8 @@ import { HitBody, useSearchComments } from './SearchParts';
 // fuzzy-matched. The three best hits of any kind lead; then up to three more of each kind, in
 // that order, skipping kinds with nothing left to show. A kind with more than that offers
 // "See all N …", and Enter (with no row picked) opens every result on the search page.
+// The same search sits in the workbench's tab bar (variant "bar"): compact until used, ⌘K /
+// Ctrl+K from anywhere, its panel opening under it on the right.
 
 const TOP = 3;
 const PER_SECTION = 3;
@@ -15,13 +17,23 @@ const PER_SECTION = 3;
 /** One row of the dropdown: a hit, a kind's "See all", or the closing "See all results". */
 type Entry = { type: 'hit'; hit: Hit } | { type: 'more'; kind: Kind; total: number } | { type: 'all'; total: number };
 
-export function HomeSearch({ projects, data, onOpen, onSearch }: {
+const MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
+
+export function HomeSearch({ projects, data, onOpen, onSearch, variant = 'home', loading = false, onEngage }: {
   projects: Project[];
   data: Record<string, SearchData | undefined>;
   onOpen: (slug: string, hash?: string) => void;
   /** Open the search page for q, on one kind's results or on all of them. */
   onSearch: (q: string, kind?: Kind) => void;
+  variant?: 'home' | 'bar';
+  /** The projects' data is still loading (the bar loads it when first used). */
+  loading?: boolean;
+  /** The box was focused: the moment to load what it searches. */
+  onEngage?: () => void;
 }) {
+  const bar = variant === 'bar';
+  const uid = useId();
+  const listId = `${uid}-results`;
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   // -1: no row picked yet, so Enter searches; the arrows pick one.
@@ -57,7 +69,7 @@ export function HomeSearch({ projects, data, onOpen, onSearch }: {
   };
   const flat = results?.flat ?? [];
   const panelOpen = open && !!q;
-  const optionId = (i: number) => `home-search-opt-${i}`;
+  const optionId = (i: number) => `${uid}-opt-${i}`;
 
   const row = (e: Entry, i: number) => {
     const common = {
@@ -65,7 +77,8 @@ export function HomeSearch({ projects, data, onOpen, onSearch }: {
       id: optionId(i),
       role: 'option',
       'aria-selected': i === active,
-      onMouseEnter: () => setActive(i),
+      // Moving the mouse picks a row; a panel opening under a resting pointer doesn't.
+      onMouseMove: () => { if (active !== i) setActive(i); },
       onClick: () => activate(e),
     };
     if (e.type === 'hit') {
@@ -81,22 +94,23 @@ export function HomeSearch({ projects, data, onOpen, onSearch }: {
 
   let i = 0;
   return (
-    <div className="home-search">
+    <div className={`home-search${bar ? ' home-search--bar' : ''}`}>
       <SearchBox
         value={query}
         onChange={(v) => { setQuery(v); setOpen(true); }}
-        placeholder="Search projects, findings, features, comments…"
+        placeholder={bar ? 'Search all projects…' : 'Search projects, findings, features, comments…'}
         ariaLabel="Search everything"
-        shortcut={['/']}
+        shortcut={bar ? [MAC ? '⌘' : 'Ctrl', 'K'] : ['/']}
         className="home-search-box"
-        icon
+        icon={!bar}
+        expand={bar}
         inputProps={{
           role: 'combobox',
           'aria-expanded': panelOpen,
-          'aria-controls': 'home-search-results',
+          'aria-controls': listId,
           'aria-autocomplete': 'list',
           'aria-activedescendant': panelOpen && active >= 0 && active < flat.length ? optionId(active) : undefined,
-          onFocus: () => setOpen(true),
+          onFocus: () => { setOpen(true); onEngage?.(); },
           onBlur: () => setOpen(false),
           onKeyDown: (e) => {
             if (e.key === 'Escape') {
@@ -124,7 +138,7 @@ export function HomeSearch({ projects, data, onOpen, onSearch }: {
       {panelOpen && (
         // mousedown would blur the input (closing the panel) before the click lands.
         <div className="home-search-panel" onMouseDown={(e) => e.preventDefault()}>
-          <div id="home-search-results" role="listbox" aria-label="Search results">
+          <div id={listId} className="home-search-results" role="listbox" aria-label="Search results">
             {results?.groups.map((g) => (
               <div key={g.id} role="group" aria-labelledby={`home-search-sec-${g.id}`}>
                 <div className="home-search-section" id={`home-search-sec-${g.id}`}>{g.title}</div>
@@ -133,7 +147,9 @@ export function HomeSearch({ projects, data, onOpen, onSearch }: {
             ))}
             {results?.footer && row(results.footer, i++)}
           </div>
-          {flat.length === 0 && <div className="home-search-empty" role="status">No matches for “{q}”</div>}
+          {flat.length === 0 && (loading
+            ? <div className="home-search-note" role="status">Loading every project…</div>
+            : <div className="home-search-empty" role="status">No matches for “{q}”</div>)}
           {comments === null && <div className="home-search-note" role="status">Searching comments…</div>}
           {flat.length > 0 && <div className="home-search-hint" aria-hidden="true"><kbd>↵</kbd> all results · <kbd>↑</kbd><kbd>↓</kbd> pick one</div>}
         </div>

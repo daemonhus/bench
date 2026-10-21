@@ -28,14 +28,17 @@ export function primeSearchIndex(projects: Project[], data: Record<string, Searc
 }
 
 /** Projects with their findings (resolved too) and features: what search runs over; and the
- *  flows, so a feature's card can say which it is on. */
-function useSearchIndex() {
+ *  flows, so a feature's card can say which it is on. Loaded once `enabled` (the tab bar's
+ *  search waits until it's used). */
+export function useSearchIndex(enabled = true) {
   const [projects, setProjects] = useState<Project[]>(lastIndex?.projects ?? []);
   const [data, setData] = useState<Record<string, SearchData>>(lastIndex?.data ?? {});
   const [flows, setFlows] = useState<FlowSummary[]>(lastIndex?.flows ?? []);
   const [loading, setLoading] = useState(!lastIndex);
   useEffect(() => {
+    if (!enabled) return;
     let live = true;
+    setLoading(true);
     listProjects().then(async (ps) => {
       const flowsP = listAllFlows().catch(() => [] as FlowSummary[]);
       const loaded = await Promise.all(ps.map(async (p): Promise<[string, SearchData]> => {
@@ -54,7 +57,7 @@ function useSearchIndex() {
       setFlows(fs);
     }).catch(() => {}).finally(() => { if (live) setLoading(false); });
     return () => { live = false; };
-  }, []);
+  }, [enabled]);
   return { projects, data, flows, loading };
 }
 

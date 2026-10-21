@@ -19,6 +19,7 @@ import { useEvents } from './core/use-events';
 import { useBranchMap } from './core/use-branch-map';
 import { parseRoute, buildRoute, onRouteChange } from './core/router';
 import { splitHash } from './core/query-state';
+import { useWorkbenchExtensions } from './core/extensions';
 import { BrowseView } from './components/BrowseView';
 import { DiffView } from './components/DiffView';
 import { FileTree, type SeverityIndicator } from './components/FileTree';
@@ -70,6 +71,7 @@ import { getDiffEmptyMessage } from './core/diff-utils';
 import './App.css';
 
 export function App() {
+  const extensions = useWorkbenchExtensions();
   const repoName = useRepoStore((s) => s.repoName);
   const commits = useRepoStore((s) => s.commits);
   const branches = useRepoStore((s) => s.branches);
@@ -982,6 +984,7 @@ export function App() {
           })}
         </div>
         <div className="tab-bar-actions">
+          {extensions.tabBarSearch && <div className="tab-bar-search">{extensions.tabBarSearch}</div>}
           <div className="quick-add-buttons">
             <button
               className="quick-add-btn quick-add-comment"

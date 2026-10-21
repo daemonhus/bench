@@ -5,6 +5,8 @@ interface SearchBoxProps {
   onChange: (v: string) => void;
   invalid?: boolean;
   placeholder?: string;
+  /** The key that focuses the box, shown as a hint while it's empty: ['/'], or ['⌘', 'K'] (also
+   *  Ctrl+K; it works from inside other fields too). */
   shortcut?: string[];
   /** Extra class on the wrapper (e.g. to set a width). */
   className?: string;
@@ -36,7 +38,16 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
 
   useEffect(() => {
     if (!shortcut) return;
+    const modK = shortcut.length === 2 && shortcut[1].toLowerCase() === 'k';
     const handler = (e: KeyboardEvent) => {
+      if (modK) {
+        if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'k') {
+          e.preventDefault();
+          inputRef.current?.focus();
+          inputRef.current?.select();
+        }
+        return;
+      }
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const tag = (e.target as HTMLElement)?.tagName;
       const inEditable = tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement)?.isContentEditable;

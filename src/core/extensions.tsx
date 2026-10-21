@@ -9,6 +9,8 @@ export interface WorkbenchExtensions {
   featureDetailAside?: (featureId: string) => ReactNode;
   /** Extra cards for the finding detail page's side column, under Provenance. */
   findingDetailAside?: (findingId: string) => ReactNode;
+  /** A control at the start of the tab bar's actions, top right (the platform's search). */
+  tabBarSearch?: ReactNode;
 }
 
 const Ctx = createContext<WorkbenchExtensions>({});

@@ -1135,6 +1135,22 @@
   padding: 8px; background: var(--bg-secondary); border: 1px solid var(--border-default);
   border-radius: var(--radius-sm); box-shadow: var(--shadow-popup);
 }
+/* The tab bar's search (a project's top right): compact, wider while in use; the panel opens
+   under it, right-aligned, at the home page's width. */
+.tab-bar-search { display: flex; width: 220px; margin-right: 8px; transition: width var(--transition-fast); }
+.tab-bar-search:focus-within { width: 340px; }
+.home-search--bar { flex: 1 1 auto; display: flex; }
+.home-search--bar .home-search-box { flex: 1 1 auto; max-width: none; min-width: 0; padding: 2px; }
+.home-search--bar .home-search-box .annotation-search-input { height: 30px; font-size: var(--font-size-small); }
+.home-search--bar .home-search-box .annotation-search-icon { width: 14px; height: 14px; margin-left: 9px; }
+.home-search--bar .home-search-panel { left: auto; right: 0; width: min(560px, calc(100vw - 32px)); }
+@media (prefers-reduced-motion: reduce) { .tab-bar-search { transition: none; } }
+@media (max-width: 639px) {
+  .tab-bar-search { width: 150px; }
+  .tab-bar-search:focus-within { width: min(260px, 60vw); }
+  .home-search--bar .annotation-search-hint { display: none; }
+}
+
 .home-search-section {
   padding: 12px 12px 6px; font-size: var(--font-size-xs); font-weight: 600;
   letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--text-muted);

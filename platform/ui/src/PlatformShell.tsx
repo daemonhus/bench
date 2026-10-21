@@ -9,6 +9,7 @@ import { FlowsListPage, FlowDetailPage } from './flows';
 import { ServiceMapPage } from './ServiceMap';
 import { SearchPage, type SearchState } from './SearchPage';
 import { parseSearch, searchPath } from './searchModel';
+import { TabBarSearch } from './TabBarSearch';
 import { getSettings } from './api';
 import './tokens.css';
 import './platform.css';
@@ -295,12 +296,24 @@ export function PlatformShell() {
         )}
         {view.kind === 'workbench' && (
           <WorkbenchView
+            // One workbench per project: the tab bar's search can open another project from here.
+            key={view.slug}
             apiBase={`/api/projects/${view.slug}`}
             className="platform-workbench"
             editorConfig={editorConfig}
             extensions={{
               featureDetailAside: (featureId) => (
                 <FeatureFlowsCard projectSlug={view.slug} featureId={featureId} onOpenFlow={(id) => navigate({ kind: 'flow', id })} />
+              ),
+              tabBarSearch: (
+                <TabBarSearch
+                  // A hit in this project moves the workbench by its hash; another project opens.
+                  onOpen={(slug, hash) => {
+                    if (slug === view.slug) window.location.hash = hash || '#/overview';
+                    else openProject(slug, hash);
+                  }}
+                  onSearch={(q, kind) => navigate({ kind: 'search', search: { q, kind } })}
+                />
               ),
             }}
           />

@@ -67,8 +67,8 @@ test.describe('View switching', () => {
   // 6
   test('number keys do not fire when typing in a search input', async ({ page }) => {
     await page.keyboard.press('3');
-    await page.waitForSelector('.annotation-search-input', { timeout: 5000 });
-    await page.locator('.annotation-search-input').focus();
+    await page.waitForSelector('.annotation-search-input:not(.tab-bar *)', { timeout: 5000 });
+    await page.locator('.annotation-search-input:not(.tab-bar *)').focus();
     await page.keyboard.press('1');
     await expect(page.locator('.tab-bar-tab', { hasText: 'Findings' })).toHaveClass(/tab-bar-tab-active/);
   });
@@ -392,10 +392,10 @@ test.describe('Findings: list navigation', () => {
     await page.keyboard.press('ArrowDown');
     await page.waitForTimeout(50);
     expect(await focusedItemCount(page)).toBe(1);
-    await page.locator('.annotation-search-input').fill('XYZNONEXISTENT');
+    await page.locator('.annotation-search-input:not(.tab-bar *)').fill('XYZNONEXISTENT');
     await page.waitForTimeout(300);
     expect(await focusedItemCount(page)).toBe(0);
-    await page.locator('.annotation-search-input').fill('');
+    await page.locator('.annotation-search-input:not(.tab-bar *)').fill('');
   });
 });
 
@@ -670,23 +670,23 @@ test.describe('Cross-view scenarios', () => {
   // 49
   test('/ shortcut focuses search input on Findings tab', async ({ page }) => {
     await page.keyboard.press('3');
-    await page.waitForSelector('.annotation-search-input', { timeout: 5000 });
-    await page.evaluate(() => (document.querySelector('.annotation-search-input') as HTMLElement)?.blur());
+    await page.waitForSelector('.annotation-search-input:not(.tab-bar *)', { timeout: 5000 });
+    await page.evaluate(() => (document.querySelector('.annotation-search-input:not(.tab-bar *)') as HTMLElement)?.blur());
     await page.waitForTimeout(100);
     await page.keyboard.press('/');
     await page.waitForTimeout(100);
-    await expect(page.locator('.annotation-search-input')).toBeFocused();
+    await expect(page.locator('.annotation-search-input:not(.tab-bar *)')).toBeFocused();
   });
 
   // 50
   test('/ shortcut focuses search input on Features tab', async ({ page }) => {
     await page.keyboard.press('4');
-    await page.waitForSelector('.annotation-search-input', { timeout: 5000 });
-    await page.evaluate(() => (document.querySelector('.annotation-search-input') as HTMLElement)?.blur());
+    await page.waitForSelector('.annotation-search-input:not(.tab-bar *)', { timeout: 5000 });
+    await page.evaluate(() => (document.querySelector('.annotation-search-input:not(.tab-bar *)') as HTMLElement)?.blur());
     await page.waitForTimeout(100);
     await page.keyboard.press('/');
     await page.waitForTimeout(100);
-    await expect(page.locator('.annotation-search-input')).toBeFocused();
+    await expect(page.locator('.annotation-search-input:not(.tab-bar *)')).toBeFocused();
   });
 });
 

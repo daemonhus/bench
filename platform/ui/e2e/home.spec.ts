@@ -194,7 +194,7 @@ test('the home page has no per-project risk table: that lives on the project car
 
 test.describe('search everything (top right)', () => {
   const box = (page: Page) => page.getByRole('combobox', { name: 'Search everything' });
-  const results = (page: Page) => page.locator('#home-search-results');
+  const results = (page: Page) => page.locator('.home-search-results');
   const sections = (page: Page) => results(page).locator('.home-search-section').allTextContents();
 
   test('"/" focuses it; the three best hits lead, then up to three per kind, empty kinds skipped', async ({ page }) => {
