@@ -77,15 +77,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Before the tests: they include the platform UI's (vitest.config.ts), which import its packages.
+      - name: Install platform UI dependencies
+        run: npm ci
+        working-directory: platform/ui
+
       - name: Typecheck
         run: npx tsc --noEmit
 
       - name: Test
         run: npm test
-
-      - name: Install platform UI dependencies
-        run: npm ci
-        working-directory: platform/ui
 
       - name: Typecheck platform UI
         run: npm run typecheck
