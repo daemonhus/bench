@@ -16,8 +16,13 @@ interface InlineFindingCardProps {
   finding: Finding;
 }
 
+// Which inline cards are open, by finding id. A card renders after its anchor's last line, so
+// when a finding's position is refreshed onto another line the card remounts there; keeping
+// this outside the component stops that from snapping an open card shut.
+const openCards = new Set<string>();
+
 export const InlineFindingCard: React.FC<InlineFindingCardProps> = ({ finding }) => {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(() => openCards.has(finding.id));
   const [showAllComments, setShowAllComments] = useState(false);
   const [replyText, setReplyText] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -37,6 +42,7 @@ export const InlineFindingCard: React.FC<InlineFindingCardProps> = ({ finding })
   const handleToggle = () => {
     const next = !expanded;
     setExpanded(next);
+    if (next) openCards.add(finding.id); else openCards.delete(finding.id);
     if (next) {
       fetchCommentsForFinding(finding.id);
     }
