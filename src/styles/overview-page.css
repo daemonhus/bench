@@ -884,8 +884,7 @@
    panel so the rendering is identical; this wrapper just bounds and scrolls it. */
 .ovp-git-tree {
   max-height: 420px;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: auto;
   margin: 0 -6px;
 }
 

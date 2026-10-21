@@ -56,6 +56,23 @@ test.describe('Overview page', () => {
     await expect(page.locator('.ovp-project-title')).toBeVisible();
   });
 
+  test('the recent log shows whole commit messages, scrolling sideways when they are long', async ({ page }) => {
+    await page.setViewportSize({ width: 900, height: 900 });
+    await page.goto(appUrl('/#/overview'));
+    const log = page.locator('.ovp-git-tree');
+    await expect(log.locator('.git-tree-row').first()).toBeVisible();
+    // No message is clipped inside its row.
+    const clipped = await log.locator('.git-tree-subject').evaluateAll((els) => els.filter((e) => e.scrollWidth > e.clientWidth + 1).length);
+    expect(clipped).toBe(0);
+    // A log wider than its panel scrolls on its own; the page doesn't.
+    const { sw, cw } = await log.evaluate((e) => ({ sw: e.scrollWidth, cw: e.clientWidth }));
+    if (sw > cw) {
+      await log.evaluate((e) => { e.scrollLeft = 100; });
+      expect(await log.evaluate((e) => e.scrollLeft)).toBeGreaterThan(0);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
+
   test('keyboard shortcut 0 switches to overview', async ({ page }) => {
     await page.goto(appUrl('/#/findings'));
     await page.waitForSelector('.tab-bar');

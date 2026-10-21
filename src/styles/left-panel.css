@@ -265,7 +265,8 @@
 }
 
 .git-tree-scroll {
-  overflow-y: auto;
+  /* Long commit messages run on; the history scrolls sideways to read them. */
+  overflow: auto;
   flex: 1;
   min-height: 0;
   background: var(--bg-secondary);
@@ -283,6 +284,13 @@
 .git-tree-resize-handle:active {
   background: var(--accent-blue);
   opacity: 0.5;
+}
+
+/* Rows are as wide as their longest message (at least the panel), so the hover and current-row
+   tints run the whole width when scrolled. */
+.git-tree-graph {
+  width: max-content;
+  min-width: 100%;
 }
 
 .git-tree-loading {
@@ -345,12 +353,14 @@
 }
 
 .git-tree-subject {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  flex: 1 0 auto;
   white-space: nowrap;
   color: var(--text-primary);
+}
+
+/* Nothing in a row shrinks: the badges keep their size and the message its full text. */
+.git-tree-row > * {
+  flex-shrink: 0;
 }
 
 .git-tree-ref-badge {
