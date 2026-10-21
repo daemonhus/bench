@@ -69,18 +69,20 @@ export function ago(iso?: string): string | null {
   return `${Math.floor(d / 365)}y ago`;
 }
 
-const tone = <T extends string>(opts: { value: T; label: string; tone: string }[], v: string) => opts.find((o) => o.value === v);
-const where = (a?: { fileId: string; lineRange?: { start: number; end: number } }) =>
+/** The option (label and tone) for a value of one of bench's status lists. */
+export const optionOf = <T extends string>(opts: { value: T; label: string; tone: string }[], v: string) => opts.find((o) => o.value === v);
+/** "file:line" (or "file:start–end") for an anchor. */
+export const where = (a?: { fileId: string; lineRange?: { start: number; end: number } }) =>
   a?.fileId ? `${a.fileId}${a.lineRange ? `:${a.lineRange.start}${a.lineRange.end !== a.lineRange.start ? `–${a.lineRange.end}` : ''}` : ''}` : null;
 const METHODS = new Set(Object.keys(METHOD_COLORS));
 /** A link chip's leading marker: the method badge on an HTTP interface, else the kind's dot. */
-function FeatureMark({ f }: { f: Feature }) {
+export function FeatureMark({ f }: { f: Feature }) {
   const m = f.operation?.toUpperCase();
   return m && METHODS.has(m)
     ? <span className="feature-method-badge" style={{ background: METHOD_COLORS[m] }}>{m}</span>
     : <span className="home-dot" style={{ background: KIND_COLORS[f.kind] }} aria-hidden="true" />;
 }
-const LINKS_MAX = 4;
+export const LINKS_MAX = 4;
 
 export function SearchResultCard({ h, q, ctx, onOpen, onOpenFlow }: {
   h: Hit;
@@ -105,8 +107,8 @@ export function SearchResultCard({ h, q, ctx, onOpen, onOpenFlow }: {
 
   if (ref?.type === 'finding') {
     const f = ref.finding;
-    const sev = tone(SEVERITY_OPTIONS, f.severity);
-    const st = tone(FINDING_STATUS_OPTIONS, f.status);
+    const sev = optionOf(SEVERITY_OPTIONS, f.severity);
+    const st = optionOf(FINDING_STATUS_OPTIONS, f.status);
     if (sev) chips.push(<ToneChip key="sev" label={sev.label} tone={sev.tone} />);
     if (st) chips.push(<ToneChip key="st" label={st.label} tone={st.tone} />);
     const open = isOpenFinding(f);
@@ -132,8 +134,8 @@ export function SearchResultCard({ h, q, ctx, onOpen, onOpenFlow }: {
     }
   } else if (ref?.type === 'feature') {
     const f = ref.feature;
-    const kind = tone(FEATURE_KIND_OPTIONS, f.kind);
-    const st = tone(FEATURE_STATUS_OPTIONS, f.status);
+    const kind = optionOf(FEATURE_KIND_OPTIONS, f.kind);
+    const st = optionOf(FEATURE_STATUS_OPTIONS, f.status);
     if (kind) chips.push(<ToneChip key="kind" label={kind.label} tone={kind.tone} />);
     if (st && f.status !== 'active') chips.push(<ToneChip key="st" label={st.label} tone={st.tone} />);
     const openN = ctx.openByFeature.get(key(h.slug, f.id)) ?? 0;

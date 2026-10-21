@@ -73,7 +73,7 @@ const [state, setState] = useQueryState(MAP_QUERY, pathQuery('/map'), { key: 'se
 - `.remembered()` (or `.remembered('session')`) also keeps a field in browser storage, used when the address names none of the page's parameters. An address that names any is taken as the whole state.
 - Keep schemas and locations as module constants. Parameters a page doesn't own (the shell's `?folder=`) are left alone.
 
-Pages using it: Map, Flows, Projects, and the workbench's Findings, Features and Activity. Search (`/search?q=&kind=&project=`) is routed by the shell with the same names.
+Pages using it: Activity, Map, Flows, Projects, and the workbench's Findings, Features and Changes (`#/delta`). Search (`/search?q=&kind=&project=`) is routed by the shell with the same names.
 
 ## Tests
 

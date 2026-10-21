@@ -1262,6 +1262,34 @@
 .search-card-link:hover { border-color: var(--accent-blue); color: var(--accent-blue); }
 .search-card-link:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
 .search-card-more { font-size: var(--font-size-xs); color: var(--text-muted); }
+/* Activity: the search page's frame and cards, grouped by day; each card says what happened
+   (New finding, Past SLA…), where and when, and ends with the last comment on it. */
+.activity-page-head { display: flex; align-items: baseline; gap: 12px; }
+.activity-page-summary { font-size: var(--font-size-small); color: var(--text-muted); }
+.activity-filter-bar { justify-content: flex-start; margin-bottom: 0; }
+.activity-filter-bar .activity-filters { margin-left: 0; flex-wrap: wrap; row-gap: 8px; }
+/* The kind toggles stay one segmented row; on a narrow screen it scrolls rather than spill out. */
+.activity-filter-bar .activity-kind-toggles { max-width: 100%; overflow-x: auto; }
+.activity-filter-bar .activity-kind-toggle { flex-shrink: 0; }
+.activity-page-count { margin-left: 6px; font-family: var(--font-mono); font-size: var(--font-size-xs); opacity: 0.75; }
+.activity-day { display: flex; flex-direction: column; }
+.activity-day-title { padding-left: 2px; }
+.activity-card-event { display: flex; align-items: baseline; gap: 8px; min-width: 0; font-size: var(--font-size-xs); color: var(--text-muted); }
+.activity-card-what { font-weight: 600; letter-spacing: var(--tracking-wide); text-transform: uppercase; }
+.activity-card--sla .activity-card-what { color: var(--severity-critical); }
+.activity-card-project { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.activity-card-project::before { content: '·'; margin-right: 8px; }
+.activity-card-when { margin-left: auto; flex-shrink: 0; font-family: var(--font-mono); }
+.activity-card-text { -webkit-line-clamp: 2; }
+.activity-card-comment {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; padding: 6px 10px;
+  font-size: var(--font-size-small); color: var(--text-secondary);
+  background: var(--bg-primary); border-radius: var(--radius-xs);
+}
+.activity-card-comment-who { font-weight: 600; color: var(--text-primary); }
+.activity-card-comment-when { font-size: var(--font-size-xs); color: var(--text-muted); }
+.activity-card-comment-text { flex: 1 1 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 @media (max-width: 639px) {
   .search-card-head { flex-direction: column; }
   .search-card-chips { justify-content: flex-start; }

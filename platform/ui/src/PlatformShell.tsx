@@ -10,6 +10,7 @@ import { ServiceMapPage } from './ServiceMap';
 import { SearchPage, type SearchState } from './SearchPage';
 import { parseSearch, searchPath } from './searchModel';
 import { TabBarSearch } from './TabBarSearch';
+import { ActivityPage } from './ActivityPage';
 import { getSettings } from './api';
 import './tokens.css';
 import './platform.css';
@@ -26,6 +27,7 @@ type View =
   | { kind: 'settings' }
   | { kind: 'flows'; folder?: string }
   | { kind: 'map' }
+  | { kind: 'activity' }
   | { kind: 'search'; search: SearchState }
   | { kind: 'flow'; id: string };
 
@@ -44,6 +46,7 @@ function parseView(): View {
     return folder ? { kind: 'flows', folder } : { kind: 'flows' };
   }
   if (path === '/map') return { kind: 'map' };
+  if (path === '/activity') return { kind: 'activity' };
   if (path === '/search') return { kind: 'search', search: parseSearch(window.location.search) };
   if (SETTINGS_ENABLED && path === '/settings') return { kind: 'settings' };
   if (path === '/projects') return { kind: 'projects' };
@@ -55,6 +58,7 @@ function viewToPath(view: View): string {
   if (view.kind === 'flow') return `/flows/${view.id}`;
   if (view.kind === 'flows') return view.folder ? `/flows?folder=${encodeURIComponent(view.folder)}` : '/flows';
   if (view.kind === 'map') return '/map';
+  if (view.kind === 'activity') return '/activity';
   if (view.kind === 'search') return searchPath(view.search.q, view.search.kind, view.search.project);
   if (view.kind === 'settings') return '/settings';
   if (view.kind === 'projects') return '/projects';
@@ -66,6 +70,14 @@ function CogIcon() {
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="8" cy="8" r="2.5" />
       <path d="M6.8 1.5h2.4l.3 1.8.9.4 1.6-.9 1.7 1.7-.9 1.6.4.9 1.8.3v2.4l-1.8.3-.4.9.9 1.6-1.7 1.7-1.6-.9-.9.4-.3 1.8H6.8l-.3-1.8-.9-.4-1.6.9-1.7-1.7.9-1.6-.4-.9-1.8-.3V6.8l1.8-.3.4-.9-.9-1.6L4 2.3l1.6.9.9-.4z" />
+    </svg>
+  );
+}
+
+function ActivityIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1.5 8.5h3l2-5 3 9 2-4h3" />
     </svg>
   );
 }
@@ -227,6 +239,15 @@ export function PlatformShell() {
 
         <div className="platform-rail-group">
           <button
+            className={`platform-rail-btn${view.kind === 'activity' ? ' platform-rail-btn-active' : ''}`}
+            title="Activity"
+            aria-current={view.kind === 'activity' ? 'page' : undefined}
+            onClick={() => navigate({ kind: 'activity' })}
+          >
+            <ActivityIcon />
+            <span className="platform-rail-label">Activity</span>
+          </button>
+          <button
             className={`platform-rail-btn${view.kind === 'projects' || view.kind === 'workbench' ? ' platform-rail-btn-active' : ''}`}
             title="Projects"
             aria-current={view.kind === 'projects' || view.kind === 'workbench' ? 'page' : undefined}
@@ -332,6 +353,9 @@ export function PlatformShell() {
             onOpenProject={openProject}
           />
         )}
+        {view.kind === 'activity' && (
+          <ActivityPage onOpen={openProject} onOpenFlow={(id) => navigate({ kind: 'flow', id })} />
+        )}
         {view.kind === 'map' && (
           <ServiceMapPage onOpenFlow={(id) => navigate({ kind: 'flow', id })} onOpenProject={openProject} />
         )}
@@ -361,6 +385,7 @@ function pageTitle(view: View): string {
     case 'flows': return 'Flows';
     case 'flow': return 'Flow';
     case 'map': return 'Service map';
+    case 'activity': return 'Activity';
     case 'search': return 'Search';
     case 'settings': return 'Settings';
     default: return 'Bench';

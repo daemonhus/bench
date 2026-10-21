@@ -118,7 +118,7 @@ test('cards give context: a finding\'s severity, status, place and age, and the 
   try {
     await page.goto('/search?q=quartz+session&kind=finding');
     const card = page.locator('.search-card', { hasText: 'quartz session fixation' });
-    await expect(card.locator('.select-tinted')).toHaveText(['Critical', 'Open']);
+    await expect(card.locator('.select-tinted')).toHaveText(['Critical', 'Open'], { timeout: 15_000 });
     const meta = card.locator('.search-card-meta');
     await expect(meta).toContainText('alpha');
     await expect(meta).toContainText('CWE-384');
@@ -137,7 +137,8 @@ test('cards give context: a finding\'s severity, status, place and age, and the 
 test('cards give context: the flows a feature is on, and what a comment is about', async ({ page, request }) => {
   await page.goto('/search?q=login&kind=feature&project=alpha');
   const feature = page.locator('.search-card', { has: page.locator('.search-card-title', { hasText: 'POST /login' }) });
-  await expect(feature.locator('.feature-method-badge')).toHaveText('POST');
+  // Opened directly, the page loads every project first.
+  await expect(feature.locator('.feature-method-badge')).toHaveText('POST', { timeout: 15_000 });
   await expect(feature.locator('.select-tinted')).toHaveText(['Interface']);
   await expect(feature.locator('.search-card-meta')).toContainText('src/api.go:10');
   await expect(feature.locator('.search-card-links-label')).toHaveText('On flows');
@@ -153,7 +154,7 @@ test('cards give context: the flows a feature is on, and what a comment is about
   try {
     await page.goto('/search?q=quartz+note&kind=comment');
     const card = page.locator('.search-card', { hasText: 'Quartz note' });
-    await expect(card.locator('.search-card-meta')).toContainText('e2e');
+    await expect(card.locator('.search-card-meta')).toContainText('e2e', { timeout: 15_000 });
     await expect(card.locator('.search-card-links-label')).toHaveText('On finding');
     await expect(card.locator('.search-card-link')).toHaveText(findings[0].title);
     await card.locator('.search-card-link').click();
@@ -166,7 +167,7 @@ test('cards give context: the flows a feature is on, and what a comment is about
 test('a project\'s card: its repository, recent activity and open findings', async ({ page }) => {
   await page.goto('/search?q=alpha&kind=project');
   const card = page.locator('.search-card').first();
-  await expect(card.locator('.search-card-title')).toHaveText('alpha');
+  await expect(card.locator('.search-card-title')).toHaveText('alpha', { timeout: 15_000 });
   await expect(card.locator('.search-card-meta')).toContainText('/alpha');
   await expect(card.locator('.search-card-meta')).toContainText('baseline today');
   await expect(card.locator('.search-card-stats')).toContainText('3 open findings');

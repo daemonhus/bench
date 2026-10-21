@@ -16,6 +16,12 @@ async function flowId(page: Page, name: string) {
   return items.find((f) => f.name === name)!.id;
 }
 
+test('axe: activity', async ({ page }) => {
+  await page.goto('/activity?since=all');
+  await page.waitForSelector('.activity-card');
+  expect(await violations(page)).toEqual([]);
+});
+
 test('axe: projects', async ({ page }) => {
   await page.goto('/projects');
   await page.waitForSelector('.project-card');
