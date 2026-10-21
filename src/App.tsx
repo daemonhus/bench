@@ -633,12 +633,36 @@ export function App() {
     if (route.mode !== 'diff') useUIStore.setState({ viewMode: route.mode });
   });
 
+  // Update hash when user changes mode/file
+  const updateRoute = useCallback(
+    (mode: ViewMode, from?: string, to?: string, path?: string, featureId?: string) => {
+      const newHash = buildRoute(mode as Parameters<typeof buildRoute>[0], from, to, path, featureId);
+      if (window.location.hash !== newHash) {
+        if (isHandlingHashChange.current) {
+          window.history.replaceState(null, '', newHash);
+        } else {
+          window.history.pushState(null, '', newHash);
+        }
+      }
+      isHandlingHashChange.current = false;
+    },
+    [],
+  );
+
   // Apply initial route after commits are loaded
   useEffect(() => {
     if (initialRouteApplied.current || commits.length === 0) return;
     initialRouteApplied.current = true;
 
     const route = parseRoute(window.location.hash);
+    // The first render already took a non-diff route's view. If the view differs now, the user
+    // moved (a number key, a tab) while commits loaded: keep that, and put it in the address bar
+    // (the hash sync skipped it while the initial route was pending).
+    const chosen = useUIStore.getState().viewMode;
+    if (route.mode !== 'diff' && chosen !== route.mode) {
+      updateRoute(chosen, undefined, undefined, chosen === 'browse' ? (useRepoStore.getState().selectedFilePath ?? undefined) : undefined);
+      return;
+    }
     setViewMode(route.mode);
     if (route.mode === 'diff' && route.from && route.to) {
       applyCompareRoute(route.from, route.to);
@@ -655,7 +679,7 @@ export function App() {
     if (route.path) {
       handleSelectFile(route.path);
     }
-  }, [commits, setViewMode, handleSelectFile, applyCompareRoute]);
+  }, [commits, setViewMode, handleSelectFile, applyCompareRoute, updateRoute]);
 
   // Listen for hash changes
   useEffect(() => {
@@ -682,21 +706,6 @@ export function App() {
     });
   }, [setViewMode, handleSelectFile, applyCompareRoute]);
 
-  // Update hash when user changes mode/file
-  const updateRoute = useCallback(
-    (mode: ViewMode, from?: string, to?: string, path?: string, featureId?: string) => {
-      const newHash = buildRoute(mode as Parameters<typeof buildRoute>[0], from, to, path, featureId);
-      if (window.location.hash !== newHash) {
-        if (isHandlingHashChange.current) {
-          window.history.replaceState(null, '', newHash);
-        } else {
-          window.history.pushState(null, '', newHash);
-        }
-      }
-      isHandlingHashChange.current = false;
-    },
-    [],
-  );
 
   // Sync route when viewMode, file, or compare commits change
   useEffect(() => {
