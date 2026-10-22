@@ -556,7 +556,10 @@ type ServiceProfile struct {
 	ComplianceScope     []string `json:"complianceScope"`
 	AuthenticationModel []string `json:"authenticationModel"`
 	ConsumerType        []string `json:"consumerType"`
-	UpdatedAt           string   `json:"updatedAt,omitempty"`
+	// TrustZone names the trust zone the service runs in (public-edge, core, pci, third-party,
+	// ...; free text). A flow hop between two zones counts as crossing a trust boundary.
+	TrustZone string `json:"trustZone"`
+	UpdatedAt string `json:"updatedAt,omitempty"`
 }
 
 // Valid values for each ServiceProfile enum field. Single source of truth for

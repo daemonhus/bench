@@ -64,7 +64,8 @@ func toolUpdateServiceProfile(deps *toolDeps) Tool {
 				"edge_protections":     {"type": "array", "items": {"type": "string", "enum": ["waf", "api-gateway", "rate-limiting", "ddos-protection", "none"]}, "description": "Infra-level controls outside app code. Replaces the full list."},
 				"compliance_scope":     {"type": "array", "items": {"type": "string", "enum": ["pci-dss", "hipaa", "soc2", "gdpr", "none"]}, "description": "Regulatory regimes in scope. Replaces the full list."},
 				"authentication_model": {"type": "array", "items": {"type": "string", "enum": ["none", "api-key", "oauth-oidc", "mtls", "session", "gateway-terminated"]}, "description": "How callers authenticate - may live outside app code. Replaces the full list."},
-				"consumer_type":        {"type": "array", "items": {"type": "string", "enum": ["first-party-frontend", "internal-services", "third-party-partners", "general-public"]}, "description": "Who calls this service. Replaces the full list."}
+				"consumer_type":        {"type": "array", "items": {"type": "string", "enum": ["first-party-frontend", "internal-services", "third-party-partners", "general-public"]}, "description": "Who calls this service. Replaces the full list."},
+				"trust_zone":           {"type": "string", "description": "The trust zone the service runs in (free text, e.g. public-edge, core, pci, third-party). Flow hops between services in different zones count as crossing a trust boundary. A feature tagged zone:<name> overrides it for that feature. \"\" clears it."}
 			}
 		}`),
 		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
@@ -82,6 +83,7 @@ func toolUpdateServiceProfile(deps *toolDeps) Tool {
 				ComplianceScope     *[]string `json:"compliance_scope"`
 				AuthenticationModel *[]string `json:"authentication_model"`
 				ConsumerType        *[]string `json:"consumer_type"`
+				TrustZone           *string   `json:"trust_zone"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {
 				return "", fmt.Errorf("invalid params: %w", err)
@@ -117,6 +119,11 @@ func toolUpdateServiceProfile(deps *toolDeps) Tool {
 			overlayArr("compliance_scope", p.ComplianceScope, &profile.ComplianceScope)
 			overlayArr("authentication_model", p.AuthenticationModel, &profile.AuthenticationModel)
 			overlayArr("consumer_type", p.ConsumerType, &profile.ConsumerType)
+			if p.TrustZone != nil {
+				t := strings.TrimSpace(*p.TrustZone)
+				p.TrustZone = &t
+			}
+			overlayStr("trust_zone", p.TrustZone, &profile.TrustZone)
 
 			if err := profile.Validate(); err != nil {
 				return "", err
@@ -167,6 +174,7 @@ func profileSection(deps *toolDeps) string {
 	line("compliance-scope", strings.Join(p.ComplianceScope, ", "))
 	line("authentication-model", strings.Join(p.AuthenticationModel, ", "))
 	line("consumer-type", strings.Join(p.ConsumerType, ", "))
+	line("trust-zone", p.TrustZone)
 	return sb.String()
 }
 

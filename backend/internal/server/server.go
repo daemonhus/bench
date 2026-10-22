@@ -676,6 +676,9 @@ type FeatureSnapshot struct {
 	ProjectName     string          `json:"projectName"`
 	Confidence      string          `json:"confidence,omitempty"`
 	EffectiveAnchor json.RawMessage `json:"effectiveAnchor,omitempty"`
+	// Zone is the trust zone the feature sits in: a "zone:<name>" tag on the feature, or else
+	// its project's service profile trustZone.
+	Zone string `json:"zone,omitempty"`
 }
 
 // FlowStep is one stop of a flow: a feature on a project, with what is true there.
@@ -823,6 +826,7 @@ func (p *Platform) loadFullFlow(id string) (*Flow, error) {
 	if f.Edges, err = loadFlowEdges(p.db, id); err != nil {
 		return nil, err
 	}
+	annotateEdges(f)
 	rows, err := p.db.Query(`SELECT DISTINCT f.id, f.name FROM flow_steps s JOIN flows f ON f.id = s.flow_id WHERE s.subflow_id = ? ORDER BY f.name`, id)
 	if err != nil {
 		return nil, err
@@ -1570,19 +1574,41 @@ func (p *Platform) fetchFeatureSnapshot(projectSlug, featureID string) (*Feature
 		Protocol        string          `json:"protocol"`
 		Confidence      string          `json:"confidence"`
 		EffectiveAnchor json.RawMessage `json:"effectiveAnchor"`
+		Tags            []string        `json:"tags"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &feat); err != nil {
 		return nil, err
 	}
 	var projName string
 	p.db.QueryRow("SELECT name FROM projects WHERE slug=?", projectSlug).Scan(&projName)
-	return &FeatureSnapshot{
+	snap := &FeatureSnapshot{
 		Title: feat.Title, Kind: feat.Kind,
 		Operation: feat.Operation, Protocol: feat.Protocol,
 		ProjectName:     projName,
 		Confidence:      feat.Confidence,
 		EffectiveAnchor: feat.EffectiveAnchor,
-	}, nil
+		Zone:            featureZone(feat.Tags, p.projectZone(wb)),
+	}
+	return snap, nil
+}
+
+// projectZone is the trust zone recorded in a project's service profile ("" when unset).
+func (p *Platform) projectZone(wb *workbench.Workbench) string {
+	prof, err := wb.DB.GetServiceProfile()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(prof.TrustZone)
+}
+
+// featureZone is a feature's trust zone: its "zone:<name>" tag, or else the project's.
+func featureZone(tags []string, projectZone string) string {
+	for _, t := range tags {
+		if name, ok := strings.CutPrefix(t, "zone:"); ok && strings.TrimSpace(name) != "" {
+			return strings.TrimSpace(name)
+		}
+	}
+	return projectZone
 }
 
 type rawFeature struct {

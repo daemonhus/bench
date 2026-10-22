@@ -485,6 +485,7 @@ func edgeChanges(a, b FlowEdge) []string {
 	add("condition", a.Condition != b.Condition)
 	add("auth", a.Auth != b.Auth)
 	add("trustBoundary", a.TrustBoundary != b.TrustBoundary)
+	add("zoneBoundary", a.ZoneBoundary != b.ZoneBoundary)
 	add("data", a.Data != b.Data)
 	add("tainted", a.Tainted != b.Tainted)
 	add("description", a.Description != b.Description)

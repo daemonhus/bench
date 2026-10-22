@@ -526,7 +526,7 @@ var commands = []cmdDef{
 		}},
 
 	// ── profile ─────────────────────────────────────────────────────────
-	{Cat: "profile", Name: "get", Desc: "Get the service profile - reviewer-configured meta-attributes of the service under review (exposure, compute, data sensitivity, criticality, tenancy, lifecycle, edge protections, compliance, auth model, consumers). Empty fields mean 'not configured', not 'confirmed absent'.",
+	{Cat: "profile", Name: "get", Desc: "Get the service profile - reviewer-configured meta-attributes of the service under review (exposure, compute, data sensitivity, criticality, tenancy, lifecycle, edge protections, compliance, auth model, consumers, trust zone). Empty fields mean 'not configured', not 'confirmed absent'.",
 		EP: endpoint{"GET", "/api/profile"}},
 	{Cat: "profile", Name: "set", Desc: "Update the service profile (partial update - only provided flags are sent). List flags replace the full list. 'none' is an explicit claim (control confirmed absent) and cannot be combined with other values. Findings/comments/features/baselines writes are rejected with 412 until the profile has been set at least once.",
 		EP: endpoint{"PATCH", "/api/profile"},
@@ -543,6 +543,7 @@ var commands = []cmdDef{
 			{Name: "compliance-scope", Param: "complianceScope", Desc: "Comma-separated [pci-dss|hipaa|soc2|gdpr|none]", Type: "list"},
 			{Name: "authentication-model", Param: "authenticationModel", Desc: "Comma-separated [none|api-key|oauth-oidc|mtls|session|gateway-terminated]", Type: "list"},
 			{Name: "consumer-type", Param: "consumerType", Desc: "Comma-separated [first-party-frontend|internal-services|third-party-partners|general-public]", Type: "list"},
+			{Name: "trust-zone", Param: "trustZone", Desc: "Trust zone the service runs in (free text: public-edge, core, pci, ...). Flow hops between zones count as trust boundaries"},
 		}},
 }
 

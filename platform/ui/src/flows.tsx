@@ -75,6 +75,8 @@ export interface FlowStep {
   tombstoned?: boolean;
   // From bench reconciler: 'exact' | 'moved' | 'orphaned' (absent = exact)
   confidence?: string;
+  /** The feature's trust zone (its zone:<name> tag, or its project's service profile). */
+  zone?: string;
   /** Set on a subflow step: another flow slotted in as one block (no feature). */
   subflowId?: string;
   subflow?: SubflowInfo;
@@ -118,9 +120,11 @@ export interface FlowEdge {
   description: string;
   comment: string;
   tags: string[];
+  /** Worked out by the server: the two ends sit in different trust zones. */
+  zoneBoundary?: boolean;
 }
 
-export type EdgePatch = Partial<Omit<FlowEdge, 'fromStepId' | 'toStepId'>>;
+export type EdgePatch = Partial<Omit<FlowEdge, 'fromStepId' | 'toStepId' | 'zoneBoundary'>>;
 
 export interface Flow {
   id: string;
@@ -173,6 +177,7 @@ export function normalizeEdge(e: any): FlowEdge {
     description: e.description ?? '',
     comment: e.comment ?? '',
     tags: e.tags ?? [],
+    zoneBoundary: !!e.zoneBoundary,
   };
 }
 
@@ -210,6 +215,7 @@ function normalizeFlow(f: any): Flow {
     featureOperation: s.feature?.operation ?? s.featureOperation,
     featureProtocol: s.feature?.protocol ?? s.featureProtocol,
     confidence: s.feature?.confidence ?? s.confidence,
+    zone: s.feature?.zone ?? s.zone,
     // A subflow step reads as a step titled with the flow's name.
     ...(s.subflowId ? { featureTitle: s.subflow?.name ?? '', featureKind: 'externality' } : {}),
   }));
@@ -2143,12 +2149,14 @@ function SubflowStepPanel({ step, onClose, onOpenFlow }: { step: FlowStep; onClo
 const AUTH_SUGGESTIONS = ['none', 'user', 'admin', 'service', 'mtls', 'api-key', 'session-cookie', 'jwt'];
 
 /** Short chips describing a hop: its kind (unless plain "next"), protocol, auth and flags. */
-export function edgeChips(e: FlowEdge): { key: string; label: string; tone?: 'warn' | 'danger' }[] {
-  const chips: { key: string; label: string; tone?: 'warn' | 'danger' }[] = [];
+export function edgeChips(e: FlowEdge): { key: string; label: string; tone?: 'warn' | 'danger'; title?: string }[] {
+  const chips: { key: string; label: string; tone?: 'warn' | 'danger'; title?: string }[] = [];
   if (e.kind !== 'next') chips.push({ key: 'kind', label: e.protocol ? `${e.kind} · ${e.protocol}` : e.kind });
   else if (e.protocol) chips.push({ key: 'kind', label: e.protocol });
   if (e.auth) chips.push({ key: 'auth', label: `auth: ${e.auth}` });
-  if (e.trustBoundary) chips.push({ key: 'tb', label: 'trust boundary', tone: 'warn' });
+  if (e.trustBoundary || e.zoneBoundary) {
+    chips.push({ key: 'tb', label: 'trust boundary', tone: 'warn', title: e.zoneBoundary ? 'The two ends sit in different trust zones' : undefined });
+  }
   if (e.tainted) chips.push({ key: 'taint', label: 'tainted', tone: 'danger' });
   return chips;
 }
@@ -2165,7 +2173,7 @@ function EdgeChips({ edge }: { edge: FlowEdge }) {
   return (
     <span className="flow-edge-chips">
       {chips.map((c) => (
-        <span key={c.key} className={`flow-edge-chip${c.tone ? ` flow-edge-chip--${c.tone}` : ''}`}>{c.label}</span>
+        <span key={c.key} className={`flow-edge-chip${c.tone ? ` flow-edge-chip--${c.tone}` : ''}`} title={c.title}>{c.label}</span>
       ))}
     </span>
   );
@@ -2230,6 +2238,9 @@ function MapEdgePanel({
         {!fromStep.subflowId && !toStep.subflowId && fromStep.projectSlug !== toStep.projectSlug && (
           <div className="map-edge-cross">Crosses from {fromStep.projectName || fromStep.projectSlug} to {toStep.projectName || toStep.projectSlug}</div>
         )}
+        {edge.zoneBoundary && (
+          <div className="map-edge-cross map-edge-zones">Crosses trust zones: {fromStep.zone} → {toStep.zone}</div>
+        )}
         <div className="map-edge-grid">
           <div className="map-step-panel-field">
             <label className="map-step-panel-label">Kind</label>
@@ -2261,7 +2272,7 @@ function MapEdgePanel({
         <div className="map-edge-flags">
           <label className="map-edge-flag">
             <input type="checkbox" checked={draft.trustBoundary} onChange={(e) => { setDraft({ ...draft, trustBoundary: e.target.checked }); save({ trustBoundary: e.target.checked }); }} />
-            Crosses a trust boundary
+            {edge.zoneBoundary ? 'Also mark as a trust boundary (the zones already make it one)' : 'Crosses a trust boundary'}
           </label>
           <label className="map-edge-flag">
             <input type="checkbox" checked={draft.tainted} onChange={(e) => { setDraft({ ...draft, tainted: e.target.checked }); save({ tainted: e.target.checked }); }} />

@@ -393,6 +393,8 @@ export interface ServiceProfile {
   complianceScope: string[];
   authenticationModel: string[];
   consumerType: string[];
+  /** The trust zone the service runs in (free text). A flow hop between zones crosses a trust boundary. */
+  trustZone: string;
   updatedAt?: string;
 }
 
@@ -409,6 +411,7 @@ export const EMPTY_SERVICE_PROFILE: ServiceProfile = {
   complianceScope: [],
   authenticationModel: [],
   consumerType: [],
+  trustZone: '',
 };
 
 // Git grep search result

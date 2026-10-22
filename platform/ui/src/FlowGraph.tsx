@@ -287,7 +287,7 @@ export function FlowGraphView({
               const stroke = isSelected ? pal.accent : edgeColor(e.kind, pal, { tainted: e.tainted });
               const strokeWidth = isSelected ? 2.5 : e.kind === 'next' ? 1.5 : 2;
               const mid = along(points, 0.5);
-              const gate = e.trustBoundary ? along(points, 0.72) : null;
+              const gate = e.trustBoundary || e.zoneBoundary ? along(points, 0.72) : null;
               const label = e.condition || e.description;
               return (
                 <g key={key} className="flow-graph-edge" data-edge-key={key} style={{ opacity: dim ? 0.25 : 1, transition: 'opacity 120ms' }}>

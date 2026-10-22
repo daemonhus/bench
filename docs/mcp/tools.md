@@ -302,7 +302,7 @@ Only on the aggregate `/mcp`. They take project slugs explicitly where needed, n
 | `flows_export` | `flow_id` | The flow as one document, in the shape `flows_create` and `flows_set_steps` take. |
 | `flows_set_edge` | `flow_id`, `from_step_id`, `to_step_id`, `kind?`, `protocol?`, `condition?`, `auth?`, `trust_boundary?`, `data?`, `tainted?`, `description?`, `comment?`, `tags?`, `position?` | Creates or partially updates the edge. Steps may be on different projects; self edges and steps of another flow are rejected. |
 | `flows_delete_edge` | `flow_id`, `from_step_id`, `to_step_id` | The steps stay. |
-| `get_service_map` | `archived?` | Services with their features, and the connections flows record between them. |
+| `get_service_map` | `archived?` | Services with their features and trust zones, and the connections flows record between them (`zoneBoundary` where they cross trust zones). |
 
 ### baselines and findings
 

@@ -8,7 +8,7 @@ Edits save as you make them; the header shows when the profile was last written.
 
 ## Fields
 
-**Identity** - free-text description of what the service does, and the owning team or person.
+**Identity** - free-text description of what the service does, the owning team or person, and the trust zone it runs in (`public-edge`, `core`, `pci`, …). Flow hops between services in different zones count as crossing a trust boundary; see [trust zones](/concepts/multi-project#trust-zones).
 
 **Exposure** - internet reachability (`full`/`partial`/`none`), compute environment (VPS, Kubernetes, Serverless, Bare Metal), and edge protections applied outside the app code (WAF, API Gateway, Rate Limiting, DDoS Protection).
 

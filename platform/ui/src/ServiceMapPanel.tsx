@@ -10,7 +10,7 @@ import { EDGE_DASH, edgeColor, usePalette } from './graphKit';
 import { plural } from './projectInsight';
 import { excerpt, methodOf } from './searchModel';
 import { optionOf, where } from './SearchResultCard';
-import { connectionKey, type MapConnection, type MapFeature, type ServiceMapData } from './serviceMapModel';
+import { connectionKey, crossesBoundary, type MapConnection, type MapFeature, type ServiceMapData } from './serviceMapModel';
 
 // The service map's side panel: the selected feature, service or connection at a glance, in the
 // same badges and chips as the rest of bench, with a preview of what its page holds (description,
@@ -87,6 +87,7 @@ export function SelectionPanel({ data, selection, connection, visibleConnections
 }) {
   const service = (slug: string) => data.services.find((s) => s.slug === slug);
   const feature = (slug: string, id: string) => service(slug)?.features.find((f) => f.id === id);
+  const zoneOf = (slug: string, id: string) => feature(slug, id)?.zone || service(slug)?.zone || '?';
   const isFeature = selection.kind === 'feature';
   const detail = useFeatureDetail(isFeature ? selection.slug : '', isFeature ? selection.id : '', isFeature && !feature(selection.slug, selection.id)?.missing);
 
@@ -113,9 +114,9 @@ export function SelectionPanel({ data, selection, connection, visibleConnections
                   <span className="smap-p-service">{service(os)?.name ?? os}</span>
                   <span className="smap-p-feature"><FeatureLabel f={feature(os, of)} /></span>
                 </span>
-                {(c.trustBoundary || c.tainted) && (
+                {(crossesBoundary(c) || c.tainted) && (
                   <span className="smap-p-flags">
-                    {c.trustBoundary && <span className="smap-p-flag smap-p-flag--warn" title="Crosses a trust boundary">boundary</span>}
+                    {crossesBoundary(c) && <span className="smap-p-flag smap-p-flag--warn" title={c.zoneBoundary ? 'Its ends sit in different trust zones' : 'Crosses a trust boundary'}>boundary</span>}
                     {c.tainted && <span className="smap-p-flag smap-p-flag--danger" title="Carries attacker-controlled data">tainted</span>}
                   </span>
                 )}
@@ -152,6 +153,7 @@ export function SelectionPanel({ data, selection, connection, visibleConnections
         <div className="smap-p-chips">
           {kind && <ToneChip label={kind.label} tone={kind.tone} />}
           {st && <ToneChip label={st.label} tone={st.tone} />}
+          {(f.zone || s?.zone) && <span className="smap-p-flag" title="Trust zone">zone: {f.zone || s?.zone}</span>}
           {f.openFindings > 0 && (
             <a className="search-card-flag smap-p-flag-link" href="#smap-p-findings" onClick={(e) => { e.preventDefault(); document.getElementById('smap-p-findings')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }}>
               {plural(f.openFindings, 'open finding')}
@@ -227,6 +229,7 @@ export function SelectionPanel({ data, selection, connection, visibleConnections
       <>
         <div className="smap-p-title"><span>{s.name}</span></div>
         <div className="smap-p-chips">
+          {s.zone && <span className="smap-p-flag" title="Trust zone, from the project's service profile">zone: {s.zone}</span>}
           {byKind.map(({ k, n }) => <ToneChip key={k.value} label={`${n} ${k.label.toLowerCase()}`} tone={k.tone} />)}
           {open > 0 && <span className="search-card-flag">{plural(open, 'open finding')}</span>}
         </div>
@@ -260,7 +263,9 @@ export function SelectionPanel({ data, selection, connection, visibleConnections
       <>
         <div className="smap-p-title"><EdgeSwatch kind={connection.kind} /><span>{kindLabel}</span>{connection.protocol && <span className="search-card-mono smap-p-proto">{connection.protocol}</span>}</div>
         <div className="smap-p-chips">
-          {connection.trustBoundary && <span className="smap-p-flag smap-p-flag--warn">crosses a trust boundary</span>}
+          {connection.zoneBoundary
+            ? <span className="smap-p-flag smap-p-flag--warn">crosses trust zones: {zoneOf(connection.fromProject, connection.fromFeature)} → {zoneOf(connection.toProject, connection.toFeature)}</span>
+            : connection.trustBoundary && <span className="smap-p-flag smap-p-flag--warn">crosses a trust boundary</span>}
           {connection.tainted && <span className="smap-p-flag smap-p-flag--danger">tainted data</span>}
           <span className="smap-p-flag">seen {plural(connection.count, 'time')}</span>
         </div>

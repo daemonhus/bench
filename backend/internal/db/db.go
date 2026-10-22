@@ -586,6 +586,11 @@ func (d *DB) migrate() error {
 	)`); err != nil {
 		return fmt.Errorf("create service_profile: %w", err)
 	}
+	if _, err := d.conn.Exec(`SELECT trust_zone FROM service_profile LIMIT 0`); err != nil {
+		if _, err := d.conn.Exec(`ALTER TABLE service_profile ADD COLUMN trust_zone TEXT NOT NULL DEFAULT ''`); err != nil {
+			return fmt.Errorf("alter service_profile add trust_zone: %w", err)
+		}
+	}
 
 	return nil
 }

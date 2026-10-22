@@ -946,6 +946,7 @@ function profileBadges(p: ServiceProfile): CtxBadge[] {
   if (p.tenancy) add(titleCase(p.tenancy), 'Tenancy', p.tenancy === 'multi-tenant' ? 'warn' : undefined);
   if (p.compute) add(p.compute === 'vps' ? 'VPS' : titleCase(p.compute), 'Compute');
   if (p.lifecycle) add(titleCase(p.lifecycle), 'Lifecycle');
+  if (p.trustZone) add(`Zone: ${p.trustZone}`, 'Trust zone');
 
   const edge: Record<string, string> = {
     'waf': 'WAF', 'api-gateway': 'API Gateway', 'rate-limiting': 'Rate Limited',

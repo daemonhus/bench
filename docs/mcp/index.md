@@ -551,5 +551,6 @@ Partial update. Arrays replace wholesale; `[]` clears. Always allowed, and the o
 | `compliance_scope` | string[] | `pci-dss`, `hipaa`, `soc2`, `gdpr`, `none` |
 | `authentication_model` | string[] | `none`, `api-key`, `oauth-oidc`, `mtls`, `session`, `gateway-terminated` |
 | `consumer_type` | string[] | `first-party-frontend`, `internal-services`, `third-party-partners`, `general-public` |
+| `trust_zone` | string | The trust zone the service runs in (free text: `public-edge`, `core`, `pci`, …). Flow hops between zones count as trust boundaries; a feature tagged `zone:<name>` sits in that zone instead. |
 
 Multi-selects take JSON arrays, not comma-separated strings. `none` is exclusive: it claims a control is confirmed absent and cannot be combined with other values.

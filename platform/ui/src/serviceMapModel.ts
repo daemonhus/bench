@@ -19,9 +19,17 @@ export interface MapFeature {
   flowCount: number;
   flows: MapFlowRef[];
   missing?: boolean;
+  /** Set when the feature's zone:<name> tag puts it in another trust zone than its service. */
+  zone?: string;
 }
 
-export interface MapService { slug: string; name: string; features: MapFeature[] }
+export interface MapService {
+  slug: string;
+  name: string;
+  /** The trust zone from the project's service profile. */
+  zone?: string;
+  features: MapFeature[];
+}
 
 export interface MapConnection {
   fromProject: string;
@@ -32,6 +40,8 @@ export interface MapConnection {
   protocol: string;
   auth: string[];
   trustBoundary: boolean;
+  /** The two ends sit in different trust zones. */
+  zoneBoundary?: boolean;
   tainted: boolean;
   count: number;
   flows: MapFlowRef[];
@@ -73,6 +83,9 @@ export const DEFAULT_FILTERS: MapFilters = {
 export const connectionKey = (c: MapConnection) =>
   `${c.fromProject}:${c.fromFeature}>${c.toProject}:${c.toFeature}:${c.kind}:${c.protocol.toLowerCase()}`;
 export const featureKey = (slug: string, id: string) => `${slug}:${id}`;
+
+/** A connection crosses a trust boundary: marked so, or its ends sit in different zones. */
+export const crossesBoundary = (c: MapConnection) => c.trustBoundary || !!c.zoneBoundary;
 
 export interface VisibleMap {
   services: MapService[];

@@ -87,7 +87,7 @@ An edge from a step to itself, or to a step of another flow, is rejected, as is 
 ## map
 
 ```bash
-bench map                # services, their features, and the connections flows record between them
+bench map                # services (with their trust zones), their features, and the connections flows record
 bench map show --archived
 ```
 

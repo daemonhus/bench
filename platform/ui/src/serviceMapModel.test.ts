@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  applyFilters, layoutMap, neighbourhood, connectionKey, DEFAULT_FILTERS, CARD_W, ROW_CAP,
+  applyFilters, layoutMap, neighbourhood, connectionKey, crossesBoundary, DEFAULT_FILTERS, CARD_W, ROW_CAP,
   type ServiceMapData, type MapFeature, type MapConnection,
 } from './serviceMapModel';
 
@@ -21,6 +21,14 @@ const data: ServiceMapData = {
   connections: [conn('web:form', 'api:login'), conn('api:login', 'queue:events', 'async')],
   internal: [conn('api:login', 'api:db', 'write')],
 };
+
+describe('crossesBoundary', () => {
+  it('counts a marked boundary or ends in different zones', () => {
+    expect(crossesBoundary(conn('a:x', 'b:y'))).toBe(false);
+    expect(crossesBoundary({ ...conn('a:x', 'b:y'), trustBoundary: true })).toBe(true);
+    expect(crossesBoundary({ ...conn('a:x', 'b:y'), zoneBoundary: true })).toBe(true);
+  });
+});
 
 describe('applyFilters', () => {
   it('lists the features on flows by default, without internal edges', () => {

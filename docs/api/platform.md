@@ -105,7 +105,7 @@ See [Projects & flows](/concepts/multi-project).
 | `GET` | `/api/flows/{id}/baselines/latest` | |
 | `GET` / `DELETE` | `/api/flows/{id}/baselines/{bId}` | |
 | `GET` | `/api/flows/{id}/delta` | Changes since the latest baseline, or `?since={bId}`: added / removed / changed steps (`feature`, `subflow`, `note`, `actor`, `controls`, `effectiveAnchor`), moved anchors, and added / removed / changed edges (which fields). Baselines taken before flows were graphs are read in the graph form. |
-| `GET` | `/api/service-map` | Services (projects) with their features (kind, operation, protocol, open findings, flows) and the connections flows record between them, merged by feature pair, kind and protocol (`?archived=1` includes archived flows). `internal` lists same-project edges. |
+| `GET` | `/api/service-map` | Services (projects) with their features (kind, operation, protocol, open findings, flows) and the connections flows record between them, merged by feature pair, kind and protocol (`?archived=1` includes archived flows). `internal` lists same-project edges. Each service has its trust `zone`; a connection says whether it crosses zones (`zoneBoundary`). |
 | `GET` | `/api/flows/{id}/findings` | Open findings on the flow's features, by severity. |
 
 ### Placing a step
@@ -130,7 +130,8 @@ See [Projects & flows](/concepts/multi-project).
 | `protocol` | `http`, `grpc`, `sql`, `kafka`, … |
 | `condition` | When this path is taken: the branch label. |
 | `auth` | The identity the hop carries: `none`, `user`, `service`, `mtls`, `api-key`, … |
-| `trustBoundary` | The hop crosses a trust boundary. |
+| `trustBoundary` | The hop crosses a trust boundary (set by hand, for boundaries the zones don't show). |
+| `zoneBoundary` | Read only: the two features sit in different trust zones (service profile `trustZone`, or a feature's `zone:<name>` tag). Counts as a trust boundary too. |
 | `data` / `tainted` | What travels on the hop, and whether it is attacker-controlled. |
 | `description` / `comment` / `tags` | Edge label, longer review note, tags. |
 | `position` | Order among the edges leaving the same step. |

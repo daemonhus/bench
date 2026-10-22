@@ -11,7 +11,8 @@ import (
 
 // The service map: every project as a service with its features, and the connections between
 // them that flows record (an edge whose two steps are on different projects). Connections with
-// the same ends, kind and protocol are merged, with the flows they come from.
+// the same ends, kind and protocol are merged, with the flows they come from. Each service
+// carries its trust zone, and a connection between zones is marked.
 
 type ServiceMap struct {
 	Services    []MapService    `json:"services"`
@@ -21,8 +22,10 @@ type ServiceMap struct {
 }
 
 type MapService struct {
-	Slug     string       `json:"slug"`
-	Name     string       `json:"name"`
+	Slug string `json:"slug"`
+	Name string `json:"name"`
+	// Zone is the trust zone from the project's service profile.
+	Zone     string       `json:"zone,omitempty"`
 	Features []MapFeature `json:"features"`
 }
 
@@ -40,6 +43,8 @@ type MapFeature struct {
 	Flows        []MapFlowRef `json:"flows"`
 	// Missing marks a feature a flow step names that the project no longer has.
 	Missing bool `json:"missing,omitempty"`
+	// Zone is set when the feature's "zone:<name>" tag puts it in another zone than its service.
+	Zone string `json:"zone,omitempty"`
 }
 
 type MapFlowRef struct {
@@ -48,17 +53,19 @@ type MapFlowRef struct {
 }
 
 type MapConnection struct {
-	FromProject   string       `json:"fromProject"`
-	FromFeature   string       `json:"fromFeature"`
-	ToProject     string       `json:"toProject"`
-	ToFeature     string       `json:"toFeature"`
-	Kind          string       `json:"kind"`
-	Protocol      string       `json:"protocol"`
-	Auth          []string     `json:"auth"`
-	TrustBoundary bool         `json:"trustBoundary"`
-	Tainted       bool         `json:"tainted"`
-	Count         int          `json:"count"`
-	Flows         []MapFlowRef `json:"flows"`
+	FromProject   string   `json:"fromProject"`
+	FromFeature   string   `json:"fromFeature"`
+	ToProject     string   `json:"toProject"`
+	ToFeature     string   `json:"toFeature"`
+	Kind          string   `json:"kind"`
+	Protocol      string   `json:"protocol"`
+	Auth          []string `json:"auth"`
+	TrustBoundary bool     `json:"trustBoundary"`
+	// ZoneBoundary: the two ends sit in different trust zones.
+	ZoneBoundary bool         `json:"zoneBoundary,omitempty"`
+	Tainted      bool         `json:"tainted"`
+	Count        int          `json:"count"`
+	Flows        []MapFlowRef `json:"flows"`
 }
 
 type mapRawFeature struct {
@@ -111,6 +118,7 @@ func (p *Platform) buildServiceMap(includeArchived bool) (*ServiceMap, error) {
 			if err != nil {
 				return
 			}
+			s.Zone = p.projectZone(wb)
 			get := func(path string, v any) {
 				rec := httptest.NewRecorder()
 				wb.Handler().ServeHTTP(rec, httptest.NewRequest("GET", path, nil))
@@ -135,8 +143,12 @@ func (p *Platform) buildServiceMap(includeArchived bool) (*ServiceMap, error) {
 				if tags == nil {
 					tags = []string{}
 				}
-				s.Features = append(s.Features, MapFeature{ID: f.ID, Kind: f.Kind, Title: f.Title, Operation: f.Operation, Protocol: f.Protocol,
-					Direction: f.Direction, Status: f.Status, Tags: tags, OpenFindings: open[f.ID], Flows: []MapFlowRef{}})
+				mf := MapFeature{ID: f.ID, Kind: f.Kind, Title: f.Title, Operation: f.Operation, Protocol: f.Protocol,
+					Direction: f.Direction, Status: f.Status, Tags: tags, OpenFindings: open[f.ID], Flows: []MapFlowRef{}}
+				if z := featureZone(tags, ""); z != "" && !strings.EqualFold(z, s.Zone) {
+					mf.Zone = z
+				}
+				s.Features = append(s.Features, mf)
 			}
 		}(&services[i])
 	}
@@ -233,12 +245,27 @@ func (p *Platform) buildServiceMap(includeArchived bool) (*ServiceMap, error) {
 	}
 	erows.Close()
 
+	// Each connection's ends' zones (a feature's own zone, or its service's).
+	zoneOf := func(slug, id string) string {
+		s := byService[slug]
+		if s == nil {
+			return ""
+		}
+		for _, f := range s.Features {
+			if f.ID == id && f.Zone != "" {
+				return f.Zone
+			}
+		}
+		return s.Zone
+	}
 	m := &ServiceMap{Services: services, Connections: []MapConnection{}, Internal: []MapConnection{}}
 	if m.Services == nil {
 		m.Services = []MapService{}
 	}
 	for _, k := range order {
 		c := conns[k]
+		za, zb := zoneOf(c.FromProject, c.FromFeature), zoneOf(c.ToProject, c.ToFeature)
+		c.ZoneBoundary = za != "" && zb != "" && !strings.EqualFold(za, zb)
 		sort.Strings(c.Auth)
 		sort.Slice(c.Flows, func(i, j int) bool { return c.Flows[i].Name < c.Flows[j].Name })
 		if c.FromProject == c.ToProject {

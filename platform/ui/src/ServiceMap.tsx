@@ -10,7 +10,7 @@ import {
   EDGE_DASH, edgeColor,
 } from './graphKit';
 import {
-  applyFilters, layoutMap, neighbourhood, connectionKey, featureKey,
+  applyFilters, layoutMap, neighbourhood, connectionKey, featureKey, crossesBoundary,
   DEFAULT_FILTERS, ALL_EDGE_KINDS, ALL_FEATURE_KINDS, CARD_W, HEADER_H, ROW_H, ROW_CAP,
   type ServiceMapData, type MapFilters, type MapFields, type MapConnection, type MapFeature, type MapService, type FeatureScope,
 } from './serviceMapModel';
@@ -233,7 +233,7 @@ export function ServiceMapPage({ onOpenFlow, onOpenProject }: {
                     <g key={key} className="smap-link" data-connection={key} style={{ opacity: dim ? 0.18 : 1 }}>
                       <path d={d} fill="none" stroke={stroke} strokeWidth={(selected || lit ? 2.5 : 1.6) + Math.min(3, (c.count - 1) * 0.5)}
                         strokeDasharray={EDGE_DASH[c.kind]} markerEnd={marker(stroke)} />
-                      {c.trustBoundary && (() => {
+                      {crossesBoundary(c) && (() => {
                         const mx = (x1 + x2) / 2 + (internal ? 52 : 0);
                         const my = back ? lane : (y1 + y2) / 2;
                         return <rect x={mx - 2} y={my - 9} width={4} height={18} rx={1} fill={pal.warn} style={{ pointerEvents: 'none' }} />;
@@ -271,6 +271,17 @@ export function ServiceMapPage({ onOpenFlow, onOpenProject }: {
                         <text x={14} y={37} fontSize={10} fontFamily="var(--font-mono, monospace)" fill={pal.textSub} fillOpacity={0.7}>
                           {s.features.length} feature{s.features.length === 1 ? '' : 's'}
                         </text>
+                        {s.zone && (() => {
+                          const label = truncate(s.zone, 18);
+                          const w = label.length * 6 + 14;
+                          return (
+                            <g transform={`translate(${CARD_W - 12 - w}, 12)`} aria-label={`Trust zone ${s.zone}`}>
+                              <rect width={w} height={18} rx={3} fill="none" stroke={pal.cardBorder} />
+                              <text x={w / 2} y={12.5} textAnchor="middle" fontSize={10} fontFamily="var(--font-mono, monospace)" fill={pal.textSub}>{label}</text>
+                              <title>{`Trust zone: ${s.zone}`}</title>
+                            </g>
+                          );
+                        })()}
                       </g>
                       <line x1={0} x2={CARD_W} y1={HEADER_H - 6} y2={HEADER_H - 6} stroke={pal.cardBorder} />
                       {card.rows.length === 0 && (
@@ -403,7 +414,7 @@ function MapLegend({ connections }: { connections: MapConnection[] }) {
       {connections.some((c) => c.tainted) && (
         <span className="smap-legend-item"><EdgeSwatch kind="call" color={pal.danger} />Tainted</span>
       )}
-      {connections.some((c) => c.trustBoundary) && (
+      {connections.some(crossesBoundary) && (
         <span className="smap-legend-item"><span className="smap-legend-boundary" style={{ background: pal.warn }} aria-hidden="true" />Trust boundary</span>
       )}
     </div>

@@ -250,6 +250,7 @@ risk scores.
   complianceScope: string[]       // pci-dss | hipaa | soc2 | gdpr | none
   authenticationModel: string[]   // none | api-key | oauth-oidc | mtls | session | gateway-terminated
   consumerType: string[]          // first-party-frontend | internal-services | third-party-partners | general-public
+  trustZone: string               // free text: public-edge, core, pci, third-party...; flow hops between zones are trust boundaries
   updatedAt: string
 }
 ```

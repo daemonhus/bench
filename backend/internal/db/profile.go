@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"bench/internal/model"
 )
@@ -17,12 +18,12 @@ func (d *DB) GetServiceProfile() (model.ServiceProfile, error) {
 	err := d.conn.QueryRow(`SELECT description, owner, externally_facing, compute,
 		data_sensitivity, criticality, tenancy, lifecycle,
 		edge_protections, compliance_scope, authentication_model, consumer_type,
-		updated_at
+		trust_zone, updated_at
 		FROM service_profile WHERE id = 1`).Scan(
 		&p.Description, &p.Owner, &p.ExternallyFacing, &p.Compute,
 		&p.DataSensitivity, &p.Criticality, &p.Tenancy, &p.Lifecycle,
 		&edge, &compliance, &auth, &consumer,
-		&p.UpdatedAt,
+		&p.TrustZone, &p.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
 		p.Normalize()
@@ -97,8 +98,8 @@ func (d *DB) putServiceProfile(p model.ServiceProfile) error {
 			id, description, owner, externally_facing, compute,
 			data_sensitivity, criticality, tenancy, lifecycle,
 			edge_protections, compliance_scope, authentication_model, consumer_type,
-			updated_at)
-			VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+			trust_zone, updated_at)
+			VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
 			ON CONFLICT(id) DO UPDATE SET
 				description = excluded.description,
 				owner = excluded.owner,
@@ -112,10 +113,12 @@ func (d *DB) putServiceProfile(p model.ServiceProfile) error {
 				compliance_scope = excluded.compliance_scope,
 				authentication_model = excluded.authentication_model,
 				consumer_type = excluded.consumer_type,
+				trust_zone = excluded.trust_zone,
 				updated_at = excluded.updated_at`,
 		p.Description, p.Owner, p.ExternallyFacing, p.Compute,
 		p.DataSensitivity, p.Criticality, p.Tenancy, p.Lifecycle,
 		arrays[0], arrays[1], arrays[2], arrays[3],
+		strings.TrimSpace(p.TrustZone),
 	)
 	return err
 }

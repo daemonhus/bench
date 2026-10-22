@@ -322,6 +322,17 @@ export function ProfileView() {
               onChange={(e) => setDraft((d) => ({ ...d, owner: e.target.value }))}
             />
           </div>
+          <div className="profile-field">
+            <label className="finding-form-label" htmlFor="profile-trust-zone">Trust zone</label>
+            <p className="profile-hint">Where the service runs, as your threat model names it. Flow hops between services in different zones count as crossing a trust boundary; tag a feature zone:&lt;name&gt; to place it elsewhere.</p>
+            <input
+              id="profile-trust-zone"
+              className="finding-edit-input"
+              placeholder="e.g. public-edge, core, pci, third-party"
+              value={draft.trustZone ?? ''}
+              onChange={(e) => setDraft((d) => ({ ...d, trustZone: e.target.value }))}
+            />
+          </div>
         </div>
 
         {SECTIONS.map((section) => (
