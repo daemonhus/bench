@@ -144,6 +144,7 @@ export function SelectionPanel({ data, selection, connection, visibleConnections
     const st = full && full.status !== 'active' ? optionOf(FEATURE_STATUS_OPTIONS, full.status) : undefined;
     const { m, title: shortTitle } = badged(f);
     const mine = visibleConnections.filter((c) => (c.fromProject === selection.slug && c.fromFeature === selection.id) || (c.toProject === selection.slug && c.toFeature === selection.id));
+    const myLinks = data.links.filter((l) => (l.fromProject === selection.slug && l.fromFeature === selection.id) || (l.toProject === selection.slug && l.toFeature === selection.id));
     head = f && (
       <>
         <div className="smap-p-title">
@@ -212,6 +213,28 @@ export function SelectionPanel({ data, selection, connection, visibleConnections
           <h3 className="smap-panel-sub">Connections <span className="smap-p-count">{mine.length}</span></h3>
           {connRows(mine, { slug: selection.slug, id: selection.id })}
         </section>
+        {myLinks.length > 0 && (
+          <section className="smap-p-section" aria-label="Linked features">
+            <h3 className="smap-panel-sub">Linked features <span className="smap-p-count">{myLinks.length}</span></h3>
+            <ul className="smap-p-list">
+              {myLinks.map((l) => {
+                const [os, of] = l.fromProject === selection.slug && l.fromFeature === selection.id ? [l.toProject, l.toFeature] : [l.fromProject, l.fromFeature];
+                return (
+                  <li key={`${os}:${of}`}>
+                    <button type="button" className="smap-p-row" onClick={() => onSelect({ kind: 'feature', slug: os, id: of })}
+                      aria-label={`Linked to ${service(os)?.name ?? os} ${feature(os, of)?.title ?? of}`}>
+                      <span className="smap-p-target">
+                        <span className="smap-p-service">{service(os)?.name ?? os}</span>
+                        <span className="smap-p-feature"><FeatureLabel f={feature(os, of)} /></span>
+                      </span>
+                      {!l.inFlows && <span className="smap-p-flags"><span className="smap-p-flag" title="No flow connects these two features yet">not on a flow</span></span>}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
         <section className="smap-p-section" aria-label="Flows">
           <h3 className="smap-panel-sub">Flows <span className="smap-p-count">{f.flows.length}</span></h3>
           {flowChips(f.flows)}
@@ -266,6 +289,7 @@ export function SelectionPanel({ data, selection, connection, visibleConnections
           {connection.zoneBoundary
             ? <span className="smap-p-flag smap-p-flag--warn">crosses trust zones: {zoneOf(connection.fromProject, connection.fromFeature)} → {zoneOf(connection.toProject, connection.toFeature)}</span>
             : connection.trustBoundary && <span className="smap-p-flag smap-p-flag--warn">crosses a trust boundary</span>}
+          {connection.linked === false && <span className="smap-p-flag" title="The two features aren't linked: no dependency backs this hop">no feature link</span>}
           {connection.tainted && <span className="smap-p-flag smap-p-flag--danger">tainted data</span>}
           <span className="smap-p-flag">seen {plural(connection.count, 'time')}</span>
         </div>

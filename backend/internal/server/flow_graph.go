@@ -46,6 +46,9 @@ type FlowEdge struct {
 	// ZoneBoundary: the two ends sit in different trust zones. It counts as a trust boundary
 	// whether or not TrustBoundary is set; TrustBoundary marks boundaries zones don't show.
 	ZoneBoundary bool `json:"zoneBoundary,omitempty"`
+	// Linked: whether a feature link backs the hop (the two features are linked, either way).
+	// Absent where it doesn't apply: a subflow end, a missing feature, a step to itself.
+	Linked *bool `json:"linked,omitempty"`
 }
 
 var validEdgeKinds = map[string]bool{"next": true, "call": true, "async": true, "read": true, "write": true, "response": true}
@@ -809,7 +812,7 @@ func writeEditError(w http.ResponseWriter, err error) {
 	http.Error(w, err.Error(), 500)
 }
 
-// annotateEdges works out each edge's ZoneBoundary from its two steps' features
+// annotateEdges works out each edge's ZoneBoundary and Linked from its two steps' features
 // (loaded with their snapshots).
 func annotateEdges(f *Flow) {
 	steps := make(map[string]*FlowStep, len(f.Steps))
@@ -823,6 +826,12 @@ func annotateEdges(f *Flow) {
 			continue
 		}
 		e.ZoneBoundary = a.Feature.Zone != "" && b.Feature.Zone != "" && !strings.EqualFold(a.Feature.Zone, b.Feature.Zone)
+		if a.ProjectSlug == b.ProjectSlug && a.FeatureID == b.FeatureID {
+			continue
+		}
+		linked := contains(a.Feature.links, qualifiedRef(b.ProjectSlug, b.FeatureID)) ||
+			contains(b.Feature.links, qualifiedRef(a.ProjectSlug, a.FeatureID))
+		e.Linked = &linked
 	}
 }
 

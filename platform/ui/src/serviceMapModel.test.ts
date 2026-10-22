@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  applyFilters, layoutMap, neighbourhood, connectionKey, crossesBoundary, DEFAULT_FILTERS, CARD_W, ROW_CAP,
-  type ServiceMapData, type MapFeature, type MapConnection,
+  applyFilters, layoutMap, neighbourhood, connectionKey, linkKey, crossesBoundary, DEFAULT_FILTERS, CARD_W, ROW_CAP,
+  type ServiceMapData, type MapFeature, type MapConnection, type MapLink,
 } from './serviceMapModel';
 
 const feat = (id: string, kind: MapFeature['kind'], flowCount = 1): MapFeature =>
@@ -20,7 +20,61 @@ const data: ServiceMapData = {
   ],
   connections: [conn('web:form', 'api:login'), conn('api:login', 'queue:events', 'async')],
   internal: [conn('api:login', 'api:db', 'write')],
+  links: [],
 };
+
+const link = (from: string, to: string, inFlows = false): MapLink => {
+  const [fp, ff] = from.split(':');
+  const [tp, tf] = to.split(':');
+  return { fromProject: fp, fromFeature: ff, toProject: tp, toFeature: tf, inFlows };
+};
+
+describe('feature links', () => {
+  // web:form is linked to api:login (a flow covers it), web:unused to queue:events (none does),
+  // and api:health to api:db (inside one service).
+  const linked: ServiceMapData = {
+    ...data,
+    links: [link('web:form', 'api:login', true), link('queue:events', 'web:unused'), link('api:health', 'api:db')],
+  };
+
+  it('draws only the links no flow covers, between services unless internal edges are on', () => {
+    expect(applyFilters(linked, DEFAULT_FILTERS).links.map(linkKey)).toEqual(['queue:events~web:unused']);
+    expect(applyFilters(linked, { ...DEFAULT_FILTERS, internal: true }).links).toHaveLength(2);
+    expect(applyFilters(linked, { ...DEFAULT_FILTERS, links: false }).links).toEqual([]);
+    expect(applyFilters(linked, { ...DEFAULT_FILTERS, hiddenServices: ['queue'] }).links).toEqual([]);
+  });
+
+  it("keeps a linked feature on its card even when it isn't on a flow", () => {
+    const v = applyFilters(linked, { ...DEFAULT_FILTERS, scope: 'connected' });
+    expect(v.services[0].features.map((f) => f.id)).toEqual(['form', 'unused']);
+  });
+
+  it('draws a link left to right, and lights it from either end', () => {
+    const v = applyFilters(linked, DEFAULT_FILTERS);
+    const l = layoutMap(v);
+    const [fl] = l.featureLinks;
+    expect(fl.x1).toBeLessThan(fl.x2);
+    expect(neighbourhood(v, { slug: 'web', feature: 'unused' }).connections.has('queue:events~web:unused')).toBe(true);
+  });
+
+  it('groups services joined only by a link', () => {
+    // Groups are placed before lone services, and lone ones by name: "0 Edge" would come
+    // first if the link didn't make A and B a group.
+    const lone: ServiceMapData = {
+      services: [
+        { slug: 'a', name: 'A', features: [feat('x', 'interface')] },
+        { slug: 'b', name: 'B', features: [feat('y', 'interface')] },
+        { slug: 'c', name: '0 Edge', features: [feat('z', 'interface')] },
+      ],
+      connections: [], internal: [], links: [link('a:x', 'b:y')],
+    };
+    // Placement order: rows top to bottom, then left to right.
+    const order = (d: ServiceMapData) => layoutMap(applyFilters(d, DEFAULT_FILTERS)).cards
+      .slice().sort((p, q) => p.y - q.y || p.x - q.x).map((c) => c.service.slug);
+    expect(order(lone).at(-1)).toBe('c');
+    expect(order({ ...lone, links: [] })[0]).toBe('c');
+  });
+});
 
 describe('crossesBoundary', () => {
   it('counts a marked boundary or ends in different zones', () => {

@@ -11,14 +11,17 @@ import (
 
 // The service map: every project as a service with its features, and the connections between
 // them that flows record (an edge whose two steps are on different projects). Connections with
-// the same ends, kind and protocol are merged, with the flows they come from. Each service
-// carries its trust zone, and a connection between zones is marked.
+// the same ends, kind and protocol are merged, with the flows they come from. Feature links
+// (a feature linked to another, in its project or another) are listed beside them, so the map
+// shows the dependencies no flow covers yet, and connections no link backs.
 
 type ServiceMap struct {
 	Services    []MapService    `json:"services"`
 	Connections []MapConnection `json:"connections"`
 	// Internal are the edges between features of one service, merged the same way.
 	Internal []MapConnection `json:"internal"`
+	// Links are the feature links, one per linked pair (links have no direction).
+	Links []MapLink `json:"links"`
 }
 
 type MapService struct {
@@ -62,10 +65,23 @@ type MapConnection struct {
 	Auth          []string `json:"auth"`
 	TrustBoundary bool     `json:"trustBoundary"`
 	// ZoneBoundary: the two ends sit in different trust zones.
-	ZoneBoundary bool         `json:"zoneBoundary,omitempty"`
-	Tainted      bool         `json:"tainted"`
-	Count        int          `json:"count"`
-	Flows        []MapFlowRef `json:"flows"`
+	ZoneBoundary bool `json:"zoneBoundary,omitempty"`
+	// Linked: a feature link backs the connection.
+	Linked  bool         `json:"linked"`
+	Tainted bool         `json:"tainted"`
+	Count   int          `json:"count"`
+	Flows   []MapFlowRef `json:"flows"`
+}
+
+// MapLink is a feature link: two features, in one project or two, linked to each other.
+type MapLink struct {
+	FromProject string `json:"fromProject"`
+	FromFeature string `json:"fromFeature"`
+	ToProject   string `json:"toProject"`
+	ToFeature   string `json:"toFeature"`
+	Description string `json:"description,omitempty"`
+	// InFlows: some flow connects the two features (either way).
+	InFlows bool `json:"inFlows"`
 }
 
 type mapRawFeature struct {
@@ -77,6 +93,11 @@ type mapRawFeature struct {
 	Direction string   `json:"direction"`
 	Status    string   `json:"status"`
 	Tags      []string `json:"tags"`
+	// LinkedFeatures name this project's features by id, other projects' as "<project>:<id>".
+	LinkedFeatures []struct {
+		ID          string `json:"id"`
+		Description string `json:"description"`
+	} `json:"linkedFeatures"`
 }
 
 type mapRawFinding struct {
@@ -109,10 +130,12 @@ func (p *Platform) buildServiceMap(includeArchived bool) (*ServiceMap, error) {
 	rows.Close()
 
 	// Each project's features and open findings, fetched in parallel.
+	type rawLink struct{ fromProject, fromFeature, to, description string }
+	linksOf := make([][]rawLink, len(services))
 	var wg sync.WaitGroup
 	for i := range services {
 		wg.Add(1)
-		go func(s *MapService) {
+		go func(s *MapService, links *[]rawLink) {
 			defer wg.Done()
 			wb, err := p.getWorkbench(s.Slug)
 			if err != nil {
@@ -149,8 +172,11 @@ func (p *Platform) buildServiceMap(includeArchived bool) (*ServiceMap, error) {
 					mf.Zone = z
 				}
 				s.Features = append(s.Features, mf)
+				for _, l := range f.LinkedFeatures {
+					*links = append(*links, rawLink{s.Slug, f.ID, qualifiedRef(s.Slug, l.ID), l.Description})
+				}
 			}
-		}(&services[i])
+		}(&services[i], &linksOf[i])
 	}
 	wg.Wait()
 
@@ -245,7 +271,7 @@ func (p *Platform) buildServiceMap(includeArchived bool) (*ServiceMap, error) {
 	}
 	erows.Close()
 
-	// Each connection's ends' zones (a feature's own zone, or its service's).
+	// Zones and links, for each connection's ends and for the link list.
 	zoneOf := func(slug, id string) string {
 		s := byService[slug]
 		if s == nil {
@@ -258,7 +284,37 @@ func (p *Platform) buildServiceMap(includeArchived bool) (*ServiceMap, error) {
 		}
 		return s.Zone
 	}
-	m := &ServiceMap{Services: services, Connections: []MapConnection{}, Internal: []MapConnection{}}
+	pairKey := func(ap, af, bp, bf string) [4]string {
+		if ap+":"+af > bp+":"+bf {
+			ap, af, bp, bf = bp, bf, ap, af
+		}
+		return [4]string{ap, af, bp, bf}
+	}
+	inFlows := map[[4]string]bool{}
+	for _, k := range order {
+		inFlows[pairKey(k.fp, k.ff, k.tp, k.tf)] = true
+	}
+	linked := map[[4]string]bool{}
+	m := &ServiceMap{Services: services, Connections: []MapConnection{}, Internal: []MapConnection{}, Links: []MapLink{}}
+	for _, list := range linksOf {
+		for _, l := range list {
+			toProject, toFeature, ok := strings.Cut(l.to, ":")
+			if !ok || feature(toProject, toFeature) == nil {
+				continue
+			}
+			k := pairKey(l.fromProject, l.fromFeature, toProject, toFeature)
+			if linked[k] {
+				continue
+			}
+			linked[k] = true
+			m.Links = append(m.Links, MapLink{FromProject: l.fromProject, FromFeature: l.fromFeature, ToProject: toProject, ToFeature: toFeature,
+				Description: l.description, InFlows: inFlows[k]})
+		}
+	}
+	sort.Slice(m.Links, func(i, j int) bool {
+		a, b := m.Links[i], m.Links[j]
+		return a.FromProject+a.FromFeature+a.ToProject+a.ToFeature < b.FromProject+b.FromFeature+b.ToProject+b.ToFeature
+	})
 	if m.Services == nil {
 		m.Services = []MapService{}
 	}
@@ -266,6 +322,7 @@ func (p *Platform) buildServiceMap(includeArchived bool) (*ServiceMap, error) {
 		c := conns[k]
 		za, zb := zoneOf(c.FromProject, c.FromFeature), zoneOf(c.ToProject, c.ToFeature)
 		c.ZoneBoundary = za != "" && zb != "" && !strings.EqualFold(za, zb)
+		c.Linked = linked[pairKey(c.FromProject, c.FromFeature, c.ToProject, c.ToFeature)]
 		sort.Strings(c.Auth)
 		sort.Slice(c.Flows, func(i, j int) bool { return c.Flows[i].Name < c.Flows[j].Name })
 		if c.FromProject == c.ToProject {

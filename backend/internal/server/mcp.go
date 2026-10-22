@@ -225,12 +225,13 @@ var platformRoutes = map[string]restRoute{
 	"flows_move":          {method: "POST", path: "/api/flows/move", body: translateFolderArgs},
 
 	// steps
-	"flows_add_step":    {method: "POST", path: "/api/flows/{flow_id}/steps", body: translateAddStepArgs},
-	"flows_update_step": {method: "PATCH", path: "/api/flows/{flow_id}/steps/{step_id}", body: translateStepArgs},
-	"flows_remove_step": {method: "DELETE", path: "/api/flows/{flow_id}/steps/{step_id}", query: removeStepQuery},
-	"flows_move_step":   {method: "POST", path: "/api/flows/{flow_id}/steps/{step_id}/move", query: flowsMoveQuery, body: translateMoveStepArgs},
-	"flows_set_steps":   {method: "PUT", path: "/api/flows/{flow_id}/steps", body: translateSetStepsArgs},
-	"flows_export":      {method: "GET", path: "/api/flows/{flow_id}/export"},
+	"flows_add_step":     {method: "POST", path: "/api/flows/{flow_id}/steps", body: translateAddStepArgs},
+	"flows_update_step":  {method: "PATCH", path: "/api/flows/{flow_id}/steps/{step_id}", body: translateStepArgs},
+	"flows_remove_step":  {method: "DELETE", path: "/api/flows/{flow_id}/steps/{step_id}", query: removeStepQuery},
+	"flows_move_step":    {method: "POST", path: "/api/flows/{flow_id}/steps/{step_id}/move", query: flowsMoveQuery, body: translateMoveStepArgs},
+	"flows_set_steps":    {method: "PUT", path: "/api/flows/{flow_id}/steps", body: translateSetStepsArgs},
+	"flows_export":       {method: "GET", path: "/api/flows/{flow_id}/export"},
+	"flows_suggest_next": {method: "GET", path: "/api/flows/{flow_id}/steps/{step_id}/suggestions"},
 
 	// links
 	"flows_set_edge":    {method: "PUT", path: "/api/flows/{flow_id}/edges/{from_step_id}/{to_step_id}", body: translateEdgeArgs},
@@ -881,7 +882,7 @@ func platformToolDefs() []json.RawMessage {
 		}`),
 		json.RawMessage(`{
 			"name": "flows_get",
-			"description": "Get a flow by ID with its steps and edges (always arrays, never null). A flow is a graph: each edge {fromStepId, toStepId, position, kind, protocol, condition, auth, trustBoundary, data, tainted, description, comment, tags} is one hop; steps with no edge into them are entry points, several edges out of a step are branches (ordered by position). Steps carry note, actor and controls. Steps may have tombstoned: true if their backing feature is unreachable — check tombstonedReason for diagnosis: project_not_registered (project not in list_projects), feature_not_found (feature deleted or ID wrong), or fetch_error (other error). Each step includes featureId and projectSlug — to inspect the underlying feature annotation call get_feature with {project: step.projectSlug, id: step.featureId}; step.feature.zone is the feature's trust zone. A subflow step has subflowId (and subflow {id, name, status, stepCount}) instead: another flow slotted in as one block; flows_get that ID for its steps (tombstonedReason flow_not_found when it was deleted). usedIn lists the flows that use this one as a subflow. Worked out on each read: an edge's zoneBoundary is true when its two features sit in different trust zones (each project's service profile trust_zone, or a feature's zone:<name> tag); it counts as a trust boundary as much as trustBoundary does.",
+			"description": "Get a flow by ID with its steps and edges (always arrays, never null). A flow is a graph: each edge {fromStepId, toStepId, position, kind, protocol, condition, auth, trustBoundary, data, tainted, description, comment, tags} is one hop; steps with no edge into them are entry points, several edges out of a step are branches (ordered by position). Steps carry note, actor and controls. Steps may have tombstoned: true if their backing feature is unreachable — check tombstonedReason for diagnosis: project_not_registered (project not in list_projects), feature_not_found (feature deleted or ID wrong), or fetch_error (other error). Each step includes featureId and projectSlug — to inspect the underlying feature annotation call get_feature with {project: step.projectSlug, id: step.featureId}; step.feature.zone is the feature's trust zone. A subflow step has subflowId (and subflow {id, name, status, stepCount}) instead: another flow slotted in as one block; flows_get that ID for its steps (tombstonedReason flow_not_found when it was deleted). usedIn lists the flows that use this one as a subflow. Worked out on each read: an edge's zoneBoundary is true when its two features sit in different trust zones (each project's service profile trust_zone, or a feature's zone:<name> tag); it counts as a trust boundary as much as trustBoundary does. An edge's linked is false when no feature link backs the hop (the two features are not linked, either way): a hop to check, or a link to add (update_feature linked_feature_ids); absent when it doesn't apply (a subflow end, a missing feature).",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
@@ -1044,7 +1045,7 @@ func platformToolDefs() []json.RawMessage {
 		// ── steps (a flow is a graph: steps joined by typed edges) ──
 		json.RawMessage(`{
 			"name": "flows_add_step",
-			"description": "Add a step to a flow and connect it. A step is one feature on one project (steps in a flow can come from different projects: that is how a flow follows a request across services). project_slug must be a registered project (list_projects); feature_id a feature in it (search_features across projects, or list_features with {project}). An unknown project or feature still creates the step, marked tombstoned with tombstonedReason (project_not_registered | feature_not_found). Or pass subflow_id (another flow's ID) instead of project_slug + feature_id: the step is then a subflow, that whole flow slotted in as one block, so a shared path (e.g. authenticate-and-forward) is defined once and reused; a flow cannot contain itself, directly or through its subflows. Where it goes — give at most one: after (insert after that step: it takes over that step's outgoing edges), before (insert before it: it takes over the incoming edges), from (a new branch out of that step; parent_step_id is the same), entry: true (a new entry point, unconnected). With none, the step is appended to the end of the main path (follow the first edge out of the first entry point), or becomes the first step of an empty flow. The kind/protocol/condition/auth/... fields describe the edge that leads into the new step. Returns the created step with its id.",
+			"description": "Add a step to a flow and connect it. A step is one feature on one project (steps in a flow can come from different projects: that is how a flow follows a request across services). project_slug must be a registered project (list_projects); feature_id a feature in it (search_features across projects, or list_features with {project}; flows_suggest_next lists the features linked to the previous step's feature). An unknown project or feature still creates the step, marked tombstoned with tombstonedReason (project_not_registered | feature_not_found). Or pass subflow_id (another flow's ID) instead of project_slug + feature_id: the step is then a subflow, that whole flow slotted in as one block, so a shared path (e.g. authenticate-and-forward) is defined once and reused; a flow cannot contain itself, directly or through its subflows. Where it goes — give at most one: after (insert after that step: it takes over that step's outgoing edges), before (insert before it: it takes over the incoming edges), from (a new branch out of that step; parent_step_id is the same), entry: true (a new entry point, unconnected). With none, the step is appended to the end of the main path (follow the first edge out of the first entry point), or becomes the first step of an empty flow. The kind/protocol/condition/auth/... fields describe the edge that leads into the new step. Returns the created step with its id.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
@@ -1189,6 +1190,19 @@ func platformToolDefs() []json.RawMessage {
 			}
 		}`),
 
+		json.RawMessage(`{
+			"name": "flows_suggest_next",
+			"description": "Suggest the next steps after a step: the features linked to its feature (in its project or another: linked_feature_ids), as [{projectSlug, projectName, featureId, title, kind, operation, protocol, description (the link's), stepId, connected}]. stepId is set when the feature is already a step of this flow (connect to it with flows_set_edge rather than adding it again), connected when this step already leads to it. Features not yet in the flow come first. Empty for a subflow step.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"flow_id": {"type": "string", "description": "Flow ID"},
+					"step_id": {"type": "string", "description": "The step to continue from"}
+				},
+				"required": ["flow_id", "step_id"]
+			}
+		}`),
+
 		// ── edges ──
 		json.RawMessage(`{
 			"name": "flows_set_edge",
@@ -1229,7 +1243,7 @@ func platformToolDefs() []json.RawMessage {
 		}`),
 		json.RawMessage(`{
 			"name": "get_service_map",
-			"description": "The service map: every project as a service with its features (kind, operation, protocol, open findings, how many flows use it) and the connections between services that flows record — each edge whose steps are on different projects, merged by (from feature, to feature, kind, protocol), with the auth values seen, whether any crosses a trust boundary or carries tainted data, and the flows it comes from. internal lists the same-project edges. Each service carries its trust zone (service profile trust_zone; a feature's zone:<name> tag overrides it); a connection's zoneBoundary marks ends in different zones. Archived flows are left out unless archived: true.",
+			"description": "The service map: every project as a service with its features (kind, operation, protocol, open findings, how many flows use it) and the connections between services that flows record — each edge whose steps are on different projects, merged by (from feature, to feature, kind, protocol), with the auth values seen, whether any crosses a trust boundary or carries tainted data, and the flows it comes from. internal lists the same-project edges. Each service carries its trust zone (service profile trust_zone; a feature's zone:<name> tag overrides it); a connection's zoneBoundary marks ends in different zones, and linked whether a feature link backs it. links lists every feature link (one per linked pair, either project), with inFlows false where no flow covers it yet. Archived flows are left out unless archived: true.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {

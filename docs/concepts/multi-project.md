@@ -20,7 +20,7 @@ A flow follows a request through [features](/concepts/features) across any numbe
 - **Edges** join steps. Each is one hop: its **kind** (`next`, `call`, `async`, `read`, `write`, `response`), protocol, the **condition** under which it is taken, the identity it carries (**auth**), whether it crosses a **trust boundary**, the **data** it carries and whether that is attacker-controlled (**tainted**), plus a label, comment and tags.
 - A step with no edge into it is an **entry point**; several edges out of a step are **branches**, in order; several into one are a **join**; edges back are **loops**.
 
-The flow page shows the graph as an outline (a path continues down the page, branches indent under the step they leave, joins and loops are listed under their step) and as a map. You can insert a step between two others, remove one from the middle (the steps around it are joined up), move a step along its path or to another branch, point a step at a different feature, and connect any two steps.
+The flow page shows the graph as an outline (a path continues down the page, branches indent under the step they leave, joins and loops are listed under their step) and as a map. You can insert a step between two others, remove one from the middle (the steps around it are joined up), move a step along its path or to another branch, point a step at a different feature, and connect any two steps. When you add a step after another, the features [linked](/concepts/features) to that step's feature are offered first: the links already say what it calls.
 
 ### Subflows
 
@@ -30,10 +30,14 @@ Pick **Flows** in the step picker to add a whole flow as one step. The step show
 
 Set a **trust zone** on each project's service profile (`public-edge`, `core`, `pci`, `third-party`: whatever your threat model calls them). A hop between two features in different zones crosses a trust boundary without anyone marking it (`zoneBoundary` on the edge), on the flow page, the connection panel and the service map. A feature tagged `zone:<name>` sits in that zone instead of its project's, for the gateway or the one handler that runs elsewhere. The hand-set `trustBoundary` flag stays, for boundaries the zones don't show.
 
+### Feature links on flows
+
+Flow edges and [feature links](/concepts/features) describe the same calls, so each is checked against the other. An edge between two features that aren't linked (either way) reads `linked: false`; on the flow page a hop between projects says **unlinked**, and its connection panel links the two features in one click. The service map draws the links no flow covers yet as dashed lines, so the dependencies the flows haven't mapped are visible.
+
 - **Folders** organise flows into a nested tree. A flow lives in at most one folder.
 - **Views** are saved, optionally shared, flow list queries (`status:active tag:auth login`).
 - **Baselines** snapshot a flow. The delta since a baseline lists added, removed and changed steps and edges, and moved anchors.
 
 A flow also aggregates the open findings on its steps' features. A step whose project or feature can no longer be resolved is shown as tombstoned (`project_not_registered`, `feature_not_found` or `fetch_error`) rather than dropped.
 
-The **service map** (rail → Map) draws every project as a service with its features and trust zone, and the connections between them that flows record (each edge whose two steps are on different projects). Services joined by connections are laid out together, left to right in the direction their connections run; the rest are packed in a grid around them. A card lists a dozen features (connected ones, search matches and those with open findings first) and folds the rest into **+N more**. Filter it by service, connection kind and feature kind; choose which features and fields each service shows. Click a feature, service or connection for a preview: its badges, description and place in the code, its open findings, connections and flows, each a link onward.
+The **service map** (rail → Map) draws every project as a service with its features and trust zone, the connections between them that flows record (each edge whose two steps are on different projects), and the feature links no flow covers yet. Services joined by connections are laid out together, left to right in the direction their connections run; the rest are packed in a grid around them. A card lists a dozen features (connected ones, search matches and those with open findings first) and folds the rest into **+N more**. Filter it by service, connection kind and feature kind; choose which features and fields each service shows. Click a feature, service or connection for a preview: its badges, description and place in the code, its open findings, connections and flows, each a link onward.

@@ -43,7 +43,7 @@ func TestSubflow_SlotsAFlowInAsOneStep(t *testing.T) {
 			into = e
 		}
 	}
-	if into.FromStepID != ids["pay"] || into.Kind != "call" {
+	if into.FromStepID != ids["pay"] || into.Kind != "call" || into.Linked != nil {
 		t.Errorf("edge into the subflow = %+v", into)
 	}
 	used := mustDecode[Flow](t, do(t, h, "GET", "/api/flows/"+shared, ""))

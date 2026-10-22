@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"sort"
+	"strings"
 )
 
 // ── step input ────────────────────────────────────────────────────────────────
@@ -736,4 +737,106 @@ func stepIndex(steps []FlowStep, id string) int {
 		}
 	}
 	return len(steps)
+}
+
+// ── suggestions ───────────────────────────────────────────────────────────────
+
+// FlowSuggestion is a feature linked to a step's feature: a likely next step.
+type FlowSuggestion struct {
+	ProjectSlug string `json:"projectSlug"`
+	ProjectName string `json:"projectName"`
+	FeatureID   string `json:"featureId"`
+	Title       string `json:"title"`
+	Kind        string `json:"kind"`
+	Operation   string `json:"operation,omitempty"`
+	Protocol    string `json:"protocol,omitempty"`
+	// Description is the link's description.
+	Description string `json:"description,omitempty"`
+	// StepID is set when the feature is already a step of this flow (connect to it rather
+	// than adding it again); Connected when this step already leads to it.
+	StepID    string `json:"stepId,omitempty"`
+	Connected bool   `json:"connected,omitempty"`
+}
+
+// suggestFlowSteps serves GET /api/flows/{id}/steps/{stepId}/suggestions: the features linked
+// to the step's feature, in this project or another, as candidates for the step after it.
+// Ones the flow doesn't have yet come first.
+func (p *Platform) suggestFlowSteps(w http.ResponseWriter, r *http.Request) {
+	flowID, stepID := r.PathValue("id"), r.PathValue("stepId")
+	step, err := p.loadFlowStep(flowID, stepID)
+	if err == sql.ErrNoRows {
+		http.Error(w, "not found", 404)
+		return
+	}
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	out, err := p.flowSuggestions(flowID, step)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	writeJSON(w, out)
+}
+
+func (p *Platform) flowSuggestions(flowID string, step *FlowStep) ([]FlowSuggestion, error) {
+	out := []FlowSuggestion{}
+	if step.SubflowID != "" {
+		return out, nil
+	}
+	wb, err := p.getWorkbench(step.ProjectSlug)
+	if err != nil {
+		return out, nil
+	}
+	feat, err := wb.DB.GetFeature(step.FeatureID)
+	if err != nil || feat == nil {
+		return out, nil
+	}
+	steps, err := p.loadFlowSteps(flowID)
+	if err != nil {
+		return nil, err
+	}
+	edges, err := loadFlowEdges(p.db, flowID)
+	if err != nil {
+		return nil, err
+	}
+	stepOf := map[string]string{}
+	for _, s := range steps {
+		if s.SubflowID == "" {
+			stepOf[qualifiedRef(s.ProjectSlug, s.FeatureID)] = s.ID
+		}
+	}
+	names := map[string]string{}
+	for _, l := range feat.LinkedFeatures {
+		slug, id, _ := strings.Cut(qualifiedRef(step.ProjectSlug, l.ID), ":")
+		owner, err := p.getWorkbench(slug)
+		if err != nil {
+			continue
+		}
+		f, err := owner.DB.GetFeature(id)
+		if err != nil || f == nil {
+			continue
+		}
+		if _, ok := names[slug]; !ok {
+			var name string
+			p.db.QueryRow(`SELECT name FROM projects WHERE slug = ?`, slug).Scan(&name)
+			names[slug] = name
+		}
+		sg := FlowSuggestion{ProjectSlug: slug, ProjectName: names[slug], FeatureID: f.ID, Title: f.Title, Kind: f.Kind,
+			Operation: f.Operation, Protocol: f.Protocol, Description: l.Description, StepID: stepOf[slug+":"+f.ID]}
+		for _, e := range edges {
+			if sg.StepID != "" && e.FromStepID == step.ID && e.ToStepID == sg.StepID {
+				sg.Connected = true
+			}
+		}
+		out = append(out, sg)
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if (out[i].StepID == "") != (out[j].StepID == "") {
+			return out[i].StepID == ""
+		}
+		return out[i].Title < out[j].Title
+	})
+	return out, nil
 }

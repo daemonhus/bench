@@ -95,7 +95,7 @@ func init() {
 			Run: flowDelete},
 
 		// ── steps (a flow is a graph: steps joined by typed edges) ──
-		mpCmd{Group: "flows", Name: "add-step", Desc: "Add a step (a feature on some project, or with --subflow another whole flow as one block) to a flow and connect it. Without --after/--before/--from/--entry it is appended to the end of the main path. The edge flags describe the edge that leads into the new step.",
+		mpCmd{Group: "flows", Name: "add-step", Desc: "Add a step (a feature on some project, or with --subflow another whole flow as one block) to a flow and connect it. Without --after/--before/--from/--entry it is appended to the end of the main path. The edge flags describe the edge that leads into the new step. 'flows suggest' lists the features linked to a step's feature.",
 			Args: []string{"flow"},
 			Flags: []flagDef{
 				{Name: "flow", Desc: "Flow ID", Required: true},
@@ -188,6 +188,12 @@ func init() {
 			Flags: []flagDef{{Name: "flow", Desc: "Flow ID", Required: true}},
 			Run: func(c *cli, in *mpInput) error {
 				return c.emit("GET", flowPath(in.str("flow"), "export"), nil)
+			}},
+		mpCmd{Group: "flows", Name: "suggest", Desc: "Suggest next steps after a step: the features linked to its feature (in its project or another). stepId marks one already in the flow (connect to it with set-edge), connected one this step already leads to.",
+			Args:  []string{"flow", "step"},
+			Flags: []flagDef{{Name: "flow", Desc: "Flow ID", Required: true}, {Name: "step", Desc: "Step ID", Required: true}},
+			Run: func(c *cli, in *mpInput) error {
+				return c.emit("GET", flowPath(in.str("flow"), "steps", in.str("step"), "suggestions"), nil)
 			}},
 		mpCmd{Group: "flows", Name: "import", Desc: "Create a flow, with its whole graph, from a JSON document (the 'flows export' shape).",
 			Flags: []flagDef{

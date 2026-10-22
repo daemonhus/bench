@@ -679,6 +679,8 @@ type FeatureSnapshot struct {
 	// Zone is the trust zone the feature sits in: a "zone:<name>" tag on the feature, or else
 	// its project's service profile trustZone.
 	Zone string `json:"zone,omitempty"`
+	// links are the features this one is linked to, as "<project>:<id>" (both ends' links).
+	links []string
 }
 
 // FlowStep is one stop of a flow: a feature on a project, with what is true there.
@@ -1575,6 +1577,9 @@ func (p *Platform) fetchFeatureSnapshot(projectSlug, featureID string) (*Feature
 		Confidence      string          `json:"confidence"`
 		EffectiveAnchor json.RawMessage `json:"effectiveAnchor"`
 		Tags            []string        `json:"tags"`
+		LinkedFeatures  []struct {
+			ID string `json:"id"`
+		} `json:"linkedFeatures"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &feat); err != nil {
 		return nil, err
@@ -1589,7 +1594,19 @@ func (p *Platform) fetchFeatureSnapshot(projectSlug, featureID string) (*Feature
 		EffectiveAnchor: feat.EffectiveAnchor,
 		Zone:            featureZone(feat.Tags, p.projectZone(wb)),
 	}
+	for _, l := range feat.LinkedFeatures {
+		snap.links = append(snap.links, qualifiedRef(projectSlug, l.ID))
+	}
 	return snap, nil
+}
+
+// qualifiedRef writes a feature id as "<project>:<id>": a project's own links name its
+// features by id alone, links to another project's features carry that project already.
+func qualifiedRef(slug, id string) string {
+	if strings.Contains(id, ":") {
+		return id
+	}
+	return slug + ":" + id
 }
 
 // projectZone is the trust zone recorded in a project's service profile ("" when unset).
@@ -1840,6 +1857,7 @@ func (p *Platform) registerPlatformRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/flows/{id}/steps/{stepId}", p.removeFlowStep)
 	mux.HandleFunc("PUT /api/flows/{id}/steps", p.setFlowSteps)
 	mux.HandleFunc("POST /api/flows/{id}/steps/{stepId}/move", p.moveFlowStep)
+	mux.HandleFunc("GET /api/flows/{id}/steps/{stepId}/suggestions", p.suggestFlowSteps)
 	mux.HandleFunc("PUT /api/flows/{id}/edges/{fromId}/{toId}", p.setFlowEdge)
 	mux.HandleFunc("DELETE /api/flows/{id}/edges/{fromId}/{toId}", p.deleteFlowEdge)
 	mux.HandleFunc("GET /api/flows/{id}/export", p.exportFlow)

@@ -122,9 +122,11 @@ export interface FlowEdge {
   tags: string[];
   /** Worked out by the server: the two ends sit in different trust zones. */
   zoneBoundary?: boolean;
+  /** Worked out by the server: whether a feature link backs the hop (absent: doesn't apply). */
+  linked?: boolean;
 }
 
-export type EdgePatch = Partial<Omit<FlowEdge, 'fromStepId' | 'toStepId' | 'zoneBoundary'>>;
+export type EdgePatch = Partial<Omit<FlowEdge, 'fromStepId' | 'toStepId' | 'zoneBoundary' | 'linked'>>;
 
 export interface Flow {
   id: string;
@@ -178,6 +180,7 @@ export function normalizeEdge(e: any): FlowEdge {
     comment: e.comment ?? '',
     tags: e.tags ?? [],
     zoneBoundary: !!e.zoneBoundary,
+    linked: e.linked,
   };
 }
 
@@ -660,6 +663,39 @@ export async function updateStep(
   patch: Partial<Pick<FlowStep, 'note' | 'actor' | 'controls' | 'featureId' | 'projectSlug' | 'subflowId'>>,
 ): Promise<void> {
   await send('PATCH', `${API}/${flowId}/steps/${stepId}`, patch);
+}
+
+/** A feature linked to a step's feature: a likely next step. */
+export interface StepSuggestion {
+  projectSlug: string;
+  projectName: string;
+  featureId: string;
+  title: string;
+  kind: FeatureKind;
+  operation?: string;
+  protocol?: string;
+  /** The link's description. */
+  description?: string;
+  /** Set when the feature is already a step of this flow. */
+  stepId?: string;
+  /** This step already leads to it. */
+  connected?: boolean;
+}
+
+export async function getStepSuggestions(flowId: string, stepId: string): Promise<StepSuggestion[]> {
+  const r = await fetch(`${API}/${flowId}/steps/${stepId}/suggestions`);
+  return r.ok ? r.json() : [];
+}
+
+/** Link two features (in one project or two), keeping the first one's other links. */
+export async function linkFeatures(a: { projectSlug: string; featureId: string }, b: { projectSlug: string; featureId: string }, description = ''): Promise<void> {
+  const base = `/api/projects/${encodeURIComponent(a.projectSlug)}/features/${encodeURIComponent(a.featureId)}`;
+  const r = await fetch(base);
+  if (!r.ok) throw new Error(`load feature: ${r.status}`);
+  const feature = await r.json() as { linkedFeatures?: { id: string; description?: string }[] };
+  const ref = a.projectSlug === b.projectSlug ? b.featureId : `${b.projectSlug}:${b.featureId}`;
+  const links = (feature.linkedFeatures ?? []).filter((l) => l.id !== ref);
+  await send('PATCH', base, { linkedFeatures: [...links, { id: ref, description }] });
 }
 
 /** splice closes the gap; subtree also removes the steps only reachable through it. */
@@ -1821,12 +1857,32 @@ interface StepFeatureParam { id: string; name: string; type?: string; required?:
 // Built once per flow and shared with the step rows via context (no prop drilling).
 interface IndexedFeature {
   parameters: StepFeatureParam[];
-  links: { id: string; title?: string; kind?: FeatureKind; operation?: string }[];
+  links: StepFeatureLink[];
   refs: StepFeatureRef[];
 }
+/** A feature's link as stored ("<id>" in its own project, "<project>:<id>" in another). */
+function splitLink(slug: string, raw: string): { project: string; id: string } {
+  const at = raw.indexOf(':');
+  return at > 0 ? { project: raw.slice(0, at), id: raw.slice(at + 1) } : { project: slug, id: raw };
+}
+
+/** Fill in the titles of links the caller couldn't resolve, from the cross-project catalog. */
+async function resolveLinkTitles(links: StepFeatureLink[]): Promise<StepFeatureLink[]> {
+  const missing = links.filter((l) => !l.title).map((l) => `${l.project}:${l.id}`);
+  if (missing.length === 0) return links;
+  const r = await fetch(`/api/features?refs=${missing.map(encodeURIComponent).join(',')}`).catch(() => null);
+  const found: { projectSlug: string; id: string; title: string; kind: FeatureKind; operation?: string }[] | null = r?.ok ? await r.json() : null;
+  if (!found?.length) return links;
+  const byRef = new Map(found.map((c) => [`${c.projectSlug}:${c.id}`, c]));
+  return links.map((l) => {
+    const c = byRef.get(`${l.project}:${l.id}`);
+    return c ? { ...l, title: c.title, kind: c.kind, operation: c.operation } : l;
+  });
+}
+
 const FeatureIndexContext = createContext<Map<string, IndexedFeature>>(new Map());
 interface StepFeatureComment { id: string; author: string; text: string }
-interface StepFeatureLink { id: string; description?: string; title?: string; kind?: FeatureKind; operation?: string }
+interface StepFeatureLink { id: string; description?: string; title?: string; kind?: FeatureKind; operation?: string; /** The project the linked feature is in. */ project: string }
 interface StepFeatureRef { provider: string; url: string; title?: string }
 interface StepFeatureAnchor { fileId: string; commitId: string; lineRange?: { start: number; end: number } }
 interface StepFeatureDetail {
@@ -1913,14 +1969,15 @@ function MapStepPanel({
       ]);
       // Resolve each linked feature's title/kind (the feature only stores ids).
       const rawLinks: { id: string; description?: string }[] = feat?.linkedFeatures ?? [];
-      let linkedFeatures: StepFeatureLink[] = rawLinks;
+      let linkedFeatures: StepFeatureLink[] = [];
       if (rawLinks.length > 0) {
         const all: any[] = await j(`${base}/features`, []);
         const byId = new Map<string, any>(all.map((f) => [f.id, f]));
-        linkedFeatures = rawLinks.map((l) => {
-          const f = byId.get(l.id);
-          return { id: l.id, description: l.description, title: f?.title, kind: f?.kind, operation: f?.operation };
-        });
+        linkedFeatures = await resolveLinkTitles(rawLinks.map((l) => {
+          const { project, id } = splitLink(step.projectSlug, l.id);
+          const f = project === step.projectSlug ? byId.get(id) : undefined;
+          return { id, project, description: l.description, title: f?.title, kind: f?.kind, operation: f?.operation };
+        }));
       }
       if (cancelled) return;
       setDetail({
@@ -2054,12 +2111,13 @@ function MapStepPanel({
               ))}
               {detail.linkedFeatures.map((l) => (
                 <button
-                  key={l.id}
+                  key={`${l.project}:${l.id}`}
                   className="map-step-link"
-                  onClick={() => onOpenProject(step.projectSlug, `#/feature/${l.id}`)}
-                  title="Open linked feature"
+                  onClick={() => onOpenProject(l.project, `#/feature/${l.id}`)}
+                  title={l.project === step.projectSlug ? 'Open linked feature' : `Open linked feature in ${l.project}`}
                 >
                   <div className="map-step-link-head">
+                    {l.project !== step.projectSlug && <span className="flow-step-link-project">{l.project}</span>}
                     {l.kind && <span className={`flow-step-kind kind-${l.kind}`}>{l.kind}</span>}
                     <span className="map-step-link-title">{l.title || l.id.slice(0, 8)}</span>
                   </div>
@@ -2148,9 +2206,12 @@ function SubflowStepPanel({ step, onClose, onOpenFlow }: { step: FlowStep; onClo
 
 const AUTH_SUGGESTIONS = ['none', 'user', 'admin', 'service', 'mtls', 'api-key', 'session-cookie', 'jwt'];
 
-/** Short chips describing a hop: its kind (unless plain "next"), protocol, auth and flags. */
-export function edgeChips(e: FlowEdge): { key: string; label: string; tone?: 'warn' | 'danger'; title?: string }[] {
-  const chips: { key: string; label: string; tone?: 'warn' | 'danger'; title?: string }[] = [];
+/**
+ * Short chips describing a hop: its kind (unless plain "next"), protocol, auth and flags. On a
+ * hop between projects (cross), say when no feature link backs it.
+ */
+export function edgeChips(e: FlowEdge, cross = false): { key: string; label: string; tone?: 'warn' | 'danger' | 'muted'; title?: string }[] {
+  const chips: { key: string; label: string; tone?: 'warn' | 'danger' | 'muted'; title?: string }[] = [];
   if (e.kind !== 'next') chips.push({ key: 'kind', label: e.protocol ? `${e.kind} · ${e.protocol}` : e.kind });
   else if (e.protocol) chips.push({ key: 'kind', label: e.protocol });
   if (e.auth) chips.push({ key: 'auth', label: `auth: ${e.auth}` });
@@ -2158,6 +2219,9 @@ export function edgeChips(e: FlowEdge): { key: string; label: string; tone?: 'wa
     chips.push({ key: 'tb', label: 'trust boundary', tone: 'warn', title: e.zoneBoundary ? 'The two ends sit in different trust zones' : undefined });
   }
   if (e.tainted) chips.push({ key: 'taint', label: 'tainted', tone: 'danger' });
+  if (cross && e.linked === false) {
+    chips.push({ key: 'unlinked', label: 'unlinked', tone: 'muted', title: 'No feature link backs this hop: the two features are not linked' });
+  }
   return chips;
 }
 
@@ -2167,8 +2231,15 @@ function StepKindChip({ step }: { step: FlowStep }) {
   return <span className={`flow-step-kind kind-${step.featureKind}`}>{step.featureKind}</span>;
 }
 
-function EdgeChips({ edge }: { edge: FlowEdge }) {
-  const chips = edgeChips(edge);
+/** Whether an edge runs between steps on two projects (subflow ends don't count). */
+function crossesProjects(flow: Flow, e: FlowEdge): boolean {
+  const a = flow.steps.find((s) => s.id === e.fromStepId);
+  const b = flow.steps.find((s) => s.id === e.toStepId);
+  return !!a && !!b && !a.subflowId && !b.subflowId && a.projectSlug !== b.projectSlug;
+}
+
+function EdgeChips({ edge, cross = false }: { edge: FlowEdge; cross?: boolean }) {
+  const chips = edgeChips(edge, cross);
   if (chips.length === 0) return null;
   return (
     <span className="flow-edge-chips">
@@ -2220,6 +2291,22 @@ function MapEdgePanel({
     onRefresh();
   }
 
+  // Back the hop with a feature link (from the step it leaves).
+  const [linking, setLinking] = useState(false);
+  const [linkError, setLinkError] = useState('');
+  async function linkEnds() {
+    setLinking(true);
+    setLinkError('');
+    try {
+      await withSave(() => linkFeatures(fromStep, toStep, edge.description || edge.data));
+      onRefresh();
+    } catch (e) {
+      setLinkError(e instanceof Error ? e.message : 'Failed to link');
+    } finally {
+      setLinking(false);
+    }
+  }
+
   return (
     <div className="map-step-panel" style={{ width }} aria-label="Connection">
       <div className="map-step-panel-resize-handle" onMouseDown={onResizeStart} />
@@ -2240,6 +2327,18 @@ function MapEdgePanel({
         )}
         {edge.zoneBoundary && (
           <div className="map-edge-cross map-edge-zones">Crosses trust zones: {fromStep.zone} → {toStep.zone}</div>
+        )}
+        {edge.linked === false && (
+          <div className="map-edge-unlinked">
+            <span>No feature link backs this hop: the two features aren't linked.</span>
+            <button type="button" className="baseline-action-btn baseline-action-btn-outline" onClick={linkEnds} disabled={linking}>
+              {linking ? 'Linking…' : 'Link the features'}
+            </button>
+            {linkError && <span className="map-edge-unlinked-error" role="alert">{linkError}</span>}
+          </div>
+        )}
+        {edge.linked === true && (
+          <div className="map-edge-linked">A feature link backs this hop.</div>
         )}
         <div className="map-edge-grid">
           <div className="map-step-panel-field">
@@ -2483,8 +2582,9 @@ export function FlowDetailPage({ flowId, onBack, onOpenProject, onOpenFlow }: Fl
     )).then((results) => {
       if (cancelled) return;
       const idx = new Map<string, IndexedFeature>();
+      // Every loaded project's features, for links into another project ("<project>:<id>").
+      const byRef = new Map<string, any>(results.flatMap(({ slug, feats }) => feats.map((f2): [string, any] => [`${slug}:${f2.id}`, f2])));
       for (const { slug, feats, refs } of results) {
-        const byId = new Map<string, any>(feats.map((f2) => [f2.id, f2]));
         const refsByEntity = new Map<string, StepFeatureRef[]>();
         for (const r of refs) {
           const list = refsByEntity.get(r.entityId) ?? [];
@@ -2495,14 +2595,19 @@ export function FlowDetailPage({ flowId, onBack, onOpenProject, onOpenFlow }: Fl
           idx.set(`${slug}:${f2.id}`, {
             parameters: f2.parameters ?? [],
             links: (f2.linkedFeatures ?? []).map((l: any) => {
-              const t = byId.get(l.id);
-              return { id: l.id, title: t?.title, kind: t?.kind, operation: t?.operation };
+              const { project, id } = splitLink(slug, l.id);
+              const t = byRef.get(`${project}:${id}`);
+              return { id, project, title: t?.title, kind: t?.kind, operation: t?.operation };
             }),
             refs: refsByEntity.get(f2.id) ?? [],
           });
         }
       }
       setFeatureIndex(idx);
+      // Links into projects the flow doesn't touch: resolve their titles from the catalog.
+      if (![...idx.values()].some((d) => d.links.some((l) => !l.title))) return;
+      Promise.all([...idx].map(async ([k, d]) => [k, { ...d, links: await resolveLinkTitles(d.links) }] as const))
+        .then((entries) => { if (!cancelled) setFeatureIndex(new Map(entries)); });
     });
     return () => { cancelled = true; };
   }, [projectSig]);
@@ -2572,6 +2677,14 @@ export function FlowDetailPage({ flowId, onBack, onOpenProject, onOpenFlow }: Fl
       setPickerError(e instanceof Error ? e.message : String(e));
       return;
     }
+    setPicker(null);
+    refresh();
+  }
+
+  async function handleConnect(toStepId: string) {
+    const from = picker?.place.after ?? picker?.place.from;
+    if (!from) return;
+    await withSave(() => setEdge(f.id, from, toStepId, {}));
     setPicker(null);
     refresh();
   }
@@ -2809,6 +2922,7 @@ export function FlowDetailPage({ flowId, onBack, onOpenProject, onOpenFlow }: Fl
           flow={f}
           onPick={handleAddFeature}
           onPickFlow={handleAddSubflow}
+          onConnect={handleConnect}
           error={pickerError}
           onClose={() => setPicker(null)}
         />
@@ -2986,7 +3100,7 @@ function StepNode(props: StepNodeProps) {
               {loop ? 'loops back to' : 'also leads to'} step {n}: {to.featureTitle || to.featureId}
               {(e.condition || e.description) && <span className="flow-extra-edge-label"> — {e.condition || e.description}</span>}
             </button>
-            <EdgeChips edge={e} />
+            <EdgeChips edge={e} cross={crossesProjects(flow, e)} />
             {editing && (
               <button type="button" className="flow-step-action flow-step-action-danger" onClick={() => save(() => deleteEdge(flow.id, e.fromStepId, e.toStepId))} aria-label={`Remove the connection to step ${n}`} title="Remove this connection">×</button>
             )}
@@ -2996,6 +3110,7 @@ function StepNode(props: StepNodeProps) {
       {next && edge && (
         <EdgeRow
           edge={edge}
+          cross={crossesProjects(flow, edge)}
           editing={editing}
           selected={props.selectedEdgeKey === edgeKey(edge)}
           onChange={(description) => save(() => setEdge(flow.id, step.id, next.id, { description }))}
@@ -3079,7 +3194,7 @@ function BranchConnector({ step, edge, editing, collapsed, stepCount, onToggle, 
               : (editing ? 'untitled branch — click to label' : 'untitled branch')}
           </button>
         )}
-        {edge && <EdgeChips edge={edge} />}
+        {edge && <EdgeChips edge={edge} cross={crossesProjects(flow, edge)} />}
         {edge && (
           <button type="button" className="flow-edge-details" onClick={() => onSelectEdge(edgeKey(edge))} title="Connection details">details</button>
         )}
@@ -3339,11 +3454,12 @@ function StepRow({
                   ))}
                   {detail.links.map((l) => (
                     <button
-                      key={l.id}
+                      key={`${l.project}:${l.id}`}
                       className="flow-step-link flow-step-link-btn"
-                      onClick={() => onOpenProject(step.projectSlug, `#/feature/${l.id}`)}
-                      title="Open linked feature"
+                      onClick={() => onOpenProject(l.project, `#/feature/${l.id}`)}
+                      title={l.project === step.projectSlug ? 'Open linked feature' : `Open linked feature in ${l.project}`}
                     >
+                      {l.project !== step.projectSlug && <span className="flow-step-link-project">{l.project}</span>}
                       {l.kind && (
                         <span className={`flow-step-kind ${KIND_COLORS[l.kind]}`}>{KIND_ICONS[l.kind]} {l.kind}</span>
                       )}
@@ -3370,6 +3486,8 @@ function StepRow({
 
 interface EdgeRowProps {
   edge: FlowEdge;
+  /** The hop runs between two projects. */
+  cross: boolean;
   editing: boolean;
   selected: boolean;
   onChange: (s: string) => void;
@@ -3377,13 +3495,13 @@ interface EdgeRowProps {
   onInsert: () => void;
 }
 
-function EdgeRow({ edge, editing, selected, onChange, onDetails, onInsert }: EdgeRowProps) {
+function EdgeRow({ edge, cross, editing, selected, onChange, onDetails, onInsert }: EdgeRowProps) {
   return (
     <div className={`flow-edge${selected ? ' flow-edge--selected' : ''}`}>
       <div className="flow-edge-line">↓</div>
       <div className="flow-edge-main">
         {edge.condition && <span className="flow-edge-condition"><InlineText text={edge.condition} /></span>}
-        <EdgeChips edge={edge} />
+        <EdgeChips edge={edge} cross={cross} />
         <EditableText
           value={edge.description}
           onChange={onChange}
@@ -3413,25 +3531,30 @@ function ftsPrefix(text: string): string | undefined {
 interface FeaturePickerProps {
   projects: Project[];
   context: PickerContext;
-  /** The flow being edited: never offered as its own subflow. */
+  /** The flow being edited: its linked-feature suggestions, and never offered as its own subflow. */
   flow: Flow;
   onPick: (ref: FeatureRef) => void;
   /** Add (or repoint to) a whole flow as a subflow step. */
   onPickFlow: (flowId: string) => void;
+  /** Connect the step being continued to a step already in the flow. */
+  onConnect: (toStepId: string) => void;
   /** Why the last pick was refused. */
   error?: string;
   onClose: () => void;
 }
 
-function FeaturePicker({ projects, context, flow, onPick, onPickFlow, error, onClose }: FeaturePickerProps) {
+function FeaturePicker({ projects, context, flow, onPick, onPickFlow, onConnect, error, onClose }: FeaturePickerProps) {
   const [tab, setTab] = useState<'features' | 'flows'>(context.subflow ? 'flows' : 'features');
   const [query, setQuery] = useState('');
   const [projectFilter, setProjectFilter] = useState<string>('');
   const [kindFilter, setKindFilter] = useState<FeatureKind | ''>('');
   const [results, setResults] = useState<FeatureRef[]>([]);
   const [flowResults, setFlowResults] = useState<FlowSummary[]>([]);
+  const [suggestions, setSuggestions] = useState<StepSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const isBranch = context.place.from !== undefined;
+  // The step this one continues from: its feature's links are the suggestions.
+  const fromStepId = context.repoint ? undefined : context.place.after ?? context.place.from;
   const title = context.repoint ? (tab === 'flows' ? 'Change to a subflow' : 'Change feature') : isBranch ? 'Branch from step' : context.place.entry ? 'Add entry point'
     : context.place.after || context.place.before ? 'Insert step' : 'Add step';
   // Remember what opened the panel (read during the first render, before the
@@ -3441,6 +3564,13 @@ function FeaturePicker({ projects, context, flow, onPick, onPickFlow, error, onC
     const el = opener.current;
     return () => { if (el && el !== document.body && el.isConnected) el.focus({ preventScroll: true }); };
   }, []);
+
+  useEffect(() => {
+    if (!fromStepId) { setSuggestions([]); return; }
+    let cancelled = false;
+    getStepSuggestions(flow.id, fromStepId).then((r) => { if (!cancelled) setSuggestions(r.filter((sg) => !sg.connected)); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [flow.id, fromStepId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -3455,6 +3585,8 @@ function FeaturePicker({ projects, context, flow, onPick, onPickFlow, error, onC
     }, 150);
     return () => { cancelled = true; clearTimeout(t); };
   }, [tab, projects, query, projectFilter, kindFilter, flow.id]);
+
+  const shownSuggestions = tab === 'features' && !query && !projectFilter && !kindFilter ? suggestions : [];
 
   return (
     <aside
@@ -3519,6 +3651,31 @@ function FeaturePicker({ projects, context, flow, onPick, onPickFlow, error, onC
       )}
       {error && <div className="flows-move-error" role="alert">{error}</div>}
       <div className="flow-picker-results">
+        {shownSuggestions.length > 0 && (
+          <div className="flow-picker-group" aria-label="Linked to this step">
+            <div className="flow-picker-group-label">Linked to this step's feature</div>
+            {shownSuggestions.map((sg) => (
+              <button
+                key={`${sg.projectSlug}:${sg.featureId}`}
+                className="flow-picker-result"
+                onClick={() => (sg.stepId ? onConnect(sg.stepId) : onPick({
+                  projectSlug: sg.projectSlug, projectName: sg.projectName, id: sg.featureId, title: sg.title,
+                  kind: sg.kind, operation: sg.operation, protocol: sg.protocol,
+                }))}
+              >
+                <div className="flow-picker-result-top">
+                  <span className="flow-picker-result-project">{sg.projectName || sg.projectSlug}</span>
+                  <span className={`flow-step-kind ${KIND_COLORS[sg.kind]}`}>{KIND_ICONS[sg.kind]} {sg.kind}</span>
+                  {sg.operation && <span className="flow-step-op">{sg.operation}</span>}
+                  {sg.stepId && <span className="flow-picker-result-note">in this flow: connect</span>}
+                </div>
+                <div className="flow-picker-result-title">{sg.title}</div>
+                {sg.description && <div className="flow-picker-result-desc">{sg.description}</div>}
+              </button>
+            ))}
+            <div className="flow-picker-group-label">All features</div>
+          </div>
+        )}
         {loading && <div className="flow-picker-empty">Searching…</div>}
         {!loading && tab === 'flows' && flowResults.length === 0 && (
           <div className="flow-picker-empty">{query ? <>No flows match <span className="flow-picker-empty-filter">"{query}"</span>.</> : 'No other flows yet.'}</div>

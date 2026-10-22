@@ -96,6 +96,7 @@ See [Projects & flows](/concepts/multi-project).
 | `GET` / `PATCH` / `DELETE` | `/api/flows/{id}` | `GET` returns `steps` and `edges` (always arrays), and `usedIn`: the flows that use this one as a subflow. A subflow step carries `subflowId` and `subflow {id, name, status, stepCount}` instead of a feature. |
 | `GET` | `/api/flows/{id}/export` | `{name, description, status, owner, tags, steps, edges}` with each step's id as its `clientId`: what `POST /api/flows` and `PUT …/steps` take back. |
 | `POST` | `/api/flows/{id}/steps` | `{projectSlug, featureId, note?, actor?, controls?, after? \| before? \| from? \| entry?, edge?}`, or `subflowId` in place of `projectSlug` + `featureId` for a subflow step (another flow as one block; a 400 if that flow is this one or contains it). See [placing a step](#placing-a-step). |
+| `GET` | `/api/flows/{id}/steps/{stepId}/suggestions` | The features linked to the step's feature, as likely next steps: `[{projectSlug, projectName, featureId, title, kind, operation, protocol, description, stepId?, connected?}]`. `stepId` marks one already in the flow, `connected` one the step already leads to; new ones come first. |
 | `PUT` | `/api/flows/{id}/steps` | Replace the whole graph atomically: `{steps: [{clientId, projectSlug, featureId, note?, actor?, controls?}], edges: [{from, to, …edge fields}]}` (`from`/`to` are clientIds; a step may give `subflowId` instead of a feature). Returns `{flow, stepIds}`. |
 | `PATCH` | `/api/flows/{id}/steps/{stepId}` | `{note?, actor?, controls?, projectSlug?, featureId?, subflowId?, branchCondition?}`. Changing the feature (or pointing the step at a flow with `subflowId`) keeps the step's place and edges; `branchCondition` labels the one edge into the step. |
 | `DELETE` | `/api/flows/{id}/steps/{stepId}` | `?mode=splice` (default: the steps before it now lead to the steps after it), `subtree` (also the steps only reachable through it) or `isolate`. |
@@ -105,7 +106,7 @@ See [Projects & flows](/concepts/multi-project).
 | `GET` | `/api/flows/{id}/baselines/latest` | |
 | `GET` / `DELETE` | `/api/flows/{id}/baselines/{bId}` | |
 | `GET` | `/api/flows/{id}/delta` | Changes since the latest baseline, or `?since={bId}`: added / removed / changed steps (`feature`, `subflow`, `note`, `actor`, `controls`, `effectiveAnchor`), moved anchors, and added / removed / changed edges (which fields). Baselines taken before flows were graphs are read in the graph form. |
-| `GET` | `/api/service-map` | Services (projects) with their features (kind, operation, protocol, open findings, flows) and the connections flows record between them, merged by feature pair, kind and protocol (`?archived=1` includes archived flows). `internal` lists same-project edges. Each service has its trust `zone`; a connection says whether it crosses zones (`zoneBoundary`). |
+| `GET` | `/api/service-map` | Services (projects) with their features (kind, operation, protocol, open findings, flows) and the connections flows record between them, merged by feature pair, kind and protocol (`?archived=1` includes archived flows). `internal` lists same-project edges. Each service has its trust `zone`; a connection says whether it crosses zones (`zoneBoundary`) and whether a feature link backs it (`linked`). `links` lists the feature links, one per linked pair, with `inFlows` false where no flow covers one yet. |
 | `GET` | `/api/flows/{id}/findings` | Open findings on the flow's features, by severity. |
 
 ### Placing a step
@@ -132,6 +133,7 @@ See [Projects & flows](/concepts/multi-project).
 | `auth` | The identity the hop carries: `none`, `user`, `service`, `mtls`, `api-key`, … |
 | `trustBoundary` | The hop crosses a trust boundary (set by hand, for boundaries the zones don't show). |
 | `zoneBoundary` | Read only: the two features sit in different trust zones (service profile `trustZone`, or a feature's `zone:<name>` tag). Counts as a trust boundary too. |
+| `linked` | Read only: whether a feature link backs the hop; absent where it doesn't apply (a subflow end, a missing feature). |
 | `data` / `tainted` | What travels on the hop, and whether it is attacker-controlled. |
 | `description` / `comment` / `tags` | Edge label, longer review note, tags. |
 | `position` | Order among the edges leaving the same step. |

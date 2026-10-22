@@ -42,15 +42,29 @@ export interface MapConnection {
   trustBoundary: boolean;
   /** The two ends sit in different trust zones. */
   zoneBoundary?: boolean;
+  /** A feature link backs the connection. */
+  linked?: boolean;
   tainted: boolean;
   count: number;
   flows: MapFlowRef[];
+}
+
+/** A feature link: two features linked to each other (no direction). */
+export interface MapLink {
+  fromProject: string;
+  fromFeature: string;
+  toProject: string;
+  toFeature: string;
+  description?: string;
+  /** Some flow connects the two features already. */
+  inFlows: boolean;
 }
 
 export interface ServiceMapData {
   services: MapService[];
   connections: MapConnection[];
   internal: MapConnection[];
+  links: MapLink[];
 }
 
 /** Which features a service card lists: those with a connection shown, those on any flow, or all. */
@@ -65,6 +79,8 @@ export interface MapFilters {
   scope: FeatureScope;
   /** Show the edges between features of one service too. */
   internal: boolean;
+  /** Draw the feature links no flow covers yet (the dependencies flows haven't mapped). */
+  links: boolean;
   fields: MapFields;
 }
 
@@ -77,12 +93,14 @@ export const DEFAULT_FILTERS: MapFilters = {
   featureKinds: ALL_FEATURE_KINDS,
   scope: 'flows',
   internal: false,
+  links: true,
   fields: { operation: true, protocol: false, findings: true, flows: true },
 };
 
 export const connectionKey = (c: MapConnection) =>
   `${c.fromProject}:${c.fromFeature}>${c.toProject}:${c.toFeature}:${c.kind}:${c.protocol.toLowerCase()}`;
 export const featureKey = (slug: string, id: string) => `${slug}:${id}`;
+export const linkKey = (l: MapLink) => `${l.fromProject}:${l.fromFeature}~${l.toProject}:${l.toFeature}`;
 
 /** A connection crosses a trust boundary: marked so, or its ends sit in different zones. */
 export const crossesBoundary = (c: MapConnection) => c.trustBoundary || !!c.zoneBoundary;
@@ -90,6 +108,8 @@ export const crossesBoundary = (c: MapConnection) => c.trustBoundary || !!c.zone
 export interface VisibleMap {
   services: MapService[];
   connections: MapConnection[];
+  /** Feature links drawn: none covered by a flow, both ends shown. */
+  links: MapLink[];
 }
 
 /** What the filters keep: services not hidden, connections of an enabled kind whose two ends
@@ -103,13 +123,18 @@ export function applyFilters(data: ServiceMapData, f: MapFilters): VisibleMap {
   const kindOf = new Map<string, FeatureKind>();
   for (const s of data.services) for (const ft of s.features) kindOf.set(featureKey(s.slug, ft.id), ft.kind);
   const pool = f.internal ? [...data.connections, ...data.internal] : data.connections;
-  const connections = pool.filter((c) =>
-    kinds.has(c.kind) && shown.has(c.fromProject) && shown.has(c.toProject) &&
-    fkinds.has(kindOf.get(featureKey(c.fromProject, c.fromFeature)) ?? 'externality') &&
-    fkinds.has(kindOf.get(featureKey(c.toProject, c.toFeature)) ?? 'externality'));
-  const connected = new Set(connections.flatMap((c) => [featureKey(c.fromProject, c.fromFeature), featureKey(c.toProject, c.toFeature)]));
+  const ends = (x: { fromProject: string; fromFeature: string; toProject: string; toFeature: string }) =>
+    shown.has(x.fromProject) && shown.has(x.toProject) &&
+    fkinds.has(kindOf.get(featureKey(x.fromProject, x.fromFeature)) ?? 'externality') &&
+    fkinds.has(kindOf.get(featureKey(x.toProject, x.toFeature)) ?? 'externality');
+  const connections = pool.filter((c) => kinds.has(c.kind) && ends(c));
+  const links = f.links
+    ? (data.links ?? []).filter((l) => !l.inFlows && (f.internal || l.fromProject !== l.toProject) && ends(l))
+    : [];
+  const connected = new Set([...connections, ...links].flatMap((c) => [featureKey(c.fromProject, c.fromFeature), featureKey(c.toProject, c.toFeature)]));
   return {
     connections,
+    links,
     services: services.map((s) => ({
       ...s,
       features: s.features
@@ -151,6 +176,8 @@ export interface MapLayout {
   cards: CardLayout[];
   /** Each connection's ends in canvas coordinates: out of the right of one row, into the left of another. */
   links: { connection: MapConnection; x1: number; y1: number; x2: number; y2: number; internal: boolean; back: boolean }[];
+  /** Each feature link's ends, drawn left to right (links have no direction). */
+  featureLinks: { link: MapLink; x1: number; y1: number; x2: number; y2: number; internal: boolean }[];
   bounds: { minX: number; minY: number; maxX: number; maxY: number };
 }
 
@@ -187,7 +214,7 @@ interface Block { w: number; h: number; place: (x: number, y: number) => void; o
  * stacked in one column.
  */
 export function layoutMap(v: VisibleMap, opts: LayoutOptions = {}): MapLayout {
-  const connected = new Set(v.connections.flatMap((c) => [featureKey(c.fromProject, c.fromFeature), featureKey(c.toProject, c.toFeature)]));
+  const connected = new Set([...v.connections, ...v.links].flatMap((c) => [featureKey(c.fromProject, c.fromFeature), featureKey(c.toProject, c.toFeature)]));
   const cards: CardLayout[] = v.services.map((s) => {
     const { rows, more } = cardRows(s, connected, opts);
     const h = cardHeight(rows.length, more);
@@ -198,10 +225,10 @@ export function layoutMap(v: VisibleMap, opts: LayoutOptions = {}): MapLayout {
   });
   const bySlug = new Map(cards.map((c) => [c.service.slug, c]));
 
-  // Groups: services joined by a connection between two of them.
+  // Groups: services joined by a connection or a feature link between two of them.
   const parent = new Map(cards.map((c) => [c.service.slug, c.service.slug]));
   const find = (x: string): string => { const p = parent.get(x)!; if (p === x) return x; const r = find(p); parent.set(x, r); return r; };
-  const edges = v.connections.filter((c) => c.fromProject !== c.toProject && bySlug.has(c.fromProject) && bySlug.has(c.toProject));
+  const edges = [...v.connections, ...v.links].filter((c) => c.fromProject !== c.toProject && bySlug.has(c.fromProject) && bySlug.has(c.toProject));
   for (const c of edges) parent.set(find(c.fromProject), find(c.toProject));
   const groups = new Map<string, CardLayout[]>();
   for (const c of cards) groups.set(find(c.service.slug), [...(groups.get(find(c.service.slug)) ?? []), c]);
@@ -250,13 +277,22 @@ export function layoutMap(v: VisibleMap, opts: LayoutOptions = {}): MapLayout {
     const internal = a === b;
     links.push({ connection: c, internal, back: !internal && b.x < a.x + CARD_W, x1: a.x + CARD_W, y1: a.y + ay, x2: internal ? b.x + CARD_W : b.x, y2: b.y + by });
   }
+  const featureLinks: MapLayout['featureLinks'] = [];
+  for (const l of v.links) {
+    let a = bySlug.get(l.fromProject), b = bySlug.get(l.toProject);
+    let ay = a?.rowY.get(l.fromFeature), by = b?.rowY.get(l.toFeature);
+    if (!a || !b || ay === undefined || by === undefined) continue;
+    if (b.x < a.x) [a, b, ay, by] = [b, a, by, ay];
+    const internal = a === b;
+    featureLinks.push({ link: l, internal, x1: a.x + CARD_W, y1: a.y + ay, x2: internal ? b.x + CARD_W : b.x, y2: b.y + by });
+  }
   const bounds = cards.length === 0 ? { minX: 0, minY: 0, maxX: 0, maxY: 0 } : {
     minX: Math.min(...cards.map((c) => c.x)),
     minY: Math.min(...cards.map((c) => c.y)),
     maxX: Math.max(...cards.map((c) => c.x + CARD_W)),
     maxY: Math.max(...cards.map((c) => c.y + c.h)),
   };
-  return { cards, links, bounds };
+  return { cards, links, featureLinks, bounds };
 }
 
 /** Everything one hop from a feature or service: for hover highlighting. */
@@ -269,6 +305,13 @@ export function neighbourhood(v: VisibleMap, focus: { slug: string; feature?: st
       connections.add(connectionKey(c));
       features.add(featureKey(c.fromProject, c.fromFeature));
       features.add(featureKey(c.toProject, c.toFeature));
+    }
+  }
+  for (const l of v.links) {
+    if (touches(l.fromProject, l.fromFeature) || touches(l.toProject, l.toFeature)) {
+      connections.add(linkKey(l));
+      features.add(featureKey(l.fromProject, l.fromFeature));
+      features.add(featureKey(l.toProject, l.toFeature));
     }
   }
   if (focus.feature) features.add(featureKey(focus.slug, focus.feature));

@@ -10,7 +10,7 @@ import {
   EDGE_DASH, edgeColor,
 } from './graphKit';
 import {
-  applyFilters, layoutMap, neighbourhood, connectionKey, featureKey, crossesBoundary,
+  applyFilters, layoutMap, neighbourhood, connectionKey, featureKey, linkKey, crossesBoundary,
   DEFAULT_FILTERS, ALL_EDGE_KINDS, ALL_FEATURE_KINDS, CARD_W, HEADER_H, ROW_H, ROW_CAP,
   type ServiceMapData, type MapFilters, type MapFields, type MapConnection, type MapFeature, type MapService, type FeatureScope,
 } from './serviceMapModel';
@@ -19,7 +19,8 @@ import './serviceMap.css';
 
 // The service map: every project as a service card listing its features, and the connections
 // that flows record between them (each cross-project edge of a flow), drawn feature to
-// feature. Filters pick services, connection kinds and feature kinds; the cards re-lay out
+// feature. Feature links no flow covers yet are drawn too, faintly: the dependencies the flows
+// haven't mapped. Filters pick services, connection kinds and feature kinds; the cards re-lay out
 // as they change. Hover a feature or service to follow its connections; click one for detail.
 
 // The filters, the search and the display options live in the address (/map?hide=beta&show=all;
@@ -33,6 +34,7 @@ const MAP_QUERY: QuerySchema<MapQuery> = {
   featureKinds: qp.set('kinds', ALL_FEATURE_KINDS).remembered(),
   scope: qp.oneOf<FeatureScope>('show', ['connected', 'flows', 'all'], DEFAULT_FILTERS.scope).remembered(),
   internal: qp.bool('internal').remembered(),
+  links: qp.bool('links', DEFAULT_FILTERS.links).remembered(),
   archived: qp.bool('archived'),
   fields: qp.set('fields', FIELD_KEYS, FIELD_KEYS.filter((k) => DEFAULT_FILTERS.fields[k])).remembered(),
 };
@@ -66,7 +68,7 @@ export function ServiceMapPage({ onOpenFlow, onOpenProject }: {
   const setArchived = (on: boolean) => setMq({ archived: on });
   const filters = useMemo<MapFilters>(() => ({
     hiddenServices: mq.hiddenServices, connectionKinds: mq.connectionKinds, featureKinds: mq.featureKinds,
-    scope: mq.scope, internal: mq.internal,
+    scope: mq.scope, internal: mq.internal, links: mq.links,
     fields: Object.fromEntries(FIELD_KEYS.map((k) => [k, mq.fields.includes(k)])) as unknown as MapFields,
   }), [mq]);
   const [hover, setHover] = useState<{ slug: string; feature?: string } | null>(null);
@@ -87,6 +89,7 @@ export function ServiceMapPage({ onOpenFlow, onOpenProject }: {
           services: (d.services ?? []).map((s) => ({ ...s, features: (s.features ?? []).map((f) => ({ ...f, tags: f.tags ?? [], flows: f.flows ?? [] })) })),
           connections: d.connections ?? [],
           internal: d.internal ?? [],
+          links: d.links ?? [],
         });
       })
       .catch((e) => { if (live) setError(e instanceof Error ? e.message : 'Failed to load the service map'); });
@@ -143,6 +146,7 @@ export function ServiceMapPage({ onOpenFlow, onOpenProject }: {
           {visible && (
             <span className="smap-summary">
               {visible.services.length} service{visible.services.length === 1 ? '' : 's'} · {visible.connections.length} connection{visible.connections.length === 1 ? '' : 's'}
+              {visible.links.length > 0 && <> · {visible.links.length} link{visible.links.length === 1 ? '' : 's'} not on a flow</>}
             </span>
           )}
         </div>
@@ -216,6 +220,18 @@ export function ServiceMapPage({ onOpenFlow, onOpenProject }: {
             <svg width="100%" height="100%" role="group" aria-label={`${visible.services.length} services, ${visible.connections.length} connections`}>
               <defs><ArrowMarkers colors={colors} /></defs>
               <g transform={`translate(${pz.x},${pz.y}) scale(${pz.scale})`}>
+                {/* Feature links no flow covers: faint, dashed, no direction. */}
+                {layout.featureLinks.map(({ link: l, x1, y1, x2, y2, internal }) => {
+                  const key = linkKey(l);
+                  const lit = focus?.connections.has(key);
+                  const dim = (focus && !lit) || q;
+                  const d = internal ? `M ${x1} ${y1} C ${x1 + 70} ${y1} ${x2 + 70} ${y2} ${x2} ${y2}` : horizontalPath(x1, y1, x2, y2);
+                  return (
+                    <path key={key} className="smap-feature-link" data-link={key} d={d} fill="none" stroke={pal.textSub}
+                      strokeWidth={lit ? 1.8 : 1.2} strokeDasharray="2 5" strokeLinecap="round"
+                      style={{ opacity: dim ? 0.12 : lit ? 0.9 : 0.45, pointerEvents: 'none' }} />
+                  );
+                })}
                 {layout.links.map(({ connection: c, x1, y1, x2, y2, internal, back }, i) => {
                   const key = connectionKey(c);
                   const selected = selectedConn && connectionKey(selectedConn) === key;
@@ -368,12 +384,12 @@ export function ServiceMapPage({ onOpenFlow, onOpenProject }: {
                 })}
               </g>
             </svg>
-            {visible.connections.length === 0 && (
-              <div className="smap-hint">No connections to draw. Connections come from flows whose steps are on different projects.</div>
+            {visible.connections.length === 0 && visible.links.length === 0 && (
+              <div className="smap-hint">No connections to draw. Connections come from flows whose steps are on different projects, and feature links between projects.</div>
             )}
           </div>
         )}
-        {visible && visible.connections.length > 0 && <MapLegend connections={visible.connections} />}
+        {visible && (visible.connections.length > 0 || visible.links.length > 0) && <MapLegend connections={visible.connections} links={visible.links.length > 0} />}
         <GraphControls onFit={() => layout && fitTo(layout.cards.length ? layout.bounds : null, 48)} onZoomIn={zoomIn} onZoomOut={zoomOut} />
         {selection && data && visible && (
           <SelectionPanel
@@ -403,7 +419,7 @@ function EdgeSwatch({ kind, color }: { kind: EdgeKind; color: string }) {
 }
 
 /** The key to the lines on the map: the connection kinds drawn, and the marks some carry. */
-function MapLegend({ connections }: { connections: MapConnection[] }) {
+function MapLegend({ connections, links }: { connections: MapConnection[]; links: boolean }) {
   const { pal } = usePalette();
   const kinds = EDGE_KINDS.filter((k) => connections.some((c) => c.kind === k.value));
   return (
@@ -416,6 +432,12 @@ function MapLegend({ connections }: { connections: MapConnection[] }) {
       )}
       {connections.some(crossesBoundary) && (
         <span className="smap-legend-item"><span className="smap-legend-boundary" style={{ background: pal.warn }} aria-hidden="true" />Trust boundary</span>
+      )}
+      {links && (
+        <span className="smap-legend-item">
+          <svg width="18" height="6" aria-hidden="true" className="smap-swatch"><line x1="1" y1="3" x2="17" y2="3" stroke={pal.textSub} strokeWidth="1.5" strokeDasharray="2 4" strokeLinecap="round" /></svg>
+          Feature link, not on a flow
+        </span>
       )}
     </div>
   );
@@ -447,6 +469,7 @@ function DisplayMenu({ filters, onChange, archived, onArchived }: {
   const sections: { title: string; items: { label: string; on: boolean; set: (on: boolean) => void }[] }[] = [
     { title: 'Include', items: [
       { label: 'Connections within a service', on: filters.internal, set: (on) => onChange({ ...filters, internal: on }) },
+      { label: 'Feature links no flow covers', on: filters.links, set: (on) => onChange({ ...filters, links: on }) },
       { label: 'Archived flows', on: archived, set: onArchived },
     ] },
     { title: 'On each feature', items: [

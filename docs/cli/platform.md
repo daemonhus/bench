@@ -61,6 +61,7 @@ bench flows add-step <flow> --project api --feature <feature-id> --after <step> 
 bench flows add-step <flow> --project api --feature <feature-id> --from <step> --condition "if admin"   # branch
 bench flows add-step <flow> --project api --feature <feature-id> --entry              # another entry point
 bench flows add-step <flow> --subflow <other-flow> --after <step>                     # a whole flow as one step
+bench flows suggest <flow> <step>     # the features linked to the step's feature: likely next steps
 
 bench flows update-step <flow> <step> --note "checks session" --controls authn:jwt,authz:rbac
 bench flows update-step <flow> <step> --feature <other-feature> --project api   # same place, other feature
@@ -87,7 +88,7 @@ An edge from a step to itself, or to a step of another flow, is rejected, as is 
 ## map
 
 ```bash
-bench map                # services (with their trust zones), their features, and the connections flows record
+bench map                # services (with their trust zones), their features, the connections flows record, and feature links
 bench map show --archived
 ```
 

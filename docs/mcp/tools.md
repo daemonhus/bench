@@ -296,13 +296,14 @@ Only on the aggregate `/mcp`. They take project slugs explicitly where needed, n
 |---|---|---|
 | `flows_add_step` | `flow_id`, `project_slug` + `feature_id` or `subflow_id`, `note?`, `actor?`, `controls?`, one of `after?` / `before?` / `from?` (= `parent_step_id`) / `entry?`, and the edge fields for the edge into the step | Without a place it is appended to the end of the main path. `subflow_id` slots another flow in as one step; a flow can't contain itself. |
 | `flows_update_step` | `flow_id`, `step_id`, `note?`, `actor?`, `controls?`, `project_slug?`, `feature_id?`, `subflow_id?`, `branch_condition?` | A new feature (or flow) keeps the step's place and edges; `branch_condition` labels the one edge into the step. |
+| `flows_suggest_next` | `flow_id`, `step_id` | The features linked to the step's feature, as likely next steps; `stepId` marks one already in the flow, `connected` one the step already leads to. |
 | `flows_remove_step` | `flow_id`, `step_id`, `mode?` | `splice` (default) joins the steps before it to the steps after; `subtree` also removes the steps only reachable through it; `isolate`. |
 | `flows_move_step` | `flow_id`, `step_id`, `direction?` or one of `after?` / `before?` / `from?` / `entry?`, edge fields | `-1`/`1` moves one place along the path or among sibling branches; a place takes the step out and puts it there (re-parent with `from`). |
 | `flows_set_steps` | `flow_id`, `steps`, `edges?` | Replaces the graph atomically (`edges` use `from`/`to` client_ids); returns `stepIds` keyed by `client_id`. The tree form (`parent_client_id`, `links`) is still accepted. |
 | `flows_export` | `flow_id` | The flow as one document, in the shape `flows_create` and `flows_set_steps` take. |
 | `flows_set_edge` | `flow_id`, `from_step_id`, `to_step_id`, `kind?`, `protocol?`, `condition?`, `auth?`, `trust_boundary?`, `data?`, `tainted?`, `description?`, `comment?`, `tags?`, `position?` | Creates or partially updates the edge. Steps may be on different projects; self edges and steps of another flow are rejected. |
 | `flows_delete_edge` | `flow_id`, `from_step_id`, `to_step_id` | The steps stay. |
-| `get_service_map` | `archived?` | Services with their features and trust zones, and the connections flows record between them (`zoneBoundary` where they cross trust zones). |
+| `get_service_map` | `archived?` | Services with their features and trust zones, the connections flows record between them (`zoneBoundary`, `linked`), and the feature links (`inFlows` false where no flow covers one). |
 
 ### baselines and findings
 
