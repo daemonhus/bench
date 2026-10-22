@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -125,6 +126,7 @@ const flowStepsSchema = `CREATE TABLE IF NOT EXISTS %s (
 	note              TEXT NOT NULL DEFAULT '',
 	actor             TEXT NOT NULL DEFAULT '',
 	controls          TEXT NOT NULL DEFAULT '[]',
+	subflow_id        TEXT NOT NULL DEFAULT '',
 	tombstoned        INTEGER NOT NULL DEFAULT 0,
 	tombstoned_reason TEXT NOT NULL DEFAULT '',
 	created_at        TEXT NOT NULL DEFAULT (datetime('now'))
@@ -160,9 +162,17 @@ func setUpFlowGraph(conn *sql.DB, dataDir string) error {
 			return fmt.Errorf("migrate flows to graph: %w", err)
 		}
 	}
+	// A step is a feature, or another flow slotted in whole (a subflow: subflow_id set, the
+	// feature columns empty).
+	if _, err := conn.Exec(`SELECT subflow_id FROM flow_steps LIMIT 0`); err != nil {
+		if _, err := conn.Exec(`ALTER TABLE flow_steps ADD COLUMN subflow_id TEXT NOT NULL DEFAULT ''`); err != nil {
+			return fmt.Errorf("add flow_steps.subflow_id: %w", err)
+		}
+	}
 	for _, stmt := range []string{
 		flowEdgesSchema,
 		`CREATE INDEX IF NOT EXISTS flow_steps_flow_idx ON flow_steps(flow_id)`,
+		`CREATE INDEX IF NOT EXISTS flow_steps_subflow_idx ON flow_steps(subflow_id) WHERE subflow_id <> ''`,
 		`CREATE INDEX IF NOT EXISTS flow_edges_flow_idx ON flow_edges(flow_id)`,
 		`CREATE INDEX IF NOT EXISTS flow_edges_to_idx ON flow_edges(to_step_id)`,
 	} {
@@ -785,11 +795,69 @@ func (p *Platform) inFlowTx(flowID string, fn func(tx *sql.Tx, g *graph) error) 
 }
 
 func writeEditError(w http.ResponseWriter, err error) {
-	if ee, ok := err.(*editError); ok {
+	var ee *editError
+	if errors.As(err, &ee) {
 		http.Error(w, ee.msg, ee.status)
 		return
 	}
 	http.Error(w, err.Error(), 500)
+}
+
+// checkSubflow says whether flow subflowID can be slotted into flowID as a step: it must exist,
+// and must not be flowID or contain it (through its own subflows, at any depth), which would
+// make the flow contain itself.
+func checkSubflow(q querier, flowID, subflowID string) error {
+	var name string
+	if err := q.QueryRow(`SELECT name FROM flows WHERE id = ?`, subflowID).Scan(&name); err != nil {
+		return badRequest("subflow %q: no such flow", subflowID)
+	}
+	seen := map[string]bool{}
+	stack := []string{subflowID}
+	for len(stack) > 0 {
+		id := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		if id == flowID {
+			if id == subflowID {
+				return badRequest("a flow cannot be a subflow of itself")
+			}
+			return badRequest("%q already contains this flow (through its own subflows), so using it here would loop", name)
+		}
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		rows, err := q.Query(`SELECT DISTINCT subflow_id FROM flow_steps WHERE flow_id = ? AND subflow_id <> ''`, id)
+		if err != nil {
+			return err
+		}
+		for rows.Next() {
+			var s string
+			rows.Scan(&s)
+			stack = append(stack, s)
+		}
+		rows.Close()
+	}
+	return nil
+}
+
+// stepTarget is what a step stands for: a feature (project + id), or a whole other flow.
+type stepTarget struct {
+	ProjectSlug string
+	FeatureID   string
+	SubflowID   string
+}
+
+func (t stepTarget) validate() error {
+	feature := t.ProjectSlug != "" || t.FeatureID != ""
+	switch {
+	case feature && t.SubflowID != "":
+		return badRequest("a step is a feature (projectSlug + featureId) or a subflow (subflowId), not both")
+	case t.SubflowID != "":
+		return nil
+	case t.ProjectSlug == "" || t.FeatureID == "":
+		return badRequest("projectSlug and featureId are required (or subflowId, for a subflow step)")
+	}
+	return nil
 }
 
 func trimmedControls(list []string) []string {

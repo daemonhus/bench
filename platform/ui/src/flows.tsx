@@ -75,6 +75,17 @@ export interface FlowStep {
   tombstoned?: boolean;
   // From bench reconciler: 'exact' | 'moved' | 'orphaned' (absent = exact)
   confidence?: string;
+  /** Set on a subflow step: another flow slotted in as one block (no feature). */
+  subflowId?: string;
+  subflow?: SubflowInfo;
+}
+
+/** What a subflow step shows of the flow it stands for. */
+export interface SubflowInfo {
+  id: string;
+  name: string;
+  status: FlowStatus;
+  stepCount: number;
 }
 
 export type EdgeKind = 'next' | 'call' | 'async' | 'read' | 'write' | 'response';
@@ -125,6 +136,8 @@ export interface Flow {
   edges: FlowEdge[];
   /** Edges outside the outline: joins into a step shown earlier, and loops back. */
   extraEdges: FlowEdge[];
+  /** The flows that use this one as a subflow. */
+  usedIn?: { id: string; name: string }[];
 }
 
 export type FeatureKind = 'interface' | 'source' | 'sink' | 'dependency' | 'externality';
@@ -197,6 +210,8 @@ function normalizeFlow(f: any): Flow {
     featureOperation: s.feature?.operation ?? s.featureOperation,
     featureProtocol: s.feature?.protocol ?? s.featureProtocol,
     confidence: s.feature?.confidence ?? s.confidence,
+    // A subflow step reads as a step titled with the flow's name.
+    ...(s.subflowId ? { featureTitle: s.subflow?.name ?? '', featureKind: 'externality' } : {}),
   }));
   const { outline: o, steps } = withOutline(flat, edges);
   const extra = new Set(o.extra.map(edgeKey));
@@ -228,7 +243,7 @@ export interface FlowSummary {
   openFindings?: FlowFindingCounts;
   openFindingsTotal?: number;
   /** Step skeleton and its edges ([from, to] in branch order), for drawing the flow's outline. */
-  shape?: { id: string; position: number; projectSlug?: string; featureId?: string }[];
+  shape?: { id: string; position: number; projectSlug?: string; featureId?: string; subflowId?: string }[];
   shapeEdges?: [string, string][];
 }
 
@@ -543,6 +558,10 @@ function FlowShape({ steps, large = false }: { steps: FlowStep[]; large?: boolea
         );
       })}
       {nodes.map(({ step, x, y }) => {
+        // A subflow step is a ring: a whole flow in one place.
+        if (step.subflowId) {
+          return <circle key={step.id} cx={px(x)} cy={py(y)} r={r * 0.8} fill="none" stroke="#7a8490" strokeWidth={r * 0.45} opacity={0.85} />;
+        }
         const color = KIND_SHAPE_COLORS[step.featureKind] ?? '#7a8490';
         return (
           <circle
@@ -623,10 +642,16 @@ export async function addStep(flowId: string, ref: FeatureRef, place: StepPlace 
   return r.json();
 }
 
+/** Slot another flow in as one step (a subflow). */
+export async function addSubflowStep(flowId: string, subflowId: string, place: StepPlace = {}): Promise<FlowStep> {
+  const r = await send('POST', `${API}/${flowId}/steps`, { ...place, subflowId });
+  return r.json();
+}
+
 export async function updateStep(
   flowId: string,
   stepId: string,
-  patch: Partial<Pick<FlowStep, 'note' | 'actor' | 'controls' | 'featureId' | 'projectSlug'>>,
+  patch: Partial<Pick<FlowStep, 'note' | 'actor' | 'controls' | 'featureId' | 'projectSlug' | 'subflowId'>>,
 ): Promise<void> {
   await send('PATCH', `${API}/${flowId}/steps/${stepId}`, patch);
 }
@@ -1245,6 +1270,7 @@ interface FlowDetailPageProps {
   /** Back to the list, opened at the flow's folder. */
   onBack: (folderId?: string) => void;
   onOpenProject: (slug: string, hash?: string) => void;
+  onOpenFlow: (id: string) => void;
 }
 
 const KIND_ICONS: Record<FeatureKind, string> = {
@@ -1268,6 +1294,8 @@ const KIND_COLORS: Record<FeatureKind, string> = {
 interface PickerContext {
   place: StepPlace;
   repoint?: string;
+  /** Open on the Flows tab (adding or repointing a subflow). */
+  subflow?: boolean;
 }
 
 
@@ -2083,6 +2111,33 @@ function MapStepPanel({
   );
 }
 
+/** The map's side panel for a subflow step: the flow it stands for, and a way into it. */
+function SubflowStepPanel({ step, onClose, onOpenFlow }: { step: FlowStep; onClose: () => void; onOpenFlow: (id: string) => void }) {
+  const { width, onResizeStart } = useMapPanelWidth();
+  const sub = step.subflow;
+  return (
+    <div className="map-step-panel" style={{ width }} aria-label="Subflow">
+      <div className="map-step-panel-resize-handle" onMouseDown={onResizeStart} />
+      <div className="map-step-panel-header">
+        <span className="flow-step-kind flow-step-kind--subflow">⧉ subflow</span>
+        <button className="icon-btn map-step-panel-close" aria-label="Close" onClick={onClose}>✕</button>
+      </div>
+      <div className="map-step-panel-body">
+        {step.tombstoned || !sub ? (
+          <p className="map-step-panel-tombstoned">The flow this step stood for was deleted.</p>
+        ) : (
+          <>
+            <div className="map-step-panel-title">{sub.name}</div>
+            <p className="map-step-panel-meta">{sub.stepCount} step{sub.stepCount === 1 ? '' : 's'} · {sub.status}</p>
+            <p className="map-step-panel-meta">Its steps live in that flow; every flow that uses it shows this one block.</p>
+            <button type="button" className="baseline-action-btn baseline-action-btn-outline" onClick={() => onOpenFlow(sub.id)}>Open flow</button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── MapEdgePanel ─────────────────────────────────────────────────────────
 
 const AUTH_SUGGESTIONS = ['none', 'user', 'admin', 'service', 'mtls', 'api-key', 'session-cookie', 'jwt'];
@@ -2096,6 +2151,12 @@ export function edgeChips(e: FlowEdge): { key: string; label: string; tone?: 'wa
   if (e.trustBoundary) chips.push({ key: 'tb', label: 'trust boundary', tone: 'warn' });
   if (e.tainted) chips.push({ key: 'taint', label: 'tainted', tone: 'danger' });
   return chips;
+}
+
+/** A step's kind chip: its feature's kind, or "subflow". */
+function StepKindChip({ step }: { step: FlowStep }) {
+  if (step.subflowId) return <span className="flow-step-kind flow-step-kind--subflow">⧉ subflow</span>;
+  return <span className={`flow-step-kind kind-${step.featureKind}`}>{step.featureKind}</span>;
 }
 
 function EdgeChips({ edge }: { edge: FlowEdge }) {
@@ -2160,13 +2221,13 @@ function MapEdgePanel({
       </div>
       <div className="map-step-panel-body">
         <div className="map-link-panel-route">
-          <span className={`flow-step-kind kind-${fromStep.featureKind}`}>{fromStep.featureKind}</span>
+          <StepKindChip step={fromStep} />
           <span className="map-link-panel-title">{fromStep.featureTitle || fromStep.featureId}</span>
           <span className="map-link-panel-arrow">→</span>
-          <span className={`flow-step-kind kind-${toStep.featureKind}`}>{toStep.featureKind}</span>
+          <StepKindChip step={toStep} />
           <span className="map-link-panel-title">{toStep.featureTitle || toStep.featureId}</span>
         </div>
-        {fromStep.projectSlug !== toStep.projectSlug && (
+        {!fromStep.subflowId && !toStep.subflowId && fromStep.projectSlug !== toStep.projectSlug && (
           <div className="map-edge-cross">Crosses from {fromStep.projectName || fromStep.projectSlug} to {toStep.projectName || toStep.projectSlug}</div>
         )}
         <div className="map-edge-grid">
@@ -2333,7 +2394,7 @@ function StepMenu({ flow, step, numbers, onConnect, onMove, onRepoint, onRemoveB
   );
 }
 
-export function FlowDetailPage({ flowId, onBack, onOpenProject }: FlowDetailPageProps) {
+export function FlowDetailPage({ flowId, onBack, onOpenProject, onOpenFlow }: FlowDetailPageProps) {
   const [flow, setFlow] = useState<Flow | null>(null);
   const [folders, setFolders] = useState<FlowFolder[]>([]);
   const folderIndex = useFolderIndex(folders);
@@ -2344,6 +2405,8 @@ export function FlowDetailPage({ flowId, onBack, onOpenProject }: FlowDetailPage
   // no edit mode to enter or leave.
   const editing = true;
   const [picker, setPicker] = useState<PickerContext | null>(null);
+  const [pickerError, setPickerError] = useState('');
+  useEffect(() => { setPickerError(''); }, [picker]);
   const [activeTab, setActiveTab] = useState<'flow' | 'map' | 'findings' | 'baselines'>('flow');
   const [selectedMapStepId, setSelectedMapStepId] = useState<string | null>(null);
   // The selected connection ("fromId:toId"), on the map or the outline: its side panel shows.
@@ -2484,6 +2547,24 @@ export function FlowDetailPage({ flowId, onBack, onOpenProject }: FlowDetailPage
     refresh();
   }
 
+  async function handleAddSubflow(subflowId: string) {
+    if (!picker) return;
+    try {
+      if (picker.repoint) {
+        await withSave(() => updateStep(f.id, picker.repoint!, { subflowId }));
+      } else {
+        const newStep = await withSave(() => addSubflowStep(f.id, subflowId, picker.place));
+        setExpanded((s) => new Set(s).add(newStep.id));
+      }
+    } catch (e) {
+      // The server refuses a flow that would contain itself; say why.
+      setPickerError(e instanceof Error ? e.message : String(e));
+      return;
+    }
+    setPicker(null);
+    refresh();
+  }
+
   async function handleStatusChange(status: FlowStatus) {
     await withSave(() => updateFlow(f.id, { status }));
     refresh();
@@ -2606,6 +2687,9 @@ export function FlowDetailPage({ flowId, onBack, onOpenProject }: FlowDetailPage
             />
             {selectedMapStepId && (() => {
               const sel = f.steps.find((s) => s.id === selectedMapStepId);
+              if (sel?.subflowId) {
+                return <SubflowStepPanel step={sel} onClose={() => setSelectedMapStepId(null)} onOpenFlow={onOpenFlow} />;
+              }
               return sel ? (
                 <MapStepPanel
                   step={sel}
@@ -2642,11 +2726,21 @@ export function FlowDetailPage({ flowId, onBack, onOpenProject }: FlowDetailPage
                   <span className="flow-detail-attr-label">Owner</span>
                   <OwnerEditor value={f.owner} onChange={handleOwnerChange} readOnly={!editing} placeholder="unassigned" />
                 </div>
+                {f.usedIn && f.usedIn.length > 0 && (
+                  <div className="flow-detail-attr">
+                    <span className="flow-detail-attr-label">Used in</span>
+                    <span className="flow-detail-used-in">
+                      {f.usedIn.map((u) => (
+                        <button key={u.id} type="button" className="flow-detail-used-in-link" onClick={() => onOpenFlow(u.id)} title="Open the flow that uses this one as a subflow">{u.name}</button>
+                      ))}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
             <div className="flow-detail-stats">
               <div className="flow-detail-stat">
-                <span className="flow-detail-stat-num">{new Set(f.steps.map((s) => s.projectSlug)).size}</span>
+                <span className="flow-detail-stat-num">{new Set(f.steps.filter((s) => !s.subflowId).map((s) => s.projectSlug)).size}</span>
                 <span className="flow-detail-stat-label">Projects</span>
               </div>
               <div className="flow-detail-stat">
@@ -2687,6 +2781,7 @@ export function FlowDetailPage({ flowId, onBack, onOpenProject }: FlowDetailPage
                 onToggleExpand={toggleExpanded}
                 onOpenPicker={(ctx) => setPicker(ctx)}
                 onOpenProject={onOpenProject}
+                onOpenFlow={onOpenFlow}
                 onRefresh={refresh}
                 withSave={withSave}
               />
@@ -2700,7 +2795,10 @@ export function FlowDetailPage({ flowId, onBack, onOpenProject }: FlowDetailPage
         <FeaturePicker
           projects={projects}
           context={picker}
+          flow={f}
           onPick={handleAddFeature}
+          onPickFlow={handleAddSubflow}
+          error={pickerError}
           onClose={() => setPicker(null)}
         />
       )}
@@ -2729,6 +2827,7 @@ interface SubtreeProps {
   onToggleExpand: (stepId: string) => void;
   onOpenPicker: (ctx: PickerContext) => void;
   onOpenProject: (slug: string, hash?: string) => void;
+  onOpenFlow: (id: string) => void;
   onRefresh: () => void;
   withSave: <T>(fn: () => Promise<T>) => Promise<T>;
 }
@@ -2817,7 +2916,7 @@ interface StepNodeProps extends SubtreeProps {
 }
 
 function StepNode(props: StepNodeProps) {
-  const { flow, step, editing, stepNumbers, edgeBetween, onOpenPicker, onOpenProject, onRefresh, onSelectEdge } = props;
+  const { flow, step, editing, stepNumbers, edgeBetween, onOpenPicker, onOpenProject, onOpenFlow, onRefresh, onSelectEdge } = props;
   const childs = childrenOf(flow.steps, step.id);
   const isTerminal = childs.length === 0;
   // For a single-child continuation we render the edge between them.
@@ -2848,7 +2947,7 @@ function StepNode(props: StepNodeProps) {
         onRemove={() => save(() => removeStep(flow.id, step.id))}
         onMoveUp={() => save(() => moveStep(flow.id, step.id, -1))}
         onMoveDown={() => save(() => moveStep(flow.id, step.id, 1))}
-        onJumpToProject={() => onOpenProject(step.projectSlug, `#/feature/${step.featureId}`)}
+        onJumpToProject={() => (step.subflowId ? onOpenFlow(step.subflowId) : onOpenProject(step.projectSlug, `#/feature/${step.featureId}`))}
         onBranchFromHere={() => onOpenPicker({ place: { from: step.id } })}
         onContinue={() => onOpenPicker({ place: { after: step.id } })}
         onOpenProject={onOpenProject}
@@ -2859,7 +2958,7 @@ function StepNode(props: StepNodeProps) {
             numbers={stepNumbers}
             onConnect={(to) => save(() => setEdge(flow.id, step.id, to, {}))}
             onMove={(place) => save(() => moveStepTo(flow.id, step.id, place))}
-            onRepoint={() => onOpenPicker({ place: {}, repoint: step.id })}
+            onRepoint={() => onOpenPicker({ place: {}, repoint: step.id, subflow: !!step.subflowId })}
             onRemoveBranch={hasAfter && reachableFrom(flow.edges, step.id).size > 0 ? () => save(() => removeStep(flow.id, step.id, 'subtree')) : undefined}
           />
         ) : null}
@@ -3006,7 +3105,7 @@ function stepWarnings(flow: Flow, step: FlowStep): StepWarning[] {
   // hop is (its kind), unless one end is a dependency or sink.
   for (const e of flow.edges.filter((ed) => ed.toStepId === step.id)) {
     const from = flow.steps.find((s) => s.id === e.fromStepId);
-    if (from && from.projectSlug !== step.projectSlug && e.kind === 'next' &&
+    if (from && !from.subflowId && !step.subflowId && from.projectSlug !== step.projectSlug && e.kind === 'next' &&
         step.featureKind !== 'dependency' && from.featureKind !== 'dependency' &&
         step.featureKind !== 'sink' && from.featureKind !== 'sink') {
       warnings.push({ type: 'cross-project-hop', message: `Crosses from ${from.projectSlug} to ${step.projectSlug} without saying how (set the connection's kind: call, async, …).` });
@@ -3069,10 +3168,32 @@ function StepRow({
   const detail = featureIndex.get(`${step.projectSlug}:${step.featureId}`);
   return (
     <>
-    <div className="flow-step">
+    <div className={`flow-step${step.subflowId ? ' flow-step--subflow' : ''}`}>
       <div className="flow-step-pos">{number}</div>
       <div className="flow-step-body">
         <div className="flow-step-header">
+          {step.subflowId ? (
+            <>
+              <span className="flow-step-kind flow-step-kind--subflow">⧉ subflow</span>
+              {step.tombstoned
+                ? <span className="flow-step-title flow-step-title-tombstoned"><s>(deleted flow)</s></span>
+                : <span className="flow-step-title">{step.subflow?.name}</span>}
+              {step.subflow && (
+                <span className="flow-step-subflow-count">{step.subflow.stepCount} step{step.subflow.stepCount === 1 ? '' : 's'}{step.subflow.status !== 'active' ? ` · ${step.subflow.status}` : ''}</span>
+              )}
+              {!step.tombstoned && (
+                <button
+                  className="flow-step-title-link"
+                  onClick={onJumpToProject}
+                  title={`Open the flow ${step.subflow?.name ?? ''}`}
+                  aria-label={`Open the flow ${step.subflow?.name ?? ''}`}
+                >↗</button>
+              )}
+              {step.tombstoned && (
+                <span className="flow-anchor-chip flow-anchor-tombstoned" title="The flow this step stands for was deleted">DELETED</span>
+              )}
+            </>
+          ) : (<>
           <span className="flow-step-project">{step.projectName || step.projectSlug}</span>
           {(!step.tombstoned || step.featureTitle) && (
             <span className={`flow-step-kind ${KIND_COLORS[step.featureKind]}`}>
@@ -3103,6 +3224,7 @@ function StepRow({
           {step.tombstoned && !step.featureTitle && (
             <span className="flow-anchor-chip flow-anchor-tombstoned" title="Feature was deleted from the project">DELETED</span>
           )}
+          </>)}
           {terminal && <span className="flow-step-terminal">end</span>}
           {warnings.map((w) => (
             <span key={w.type} className="flow-step-warning" title={w.message}>
@@ -3271,21 +3393,35 @@ function EdgeRow({ edge, editing, selected, onChange, onDetails, onInsert }: Edg
 
 // ─── Feature picker (side panel) ───────────────────────────────────────
 
+/** A search box's words as a prefix query for the flows' full-text index ("pay tok" -> "pay* tok*"). */
+function ftsPrefix(text: string): string | undefined {
+  const words = text.split(/[^\p{L}\p{N}_]+/u).filter(Boolean);
+  return words.length ? words.map((w) => `${w}*`).join(' ') : undefined;
+}
+
 interface FeaturePickerProps {
   projects: Project[];
   context: PickerContext;
+  /** The flow being edited: never offered as its own subflow. */
+  flow: Flow;
   onPick: (ref: FeatureRef) => void;
+  /** Add (or repoint to) a whole flow as a subflow step. */
+  onPickFlow: (flowId: string) => void;
+  /** Why the last pick was refused. */
+  error?: string;
   onClose: () => void;
 }
 
-function FeaturePicker({ projects, context, onPick, onClose }: FeaturePickerProps) {
+function FeaturePicker({ projects, context, flow, onPick, onPickFlow, error, onClose }: FeaturePickerProps) {
+  const [tab, setTab] = useState<'features' | 'flows'>(context.subflow ? 'flows' : 'features');
   const [query, setQuery] = useState('');
   const [projectFilter, setProjectFilter] = useState<string>('');
   const [kindFilter, setKindFilter] = useState<FeatureKind | ''>('');
   const [results, setResults] = useState<FeatureRef[]>([]);
+  const [flowResults, setFlowResults] = useState<FlowSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const isBranch = context.place.from !== undefined;
-  const title = context.repoint ? 'Change feature' : isBranch ? 'Branch from step' : context.place.entry ? 'Add entry point'
+  const title = context.repoint ? (tab === 'flows' ? 'Change to a subflow' : 'Change feature') : isBranch ? 'Branch from step' : context.place.entry ? 'Add entry point'
     : context.place.after || context.place.before ? 'Insert step' : 'Add step';
   // Remember what opened the panel (read during the first render, before the
   // search box autofocuses) and give focus back when it closes.
@@ -3299,12 +3435,15 @@ function FeaturePicker({ projects, context, onPick, onClose }: FeaturePickerProp
     let cancelled = false;
     setLoading(true);
     const t = setTimeout(() => {
-      searchFeatures(projects, query, kindFilter || undefined, projectFilter || undefined)
-        .then((r) => { if (!cancelled) setResults(r); })
-        .finally(() => { if (!cancelled) setLoading(false); });
+      const run = tab === 'flows'
+        ? listFlows({ q: ftsPrefix(query), sort: 'name', order: 'asc', limit: 50 })
+          .then((r) => { if (!cancelled) setFlowResults(r.items.filter((f) => f.id !== flow.id)); })
+        : searchFeatures(projects, query, kindFilter || undefined, projectFilter || undefined)
+          .then((r) => { if (!cancelled) setResults(r); });
+      run.catch(() => {}).finally(() => { if (!cancelled) setLoading(false); });
     }, 150);
     return () => { cancelled = true; clearTimeout(t); };
-  }, [projects, query, projectFilter, kindFilter]);
+  }, [tab, projects, query, projectFilter, kindFilter, flow.id]);
 
   return (
     <aside
@@ -3316,7 +3455,9 @@ function FeaturePicker({ projects, context, onPick, onClose }: FeaturePickerProp
         <div>
           <div className="flow-picker-title">{title}</div>
           <div className="flow-picker-subtitle">
-            {context.repoint
+            {tab === 'flows'
+              ? 'A whole flow as one step: its path is defined once there, and every flow using it stays in step.'
+              : context.repoint
               ? 'The step keeps its place and connections; only the feature changes.'
               : isBranch
                 ? 'Choose the first feature for this branch. You can label the branch after.'
@@ -3329,30 +3470,60 @@ function FeaturePicker({ projects, context, onPick, onClose }: FeaturePickerProp
         </div>
         <button className="flow-picker-close" aria-label="Close" onClick={onClose}>×</button>
       </div>
+      <div className="tab-bar tab-bar--transparent flow-picker-tabs">
+        <div className="tab-bar-tabs">
+          {([['features', 'Features'], ['flows', 'Flows']] as const).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              className={`tab-bar-tab${tab === id ? ' tab-bar-tab-active' : ''}`}
+              aria-current={tab === id ? 'page' : undefined}
+              onClick={() => setTab(id)}
+            >{label}</button>
+          ))}
+        </div>
+      </div>
       <input
         autoFocus
         className="finding-edit-input flow-picker-search"
-        placeholder="Search features (title, path, tag)…"
+        placeholder={tab === 'flows' ? 'Search flows…' : 'Search features (title, path, tag)…'}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
-      <div className="flow-picker-filters">
-        <SelectDropdown<string>
-          label="Project"
-          options={[{ value: '', label: 'All projects' }, ...projects.map((p) => ({ value: p.slug, label: p.name }))]}
-          value={projectFilter}
-          onChange={setProjectFilter}
-        />
-        <SelectDropdown<FeatureKind | ''>
-          label="Feature kind"
-          options={[{ value: '', label: 'All kinds' }, ...(['interface', 'source', 'sink', 'dependency', 'externality'] as const).map((k) => ({ value: k, label: k }))]}
-          value={kindFilter}
-          onChange={setKindFilter}
-        />
-      </div>
+      {tab === 'features' && (
+        <div className="flow-picker-filters">
+          <SelectDropdown<string>
+            label="Project"
+            options={[{ value: '', label: 'All projects' }, ...projects.map((p) => ({ value: p.slug, label: p.name }))]}
+            value={projectFilter}
+            onChange={setProjectFilter}
+          />
+          <SelectDropdown<FeatureKind | ''>
+            label="Feature kind"
+            options={[{ value: '', label: 'All kinds' }, ...(['interface', 'source', 'sink', 'dependency', 'externality'] as const).map((k) => ({ value: k, label: k }))]}
+            value={kindFilter}
+            onChange={setKindFilter}
+          />
+        </div>
+      )}
+      {error && <div className="flows-move-error" role="alert">{error}</div>}
       <div className="flow-picker-results">
         {loading && <div className="flow-picker-empty">Searching…</div>}
-        {!loading && results.length === 0 && (
+        {!loading && tab === 'flows' && flowResults.length === 0 && (
+          <div className="flow-picker-empty">{query ? <>No flows match <span className="flow-picker-empty-filter">"{query}"</span>.</> : 'No other flows yet.'}</div>
+        )}
+        {!loading && tab === 'flows' && flowResults.map((f) => (
+          <button key={f.id} className="flow-picker-result" onClick={() => onPickFlow(f.id)}>
+            <div className="flow-picker-result-top">
+              <span className="flow-step-kind flow-step-kind--subflow">⧉ flow</span>
+              <span className="flow-picker-result-project">{f.stepCount} step{f.stepCount === 1 ? '' : 's'}</span>
+              {f.status !== 'active' && <span className="flow-picker-result-project">{f.status}</span>}
+            </div>
+            <div className="flow-picker-result-title">{f.name}</div>
+            {f.description && <div className="flow-picker-result-desc">{f.description}</div>}
+          </button>
+        ))}
+        {!loading && tab === 'features' && results.length === 0 && (
           <div className="flow-picker-empty">
             {query || projectFilter || kindFilter ? (
               <>
@@ -3375,7 +3546,7 @@ function FeaturePicker({ projects, context, onPick, onClose }: FeaturePickerProp
             )}
           </div>
         )}
-        {!loading && results.map((r) => (
+        {!loading && tab === 'features' && results.map((r) => (
           <button key={`${r.projectSlug}:${r.id}`} className="flow-picker-result" onClick={() => onPick(r)}>
             <div className="flow-picker-result-top">
               <span className="flow-picker-result-project">{r.projectName}</span>

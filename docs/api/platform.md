@@ -93,18 +93,18 @@ See [Projects & flows](/concepts/multi-project).
 | `GET` | `/api/flows` | Summaries, paginated `{items, total, offset, limit}`. Filters: `q`, `status`, `tag`, `project`, `owner`, `folder`; `sort` (`updated`, `created`, `name`, `stepCount`, `risk`), `order`, `limit` (default 50, max 200), `offset`. |
 | `GET` | `/api/flows/facets` | Filter values with counts; takes the same filters. |
 | `POST` | `/api/flows` | `{name, description?, tags?, status?, owner?, folderId?, steps?, edges?}`. With `steps` and `edges` (the export shape) the whole graph is created in the same call. |
-| `GET` / `PATCH` / `DELETE` | `/api/flows/{id}` | `GET` returns `steps` and `edges` (always arrays). |
+| `GET` / `PATCH` / `DELETE` | `/api/flows/{id}` | `GET` returns `steps` and `edges` (always arrays), and `usedIn`: the flows that use this one as a subflow. A subflow step carries `subflowId` and `subflow {id, name, status, stepCount}` instead of a feature. |
 | `GET` | `/api/flows/{id}/export` | `{name, description, status, owner, tags, steps, edges}` with each step's id as its `clientId`: what `POST /api/flows` and `PUT …/steps` take back. |
-| `POST` | `/api/flows/{id}/steps` | `{projectSlug, featureId, note?, actor?, controls?, after? \| before? \| from? \| entry?, edge?}`. See [placing a step](#placing-a-step). |
-| `PUT` | `/api/flows/{id}/steps` | Replace the whole graph atomically: `{steps: [{clientId, projectSlug, featureId, note?, actor?, controls?}], edges: [{from, to, …edge fields}]}` (`from`/`to` are clientIds). Returns `{flow, stepIds}`. |
-| `PATCH` | `/api/flows/{id}/steps/{stepId}` | `{note?, actor?, controls?, projectSlug?, featureId?, branchCondition?}`. Changing the feature keeps the step's place and edges; `branchCondition` labels the one edge into the step. |
+| `POST` | `/api/flows/{id}/steps` | `{projectSlug, featureId, note?, actor?, controls?, after? \| before? \| from? \| entry?, edge?}`, or `subflowId` in place of `projectSlug` + `featureId` for a subflow step (another flow as one block; a 400 if that flow is this one or contains it). See [placing a step](#placing-a-step). |
+| `PUT` | `/api/flows/{id}/steps` | Replace the whole graph atomically: `{steps: [{clientId, projectSlug, featureId, note?, actor?, controls?}], edges: [{from, to, …edge fields}]}` (`from`/`to` are clientIds; a step may give `subflowId` instead of a feature). Returns `{flow, stepIds}`. |
+| `PATCH` | `/api/flows/{id}/steps/{stepId}` | `{note?, actor?, controls?, projectSlug?, featureId?, subflowId?, branchCondition?}`. Changing the feature (or pointing the step at a flow with `subflowId`) keeps the step's place and edges; `branchCondition` labels the one edge into the step. |
 | `DELETE` | `/api/flows/{id}/steps/{stepId}` | `?mode=splice` (default: the steps before it now lead to the steps after it), `subtree` (also the steps only reachable through it) or `isolate`. |
 | `POST` | `/api/flows/{id}/steps/{stepId}/move` | `?dir=-1` or `1` (one place along the path, or among sibling branches), or a body with `after`, `before`, `from` or `entry` (and `edge?`) to take the step out and put it there. |
 | `PUT` / `DELETE` | `/api/flows/{id}/edges/{fromId}/{toId}` | Create or partially update an edge (omitted fields keep their value), or delete it. Both steps must be in this flow; a self edge is a 400. |
 | `GET` / `POST` | `/api/flows/{id}/baselines` | List / snapshot `{reviewer?, summary?}`. |
 | `GET` | `/api/flows/{id}/baselines/latest` | |
 | `GET` / `DELETE` | `/api/flows/{id}/baselines/{bId}` | |
-| `GET` | `/api/flows/{id}/delta` | Changes since the latest baseline, or `?since={bId}`: added / removed / changed steps (`feature`, `note`, `actor`, `controls`, `effectiveAnchor`), moved anchors, and added / removed / changed edges (which fields). Baselines taken before flows were graphs are read in the graph form. |
+| `GET` | `/api/flows/{id}/delta` | Changes since the latest baseline, or `?since={bId}`: added / removed / changed steps (`feature`, `subflow`, `note`, `actor`, `controls`, `effectiveAnchor`), moved anchors, and added / removed / changed edges (which fields). Baselines taken before flows were graphs are read in the graph form. |
 | `GET` | `/api/service-map` | Services (projects) with their features (kind, operation, protocol, open findings, flows) and the connections flows record between them, merged by feature pair, kind and protocol (`?archived=1` includes archived flows). `internal` lists same-project edges. |
 | `GET` | `/api/flows/{id}/findings` | Open findings on the flow's features, by severity. |
 

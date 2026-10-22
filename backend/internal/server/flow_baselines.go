@@ -53,11 +53,13 @@ type baselineSnapshotStep struct {
 	Position    int              `json:"position"`
 	ProjectSlug string           `json:"projectSlug"`
 	FeatureID   string           `json:"featureId"`
+	SubflowID   string           `json:"subflowId,omitempty"`
 	Note        string           `json:"note"`
 	Actor       string           `json:"actor"`
 	Controls    []string         `json:"controls"`
 	Tombstoned  bool             `json:"tombstoned"`
 	Feature     *FeatureSnapshot `json:"feature,omitempty"`
+	Subflow     *SubflowSnapshot `json:"subflow,omitempty"`
 	// Tree-era fields, read from old snapshots only.
 	ParentStepID    string `json:"parentStepId,omitempty"`
 	BranchCondition string `json:"branchCondition,omitempty"`
@@ -146,8 +148,8 @@ func (p *Platform) buildFlowSnapshot(flowID string) (baselineSnapshot, error) {
 	ssSteps := make([]baselineSnapshotStep, len(f.Steps))
 	for i, s := range f.Steps {
 		ssSteps[i] = baselineSnapshotStep{
-			ID: s.ID, Position: s.Position, ProjectSlug: s.ProjectSlug, FeatureID: s.FeatureID,
-			Note: s.Note, Actor: s.Actor, Controls: s.Controls, Tombstoned: s.Tombstoned, Feature: s.Feature,
+			ID: s.ID, Position: s.Position, ProjectSlug: s.ProjectSlug, FeatureID: s.FeatureID, SubflowID: s.SubflowID,
+			Note: s.Note, Actor: s.Actor, Controls: s.Controls, Tombstoned: s.Tombstoned, Feature: s.Feature, Subflow: s.Subflow,
 		}
 	}
 	if f.Tags == nil {
@@ -396,6 +398,9 @@ func computeFlowDelta(snap baselineSnapshot, current []FlowStep, currentEdges []
 		var changes []string
 		if cur.ProjectSlug != ss.ProjectSlug || cur.FeatureID != ss.FeatureID {
 			changes = append(changes, "feature")
+		}
+		if cur.SubflowID != ss.SubflowID {
+			changes = append(changes, "subflow")
 		}
 		if cur.Note != ss.Note {
 			changes = append(changes, "note")

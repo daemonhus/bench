@@ -95,11 +95,12 @@ func init() {
 			Run: flowDelete},
 
 		// ── steps (a flow is a graph: steps joined by typed edges) ──
-		mpCmd{Group: "flows", Name: "add-step", Desc: "Add a step (a feature on some project) to a flow and connect it. Without --after/--before/--from/--entry it is appended to the end of the main path. The edge flags describe the edge that leads into the new step.",
+		mpCmd{Group: "flows", Name: "add-step", Desc: "Add a step (a feature on some project, or with --subflow another whole flow as one block) to a flow and connect it. Without --after/--before/--from/--entry it is appended to the end of the main path. The edge flags describe the edge that leads into the new step.",
 			Args: []string{"flow"},
 			Flags: []flagDef{
 				{Name: "flow", Desc: "Flow ID", Required: true},
-				{Name: "feature", Desc: "Feature ID", Required: true},
+				{Name: "feature", Desc: "Feature ID (or --subflow)"},
+				{Name: "subflow", Desc: "Instead of --feature: slot this flow in as one subflow step (a shared path defined once)"},
 				{Name: "project", Desc: "Project slug the feature lives on (default: global --project / BENCH_PROJECT)"},
 				{Name: "note", Desc: "Step note"},
 				{Name: "actor", Desc: "Who is acting at this step (anonymous, user, admin, service:billing, ...)"},
@@ -121,7 +122,7 @@ func init() {
 				{Name: "tags", Desc: "Comma-separated edge tags (e.g. auth,high-risk)", Type: "list"},
 			},
 			Run: flowAddStep},
-		mpCmd{Group: "flows", Name: "update-step", Desc: "Update a step: note, actor, controls, or point it at another feature (keeping its place and edges). --condition sets the condition on the one edge into the step.",
+		mpCmd{Group: "flows", Name: "update-step", Desc: "Update a step: note, actor, controls, or point it at another feature or (--subflow) a flow, keeping its place and edges. --condition sets the condition on the one edge into the step.",
 			Args: []string{"flow", "step"},
 			Flags: []flagDef{
 				{Name: "flow", Desc: "Flow ID", Required: true},
@@ -131,6 +132,7 @@ func init() {
 				{Name: "controls", Desc: "New comma-separated controls (replaces the list; \"\" clears)", Type: "list"},
 				{Name: "feature", Desc: "Point the step at this feature"},
 				{Name: "project", Desc: "Point the step at a feature on this project"},
+				{Name: "subflow", Desc: "Point the step at this flow (it becomes a subflow step)"},
 				{Name: "condition", Desc: "Condition on the edge into this step"},
 			},
 			Run: flowUpdateStep},
@@ -524,16 +526,23 @@ func placeFlags(in *mpInput, body map[string]any) {
 }
 
 func flowAddStep(c *cli, in *mpInput) error {
+	body := map[string]any{}
 	project := in.str("project")
-	if project == "" {
-		project = c.project
-	}
-	if project == "" {
-		return errors.New("--project is required (or set the global --project / BENCH_PROJECT)")
-	}
-	body := map[string]any{
-		"projectSlug": project,
-		"featureId":   in.str("feature"),
+	switch {
+	case in.str("subflow") != "" && in.str("feature") != "":
+		return errors.New("give --feature or --subflow, not both")
+	case in.str("subflow") != "":
+		body["subflowId"] = in.str("subflow")
+	case in.str("feature") == "":
+		return errors.New("--feature is required (or --subflow, to add another flow as one step)")
+	default:
+		if project == "" {
+			project = c.project
+		}
+		if project == "" {
+			return errors.New("--project is required (or set the global --project / BENCH_PROJECT)")
+		}
+		body["projectSlug"], body["featureId"] = project, in.str("feature")
 	}
 	for _, k := range []string{"note", "actor"} {
 		if in.has(k) {
@@ -576,7 +585,7 @@ func flowAddStep(c *cli, in *mpInput) error {
 
 func flowUpdateStep(c *cli, in *mpInput) error {
 	obj := map[string]any{}
-	for flag, key := range map[string]string{"note": "note", "actor": "actor", "feature": "featureId", "project": "projectSlug", "condition": "branchCondition"} {
+	for flag, key := range map[string]string{"note": "note", "actor": "actor", "feature": "featureId", "project": "projectSlug", "subflow": "subflowId", "condition": "branchCondition"} {
 		if in.has(flag) {
 			obj[key] = in.str(flag)
 		}
@@ -589,7 +598,7 @@ func flowUpdateStep(c *cli, in *mpInput) error {
 		obj["controls"] = controls
 	}
 	if len(obj) == 0 {
-		return errors.New("nothing to update: pass --note, --actor, --controls, --feature, --project and/or --condition")
+		return errors.New("nothing to update: pass --note, --actor, --controls, --feature, --project, --subflow and/or --condition")
 	}
 	return c.emit("PATCH", flowPath(in.str("flow"), "steps", in.str("step")), obj)
 }

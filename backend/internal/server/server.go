@@ -651,6 +651,8 @@ type Flow struct {
 	UpdatedAt   string     `json:"updatedAt"`
 	Steps       []FlowStep `json:"steps"`
 	Edges       []FlowEdge `json:"edges"`
+	// UsedIn lists the flows that slot this one in as a subflow.
+	UsedIn []MapFlowRef `json:"usedIn,omitempty"`
 }
 
 // MarshalJSON always writes steps and edges as arrays, so a flow with no steps
@@ -684,7 +686,10 @@ type FlowStep struct {
 	Position    int    `json:"position"`
 	ProjectSlug string `json:"projectSlug"`
 	FeatureID   string `json:"featureId"`
-	Note        string `json:"note"`
+	// SubflowID makes the step a subflow: another flow slotted in as one block (ProjectSlug and
+	// FeatureID are then empty). Its steps stay in that flow; the step stands for all of them.
+	SubflowID string `json:"subflowId,omitempty"`
+	Note      string `json:"note"`
 	// Actor is who is acting at this step (anonymous, user, admin, service:billing, ...).
 	Actor string `json:"actor"`
 	// Controls are the checks applied here (authn, authz, validation, rate limit, ...).
@@ -693,6 +698,15 @@ type FlowStep struct {
 	TombstonedReason string           `json:"tombstonedReason,omitempty"`
 	CreatedAt        string           `json:"createdAt"`
 	Feature          *FeatureSnapshot `json:"feature,omitempty"`
+	Subflow          *SubflowSnapshot `json:"subflow,omitempty"`
+}
+
+// SubflowSnapshot is what a subflow step shows of the flow it stands for.
+type SubflowSnapshot struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Status    string `json:"status"`
+	StepCount int    `json:"stepCount"`
 }
 
 func scanFlow(row *sql.Row) (*Flow, error) {
@@ -707,13 +721,13 @@ func scanFlow(row *sql.Row) (*Flow, error) {
 	return &f, nil
 }
 
-const stepCols = `id, flow_id, position, project_slug, feature_id, note, actor, controls, tombstoned, COALESCE(tombstoned_reason,''), created_at`
+const stepCols = `id, flow_id, position, project_slug, feature_id, subflow_id, note, actor, controls, tombstoned, COALESCE(tombstoned_reason,''), created_at`
 
 func scanStep(sc interface{ Scan(...any) error }) (FlowStep, error) {
 	var s FlowStep
 	var tombInt int
 	var controls string
-	if err := sc.Scan(&s.ID, &s.FlowID, &s.Position, &s.ProjectSlug, &s.FeatureID, &s.Note, &s.Actor, &controls, &tombInt, &s.TombstonedReason, &s.CreatedAt); err != nil {
+	if err := sc.Scan(&s.ID, &s.FlowID, &s.Position, &s.ProjectSlug, &s.FeatureID, &s.SubflowID, &s.Note, &s.Actor, &controls, &tombInt, &s.TombstonedReason, &s.CreatedAt); err != nil {
 		return s, err
 	}
 	s.Tombstoned = tombInt != 0
@@ -754,8 +768,20 @@ func (p *Platform) enrichStep(s *FlowStep) {
 	if s == nil {
 		return
 	}
-	snap, err := p.fetchFeatureSnapshot(s.ProjectSlug, s.FeatureID)
 	tomb, reason := false, ""
+	if s.SubflowID != "" {
+		sub := SubflowSnapshot{ID: s.SubflowID}
+		err := p.db.QueryRow(`SELECT name, status, (SELECT COUNT(*) FROM flow_steps WHERE flow_id = flows.id) FROM flows WHERE id = ?`, s.SubflowID).
+			Scan(&sub.Name, &sub.Status, &sub.StepCount)
+		if err != nil {
+			tomb, reason = true, "flow_not_found"
+		} else {
+			s.Subflow = &sub
+		}
+		p.setTombstone(s, tomb, reason)
+		return
+	}
+	snap, err := p.fetchFeatureSnapshot(s.ProjectSlug, s.FeatureID)
 	if err != nil {
 		tomb, reason = true, "feature_not_found"
 		if _, wbErr := p.getWorkbench(s.ProjectSlug); wbErr != nil {
@@ -767,6 +793,11 @@ func (p *Platform) enrichStep(s *FlowStep) {
 			tomb, reason = true, "feature_not_found"
 		}
 	}
+	p.setTombstone(s, tomb, reason)
+}
+
+// setTombstone records whether a step's target still resolves, writing only on a change.
+func (p *Platform) setTombstone(s *FlowStep, tomb bool, reason string) {
 	if tomb != s.Tombstoned || reason != s.TombstonedReason {
 		s.Tombstoned, s.TombstonedReason = tomb, reason
 		p.db.Exec(`UPDATE flow_steps SET tombstoned=?, tombstoned_reason=? WHERE id=?`, b2i(tomb), reason, s.ID)
@@ -792,7 +823,19 @@ func (p *Platform) loadFullFlow(id string) (*Flow, error) {
 	if f.Edges, err = loadFlowEdges(p.db, id); err != nil {
 		return nil, err
 	}
-	return f, nil
+	rows, err := p.db.Query(`SELECT DISTINCT f.id, f.name FROM flow_steps s JOIN flows f ON f.id = s.flow_id WHERE s.subflow_id = ? ORDER BY f.name`, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var ref MapFlowRef
+		if err := rows.Scan(&ref.ID, &ref.Name); err != nil {
+			return nil, err
+		}
+		f.UsedIn = append(f.UsedIn, ref)
+	}
+	return f, rows.Err()
 }
 
 // FlowSummary is the lightweight list-page representation of a flow (no steps/links).
@@ -824,6 +867,7 @@ type FlowShapeNode struct {
 	Position    int    `json:"position"`
 	ProjectSlug string `json:"projectSlug"`
 	FeatureID   string `json:"featureId"`
+	SubflowID   string `json:"subflowId,omitempty"`
 }
 
 // FlowsPage is the paginated response for GET /api/flows.
@@ -883,7 +927,7 @@ func buildFlowsWhere(q map[string][]string) (ctePrefix string, where string, arg
 	if projects := q["project"]; len(projects) > 0 {
 		projectConds := make([]string, len(projects))
 		for i, proj := range projects {
-			projectConds[i] = "EXISTS (SELECT 1 FROM flow_steps fs WHERE fs.flow_id=f.id AND fs.project_slug=?)"
+			projectConds[i] = "EXISTS (SELECT 1 FROM flow_steps fs WHERE fs.flow_id=f.id AND fs.project_slug=? AND fs.subflow_id='')"
 			args = append(args, proj)
 		}
 		conditions = append(conditions, "("+strings.Join(projectConds, " OR ")+")")
@@ -979,7 +1023,7 @@ func (p *Platform) listFlows(w http.ResponseWriter, r *http.Request) {
 		       (SELECT COUNT(*) FROM flow_steps fs WHERE fs.flow_id = f.id) AS stepCount,
 		       COALESCE((SELECT group_concat(ps.project_slug, ',')
 		                 FROM (SELECT DISTINCT fs2.project_slug FROM flow_steps fs2
-		                       WHERE fs2.flow_id = f.id
+		                       WHERE fs2.flow_id = f.id AND fs2.project_slug <> ''
 		                       ORDER BY fs2.project_slug
 		                       LIMIT 5) ps), '') AS projectSlugsRaw,
 		       COALESCE((SELECT created_at FROM flow_baselines WHERE flow_id = f.id ORDER BY seq DESC LIMIT 1), '') AS lastBaselinedAt,
@@ -1053,7 +1097,7 @@ func (p *Platform) attachFlowShapes(items []FlowSummary) error {
 		items[i].Shape, items[i].ShapeEdges = []FlowShapeNode{}, [][2]string{}
 	}
 	in := `(` + strings.TrimSuffix(strings.Repeat("?,", len(items)), ",") + `)`
-	rows, err := p.db.Query(`SELECT flow_id, id, position, project_slug, feature_id FROM flow_steps
+	rows, err := p.db.Query(`SELECT flow_id, id, position, project_slug, feature_id, subflow_id FROM flow_steps
 		WHERE flow_id IN `+in+` ORDER BY position, rowid`, args...)
 	if err != nil {
 		return err
@@ -1061,7 +1105,7 @@ func (p *Platform) attachFlowShapes(items []FlowSummary) error {
 	for rows.Next() {
 		var flowID string
 		var n FlowShapeNode
-		if err := rows.Scan(&flowID, &n.ID, &n.Position, &n.ProjectSlug, &n.FeatureID); err != nil {
+		if err := rows.Scan(&flowID, &n.ID, &n.Position, &n.ProjectSlug, &n.FeatureID, &n.SubflowID); err != nil {
 			rows.Close()
 			return err
 		}
@@ -1128,7 +1172,7 @@ func (p *Platform) listFlowFacets(w http.ResponseWriter, r *http.Request) {
 	{
 		cte, wh, args := buildWhereExcluding("project")
 		sql := cte + `SELECT fs.project_slug, COUNT(DISTINCT f.id) FROM flows f
-			JOIN flow_steps fs ON fs.flow_id = f.id
+			JOIN flow_steps fs ON fs.flow_id = f.id AND fs.project_slug <> ''
 			WHERE ` + wh + ` GROUP BY fs.project_slug ORDER BY COUNT(DISTINCT f.id) DESC`
 		rows, err := p.db.Query(sql, args...)
 		if err == nil {
@@ -1385,7 +1429,7 @@ func (p *Platform) createFlow(w http.ResponseWriter, r *http.Request) {
 		return tx.Commit()
 	}()
 	if err != nil {
-		http.Error(w, err.Error(), 500)
+		writeEditError(w, err)
 		return
 	}
 	f, err := p.loadFullFlow(id)

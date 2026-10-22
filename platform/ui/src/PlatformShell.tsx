@@ -360,9 +360,11 @@ export function PlatformShell() {
         )}
         {view.kind === 'flow' && (
           <FlowDetailPage
+            key={view.id}
             flowId={view.id}
             onBack={(folder) => navigate(folder ? { kind: 'flows', folder } : { kind: 'flows' })}
             onOpenProject={openProject}
+            onOpenFlow={(id) => navigate({ kind: 'flow', id })}
           />
         )}
         {view.kind === 'activity' && (

@@ -13,11 +13,13 @@ import (
 
 // addStepRequest is the body of POST /api/flows/{id}/steps.
 type addStepRequest struct {
-	ProjectSlug string   `json:"projectSlug"`
-	FeatureID   string   `json:"featureId"`
-	Note        string   `json:"note"`
-	Actor       string   `json:"actor"`
-	Controls    []string `json:"controls"`
+	ProjectSlug string `json:"projectSlug"`
+	FeatureID   string `json:"featureId"`
+	// SubflowID adds another flow as one step (a subflow), in place of a feature.
+	SubflowID string   `json:"subflowId"`
+	Note      string   `json:"note"`
+	Actor     string   `json:"actor"`
+	Controls  []string `json:"controls"`
 	placement
 	// ParentStepID is the tree-era name for From (branch off that step).
 	ParentStepID string `json:"parentStepId"`
@@ -49,8 +51,9 @@ func (p *Platform) addFlowStep(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req.normalize()
-	if req.ProjectSlug == "" || req.FeatureID == "" {
-		http.Error(w, "projectSlug and featureId are required", 400)
+	target := stepTarget{req.ProjectSlug, req.FeatureID, req.SubflowID}
+	if err := target.validate(); err != nil {
+		writeEditError(w, err)
 		return
 	}
 	if err := req.Edge.validate(); err != nil {
@@ -60,10 +63,15 @@ func (p *Platform) addFlowStep(w http.ResponseWriter, r *http.Request) {
 	id := randomID()
 	controls, _ := json.Marshal(trimmedControls(req.Controls))
 	err := p.inFlowTx(flowID, func(tx *sql.Tx, g *graph) error {
+		if req.SubflowID != "" {
+			if err := checkSubflow(tx, flowID, req.SubflowID); err != nil {
+				return err
+			}
+		}
 		var pos int
 		tx.QueryRow(`SELECT COALESCE(MAX(position)+1,0) FROM flow_steps WHERE flow_id=?`, flowID).Scan(&pos)
-		if _, err := tx.Exec(`INSERT INTO flow_steps (id, flow_id, position, project_slug, feature_id, note, actor, controls) VALUES (?,?,?,?,?,?,?,?)`,
-			id, flowID, pos, req.ProjectSlug, req.FeatureID, req.Note, req.Actor, string(controls)); err != nil {
+		if _, err := tx.Exec(`INSERT INTO flow_steps (id, flow_id, position, project_slug, feature_id, subflow_id, note, actor, controls) VALUES (?,?,?,?,?,?,?,?,?)`,
+			id, flowID, pos, req.ProjectSlug, req.FeatureID, req.SubflowID, req.Note, req.Actor, string(controls)); err != nil {
 			return err
 		}
 		return attach(tx, g, flowID, id, req.placement, req.Edge)
@@ -90,6 +98,7 @@ func (p *Platform) updateFlowStep(w http.ResponseWriter, r *http.Request) {
 		Controls    *[]string `json:"controls"`
 		ProjectSlug *string   `json:"projectSlug"`
 		FeatureID   *string   `json:"featureId"`
+		SubflowID   *string   `json:"subflowId"`
 		// BranchCondition is the tree-era step field: it labels the edge into this step
 		// (when exactly one leads in).
 		BranchCondition *string `json:"branchCondition"`
@@ -121,6 +130,7 @@ func (p *Platform) updateFlowStep(w http.ResponseWriter, r *http.Request) {
 	if req.Controls != nil {
 		cur.Controls = trimmedControls(*req.Controls)
 	}
+	// Pointing the step at a feature makes it a feature step, and at a flow a subflow step.
 	repoint := false
 	if req.ProjectSlug != nil && *req.ProjectSlug != cur.ProjectSlug {
 		cur.ProjectSlug, repoint = *req.ProjectSlug, true
@@ -128,12 +138,26 @@ func (p *Platform) updateFlowStep(w http.ResponseWriter, r *http.Request) {
 	if req.FeatureID != nil && *req.FeatureID != cur.FeatureID {
 		cur.FeatureID, repoint = *req.FeatureID, true
 	}
-	if cur.ProjectSlug == "" || cur.FeatureID == "" {
-		http.Error(w, "projectSlug and featureId cannot be empty", 400)
+	if repoint && req.SubflowID == nil {
+		cur.SubflowID = ""
+	}
+	if req.SubflowID != nil && *req.SubflowID != cur.SubflowID {
+		cur.SubflowID, repoint = *req.SubflowID, true
+		if cur.SubflowID != "" && req.ProjectSlug == nil && req.FeatureID == nil {
+			cur.ProjectSlug, cur.FeatureID = "", ""
+		}
+	}
+	if err := (stepTarget{cur.ProjectSlug, cur.FeatureID, cur.SubflowID}).validate(); err != nil {
+		writeEditError(w, err)
 		return
 	}
 	controls, _ := json.Marshal(cur.Controls)
 	err = p.inFlowTx(flowID, func(tx *sql.Tx, g *graph) error {
+		if repoint && cur.SubflowID != "" {
+			if err := checkSubflow(tx, flowID, cur.SubflowID); err != nil {
+				return err
+			}
+		}
 		if req.BranchCondition != nil {
 			ins := g.in(stepID)
 			if len(ins) != 1 {
@@ -143,8 +167,8 @@ func (p *Platform) updateFlowStep(w http.ResponseWriter, r *http.Request) {
 				return err
 			}
 		}
-		_, err := tx.Exec(`UPDATE flow_steps SET note=?, actor=?, controls=?, project_slug=?, feature_id=? WHERE id=?`,
-			cur.Note, cur.Actor, string(controls), cur.ProjectSlug, cur.FeatureID, stepID)
+		_, err := tx.Exec(`UPDATE flow_steps SET note=?, actor=?, controls=?, project_slug=?, feature_id=?, subflow_id=? WHERE id=?`,
+			cur.Note, cur.Actor, string(controls), cur.ProjectSlug, cur.FeatureID, cur.SubflowID, stepID)
 		if err == nil && repoint {
 			_, err = tx.Exec(`UPDATE flow_steps SET tombstoned=0, tombstoned_reason='' WHERE id=?`, stepID)
 		}
@@ -481,8 +505,9 @@ func (p *Platform) deleteFlowEdge(w http.ResponseWriter, r *http.Request) {
 // graphStepInput is one step of a whole-graph payload (PUT .../steps, POST /api/flows, export).
 type graphStepInput struct {
 	ClientID    string   `json:"clientId"`
-	ProjectSlug string   `json:"projectSlug"`
-	FeatureID   string   `json:"featureId"`
+	ProjectSlug string   `json:"projectSlug,omitempty"`
+	FeatureID   string   `json:"featureId,omitempty"`
+	SubflowID   string   `json:"subflowId,omitempty"`
 	Note        string   `json:"note"`
 	Actor       string   `json:"actor"`
 	Controls    []string `json:"controls"`
@@ -517,8 +542,8 @@ func (in *graphInput) normalize() error {
 		if seen[s.ClientID] {
 			return fmt.Errorf("duplicate clientId: %q", s.ClientID)
 		}
-		if s.ProjectSlug == "" || s.FeatureID == "" {
-			return fmt.Errorf("step %q: projectSlug and featureId are required", s.ClientID)
+		if err := (stepTarget{s.ProjectSlug, s.FeatureID, s.SubflowID}).validate(); err != nil {
+			return fmt.Errorf("step %q: %v", s.ClientID, err)
 		}
 		seen[s.ClientID] = true
 	}
@@ -589,9 +614,14 @@ func writeGraph(tx *sql.Tx, flowID string, in graphInput) (map[string]string, er
 	ids := make(map[string]string, len(in.Steps))
 	for i, s := range in.Steps {
 		ids[s.ClientID] = randomID()
+		if s.SubflowID != "" {
+			if err := checkSubflow(tx, flowID, s.SubflowID); err != nil {
+				return nil, err
+			}
+		}
 		controls, _ := json.Marshal(trimmedControls(s.Controls))
-		if _, err := tx.Exec(`INSERT INTO flow_steps (id, flow_id, position, project_slug, feature_id, note, actor, controls) VALUES (?,?,?,?,?,?,?,?)`,
-			ids[s.ClientID], flowID, i, s.ProjectSlug, s.FeatureID, s.Note, s.Actor, string(controls)); err != nil {
+		if _, err := tx.Exec(`INSERT INTO flow_steps (id, flow_id, position, project_slug, feature_id, subflow_id, note, actor, controls) VALUES (?,?,?,?,?,?,?,?,?)`,
+			ids[s.ClientID], flowID, i, s.ProjectSlug, s.FeatureID, s.SubflowID, s.Note, s.Actor, string(controls)); err != nil {
 			return nil, err
 		}
 	}
@@ -683,7 +713,7 @@ func (p *Platform) exportFlow(w http.ResponseWriter, r *http.Request) {
 	out := flowExport{Name: f.Name, Description: f.Description, Status: f.Status, Owner: f.Owner, Tags: f.Tags,
 		Steps: []graphStepInput{}, Edges: []FlowEdgeExport{}}
 	for _, s := range f.Steps {
-		out.Steps = append(out.Steps, graphStepInput{ClientID: s.ID, ProjectSlug: s.ProjectSlug, FeatureID: s.FeatureID, Note: s.Note, Actor: s.Actor, Controls: s.Controls})
+		out.Steps = append(out.Steps, graphStepInput{ClientID: s.ID, ProjectSlug: s.ProjectSlug, FeatureID: s.FeatureID, SubflowID: s.SubflowID, Note: s.Note, Actor: s.Actor, Controls: s.Controls})
 	}
 	edges := append([]FlowEdge{}, f.Edges...)
 	sort.SliceStable(edges, func(i, j int) bool {

@@ -167,7 +167,7 @@ func (p *Platform) buildServiceMap(includeArchived bool) (*ServiceMap, error) {
 	}
 	type stepRef struct{ flowID, flowName, slug, feature string }
 	steps := map[string]stepRef{}
-	srows, err := p.db.Query(`SELECT s.id, s.flow_id, f.name, s.project_slug, s.feature_id FROM flow_steps s JOIN flows f ON f.id = s.flow_id WHERE ` + statusCond)
+	srows, err := p.db.Query(`SELECT s.id, s.flow_id, f.name, s.project_slug, s.feature_id FROM flow_steps s JOIN flows f ON f.id = s.flow_id WHERE s.subflow_id = '' AND ` + statusCond)
 	if err != nil {
 		return nil, err
 	}

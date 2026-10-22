@@ -16,11 +16,15 @@ Removing a project drops the registration only. The repository and its database 
 
 A flow follows a request through [features](/concepts/features) across any number of projects: a request entering one service, calling another, landing in a datastore. It is a graph:
 
-- **Steps** each point at one feature on one project, with a note, the **actor** at that point (`anonymous`, `user`, `service:billing`) and the **controls** applied there (`authn:jwt`, `authz:rbac`, `validation`).
+- **Steps** each point at one feature on one project, with a note, the **actor** at that point (`anonymous`, `user`, `service:billing`) and the **controls** applied there (`authn:jwt`, `authz:rbac`, `validation`). A step can instead be a **subflow**: another flow slotted in as one block, so a path that several flows share (authenticate and forward, say) is defined once.
 - **Edges** join steps. Each is one hop: its **kind** (`next`, `call`, `async`, `read`, `write`, `response`), protocol, the **condition** under which it is taken, the identity it carries (**auth**), whether it crosses a **trust boundary**, the **data** it carries and whether that is attacker-controlled (**tainted**), plus a label, comment and tags.
 - A step with no edge into it is an **entry point**; several edges out of a step are **branches**, in order; several into one are a **join**; edges back are **loops**.
 
 The flow page shows the graph as an outline (a path continues down the page, branches indent under the step they leave, joins and loops are listed under their step) and as a map. You can insert a step between two others, remove one from the middle (the steps around it are joined up), move a step along its path or to another branch, point a step at a different feature, and connect any two steps.
+
+### Subflows
+
+Pick **Flows** in the step picker to add a whole flow as one step. The step shows the flow's name and size, stacked like a deck, and opens that flow; the flow lists the flows it is **used in**. Its steps stay in their own flow, with their own edges and baselines, so changing the shared path changes it everywhere it is used. A flow can't contain itself, directly or through its subflows: such a step is refused. If the flow a step stands for is deleted, the step is tombstoned (`flow_not_found`).
 
 - **Folders** organise flows into a nested tree. A flow lives in at most one folder.
 - **Views** are saved, optionally shared, flow list queries (`status:active tag:auth login`).

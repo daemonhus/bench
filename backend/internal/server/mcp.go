@@ -597,6 +597,7 @@ func renameKeys(renames map[string]string) func(map[string]json.RawMessage) map[
 var translateStepArgs = renameKeys(map[string]string{
 	"project_slug":     "projectSlug",
 	"feature_id":       "featureId",
+	"subflow_id":       "subflowId",
 	"parent_step_id":   "parentStepId",
 	"branch_condition": "branchCondition",
 })
@@ -635,7 +636,7 @@ func nestEdgeArgs(rest map[string]string) func(map[string]json.RawMessage) map[s
 
 // translateAddStepArgs builds flows_add_step's REST body.
 var translateAddStepArgs = nestEdgeArgs(map[string]string{
-	"project_slug": "projectSlug", "feature_id": "featureId",
+	"project_slug": "projectSlug", "feature_id": "featureId", "subflow_id": "subflowId",
 	"parent_step_id": "parentStepId", "branch_condition": "branchCondition",
 })
 
@@ -680,6 +681,7 @@ func translateSetStepsArgs(body map[string]json.RawMessage) map[string]json.RawM
 		"parent_client_id": "parentClientId",
 		"project_slug":     "projectSlug",
 		"feature_id":       "featureId",
+		"subflow_id":       "subflowId",
 		"branch_condition": "branchCondition",
 	})
 	edgeRename := renameKeys(map[string]string{
@@ -879,7 +881,7 @@ func platformToolDefs() []json.RawMessage {
 		}`),
 		json.RawMessage(`{
 			"name": "flows_get",
-			"description": "Get a flow by ID with its steps and edges (always arrays, never null). A flow is a graph: each edge {fromStepId, toStepId, position, kind, protocol, condition, auth, trustBoundary, data, tainted, description, comment, tags} is one hop; steps with no edge into them are entry points, several edges out of a step are branches (ordered by position). Steps carry note, actor and controls. Steps may have tombstoned: true if their backing feature is unreachable — check tombstonedReason for diagnosis: project_not_registered (project not in list_projects), feature_not_found (feature deleted or ID wrong), or fetch_error (other error). Each step includes featureId and projectSlug — to inspect the underlying feature annotation call get_feature with {project: step.projectSlug, id: step.featureId}.",
+			"description": "Get a flow by ID with its steps and edges (always arrays, never null). A flow is a graph: each edge {fromStepId, toStepId, position, kind, protocol, condition, auth, trustBoundary, data, tainted, description, comment, tags} is one hop; steps with no edge into them are entry points, several edges out of a step are branches (ordered by position). Steps carry note, actor and controls. Steps may have tombstoned: true if their backing feature is unreachable — check tombstonedReason for diagnosis: project_not_registered (project not in list_projects), feature_not_found (feature deleted or ID wrong), or fetch_error (other error). Each step includes featureId and projectSlug — to inspect the underlying feature annotation call get_feature with {project: step.projectSlug, id: step.featureId}. A subflow step has subflowId (and subflow {id, name, status, stepCount}) instead: another flow slotted in as one block; flows_get that ID for its steps (tombstonedReason flow_not_found when it was deleted). usedIn lists the flows that use this one as a subflow.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
@@ -900,11 +902,12 @@ func platformToolDefs() []json.RawMessage {
 									"client_id":    {"type": "string", "description": "Caller-assigned id, used by edges' from/to"},
 									"project_slug": {"type": "string", "description": "Project slug"},
 									"feature_id":   {"type": "string", "description": "Feature annotation ID"},
+									"subflow_id":   {"type": "string", "description": "Instead of project_slug + feature_id: another flow's ID, slotted in as one subflow step"},
 									"note":         {"type": "string", "description": "Step note"},
 									"actor":        {"type": "string", "description": "Who is acting at this step"},
 									"controls":     {"type": "array", "items": {"type": "string"}, "description": "Checks applied at this step"}
 								},
-								"required": ["client_id", "project_slug", "feature_id"]
+								"required": ["client_id"]
 							}},
 					"edges":       {"type": "array", "description": "Edges of the new flow (as flows_set_steps)", "items": {
 								"type": "object",
@@ -1041,13 +1044,14 @@ func platformToolDefs() []json.RawMessage {
 		// ── steps (a flow is a graph: steps joined by typed edges) ──
 		json.RawMessage(`{
 			"name": "flows_add_step",
-			"description": "Add a step to a flow and connect it. A step is one feature on one project (steps in a flow can come from different projects: that is how a flow follows a request across services). project_slug must be a registered project (list_projects); feature_id a feature in it (search_features across projects, or list_features with {project}). An unknown project or feature still creates the step, marked tombstoned with tombstonedReason (project_not_registered | feature_not_found). Where it goes — give at most one: after (insert after that step: it takes over that step's outgoing edges), before (insert before it: it takes over the incoming edges), from (a new branch out of that step; parent_step_id is the same), entry: true (a new entry point, unconnected). With none, the step is appended to the end of the main path (follow the first edge out of the first entry point), or becomes the first step of an empty flow. The kind/protocol/condition/auth/... fields describe the edge that leads into the new step. Returns the created step with its id.",
+			"description": "Add a step to a flow and connect it. A step is one feature on one project (steps in a flow can come from different projects: that is how a flow follows a request across services). project_slug must be a registered project (list_projects); feature_id a feature in it (search_features across projects, or list_features with {project}). An unknown project or feature still creates the step, marked tombstoned with tombstonedReason (project_not_registered | feature_not_found). Or pass subflow_id (another flow's ID) instead of project_slug + feature_id: the step is then a subflow, that whole flow slotted in as one block, so a shared path (e.g. authenticate-and-forward) is defined once and reused; a flow cannot contain itself, directly or through its subflows. Where it goes — give at most one: after (insert after that step: it takes over that step's outgoing edges), before (insert before it: it takes over the incoming edges), from (a new branch out of that step; parent_step_id is the same), entry: true (a new entry point, unconnected). With none, the step is appended to the end of the main path (follow the first edge out of the first entry point), or becomes the first step of an empty flow. The kind/protocol/condition/auth/... fields describe the edge that leads into the new step. Returns the created step with its id.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
 					"flow_id":          {"type": "string", "description": "Flow ID"},
 					"project_slug":     {"type": "string", "description": "Project slug (from list_projects)"},
 					"feature_id":       {"type": "string", "description": "Feature annotation ID (from search_features or list_features)"},
+					"subflow_id":       {"type": "string", "description": "Instead of project_slug + feature_id: slot this flow in as one subflow step"},
 					"note":             {"type": "string", "description": "Step note / reviewer annotation"},
 					"actor":            {"type": "string", "description": "Who is acting at this step (anonymous, user, admin, service:billing, ...)"},
 					"controls":         {"type": "array", "items": {"type": "string"}, "description": "Checks applied at this step (authn:jwt, authz:rbac, validation:schema, rate-limit, ...)"},
@@ -1068,12 +1072,12 @@ func platformToolDefs() []json.RawMessage {
 					"comment":        {"type": "string", "description": "Longer review note (not shown on the edge)"},
 					"tags":           {"type": "array", "items": {"type": "string"}, "description": "Tags for this edge"}
 				},
-				"required": ["flow_id", "project_slug", "feature_id"]
+				"required": ["flow_id"]
 			}
 		}`),
 		json.RawMessage(`{
 			"name": "flows_update_step",
-			"description": "Update a step: its note, actor, controls, or point it at another feature (project_slug and/or feature_id) keeping its place and edges. branch_condition sets the condition on the one edge that leads into the step (an error if several do: use flows_set_edge). Only the fields you pass change. To move a step use flows_move_step.",
+			"description": "Update a step: its note, actor, controls, or point it at another feature (project_slug and/or feature_id) or at a flow (subflow_id: the step becomes a subflow) keeping its place and edges. branch_condition sets the condition on the one edge that leads into the step (an error if several do: use flows_set_edge). Only the fields you pass change. To move a step use flows_move_step.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
@@ -1084,6 +1088,7 @@ func platformToolDefs() []json.RawMessage {
 					"controls":         {"type": "array", "items": {"type": "string"}, "description": "New controls (replaces the list)"},
 					"project_slug":     {"type": "string", "description": "Point the step at a feature on this project"},
 					"feature_id":       {"type": "string", "description": "Point the step at this feature"},
+					"subflow_id":       {"type": "string", "description": "Point the step at this flow (it becomes a subflow step)"},
 					"branch_condition": {"type": "string", "description": "Condition on the edge into this step"}
 				},
 				"required": ["flow_id", "step_id"]
@@ -1142,11 +1147,12 @@ func platformToolDefs() []json.RawMessage {
 									"client_id":    {"type": "string", "description": "Caller-assigned id, used by edges' from/to"},
 									"project_slug": {"type": "string", "description": "Project slug"},
 									"feature_id":   {"type": "string", "description": "Feature annotation ID"},
+									"subflow_id":   {"type": "string", "description": "Instead of project_slug + feature_id: another flow's ID, slotted in as one subflow step"},
 									"note":         {"type": "string", "description": "Step note"},
 									"actor":        {"type": "string", "description": "Who is acting at this step"},
 									"controls":     {"type": "array", "items": {"type": "string"}, "description": "Checks applied at this step"}
 								},
-								"required": ["client_id", "project_slug", "feature_id"]
+								"required": ["client_id"]
 							}},
 					"edges": {"type": "array", "description": "The edges", "items": {
 								"type": "object",

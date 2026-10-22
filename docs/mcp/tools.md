@@ -294,8 +294,8 @@ Only on the aggregate `/mcp`. They take project slugs explicitly where needed, n
 
 | Tool | Arguments | Notes |
 |---|---|---|
-| `flows_add_step` | `flow_id`, `project_slug`, `feature_id`, `note?`, `actor?`, `controls?`, one of `after?` / `before?` / `from?` (= `parent_step_id`) / `entry?`, and the edge fields for the edge into the step | Without a place it is appended to the end of the main path. |
-| `flows_update_step` | `flow_id`, `step_id`, `note?`, `actor?`, `controls?`, `project_slug?`, `feature_id?`, `branch_condition?` | A new feature keeps the step's place and edges; `branch_condition` labels the one edge into the step. |
+| `flows_add_step` | `flow_id`, `project_slug` + `feature_id` or `subflow_id`, `note?`, `actor?`, `controls?`, one of `after?` / `before?` / `from?` (= `parent_step_id`) / `entry?`, and the edge fields for the edge into the step | Without a place it is appended to the end of the main path. `subflow_id` slots another flow in as one step; a flow can't contain itself. |
+| `flows_update_step` | `flow_id`, `step_id`, `note?`, `actor?`, `controls?`, `project_slug?`, `feature_id?`, `subflow_id?`, `branch_condition?` | A new feature (or flow) keeps the step's place and edges; `branch_condition` labels the one edge into the step. |
 | `flows_remove_step` | `flow_id`, `step_id`, `mode?` | `splice` (default) joins the steps before it to the steps after; `subtree` also removes the steps only reachable through it; `isolate`. |
 | `flows_move_step` | `flow_id`, `step_id`, `direction?` or one of `after?` / `before?` / `from?` / `entry?`, edge fields | `-1`/`1` moves one place along the path or among sibling branches; a place takes the step out and puts it there (re-parent with `from`). |
 | `flows_set_steps` | `flow_id`, `steps`, `edges?` | Replaces the graph atomically (`edges` use `from`/`to` client_ids); returns `stepIds` keyed by `client_id`. The tree form (`parent_client_id`, `links`) is still accepted. |

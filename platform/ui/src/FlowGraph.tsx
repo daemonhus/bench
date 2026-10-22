@@ -363,6 +363,12 @@ export function FlowGraphView({
             {/* ── Nodes ───────────────────────────────────────────────── */}
             {nodes.map(({ step, x, y, h }) => {
               const k = KIND[step.featureKind] ?? KIND.externality;
+              // A subflow step: a whole flow in one block, drawn as a stack of cards.
+              const sub = !!step.subflowId;
+              const kindLabel = sub ? 'subflow' : step.featureKind;
+              const footer = sub
+                ? (step.subflow ? `${step.subflow.stepCount} step${step.subflow.stepCount === 1 ? '' : 's'} · flow` : 'deleted flow')
+                : step.actor ? `${step.projectName} · ${step.actor}` : step.projectName;
               const dim = focus && !focus.has(step.id);
               const nx = x - NODE_W / 2;
               const ny = y - h / 2;
@@ -388,12 +394,17 @@ export function FlowGraphView({
                   role="button"
                   tabIndex={step.id === tabStopId ? 0 : -1}
                   aria-pressed={selected}
-                  aria-label={`${step.featureKind} ${step.featureTitle || step.featureId}`}
+                  aria-label={`${kindLabel} ${step.featureTitle || step.featureId}`}
                   onPointerDown={(e) => e.stopPropagation()}
                   onClick={() => { setStopId(step.id); onSelectStep(selected ? null : step.id); }}
                   onFocus={() => setStopId(step.id)}
                   onKeyDown={(e) => onNodeKeyDown(e, step, selected)}
                 >
+                  {/* A subflow's stack: two cards peeking out behind */}
+                  {sub && [8, 4].map((o) => (
+                    <rect key={o} x={o} y={-o} width={NODE_W} height={h} rx={R} fill={pal.bgCard} stroke={pal.cardBorder} strokeWidth={1} />
+                  ))}
+
                   {/* Shadow */}
                   <rect
                     width={NODE_W} height={h} rx={R}
@@ -429,7 +440,7 @@ export function FlowGraphView({
                     fill={k.label}
                     style={{ pointerEvents: 'none', userSelect: 'none', textTransform: 'uppercase' }}
                   >
-                    {step.featureKind}
+                    {kindLabel}
                   </text>
 
                   {/* Method badge — left of first title line */}
@@ -494,7 +505,7 @@ export function FlowGraphView({
                     fillOpacity={0.55}
                     style={{ pointerEvents: 'none', userSelect: 'none' }}
                   >
-                    {truncate(step.actor ? `${step.projectName} · ${step.actor}` : step.projectName, 40)}
+                    {truncate(footer, 40)}
                   </text>
 
                   {/* Tombstone */}
@@ -503,7 +514,7 @@ export function FlowGraphView({
                       style={{ pointerEvents: 'none', userSelect: 'none' }}>✕</text>
                   )}
 
-                  <title>{step.projectName} · {title}{opRaw ? ` · ${opRaw}` : ''}</title>
+                  <title>{sub ? `Subflow · ${title}` : `${step.projectName} · ${title}${opRaw ? ` · ${opRaw}` : ''}`}</title>
                 </g>
               );
             })}

@@ -534,6 +534,15 @@
   font-family: var(--font-sans);
 }
 
+/* A subflow step: a whole flow in one place, drawn as the top card of a small deck. */
+.flow-step--subflow {
+  box-shadow:
+    5px -5px 0 -1px var(--bg-secondary),
+    5px -5px 0 0 var(--border-default);
+  margin-top: 5px;
+  margin-right: 5px;
+}
+
 .flow-step-pos {
   font-family: var(--font-mono);
   font-size: var(--font-size-small);
@@ -577,6 +586,20 @@
 }
 
 .kind-interface { background: color-mix(in srgb, var(--accent-blue) 16%, transparent); color: var(--accent-blue); }
+/* A subflow: a whole flow as one step. Neutral, framed, so it reads as a container, not a kind. */
+.flow-step-kind--subflow { background: transparent; color: var(--text-secondary); border: 1px solid var(--border-default); }
+.flow-step-subflow-count { font-family: var(--font-mono); font-size: var(--font-size-xs); color: var(--text-muted); }
+.flow-detail-used-in { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.flow-detail-used-in-link {
+  font: inherit;
+  font-size: var(--font-size-small);
+  color: var(--accent-blue);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+.flow-detail-used-in-link:hover { text-decoration: underline; }
 .kind-source { background: color-mix(in srgb, var(--severity-medium) 18%, transparent); color: var(--severity-medium); }
 .kind-sink { background: color-mix(in srgb, var(--severity-critical) 16%, transparent); color: var(--severity-critical); }
 .kind-dependency { background: rgba(163, 113, 247, 0.18); color: #a371f7; }
@@ -925,6 +948,14 @@
   line-height: 1.4;
   color: var(--text-primary);
 }
+
+.flow-picker-result-desc {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+.flow-picker-tabs { padding: 0 20px; }
+.flow-picker .flows-move-error { margin: 0 20px 10px; }
 
 /* ── Tree structure: branch blocks + spine ─────────────────────────── */
 

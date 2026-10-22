@@ -60,6 +60,7 @@ bench flows add-step <flow> --project api --feature <feature-id> \
 bench flows add-step <flow> --project api --feature <feature-id> --after <step>      # insert
 bench flows add-step <flow> --project api --feature <feature-id> --from <step> --condition "if admin"   # branch
 bench flows add-step <flow> --project api --feature <feature-id> --entry              # another entry point
+bench flows add-step <flow> --subflow <other-flow> --after <step>                     # a whole flow as one step
 
 bench flows update-step <flow> <step> --note "checks session" --controls authn:jwt,authz:rbac
 bench flows update-step <flow> <step> --feature <other-feature> --project api   # same place, other feature
@@ -81,7 +82,7 @@ bench flows findings <flow>      # open findings on the flow's features
 bench flows facets               # status/tag/project/owner values with counts
 ```
 
-An edge from a step to itself, or to a step of another flow, is rejected. Edge kinds are `next` (default), `call`, `async`, `read`, `write` and `response`.
+An edge from a step to itself, or to a step of another flow, is rejected, as is a subflow that is the flow itself or contains it. Edge kinds are `next` (default), `call`, `async`, `read`, `write` and `response`.
 
 ## map
 
