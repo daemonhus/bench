@@ -64,8 +64,10 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     }
   },
 
+  // While an open file reloads (another commit, or the same file again) it stays on screen:
+  // "Loading..." would unmount the code view, and the focus in it, for the moment the fetch takes.
   selectCommit: async (hash) => {
-    set({ currentCommit: hash, isLoading: true, error: null });
+    set({ currentCommit: hash, isLoading: get().fileContent === null, error: null });
     try {
       const files = (await gitApi.listFiles(hash)) ?? [];
       const prevFile = get().selectedFilePath;
@@ -89,7 +91,8 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     const { currentCommit } = get();
     if (!currentCommit) return;
 
-    set({ selectedFilePath: path, isLoading: true, error: null });
+    const reload = path === get().selectedFilePath && get().fileContent !== null;
+    set({ selectedFilePath: path, isLoading: !reload, error: null });
     try {
       const lang = detectLanguage(path);
       if (lang) await ensureLanguageRegistered(lang);

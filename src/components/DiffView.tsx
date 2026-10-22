@@ -65,6 +65,10 @@ export const DiffView: React.FC = () => {
   const fileLanguage = useRepoStore((s) => s.fileLanguage);
   const getFindingsForLine = useAnnotationStore((s) => s.getFindingsForLine);
   const getCommentsForLine = useAnnotationStore((s) => s.getCommentsForLine);
+  // Those lookups are stable functions: subscribe to what they read, so findings and comments
+  // that arrive or move redraw the file.
+  useAnnotationStore((s) => s.findings);
+  useAnnotationStore((s) => s.comments);
   const hasReconciliationData = useAnnotationStore((s) => s.hasReconciliationData);
   const isFullyReconciled = useReconcileStore((s) => s.head?.isFullyReconciled ?? false);
   const positionsTrusted = hasReconciliationData || isFullyReconciled;
