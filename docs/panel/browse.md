@@ -19,3 +19,9 @@ Select one or more lines using the gutter on the left edge. A toolbar appears wi
 Existing annotations appear in the sidebar. Click any entry to jump to its location in the file and expand its details.
 
 Finding severity is shown as a coloured bar spanning the annotated line range in the gutter. When multiple findings overlap, they stack horizontally.
+
+## Blame
+
+A column on the left shows who last changed each line and how long ago. Each run of lines from one commit is labelled once; hover the label for the commit's hash, subject and date, or click it to open that commit's change to the file. Drag the column's right edge to resize it.
+
+Blame is on by default. The blame button in the file header (the clock, or <kbd>B</kbd>) hides or shows it; the choice is kept in the address (`?blame=0`) and remembered for next time.

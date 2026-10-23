@@ -27,6 +27,7 @@ const GROUPS: ShortcutGroup[] = [
       { keys: [MOD, SHIFT, 'F'], description: 'Find in all files' },
       { keys: [MOD, 'G'], description: 'Go to file' },
       { keys: [':'], description: 'Go to line (in Browse)' },
+      { keys: ['B'], description: 'Show / hide blame (in Browse)' },
     ],
   },
   {

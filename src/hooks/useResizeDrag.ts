@@ -5,6 +5,8 @@ interface ResizeDragOptions {
   max: number;
   /** If true, width = window.innerWidth - clientX (right-anchored panel). */
   fromRight?: boolean;
+  /** Where a left-anchored width is measured from, if not the window's left edge. */
+  origin?: () => number;
 }
 
 /**
@@ -14,7 +16,7 @@ interface ResizeDragOptions {
  */
 export function useResizeDrag(
   setter: (width: number) => void,
-  { min, max, fromRight = false }: ResizeDragOptions,
+  { min, max, fromRight = false, origin }: ResizeDragOptions,
 ): (e: React.MouseEvent) => void {
   const dragging = useRef(false);
 
@@ -28,7 +30,7 @@ export function useResizeDrag(
 
       const onMouseMove = (ev: MouseEvent) => {
         if (!dragging.current) return;
-        const raw = fromRight ? window.innerWidth - ev.clientX : ev.clientX;
+        const raw = fromRight ? window.innerWidth - ev.clientX : ev.clientX - (origin?.() ?? 0);
         setter(Math.max(min, Math.min(max, raw)));
       };
 
@@ -46,7 +48,7 @@ export function useResizeDrag(
       document.body.style.userSelect = 'none';
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [setter, min, max, fromRight],
+    [setter, min, max, fromRight, origin],
   );
 }
 

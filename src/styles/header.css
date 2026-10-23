@@ -300,6 +300,12 @@
   color: var(--text-primary);
 }
 
+/* A toggle (Blame), lit while on. */
+.nav-btn[aria-pressed="true"] {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
 .nav-btn:disabled {
   color: var(--text-muted);
   opacity: 0.4;

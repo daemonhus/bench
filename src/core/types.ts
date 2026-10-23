@@ -414,6 +414,16 @@ export const EMPTY_SERVICE_PROFILE: ServiceProfile = {
   trustZone: '',
 };
 
+// One line of git blame: the commit (short hash) that last changed it.
+export interface BlameLine {
+  commit: string;
+  author: string;
+  /** Unix seconds, as a string. */
+  date: string;
+  line: number;
+  text: string;
+}
+
 // Git grep search result
 export interface GrepMatch {
   file: string;

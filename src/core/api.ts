@@ -1,4 +1,4 @@
-import type { Finding, Origin, OriginSuggestion, Comment, FindingWithPosition, CommentWithPosition, CommitInfo, FileEntry, BranchInfo, GraphCommit, ActivityBucket, ActivityScale, ReconciledHead, JobSnapshot, ReconcileFileStatus, AnnotationPosition, PaginatedResponse, GrepMatch, Baseline, BaselineDelta, Feature, FeatureWithPosition, FeatureKind, FeatureStatus, Ref, ServiceProfile } from './types';
+import type { Finding, Origin, OriginSuggestion, Comment, FindingWithPosition, CommentWithPosition, CommitInfo, FileEntry, BranchInfo, GraphCommit, ActivityBucket, ActivityScale, ReconciledHead, JobSnapshot, ReconcileFileStatus, AnnotationPosition, PaginatedResponse, GrepMatch, BlameLine, Baseline, BaselineDelta, Feature, FeatureWithPosition, FeatureKind, FeatureStatus, Ref, ServiceProfile } from './types';
 
 interface DiffResult {
   raw: string;
@@ -69,6 +69,9 @@ export const gitApi = {
   /** Commits and merges in from..to (from exclusive). */
   rangeStats(from: string, to = 'HEAD'): Promise<{ commits: number; merges: number }> {
     return fetchJSON(`/git/range-stats?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+  },
+  blame(commit: string, path: string): Promise<BlameLine[]> {
+    return fetchJSON(`/git/blame?${new URLSearchParams({ commit, path })}`);
   },
   searchCode(pattern: string, commit?: string, opts?: { path?: string; caseInsensitive?: boolean }): Promise<GrepMatch[]> {
     const params = new URLSearchParams({ pattern });

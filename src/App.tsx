@@ -18,7 +18,7 @@ import { findingsApi, commentsApi, gitApi, featuresApi } from './core/api';
 import { useEvents } from './core/use-events';
 import { useBranchMap } from './core/use-branch-map';
 import { parseRoute, buildRoute, onRouteChange } from './core/router';
-import { splitHash } from './core/query-state';
+import { splitHash, qp, hashQuery, useQueryState } from './core/query-state';
 import { useWorkbenchExtensions } from './core/extensions';
 import { BrowseView } from './components/BrowseView';
 import { DiffView } from './components/DiffView';
@@ -69,6 +69,11 @@ const TAB_CYCLES: Partial<Record<ViewMode, string[]>> = {
 import { COMMENT_TYPE_ICON, COMMENT_TYPE_LABEL } from './core/types';
 import { getDiffEmptyMessage } from './core/diff-utils';
 import './App.css';
+
+// Browse's options: blame, who last changed each line, is on unless ?blame=0 (kept for next time).
+const BROWSE_QUERY = { blame: qp.bool('blame', true).remembered() };
+const BROWSE_URL = hashQuery('/browse');
+const BROWSE_REMEMBER = { key: 'bench-browse' };
 
 export function App() {
   const extensions = useWorkbenchExtensions();
@@ -182,6 +187,7 @@ export function App() {
   const [inFileSearchOpen, setInFileSearchOpen] = useState(false);
   const [inFileSearchInitialQuery, setInFileSearchInitialQuery] = useState('');
   const [gotoLineOpen, setGotoLineOpen] = useState(false);
+  const [browseQ, setBrowseQ] = useQueryState(BROWSE_QUERY, BROWSE_URL, BROWSE_REMEMBER);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [browseDir, setBrowseDir] = useState<string | null>(null);
   const pendingNavFocus = useUIStore(s => s.pendingNavFocus);
@@ -466,6 +472,9 @@ export function App() {
       } else if (!inEditable && !e.metaKey && !e.ctrlKey && !e.altKey && e.key === ':' && viewMode === 'browse' && browseDir === null && fileContent) {
         e.preventDefault();
         setGotoLineOpen(true);
+      } else if (!inEditable && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey && e.key === 'b' && viewMode === 'browse' && browseDir === null && fileContent) {
+        e.preventDefault();
+        setBrowseQ((q) => ({ blame: !q.blame }));
       } else if (!inEditable && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
         if (e.key === '0') { e.preventDefault(); setViewMode('overview'); setPendingNavFocus(null); }
         else if (e.key === '1') { e.preventDefault(); setViewMode('browse'); setPendingNavFocus(NAV_AREA['browse'] ?? null); }
@@ -477,7 +486,7 @@ export function App() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [handleGoBack, handleGoForward, viewMode, browseDir, fileContent, leftPanelWidth, sidebarWidth, deltaSidebarWidth, setLeftPanelWidth, setSidebarWidth]);
+  }, [handleGoBack, handleGoForward, viewMode, browseDir, fileContent, leftPanelWidth, sidebarWidth, deltaSidebarWidth, setLeftPanelWidth, setSidebarWidth, setBrowseQ]);
 
   // Global Tab/Shift+Tab area cycling - capture phase so it fires before
   // any component handler or browser default.
@@ -1374,6 +1383,22 @@ export function App() {
             ) : (
               <InFileSearchCollapsed onOpen={() => { setInFileSearchInitialQuery(''); setInFileSearchOpen(true); }} />
             ))}
+            {viewMode === 'browse' && hasFindableFile && (
+              <button
+                type="button"
+                className="nav-btn blame-toggle"
+                aria-pressed={browseQ.blame}
+                onClick={() => setBrowseQ((q) => ({ blame: !q.blame }))}
+                aria-label="Blame (B)"
+                data-tooltip={browseQ.blame ? 'Hide blame (B)' : 'Blame: who last changed each line (B)'}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                  <path d="M3 3v5h5" />
+                  <path d="M12 7v5l4 2" />
+                </svg>
+              </button>
+            )}
             <div className="nav-buttons">
               <button
                 className="nav-btn"
@@ -1446,7 +1471,7 @@ export function App() {
             onNavigateDir={setBrowseDir}
           />
         )}
-        {!isLoading && viewMode === 'browse' && browseDir === null && <BrowseView />}
+        {!isLoading && viewMode === 'browse' && browseDir === null && <BrowseView blame={browseQ.blame} />}
         {!isLoading && viewMode === 'diff' && (() => {
           const msg = getDiffEmptyMessage({
             changesCount: changes.length,

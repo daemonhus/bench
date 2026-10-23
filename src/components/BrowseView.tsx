@@ -1,14 +1,17 @@
-import React, { useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useMemo, useCallback, useState } from 'react';
 import { useRepoStore } from '../stores/repo-store';
 import { useAnnotationStore } from '../stores/annotation-store';
 import { useReconcileStore } from '../stores/reconcile-store';
 import { useUIStore } from '../stores/ui-store';
 import { useCommentDrag } from '../hooks/useCommentDrag';
 import { useIsNarrow } from '../hooks/useBreakpoint';
+import { useResizeDrag, resizeHandleProps } from '../hooks/useResizeDrag';
 import { highlight, applySearchRanges } from '../core/tokenizer';
 import type { DiffChange, Token, Finding } from '../core/types';
 import { getEffectiveLineRange } from '../core/types';
+import { useBlame } from '../core/blame';
 import { CodeRow } from './CodeRow';
+import { BlameCellView } from './BlameLabel';
 import { InlineFindingCard } from './InlineFindingCard';
 import { SelectionToolbar } from './SelectionToolbar';
 import type { FindingBarInfo } from './CodeRow';
@@ -24,8 +27,23 @@ function computeFindingBars(findings: Finding[], lineNum: number): FindingBarInf
   });
 }
 
-export const BrowseView: React.FC = () => {
+const BLAME_RESIZE = { min: 64, max: 480 } as const;
+const BLAME_WIDTH_KEY = 'bench-blame-width';
+
+function readBlameWidth(): number {
+  try {
+    const n = Number(localStorage.getItem(BLAME_WIDTH_KEY));
+    if (n >= BLAME_RESIZE.min && n <= BLAME_RESIZE.max) return n;
+  } catch { /* unavailable */ }
+  return 180;
+}
+
+/** `blame`: show who last changed each line, in a column on the left. */
+export const BrowseView: React.FC<{ blame?: boolean }> = ({ blame = false }) => {
   const fileContent = useRepoStore((s) => s.fileContent);
+  const currentCommit = useRepoStore((s) => s.currentCommit);
+  const selectedFilePath = useRepoStore((s) => s.selectedFilePath);
+  const blameState = useBlame(currentCommit, selectedFilePath, blame);
   const fileLanguage = useRepoStore((s) => s.fileLanguage);
   const isLoading = useRepoStore((s) => s.isLoading);
 
@@ -49,6 +67,20 @@ export const BrowseView: React.FC = () => {
 
   const showInlineFindings = useIsNarrow();
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // The blame column's width: dragged at its right edge (or arrow keys there), kept in this browser.
+  const [blameWidth, setBlameWidthState] = useState(readBlameWidth);
+  const setBlameWidth = useCallback((w: number) => {
+    setBlameWidthState(w);
+    try { localStorage.setItem(BLAME_WIDTH_KEY, String(w)); } catch { /* not kept */ }
+  }, []);
+  const blameOrigin = useCallback(() => {
+    const c = containerRef.current;
+    return c ? c.getBoundingClientRect().left - c.scrollLeft : 0;
+  }, []);
+  const onBlameResizeMouseDown = useResizeDrag(setBlameWidth, { ...BLAME_RESIZE, origin: blameOrigin });
+  // The handle runs the column's full height: the lines' height, measured (the view scrolls).
+  const [linesHeight, setLinesHeight] = useState(0);
 
   const {
     onIconMouseDown,
@@ -109,6 +141,11 @@ export const BrowseView: React.FC = () => {
     if (found) setScrollTargetLine(null);
   }, [scrollTargetLine, setScrollTargetLine, lines]);
 
+  useLayoutEffect(() => {
+    const last = containerRef.current?.lastElementChild as HTMLElement | null | undefined;
+    setLinesHeight(blame && last ? last.offsetTop + last.offsetHeight : 0);
+  }, [blame, lines, blameState.cells, showInlineFindings]);
+
   const handleActionGutterMouseDown = useCallback(
     (lineId: string) => {
       const line = lines.find((l) => l.id === lineId);
@@ -146,7 +183,17 @@ export const BrowseView: React.FC = () => {
   }
 
   return (
-    <div className="diff-view browse-mode" ref={containerRef} style={{ position: 'relative' }} tabIndex={0} role="region" aria-label="Code">
+    <div className={`diff-view browse-mode ${blame ? 'with-blame' : ''}`} ref={containerRef}
+      style={{ position: 'relative', ...(blame ? { '--blame-width': `${blameWidth}px` } : null) } as React.CSSProperties} tabIndex={0} role="region" aria-label="Code" aria-busy={blameState.loading || undefined}>
+      {blame && (
+        <div
+          className="blame-resize-handle"
+          style={{ height: linesHeight }}
+          onMouseDown={onBlameResizeMouseDown}
+          {...resizeHandleProps('Resize blame column', blameWidth, setBlameWidth, BLAME_RESIZE)}
+        />
+      )}
+      {blame && blameState.failed && <div className="blame-failed">Blame isn't available for this file.</div>}
       {showToolbar && (
         <SelectionToolbar startLine={commentDrag.startLine!} endLine={commentDrag.endLine!} top={toolbarTop} />
       )}
@@ -171,27 +218,37 @@ export const BrowseView: React.FC = () => {
             })
           : [];
 
+        const row = (
+          <CodeRow
+            change={line}
+            tokens={tokens}
+            findings={findings}
+            findingBars={findingBars}
+            hasComments={hasComments}
+            isInCommentRange={inRange}
+            isHighlighted={highlighted}
+            isFocused={codeviewFocusedLine === ln}
+            isSelectRange={
+              codeviewSelectAnchor !== null && codeviewFocusedLine !== null &&
+              ln >= Math.min(codeviewSelectAnchor, codeviewFocusedLine) &&
+              ln <= Math.max(codeviewSelectAnchor, codeviewFocusedLine)
+            }
+            commentRangePosition={rangePos}
+            onActionGutterMouseDown={handleActionGutterMouseDown}
+            onActionGutterMouseEnter={handleActionGutterMouseEnter}
+            browseMode
+          />
+        );
+
         return (
           <React.Fragment key={line.id}>
-            <CodeRow
-              change={line}
-              tokens={tokens}
-              findings={findings}
-              findingBars={findingBars}
-              hasComments={hasComments}
-              isInCommentRange={inRange}
-              isHighlighted={highlighted}
-              isFocused={codeviewFocusedLine === ln}
-              isSelectRange={
-                codeviewSelectAnchor !== null && codeviewFocusedLine !== null &&
-                ln >= Math.min(codeviewSelectAnchor, codeviewFocusedLine) &&
-                ln <= Math.max(codeviewSelectAnchor, codeviewFocusedLine)
-              }
-              commentRangePosition={rangePos}
-              onActionGutterMouseDown={handleActionGutterMouseDown}
-              onActionGutterMouseEnter={handleActionGutterMouseEnter}
-              browseMode
-            />
+            {blame ? (
+              // The blame cell sits beside the row, not in it: ranges, selection and focus start at the gutter.
+              <div className="blame-line">
+                <BlameCellView cell={blameState.cells?.[ln - 1] ?? null} line={ln} path={selectedFilePath ?? ''} />
+                {row}
+              </div>
+            ) : row}
             {inlineFindings.map((f) => (
               <InlineFindingCard key={f.id} finding={f} />
             ))}

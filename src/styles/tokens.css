@@ -116,6 +116,7 @@
   --header-height: 40px;
   --gutter-width: 28px;
   --line-num-width: 48px;
+  --blame-width: 180px;
   /* Widest a document-like page (overview, delta, findings, features) grows
      before it centres in its gutters. The workbench panes stay full-bleed.
      --page-gutter is the inset from the column edge to the content: every
