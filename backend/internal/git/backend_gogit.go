@@ -417,6 +417,7 @@ func (b *GoGitBackend) Graph(limit int) ([]model.GraphCommit, error) {
 	}
 	defer iter.Close()
 
+	web := webURL(b.RemoteURL())
 	var commits []model.GraphCommit
 	err = iter.ForEach(func(c *object.Commit) error {
 		if len(commits) >= limit {
@@ -430,13 +431,14 @@ func (b *GoGitBackend) Graph(limit int) ([]model.GraphCommit, error) {
 		}
 		info := toCommitInfo(c)
 		commits = append(commits, model.GraphCommit{
-			Hash:      info.Hash,
-			ShortHash: info.ShortHash,
-			Author:    info.Author,
-			Date:      info.Date,
-			Subject:   info.Subject,
-			Parents:   parents,
-			Refs:      refsAt[c.Hash],
+			Hash:        info.Hash,
+			ShortHash:   info.ShortHash,
+			Author:      info.Author,
+			Date:        info.Date,
+			Subject:     info.Subject,
+			Parents:     parents,
+			Refs:        refsAt[c.Hash],
+			PullRequest: parsePullRequest(c.Message, web),
 		})
 		return nil
 	})

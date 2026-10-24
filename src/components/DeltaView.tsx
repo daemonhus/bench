@@ -11,7 +11,7 @@ import { FindingCard } from './FindingCard';
 import { KIND_COLORS } from './FeatureCard';
 import { SetBaselineModal } from './SetBaselineModal';
 import { MultiSelectDropdown } from './MultiSelectDropdown';
-import type { Finding, Comment, Feature, FeatureKind, GraphCommit, Severity, LineRange, BaselineDelta } from '../core/types';
+import type { Finding, Comment, Feature, FeatureKind, GraphCommit, PullRequest, Severity, LineRange, BaselineDelta } from '../core/types';
 import { COMMENT_TYPE_ICON, COMMENT_TYPE_LABEL } from '../core/types';
 import { InlineMarkdown } from '../core/markdown';
 import { useNavList } from '../core/use-nav-list';
@@ -41,6 +41,17 @@ const KIND_LABELS: Record<FilterKind, string> = {
   'feature-created': 'Features',
   comment: 'Comments',
   merge: 'Git Events',
+};
+
+/** A pull or merge request's number ("#12", GitLab's "!12"), linking to it on the host when
+ *  the remote is known; `long` names it too ("pull request #12"). */
+const PullRequestRef: React.FC<{ pr: PullRequest; long?: boolean }> = ({ pr, long }) => {
+  const ref = `${pr.kind === 'merge' ? '!' : '#'}${pr.number}`;
+  const text = long ? `${pr.kind === 'merge' ? 'merge request' : 'pull request'} ${ref}` : ref;
+  const title = pr.title ? `${ref}: ${pr.title}` : undefined;
+  return pr.url
+    ? <a className="overview-pr-ref" href={pr.url} target="_blank" rel="noopener noreferrer" title={title} onClick={(e) => e.stopPropagation()}>{text}</a>
+    : <span className="overview-pr-ref" title={title}>{text}</span>;
 };
 
 const ALL_KINDS: FilterKind[] = ['finding-opened', 'feature-created', 'comment', 'merge'];
@@ -1037,6 +1048,7 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
                       </span>
                       <span className="overview-merge-author">{g.author}</span>
                       <span className="activity-event-verb">merged</span>
+                      {g.pullRequest && <PullRequestRef pr={g.pullRequest} long />}
                       <span className="overview-card-date" title={new Date(g.date).toISOString()}>{shortDate(g.date)}</span>
                     </div>
                     <div className="overview-merge-card-wrap">
@@ -1044,7 +1056,9 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
                       className="overview-merge-card"
                       onClick={() => diffFrom ? navigateToDiff(g.hash, diffFrom) : navigateToCommit(g.hash)}
                     >
-                      <div className="overview-merge-subject">{g.subject}</div>
+                      {/* A request's own title, over the branch it came from; else the merge's subject. */}
+                      <div className="overview-merge-subject">{g.pullRequest?.title || g.subject}</div>
+                      {g.pullRequest?.branch && <code className="overview-merge-pr-branch">{g.pullRequest.branch}</code>}
                       <div className="overview-card-meta">
                         {branchCommits.length > 0 && (
                           <button className="overview-merge-branch-toggle" onClick={toggleMerge}>
@@ -1077,6 +1091,7 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
                               <span className="overview-card-date" title={new Date(bc.date).toISOString()}>{shortDate(bc.date)}</span>
                               <span className="overview-card-meta-right">
                                 {renderCommitBadges(bc.hash)}
+                                {bc.pullRequest?.squashed && <PullRequestRef pr={bc.pullRequest} />}
                                 <span className="overview-commit-ref overview-commit-link">{bc.shortHash}</span>
                               </span>
                             </span>
@@ -1106,6 +1121,7 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
                       <span className="overview-card-date" title={new Date(g.date).toISOString()}>{shortDate(g.date)}</span>
                       <span className="overview-card-meta-right">
                         {renderCommitBadges(g.hash)}
+                        {g.pullRequest?.squashed && <PullRequestRef pr={g.pullRequest} />}
                         <span className="overview-commit-ref overview-commit-link">{g.shortHash}</span>
                       </span>
                     </span>

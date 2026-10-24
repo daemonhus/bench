@@ -27,5 +27,6 @@ The list can also be filtered by the route, which is how the rest of the app lin
 | `#/findings` | Everything |
 | `#/findings/{id}` | That one finding |
 | `#/findings/feature/{id}` | Findings linked to that feature |
+| `#/findings?overdue=1` | Open findings past their fix-time SLA (critical 7 days, high 30, medium 90, low 180), with a **Past SLA** pill to clear it |
 
 Both filters appear as a pill next to the search box, labelled with the id's short code; hover it for the title, and click the `×` to clear (which also normalises the URL, so a reload stays clear). Clicking a finding anywhere else in the app - the Overview's systemic issues, the feature map, the activity feed on Changes - filters the list to it rather than scrolling you to its position in a long list. A finding linked this way is shown whatever its status, so the Open/Closed toggles never hide the thing you just clicked.

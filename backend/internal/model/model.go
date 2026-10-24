@@ -378,6 +378,20 @@ type GraphCommit struct {
 	Subject   string   `json:"subject"`
 	Parents   []string `json:"parents"`
 	Refs      []string `json:"refs"`
+	// The pull or merge request this commit landed, when its message records one.
+	PullRequest *PullRequest `json:"pullRequest,omitempty"`
+}
+
+// PullRequest is a pull (GitHub) or merge (GitLab) request, as git records it in the commit
+// that landed it: no host API is asked.
+type PullRequest struct {
+	Kind   string `json:"kind"` // "pull" or "merge"
+	Number int    `json:"number"`
+	Title  string `json:"title,omitempty"`
+	Branch string `json:"branch,omitempty"` // the source branch; unknown for a squash
+	// Squashed: the request was squashed into this one commit, so it has no merge commit.
+	Squashed bool   `json:"squashed,omitempty"`
+	URL      string `json:"url,omitempty"` // on the host, when the remote is a known one
 }
 
 // ActivityAuthor is one contributor's share of a week's activity.

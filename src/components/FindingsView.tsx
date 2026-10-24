@@ -14,6 +14,7 @@ import { useRegexMatcher } from '../hooks/useRegexSearch';
 import { qp, useQueryState, hashQuery, splitHash, type QuerySchema } from '../core/query-state';
 import type { Feature, Finding, Severity, LineRange } from '../core/types';
 import { parseRoute } from '../core/router';
+import { pastSla } from '../core/sla';
 
 const SEVERITY_ORDER: Record<Severity, number> = {
   critical: 0, high: 1, medium: 2, low: 3, info: 4,
@@ -31,11 +32,13 @@ const KIND_LABELS: Record<FindingsKind, string> = { open: 'Open', closed: 'Close
 
 // The list's filters and search live in the address (#/findings?status=open,closed&severity=high
 // &source=mcp&q=xss; see query-state.ts). Status and search are remembered for this session.
-const FINDINGS_QUERY: QuerySchema<{ status: FindingsKind[]; severity: Severity[]; source: string[] | null; q: string }> = {
+const FINDINGS_QUERY: QuerySchema<{ status: FindingsKind[]; severity: Severity[]; source: string[] | null; q: string; overdue: boolean }> = {
   status: qp.set<FindingsKind>('status', ALL_FINDING_KINDS, ['open']).remembered('session'),
   severity: qp.set<Severity>('severity', ALL_SEVERITIES),
   source: qp.only('source'),
   q: qp.string('q').remembered('session'),
+  // Only open findings past their fix-time SLA (core/sla.ts); the platform's Past SLA links set it.
+  overdue: qp.bool('overdue'),
 };
 const FINDINGS_URL = hashQuery('/findings');
 const FINDINGS_REMEMBER = { key: 'bench-findings-query' };
@@ -47,6 +50,8 @@ function canonicaliseSeverityRoute() {
     window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.search}#/findings?severity=${s}`);
   }
 }
+
+const isOpen = (f: Finding) => f.status === 'draft' || f.status === 'open' || f.status === 'in-progress';
 
 /** The 8-char id prefix cards show in their header. */
 const shortCode = (id: string) => id.slice(0, 8);
@@ -204,11 +209,13 @@ export const FindingsView: React.FC = () => {
     if (filterFindingId) {
       list = list.filter((f) => f.id === filterFindingId);
     }
+    if (fq.overdue) {
+      list = pastSla(list.filter(isOpen));
+    }
     return list;
-  }, [findings, filterSeverities, filterActors, searchMatcher, filterFeatureId, filterFindingId]);
+  }, [findings, filterSeverities, filterActors, searchMatcher, filterFeatureId, filterFindingId, fq.overdue]);
 
   const displayedFindings = useMemo(() => {
-    const isOpen = (f: Finding) => f.status === 'draft' || f.status === 'open' || f.status === 'in-progress';
     // A link to one finding must show it whatever its status: the open/closed
     // toggles would otherwise silently filter the linked card away.
     const byKind = filterFindingId
@@ -237,7 +244,7 @@ export const FindingsView: React.FC = () => {
     return m;
   }, [findings]);
 
-  const hasActiveFilter = filterSeverities.size < ALL_SEVERITIES.length || filterActors !== null || filterKinds.size < ALL_FINDING_KINDS.length || searchQuery !== '' || filterFeatureId !== null || filterFindingId !== null;
+  const hasActiveFilter = filterSeverities.size < ALL_SEVERITIES.length || filterActors !== null || filterKinds.size < ALL_FINDING_KINDS.length || searchQuery !== '' || filterFeatureId !== null || filterFindingId !== null || fq.overdue;
 
   const listRef = useRef<HTMLDivElement>(null);
   const pendingReplyFocusId = useRef<string | null>(null);
@@ -379,6 +386,18 @@ export const FindingsView: React.FC = () => {
                 </button>
               </span>
             )}
+            {fq.overdue && (
+              <span className="findings-feature-chip findings-feature-chip--sla" data-tooltip="Open findings past their fix-time SLA">
+                <span className="findings-feature-chip-code">Past SLA</span>
+                <button
+                  className="findings-feature-chip-clear"
+                  aria-label="Clear Past SLA filter"
+                  onClick={() => setFq({ overdue: false })}
+                >
+                  ×
+                </button>
+              </span>
+            )}
             <AnnotationFilters
               severities={filterSeverities}
               onSeveritiesChange={setFilterSeverities}
@@ -386,7 +405,7 @@ export const FindingsView: React.FC = () => {
               selectedActors={filterActors}
               onActorsChange={setFilterActors}
               hasActiveFilter={hasActiveFilter}
-              onReset={() => { setFq({ severity: ALL_SEVERITIES, source: null, q: '' }); clearRouteFilters(); }}
+              onReset={() => { setFq({ severity: ALL_SEVERITIES, source: null, q: '', overdue: false }); clearRouteFilters(); }}
             />
             {/* Last in the row: expands into the free space (see control-rhythm.css). */}
             <SearchBox value={searchQuery} onChange={setSearchQuery} invalid={!isRegexValid} shortcut={['/']} expand />

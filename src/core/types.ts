@@ -192,6 +192,21 @@ export interface GraphCommit {
   subject: string;
   parents: string[];
   refs: string[];
+  /** The pull or merge request this commit landed, when its message records one. */
+  pullRequest?: PullRequest;
+}
+
+/** A pull (GitHub) or merge (GitLab) request, as git records it in the commit that landed it. */
+export interface PullRequest {
+  kind: 'pull' | 'merge';
+  number: number;
+  title?: string;
+  /** The source branch; unknown for a squash. */
+  branch?: string;
+  /** Squashed into this one commit, so it has no merge commit. */
+  squashed?: boolean;
+  /** On the host, when the remote is a known one. */
+  url?: string;
 }
 
 export interface ActivityAuthor {

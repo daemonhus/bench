@@ -4,21 +4,10 @@ import { ToneChip } from '@bench/components/SelectDropdown';
 // What the platform knows about a project beyond its stats: fix-time SLAs, finding age, and the
 // service profile's exposure. Shared by the home dashboard and the project cards.
 
-export type Sev = 'critical' | 'high' | 'medium' | 'low' | 'info';
+export { SLA_DAYS, ageDays, pastSla, type Sev } from '@bench/core/sla';
 
-/** Days an open finding of each severity may stay open before it is past SLA. */
-export const SLA_DAYS: Record<Sev, number> = { critical: 7, high: 30, medium: 90, low: 180, info: Infinity };
-
-const DAY = 86_400_000;
 /** "1 commit", "3 commits". */
 export const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
-
-export const ageDays = (iso?: string) => (iso ? Math.max(0, (Date.now() - new Date(iso).getTime()) / DAY) : 0);
-
-/** Open findings past their severity's SLA. */
-export function pastSla<T extends { severity: string; createdAt?: string }>(open: T[]): T[] {
-  return open.filter((f) => ageDays(f.createdAt) > SLA_DAYS[f.severity as Sev]);
-}
 
 export interface Profile { externallyFacing?: string; dataSensitivity?: string; criticality?: string; owner?: string }
 

@@ -449,7 +449,7 @@
 .overview-comment-card .comment-card-text {
   border-left: 2px solid var(--text-muted);
   padding: 4px 0 4px 14px;
-  margin: 6px 0 2px;
+  margin: 0;
   color: var(--text-secondary);
 }
 
@@ -629,6 +629,34 @@
 }
 
 /* overview-merge-hash, overview-merge-date removed - uses shared card layout */
+
+/* The request's source branch, under its title. */
+.overview-merge-pr-branch {
+  display: inline-block;
+  margin-top: 6px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-small);
+  color: var(--text-secondary);
+  background: var(--bg-surface);
+  border-radius: var(--radius-sm);
+  padding: 1px 6px;
+}
+
+/* A pull or merge request's number; the request on the host when it links. */
+.overview-pr-ref {
+  color: var(--accent-purple);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+a.overview-pr-ref:hover {
+  text-decoration: underline;
+}
 
 .overview-merge-author {
   color: var(--text-secondary);
@@ -1118,6 +1146,15 @@
    the base rule: equal specificity, so source order decides. */
 .findings-feature-chip--finding::before {
   content: 'Finding';
+}
+
+/* A named filter rather than an id: the name says it all, in the UI face. */
+.findings-feature-chip--sla::before {
+  content: none;
+}
+
+.findings-feature-chip--sla .findings-feature-chip-code {
+  font-family: inherit;
 }
 
 /* The id prefix, same shape as the code the cards show in their header; the
