@@ -5,6 +5,9 @@ package server
 
 import (
 	"fmt"
+	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -37,6 +40,101 @@ func TestProjects_RejectEmptySlugAndDuplicateNames(t *testing.T) {
 	// Renaming a project to its own name (or a new one) is fine.
 	mcpOK(t, h, "update_project", map[string]any{"project": b, "name": "Beta"}, nil)
 	mcpOK(t, h, "update_project", map[string]any{"project": b, "name": "Gamma"}, nil)
+}
+
+// A project named "Platform" stored its data in platform.db, the server's own database; and
+// names that slugify alike ("Foo Bar", "foo-bar") were refused as duplicates.
+func TestProjects_DBFilesNeverClash(t *testing.T) {
+	dir := t.TempDir()
+	h, p := testMCPAt(t, dir)
+	repo, _ := newGitRepo(t)
+	if slug := registerProject(t, h, "Platform", repo); slug != "platform" {
+		t.Errorf(`"Platform" got slug %q`, slug)
+	}
+	if _, err := os.Stat(filepath.Join(dir, projectDBName("platform", repo))); err != nil {
+		t.Errorf("project database: %v", err)
+	}
+	var n int
+	if err := p.db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE name = 'findings'`).Scan(&n); err != nil || n != 0 {
+		t.Errorf("the server's database holds project tables (findings: %d, %v)", n, err)
+	}
+
+	a := registerProject(t, h, "Foo Bar", repo)
+	b := registerProject(t, h, "foo-bar", repo)
+	if a != "foo-bar" || b != "foo-bar-2" {
+		t.Errorf("slugs %q, %q; want foo-bar, foo-bar-2", a, b)
+	}
+}
+
+// Data folders from before: platform.db and <slug>.db are renamed on start, with their data.
+func TestDataFiles_OldNamesAreMoved(t *testing.T) {
+	dir := t.TempDir()
+	p, err := NewPlatform(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := http.NewServeMux()
+	h.Handle("POST /mcp", &platformMCP{p: p})
+	repo, _ := newGitRepo(t)
+	slug := registerProject(t, h, "Svc", repo)
+	p.Close()
+	for _, mv := range [][2]string{{serverDBName, legacyServerDBName}, {projectDBName(slug, repo), slug + ".db"}} {
+		for _, suffix := range []string{"", "-wal", "-shm"} {
+			if err := os.Rename(filepath.Join(dir, mv[0]+suffix), filepath.Join(dir, mv[1]+suffix)); err != nil && !os.IsNotExist(err) {
+				t.Fatal(err)
+			}
+		}
+	}
+
+	_, p = testMCPAt(t, dir)
+	for _, gone := range []string{legacyServerDBName, slug + ".db"} {
+		if _, err := os.Stat(filepath.Join(dir, gone)); !os.IsNotExist(err) {
+			t.Errorf("%s is still there (%v)", gone, err)
+		}
+	}
+	assertBaselines(t, p, slug, 1)
+}
+
+// A checkout moved elsewhere, and the project pointed at it: its database is renamed to match,
+// keeping its data.
+func TestDataFiles_NewRepoPathMovesTheDatabase(t *testing.T) {
+	dir := t.TempDir()
+	h, p := testMCPAt(t, dir)
+	repo, _ := newGitRepo(t)
+	slug := registerProject(t, h, "Svc", repo)
+	other := filepath.Join(t.TempDir(), filepath.Base(repo))
+	if err := os.Rename(repo, other); err != nil {
+		t.Fatal(err)
+	}
+	mcpOK(t, h, "update_project", map[string]any{"project": slug, "repoPath": other}, nil)
+	if _, err := os.Stat(filepath.Join(dir, projectDBName(slug, repo))); !os.IsNotExist(err) {
+		t.Errorf("the old database is still there (%v)", err)
+	}
+	assertBaselines(t, p, slug, 1)
+}
+
+// testMCPAt is newTestMCP with its data in dir.
+func testMCPAt(t *testing.T, dir string) (http.Handler, *Platform) {
+	t.Helper()
+	p, err := NewPlatform(dir)
+	if err != nil {
+		t.Fatalf("NewPlatform: %v", err)
+	}
+	t.Cleanup(p.Close)
+	mux := http.NewServeMux()
+	mux.Handle("POST /mcp", &platformMCP{p: p})
+	return mux, p
+}
+
+func assertBaselines(t *testing.T, p *Platform, slug string, want int) {
+	t.Helper()
+	wb, err := p.getWorkbench(slug)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := wb.ListBaselines(10); err != nil || len(got) != want {
+		t.Errorf("%s has %d baselines (%v), want %d", slug, len(got), err, want)
+	}
 }
 
 // Re-registering a removed project must not add a second "Initial baseline".

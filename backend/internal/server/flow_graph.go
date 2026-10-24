@@ -294,7 +294,7 @@ func legacyToGraph(flowID string, steps []legacyStep, links []legacyLink) (order
 
 func migrateTreeToGraph(conn *sql.DB, dataDir string) error {
 	// A copy of the database as it was, in case anything about the conversion needs undoing.
-	backup := filepath.Join(dataDir, "platform.db.pre-flow-graph.bak")
+	backup := filepath.Join(dataDir, serverDBName+".pre-flow-graph.bak")
 	if dataDir != "" {
 		if _, err := os.Stat(backup); os.IsNotExist(err) {
 			if _, err := conn.Exec(`VACUUM INTO ?`, backup); err != nil {

@@ -24,7 +24,7 @@ rm -rf "$EMBED_DIR"
 cp -r "$PLATFORM_DIR/ui/dist" "$EMBED_DIR"
 touch "$EMBED_DIR/.gitkeep"
 
-# Project databases (platform.db plus one <slug>.db per project)
+# Databases (default.db plus one <slug>-<hash>.db per project)
 DATA_DIR="${BENCH_DATA:-$PLATFORM_DIR/backend}"
 mkdir -p "$DATA_DIR"
 

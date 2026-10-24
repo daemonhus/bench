@@ -554,7 +554,7 @@ func TestFlowGraph_MigratesTreeEraDatabase(t *testing.T) {
 	expectEdges(t, h, "tree", "fa>fc[if admin] fa>fd[else] fc>fd")
 
 	// A backup of the database as it was, and the search index still works.
-	if _, err := os.Stat(filepath.Join(dir, "platform.db.pre-flow-graph.bak")); err != nil {
+	if _, err := os.Stat(filepath.Join(dir, "default.db.pre-flow-graph.bak")); err != nil {
 		t.Errorf("backup: %v", err)
 	}
 	if page := mustDecode[FlowsPage](t, do(t, h, "GET", "/api/flows?q=entry", "")); page.Total != 1 {

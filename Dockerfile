@@ -32,7 +32,7 @@ RUN CGO_ENABLED=0 go build -o /benchd ./cmd/benchd
 FROM alpine:3.20
 RUN apk add --no-cache git
 COPY --from=backend /benchd /usr/local/bin/benchd
-# Project databases (platform.db plus one <slug>.db per project) live in /data.
+# Databases (default.db plus one <slug>-<hash>.db per project) live in /data.
 # Repositories to review are mounted wherever you like and registered by path.
 VOLUME /data
 EXPOSE 8080

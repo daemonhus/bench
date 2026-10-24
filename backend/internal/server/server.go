@@ -79,7 +79,10 @@ func Run(dataDir, addr string) error {
 }
 
 func NewPlatform(dataDir string) (*Platform, error) {
-	dbPath := filepath.Join(dataDir, "platform.db")
+	if err := moveDB(dataDir, legacyServerDBName, serverDBName); err != nil {
+		return nil, err
+	}
+	dbPath := filepath.Join(dataDir, serverDBName)
 	conn, err := sql.Open("sqlite", dbPath+"?_pragma=journal_mode(wal)&_pragma=foreign_keys(on)&_pragma=busy_timeout(5000)")
 	if err != nil {
 		return nil, err
@@ -191,6 +194,9 @@ func NewPlatform(dataDir string) (*Platform, error) {
 	if err := migrateFlowFolders(conn); err != nil {
 		return nil, err
 	}
+	if err := moveProjectDBs(conn, dataDir); err != nil {
+		return nil, err
+	}
 	return &Platform{
 		dataDir:     dataDir,
 		db:          conn,
@@ -275,7 +281,7 @@ func (p *Platform) getWorkbench(identifier string) (*workbench.Workbench, error)
 		return wb, nil
 	}
 
-	dbPath := filepath.Join(p.dataDir, slug+".db")
+	dbPath := filepath.Join(p.dataDir, projectDBName(slug, repoPath))
 	wb, err = workbench.Open(repoPath, dbPath, workbench.WithCrossLinks(p.crossLinksFor(slug)))
 	if err != nil {
 		return nil, err
@@ -376,8 +382,7 @@ func (p *Platform) createProject(w http.ResponseWriter, r *http.Request) {
 	}
 
 	id := randomID()
-	slug := slugify(req.Name)
-	if slug == "" {
+	if slugify(req.Name) == "" {
 		http.Error(w, "name must contain at least one letter or digit (the project slug is derived from it)", 400)
 		return
 	}
@@ -385,6 +390,7 @@ func (p *Platform) createProject(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "project with that name already exists", 409)
 		return
 	}
+	slug := p.freeSlug(req.Name)
 
 	_, err = p.db.Exec(
 		"INSERT INTO projects (id, name, slug, repo_path) VALUES (?, ?, ?, ?)",
@@ -459,22 +465,27 @@ func (p *Platform) updateProject(w http.ResponseWriter, r *http.Request) {
 		newPath = *req.RepoPath
 	}
 
-	if _, err := p.db.Exec(
-		"UPDATE projects SET name = ?, repo_path = ? WHERE slug = ?",
-		newName, newPath, slug,
-	); err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-
-	// Evict cached workbench if path changed.
+	// A new path closes the project's workbench and renames its database to match.
 	if newPath != currentPath {
 		p.mu.Lock()
 		if wb, ok := p.workbenches[slug]; ok {
 			wb.Close()
 			delete(p.workbenches, slug)
 		}
+		err := moveDB(p.dataDir, projectDBName(slug, currentPath), projectDBName(slug, newPath))
 		p.mu.Unlock()
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+	}
+
+	if _, err := p.db.Exec(
+		"UPDATE projects SET name = ?, repo_path = ? WHERE slug = ?",
+		newName, newPath, slug,
+	); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
 	}
 
 	writeJSON(w, Project{Name: newName, Slug: slug, RepoPath: newPath})
@@ -487,6 +498,23 @@ func (p *Platform) projectNameTaken(name, exceptSlug string) bool {
 	var n int
 	_ = p.db.QueryRow("SELECT COUNT(*) FROM projects WHERE lower(name) = lower(?) AND slug != ?", name, exceptSlug).Scan(&n)
 	return n > 0
+}
+
+// freeSlug derives a slug from name that no project holds; a clash ("Foo Bar", "foo-bar") gets
+// the first free -2, -3, ... suffix.
+func (p *Platform) freeSlug(name string) string {
+	base := slugify(name)
+	for i := 1; ; i++ {
+		slug := base
+		if i > 1 {
+			slug = fmt.Sprintf("%s-%d", base, i)
+		}
+		var n int
+		_ = p.db.QueryRow("SELECT COUNT(*) FROM projects WHERE slug = ?", slug).Scan(&n)
+		if n == 0 {
+			return slug
+		}
+	}
 }
 
 func (p *Platform) deleteProject(w http.ResponseWriter, r *http.Request) {

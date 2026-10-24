@@ -69,7 +69,7 @@ docker build -t bench .
 docker run -p 8080:8080 -v /path/to/repos:/repos:ro -v bench-data:/data bench
 ```
 
-The container's entrypoint is `benchd`; the default flags are `-data /data -addr :8080`. Project databases (`platform.db` plus one `<slug>.db` per project) live in `/data`. Repositories are mounted wherever you like and registered by their path inside the container.
+The container's entrypoint is `benchd`; the default flags are `-data /data -addr :8080`. Databases (`default.db` plus one `<slug>-<hash>.db` per project, the hash taken from its repository path) live in `/data`. Repositories are mounted wherever you like and registered by their path inside the container.
 
 ## Flows
 

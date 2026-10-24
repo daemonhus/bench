@@ -34,4 +34,4 @@ The container's entrypoint is `benchd`; the default flags are `-data /data -addr
 
 ## Data layout
 
-The image writes data to `/data` inside the container. Mount a volume there to persist findings, features, comments and baselines across restarts: `platform.db` (projects, flows, settings) plus one `<slug>.db` per project.
+The image writes data to `/data` inside the container. Mount a volume there to persist findings, features, comments and baselines across restarts: `default.db` (projects, flows, settings) plus one `<slug>-<hash>.db` per project, the hash taken from its repository path. Older `platform.db` and `<slug>.db` files are renamed on start.
