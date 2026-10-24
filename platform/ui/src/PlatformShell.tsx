@@ -5,7 +5,7 @@ import { OverviewPage } from './OverviewPage';
 import { HomePage } from './HomePage';
 import { FeatureFlowsCard } from './FeatureFlowsCard';
 import { SettingsPage } from './SettingsPage';
-import { FlowsListPage, FlowDetailPage } from './flows';
+import { FlowsListPage, FlowDetailPage, projectFlowsPath } from './flows';
 import { ServiceMapPage } from './ServiceMap';
 import { SearchPage, type SearchState } from './SearchPage';
 import { parseSearch, searchPath } from './searchModel';
@@ -317,6 +317,7 @@ export function PlatformShell() {
             onOpenProject={openProject}
             onOpenFlow={(id) => navigate({ kind: 'flow', id })}
             onOpenProjects={() => navigate({ kind: 'projects' })}
+            onOpenPath={(path) => { window.history.pushState(null, '', path); setView(parseView()); }}
             onSearch={(q, kind) => navigate({ kind: 'search', search: { q, kind } })}
           />
         )}
@@ -365,6 +366,7 @@ export function PlatformShell() {
             onBack={(folder) => navigate(folder ? { kind: 'flows', folder } : { kind: 'flows' })}
             onOpenProject={openProject}
             onOpenFlow={(id) => navigate({ kind: 'flow', id })}
+            onOpenProjectFlows={(slug) => { window.history.pushState(null, '', projectFlowsPath(slug)); setView(parseView()); }}
           />
         )}
         {view.kind === 'activity' && (

@@ -6,6 +6,7 @@ import {
   usePalette, usePanZoom, GraphControls, ArrowMarkers, smoothPath, parseMethod, badgeW,
   EDGE_DASH, edgeColor, truncate,
 } from './graphKit';
+import { projectInk, useProjectHues } from './projectColor';
 
 // ─── Layout ──────────────────────────────────────────────────────────────
 
@@ -149,7 +150,8 @@ export function FlowGraphView({
   selectedEdgeKey?: string | null;
   onSelectEdge?: (key: string | null) => void;
 }) {
-  const { pal, KIND } = usePalette();
+  const { theme, pal, KIND } = usePalette();
+  const hueOf = useProjectHues(steps.map((s) => s.projectSlug).filter(Boolean));
   const { pz, setPz, dragging, canvasRef, handlers, fitTo, zoomIn, zoomOut } = usePanZoom();
   const [hover, setHover] = useState<string | null>(null);
 
@@ -496,16 +498,20 @@ export function FlowGraphView({
                     </text>
                   )}
 
-                  {/* Project name */}
+                  {/* Project: a swatch and the name in its colour (a subflow's footer is its size) */}
+                  {!sub && (
+                    <rect x={PAD_L} y={yProject - 7} width={7} height={7} rx={1.5} fill={projectInk(hueOf(step.projectSlug), theme)} />
+                  )}
                   <text
-                    x={PAD_L} y={yProject}
+                    x={sub ? PAD_L : PAD_L + 12} y={yProject}
                     fontSize={9.5}
+                    fontWeight={sub ? undefined : 600}
                     fontFamily="var(--font-mono, monospace)"
-                    fill={pal.textSub}
-                    fillOpacity={0.55}
+                    fill={sub ? pal.textSub : projectInk(hueOf(step.projectSlug), theme)}
+                    fillOpacity={sub ? 0.55 : 1}
                     style={{ pointerEvents: 'none', userSelect: 'none' }}
                   >
-                    {truncate(footer, 40)}
+                    {truncate(footer, sub ? 40 : 37)}
                   </text>
 
                   {/* Tombstone */}

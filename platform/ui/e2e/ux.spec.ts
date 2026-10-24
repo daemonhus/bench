@@ -176,6 +176,26 @@ test.describe('project cards', () => {
     await expect(page.locator('.fd-title')).toBeVisible();
   });
 
+  test("each tile opens its page in the project: findings, Changes, Features", async ({ page }) => {
+    await page.goto('/projects');
+    const card = page.locator('.project-card', { hasText: 'alpha' });
+    const link = (label: string) => card.getByRole('link', { name: new RegExp(`^${label}: open`) });
+    await expect(link('Open findings')).toHaveAttribute('href', '/p/alpha#/findings?status=open');
+    await expect(link('Past SLA')).toHaveAttribute('href', '/p/alpha#/findings?overdue=1');
+    await expect(link('Last baseline')).toHaveAttribute('href', '/p/alpha#/delta');
+    await expect(link('Size')).toHaveAttribute('href', '/p/alpha#/features');
+
+    // A click anywhere on the tile, its number included, lands on the link, not the card.
+    await card.locator('.pc-tile', { has: page.locator('.pc-tile-label', { hasText: 'Activity' }) }).click();
+    await expect(page).toHaveURL(/\/p\/alpha#\/delta$/);
+    await expect(page.locator('.tab-bar-tab-active', { hasText: 'Changes' })).toBeVisible();
+
+    // The finding squares inside the Open findings tile still open their own findings.
+    await page.goto('/projects');
+    await card.locator('.ovp-kind-square').first().click();
+    await expect(page).toHaveURL(/\/p\/alpha#\/finding\//);
+  });
+
   test('projects can be sorted by size', async ({ page }) => {
     await page.goto('/projects');
     await expect(page.locator('.project-card').first()).toBeVisible();

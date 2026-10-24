@@ -194,11 +194,17 @@ type TileProps = {
   label: string; value: React.ReactNode; sub?: React.ReactNode; tone?: 'bad' | 'warn'; title?: string; children?: React.ReactNode;
   /** Drawn behind the tile's text, e.g. a history graph. */
   background?: React.ReactNode;
+  /** The project page the tile opens, e.g. Changes for Activity. */
+  link?: TileLink;
 };
 
-function TileBody({ label, value, sub, tone, children }: TileProps) {
+type TileLink = { href: string; to: string; onClick: (e: React.MouseEvent) => void };
+
+function TileBody({ label, value, sub, tone, children, link }: TileProps) {
   return (
     <>
+      {/* Covers the tile, under anything clickable inside it (finding squares). */}
+      {link && <a className="pc-tile-link" href={link.href} aria-label={`${label}: open ${link.to}`} onClick={link.onClick} />}
       <span className="pc-tile-label">{label}</span>
       {/* The number, with anything that qualifies it (finding squares) beside it. */}
       <span className="pc-tile-main">
@@ -212,7 +218,7 @@ function TileBody({ label, value, sub, tone, children }: TileProps) {
 
 function Tile(props: TileProps) {
   return (
-    <div className={`pc-tile${props.background ? ' pc-tile--graph' : ''}`} title={props.title}>
+    <div className={`pc-tile${props.background ? ' pc-tile--graph' : ''}${props.link ? ' pc-tile--link' : ''}`} title={props.title}>
       {props.background}
       <TileBody {...props} />
     </div>
@@ -286,8 +292,8 @@ function perMonth(commits: number, months: number): string {
 function SplitTile({ left, right }: { left: TileProps; right: TileProps }) {
   return (
     <div className="pc-tile pc-tile--wide pc-tile--split">
-      <div className="pc-tile-half"><TileBody {...left} /></div>
-      <div className="pc-tile-half"><TileBody {...right} /></div>
+      <div className={`pc-tile-half${left.link ? ' pc-tile--link' : ''}`}><TileBody {...left} /></div>
+      <div className={`pc-tile-half${right.link ? ' pc-tile--link' : ''}`}><TileBody {...right} /></div>
     </div>
   );
 }
@@ -315,6 +321,16 @@ function ProjectCard({ project: p, weights, onSelect, onOpen, onEdit }: {
   const host = remoteHost(p.remoteUrl ?? '');
   const Icon = host === 'github' ? GitHubIcon : host === 'gitlab' ? GitLabIcon : GitIcon;
   const profile = useProfile(p.slug);
+  // A tile opens its page in the project; a modified click opens the address as usual (new tab).
+  const link = (hash: string, to: string): TileLink => ({
+    href: `/p/${p.slug}${hash}`, to,
+    onClick: (e) => {
+      e.stopPropagation();
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      e.preventDefault();
+      onOpen(p.slug, hash);
+    },
+  });
   return (
     // Not a button (it holds other controls); the name is the keyboard-reachable "open", and a
     // click anywhere else on the card opens it too.
@@ -354,18 +370,18 @@ function ProjectCard({ project: p, weights, onSelect, onOpen, onEdit }: {
           {/* Open findings beside how many are past their fix deadline, in one tile. */}
           <SplitTile
             left={{
-              label: 'Open findings', value: stats.findingsOpen,
+              label: 'Open findings', value: stats.findingsOpen, link: link('#/findings?status=open', 'Findings'),
               sub: stats.findingsTotal > stats.findingsOpen ? `of ${stats.findingsTotal}` : undefined,
               // One hoverable square per open finding, worst first (bench's finding hover card), then +N to the list.
               children: stats.findingsOpen > 0 && <FindingSquares project={p} findings={findings} onOpen={onOpen} />,
             }}
             right={{
-              label: 'Past SLA', value: late ?? '–', tone: late ? 'bad' : undefined,
+              label: 'Past SLA', value: late ?? '–', tone: late ? 'bad' : undefined, link: link('#/findings?overdue=1', 'findings past SLA'),
               sub: late ? 'need fixing now' : stats.findingsOpen > 0 && late === 0 ? 'all within deadline' : undefined,
             }}
           />
           {/* When it was last reviewed, and what has landed since. */}
-          <Tile label="Last baseline" value={p.riskData?.latestBaselineAt ? ago(p.riskData.latestBaselineAt) : 'never'}
+          <Tile label="Last baseline" link={link('#/delta', 'Changes')} value={p.riskData?.latestBaselineAt ? ago(p.riskData.latestBaselineAt) : 'never'}
             tone={baselineDays == null || baselineDays > STALE_BASELINE_DAYS ? 'warn' : undefined}
             title={commits ? `${plural(commits, 'commit')} touching ${plural(files, 'file')} since the last baseline` : undefined}
             sub={baselineDays == null ? 'not reviewed yet'
@@ -373,12 +389,12 @@ function ProjectCard({ project: p, weights, onSelect, onOpen, onEdit }: {
               : 'nothing unreviewed'} />
           {/* How active the repository is: its last push, and its pace over the last year. */}
           {act && (
-            <Tile label="Activity" value={act.lastCommitAt ? ago(act.lastCommitAt) : '–'}
+            <Tile label="Activity" link={link('#/delta', 'Changes')} value={act.lastCommitAt ? ago(act.lastCommitAt) : '–'}
               background={act.weekly && <ActivityGraph weekly={act.weekly} />}
               title={`Last push ${act.lastCommitAt ? ago(act.lastCommitAt) : 'unknown'}. ${plural(act.commits, 'commit')} on ${act.branch} over the last ${plural(act.months, 'month')}${act.lastCommitAt ? `; newest ${new Date(act.lastCommitAt).toLocaleDateString()}` : ''}. The graph is commits per week.`}
               sub={perMonth(act.commits, act.months)} />
           )}
-          <Tile label="Size" value={size} sub={`feature${size === 1 ? '' : 's'}`} />
+          <Tile label="Size" link={link('#/features', 'Features')} value={size} sub={`feature${size === 1 ? '' : 's'}`} />
         </div>
       )}
     </div>

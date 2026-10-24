@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo, useRef, useCallback, createContext, useContext } from 'react';
 import { listProjects, getSettings, type Project } from './api';
 import { avatarInitials, avatarColor } from '@bench/core/avatar';
+import { ProjectAvatar, ProjectBadge } from './projectColor';
 import { useResizeDrag } from '@bench/hooks/useResizeDrag';
 import { RefProviderIcon } from '@bench/components/RefProviderIcon';
 import { SelectDropdown, ToneChip } from '@bench/components/SelectDropdown';
 import { Skeleton, SkeletonRows } from '@bench/components/Skeleton';
-import { qp, useQueryState, pathQuery, type QuerySchema } from '@bench/core/query-state';
+import { qp, useQueryState, pathQuery, formatQuery, type QuerySchema } from '@bench/core/query-state';
 import { EditableText, SaveIndicator } from '@bench/components/EditableText';
 import { FlowGraphView } from './FlowGraph';
 import { outline, edgeKey, reachableFrom, type GraphEdge } from './flowOutline';
@@ -1313,6 +1314,8 @@ interface FlowDetailPageProps {
   onBack: (folderId?: string) => void;
   onOpenProject: (slug: string, hash?: string) => void;
   onOpenFlow: (id: string) => void;
+  /** The flows list filtered to a project (projectFlowsPath). */
+  onOpenProjectFlows: (slug: string) => void;
 }
 
 const KIND_ICONS: Record<FeatureKind, string> = {
@@ -1449,17 +1452,6 @@ function relativeTime(iso: string): string {
 }
 
 // ─── List-page display helpers ───────────────────────────────────────────
-
-const AVATAR_PALETTE = ['#2563eb', '#7c3aed', '#b45309', '#059669', '#0891b2', '#dc2626', '#7a8490'];
-
-function ProjectAvatar({ slug, name }: { slug: string; name: string }) {
-  const color = AVATAR_PALETTE[slug.charCodeAt(0) % AVATAR_PALETTE.length];
-  return (
-    <span className="ft-project-avatar" style={{ background: color }} title={name}>
-      {name.slice(0, 2).toUpperCase()}
-    </span>
-  );
-}
 
 function SeverityPills({ counts }: { counts: FlowFindingCounts }) {
   const SEV_INITIALS: Record<string, string> = { critical: 'C', high: 'H', medium: 'M', low: 'L', info: 'I' };
@@ -1881,6 +1873,24 @@ async function resolveLinkTitles(links: StepFeatureLink[]): Promise<StepFeatureL
 }
 
 const FeatureIndexContext = createContext<Map<string, IndexedFeature>>(new Map());
+
+/** Opens the flows list filtered to one project; given by the flow page to its project badges. */
+const ProjectFlowsContext = createContext<((slug: string) => void) | null>(null);
+
+/** The flows list showing only flows with a step in this project. */
+export const projectFlowsPath = (slug: string) => `/flows?${formatQuery(new URLSearchParams({ q: `project:${slug}` }))}`;
+
+/** A step's project: a link to the flows that include it. */
+function StepProjectBadge({ slug, name, small }: { slug: string; name?: string; small?: boolean }) {
+  const open = useContext(ProjectFlowsContext);
+  return (
+    <ProjectBadge
+      slug={slug} name={name} small={small}
+      href={projectFlowsPath(slug)} onOpen={open ? () => open(slug) : undefined}
+      title={`Flows in ${name || slug}`}
+    />
+  );
+}
 interface StepFeatureComment { id: string; author: string; text: string }
 interface StepFeatureLink { id: string; description?: string; title?: string; kind?: FeatureKind; operation?: string; /** The project the linked feature is in. */ project: string }
 interface StepFeatureRef { provider: string; url: string; title?: string }
@@ -2323,7 +2333,9 @@ function MapEdgePanel({
           <span className="map-link-panel-title">{toStep.featureTitle || toStep.featureId}</span>
         </div>
         {!fromStep.subflowId && !toStep.subflowId && fromStep.projectSlug !== toStep.projectSlug && (
-          <div className="map-edge-cross">Crosses from {fromStep.projectName || fromStep.projectSlug} to {toStep.projectName || toStep.projectSlug}</div>
+          <div className="map-edge-cross">
+            Crosses from <StepProjectBadge slug={fromStep.projectSlug} name={fromStep.projectName} small /> to <StepProjectBadge slug={toStep.projectSlug} name={toStep.projectName} small />
+          </div>
         )}
         {edge.zoneBoundary && (
           <div className="map-edge-cross map-edge-zones">Crosses trust zones: {fromStep.zone} → {toStep.zone}</div>
@@ -2504,7 +2516,7 @@ function StepMenu({ flow, step, numbers, onConnect, onMove, onRepoint, onRemoveB
   );
 }
 
-export function FlowDetailPage({ flowId, onBack, onOpenProject, onOpenFlow }: FlowDetailPageProps) {
+export function FlowDetailPage({ flowId, onBack, onOpenProject, onOpenFlow, onOpenProjectFlows }: FlowDetailPageProps) {
   const [flow, setFlow] = useState<Flow | null>(null);
   const [folders, setFolders] = useState<FlowFolder[]>([]);
   const folderIndex = useFolderIndex(folders);
@@ -2747,6 +2759,7 @@ export function FlowDetailPage({ flowId, onBack, onOpenProject, onOpenFlow }: Fl
 
   return (
     <FeatureIndexContext.Provider value={featureIndex}>
+    <ProjectFlowsContext.Provider value={onOpenProjectFlows}>
     <div className={`flow-detail-page ${picker ? 'picker-open' : ''}`}>
       <div className={`flow-detail-main${activeTab === 'map' ? ' flow-detail-main--map' : ''}`}>
         <div className="flow-detail-toolbar">
@@ -2928,6 +2941,7 @@ export function FlowDetailPage({ flowId, onBack, onOpenProject, onOpenFlow }: Fl
         />
       )}
     </div>
+    </ProjectFlowsContext.Provider>
     </FeatureIndexContext.Provider>
   );
 }
@@ -3320,7 +3334,7 @@ function StepRow({
               )}
             </>
           ) : (<>
-          <span className="flow-step-project">{step.projectName || step.projectSlug}</span>
+          <StepProjectBadge slug={step.projectSlug} name={step.projectName} />
           {(!step.tombstoned || step.featureTitle) && (
             <span className={`flow-step-kind ${KIND_COLORS[step.featureKind]}`}>
               {KIND_ICONS[step.featureKind]} {step.featureKind}
@@ -3664,7 +3678,7 @@ function FeaturePicker({ projects, context, flow, onPick, onPickFlow, onConnect,
                 }))}
               >
                 <div className="flow-picker-result-top">
-                  <span className="flow-picker-result-project">{sg.projectName || sg.projectSlug}</span>
+                  <ProjectBadge slug={sg.projectSlug} name={sg.projectName} small />
                   <span className={`flow-step-kind ${KIND_COLORS[sg.kind]}`}>{KIND_ICONS[sg.kind]} {sg.kind}</span>
                   {sg.operation && <span className="flow-step-op">{sg.operation}</span>}
                   {sg.stepId && <span className="flow-picker-result-note">in this flow: connect</span>}
@@ -3717,7 +3731,7 @@ function FeaturePicker({ projects, context, flow, onPick, onPickFlow, onConnect,
         {!loading && tab === 'features' && results.map((r) => (
           <button key={`${r.projectSlug}:${r.id}`} className="flow-picker-result" onClick={() => onPick(r)}>
             <div className="flow-picker-result-top">
-              <span className="flow-picker-result-project">{r.projectName}</span>
+              <ProjectBadge slug={r.projectSlug} name={r.projectName} small />
               <span className={`flow-step-kind ${KIND_COLORS[r.kind]}`}>
                 {KIND_ICONS[r.kind]} {r.kind}
               </span>

@@ -63,8 +63,10 @@ async function getJSON<T>(url: string, fallback: T): Promise<T> {
   try { const r = await fetch(url); return r.ok ? await r.json() : fallback; } catch { return fallback; }
 }
 
-export function HomePage({ onOpenProject, onOpenFlow, onOpenProjects, onSearch }: {
+export function HomePage({ onOpenProject, onOpenFlow, onOpenProjects, onOpenPath, onSearch }: {
   onOpenProject: (slug: string, hash?: string) => void;
+  /** Open a platform page by its address, e.g. /activity?kinds=sla. */
+  onOpenPath: (path: string) => void;
   /** Open the search page with q, on one kind's results or all of them. */
   onSearch: (q: string, kind?: Kind) => void;
   onOpenFlow: (id: string) => void;
@@ -137,6 +139,16 @@ export function HomePage({ onOpenProject, onOpenFlow, onOpenProjects, onSearch }
   const unreviewedFiles = rows.reduce((n, r) => n + r.files, 0);
   const covered = rows.filter((r) => r.d?.coverage != null);
   const coverage = covered.length ? covered.reduce((n, r) => n + (r.d!.coverage as number), 0) / covered.length : null;
+  // A stat opens where its number comes from: one project's own page when only that project
+  // contributes, else the cross-project view.
+  const breachSlugs = [...new Set(breaches.map((b) => b.r.p.slug))];
+  const slaLink: StatLink = breachSlugs.length === 1
+    ? { href: `/p/${breachSlugs[0]}#/findings?overdue=1`, to: 'findings past SLA', go: () => onOpenProject(breachSlugs[0], '#/findings?overdue=1') }
+    : { href: '/activity?kinds=sla&since=all', to: 'findings past SLA', go: () => onOpenPath('/activity?kinds=sla&since=all') };
+  const changed = rows.filter((r) => r.commits > 0);
+  const changeLink: StatLink = changed.length === 1
+    ? { href: `/p/${changed[0].p.slug}#/delta`, to: 'Changes', go: () => onOpenProject(changed[0].p.slug, '#/delta') }
+    : { href: '/projects', to: 'Projects', go: onOpenProjects };
 
   const scopedBaselines = useMemo(() => baselines.filter((b) => rows.some((r) => r.p.slug === b.projectSlug)), [baselines, rows]);
   // One chart marker per day: baselines taken together (e.g. a first import) share a label.
@@ -306,9 +318,9 @@ export function HomePage({ onOpenProject, onOpenFlow, onOpenProjects, onSearch }
             </div>
           </div>}
           <div className="home-posture-stats">
-            <Stat loading={loading} label="Past SLA" value={breaches.length} tone={breaches.length ? 'critical' : 'ok'} sub={breaches.length ? 'open beyond their fix deadline' : 'all within deadline'} />
+            <Stat loading={loading} link={slaLink} label="Past SLA" value={breaches.length} tone={breaches.length ? 'critical' : 'ok'} sub={breaches.length ? 'open beyond their fix deadline' : 'all within deadline'} />
             <Stat loading={loading} label="Median time to fix" value={mttr == null ? '—' : `${Math.round(mttr)}d`} sub={mttr == null ? 'no resolved findings with dates' : 'created → resolved'} />
-            <Stat loading={loading} label="Unreviewed change" value={unreviewedCommits} unit="commits" tone={unreviewedCommits ? 'high' : 'ok'} sub={`${plural(unreviewedFiles, 'file')} since last baselines`} />
+            <Stat loading={loading} link={changeLink} label="Unreviewed change" value={unreviewedCommits} unit="commits" tone={unreviewedCommits ? 'high' : 'ok'} sub={`${plural(unreviewedFiles, 'file')} since last baselines`} />
             <Stat loading={loading} label="Review coverage" value={coverage == null ? '—' : `${coverage.toFixed(0)}%`} tone={coverage != null && coverage < 25 ? 'high' : undefined} sub="files marked reviewed" />
           </div>
         </section>
@@ -494,7 +506,9 @@ function MoreToggle({ total, expanded, onToggle, noun }: { total: number; expand
   );
 }
 
-function Stat({ label, value, unit, sub, tone, loading }: { label: string; value: number | string; unit?: string; sub: string; tone?: 'critical' | 'high' | 'ok'; loading?: boolean }) {
+type StatLink = { href: string; to: string; go: () => void };
+
+function Stat({ label, value, unit, sub, tone, loading, link }: { label: string; value: number | string; unit?: string; sub: string; tone?: 'critical' | 'high' | 'ok'; loading?: boolean; link?: StatLink }) {
   if (loading) {
     return (
       <div className="home-stat">
@@ -504,15 +518,28 @@ function Stat({ label, value, unit, sub, tone, loading }: { label: string; value
       </div>
     );
   }
-  return (
-    <div className={`home-stat${tone ? ` home-tone-${tone}` : ''}`}>
+  const body = (
+    <>
       <span className="home-metric-label">
         {(tone === 'critical' || tone === 'high') && <span className="home-dot" style={{ background: `var(--severity-${tone})` }} aria-hidden="true" />}
         {label}
       </span>
       <span className="home-stat-value">{value}{unit && <span className="ovp-kpi-unit"> {unit}</span>}</span>
       <span className="home-metric-sub">{sub}</span>
-    </div>
+    </>
+  );
+  const cls = `home-stat${tone ? ` home-tone-${tone}` : ''}`;
+  if (!link) return <div className={cls}>{body}</div>;
+  // A real link, so a modified click opens a new tab; a plain one stays in the app.
+  return (
+    <a className={`${cls} home-stat--link`} href={link.href} title={`Open ${link.to}`}
+      onClick={(e) => {
+        if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+        e.preventDefault();
+        link.go();
+      }}>
+      {body}
+    </a>
   );
 }
 

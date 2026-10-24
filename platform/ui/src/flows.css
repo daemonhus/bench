@@ -265,6 +265,7 @@
   font-size: 9px;
   font-weight: 700;
   color: #fff;
+  background: hsl(var(--project-hue, 220) 55% 44%);
   flex-shrink: 0;
   letter-spacing: 0;
 }
@@ -568,12 +569,59 @@
   flex-wrap: wrap;
 }
 
-.flow-step-project {
+/* The project a step belongs to, in its colour (projectColor.tsx sets --project-hue). Framed in
+   mono, so it doesn't read as one more kind chip. */
+.project-badge {
+  --project-ink: hsl(var(--project-hue, 220) 75% 72%);
+  display: inline-block;
+  min-width: 0;
+  max-width: 100%;
+  padding: 2px 8px;
+  border: 1px solid hsl(var(--project-hue, 220) 70% 62% / 0.45);
+  border-radius: var(--radius-xs);
+  background: hsl(var(--project-hue, 220) 70% 60% / 0.12);
+  color: var(--project-ink);
   font-family: var(--font-mono);
   font-size: var(--font-size-small);
-  color: var(--text-muted);
-  font-weight: 500;
-  letter-spacing: -0.005em;
+  font-weight: 600;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+
+.project-badge--small {
+  padding: 1px 6px;
+  font-size: var(--font-size-xs);
+}
+
+/* A badge that opens the project's flows. */
+a.project-badge--link {
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+a.project-badge--link:hover {
+  border-color: hsl(var(--project-hue, 220) 70% 62% / 0.8);
+  background: hsl(var(--project-hue, 220) 70% 60% / 0.22);
+}
+
+a.project-badge--link:focus-visible {
+  outline: 2px solid var(--project-ink);
+  outline-offset: 2px;
+}
+
+[data-theme="light"] .project-badge {
+  --project-ink: hsl(var(--project-hue, 220) 65% 34%);
+  border-color: hsl(var(--project-hue, 220) 55% 45% / 0.4);
+  background: hsl(var(--project-hue, 220) 70% 50% / 0.09);
+}
+
+[data-theme="light"] a.project-badge--link:hover {
+  border-color: hsl(var(--project-hue, 220) 55% 45% / 0.75);
+  background: hsl(var(--project-hue, 220) 70% 50% / 0.17);
 }
 
 .flow-step-kind {
