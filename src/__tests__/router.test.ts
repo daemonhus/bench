@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseRoute } from '../core/router';
+import { browseAtHref, parseRoute } from '../core/router';
 
 describe('parseRoute: findings filters', () => {
   it('reads a severity filter', () => {
@@ -19,5 +19,15 @@ describe('parseRoute: detail pages', () => {
   it('sends the old list deep link #/features/{id} to the feature page', () => {
     expect(parseRoute('#/features/f1')).toEqual({ mode: 'feature-detail', featureId: 'f1' });
     expect(parseRoute('#/features')).toEqual({ mode: 'features' });
+  });
+});
+
+describe('browseAtHref', () => {
+  it('names the branch in Browse\'s address, slashes as they are', () => {
+    expect(browseAtHref('fix/login')).toBe('#/browse?at=fix/login');
+    expect(parseRoute(browseAtHref('fix/login'))).toEqual({ mode: 'browse' });
+  });
+  it('escapes what a query cannot carry', () => {
+    expect(browseAtHref('a&b#c')).toBe('#/browse?at=a%26b%23c');
   });
 });

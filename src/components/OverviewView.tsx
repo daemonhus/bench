@@ -17,6 +17,7 @@ import type { FeatureMapNode } from '../core/feature-map-layout';
 import { buildFindingsTimeline, TIMELINE_SCALES } from '../core/findings-timeline';
 import type { TimelineScale } from '../core/findings-timeline';
 import { InlineMarkdown } from '../core/markdown';
+import { browseAtHref } from '../core/router';
 
 // ---------------------------------------------------------------------------
 // Project Overview, three columns:
@@ -990,6 +991,45 @@ interface OverviewData {
   features: Feature[];
 }
 
+const BRANCHES_SHOWN = 4;
+
+/** The local branches, each a link to browse it; the checked-out one first. */
+function BranchLinks({ branches }: { branches: BranchInfo[] }) {
+  const [all, setAll] = useState(false);
+  if (!branches.length) return null;
+  const sorted = [...branches.filter((b) => b.isCurrent), ...branches.filter((b) => !b.isCurrent)];
+  const shown = all ? sorted : sorted.slice(0, BRANCHES_SHOWN);
+  const hidden = sorted.length - BRANCHES_SHOWN;
+  return (
+    <ul className="ovp-branches" aria-label="Branches">
+      {shown.map((b) => (
+        <li key={b.name}>
+          <a
+            className={`ovp-branch-chip${b.isCurrent ? ' ovp-branch-chip--current' : ''}`}
+            href={browseAtHref(b.name)}
+            title={`Browse ${b.name} at ${b.head.slice(0, 7)}${b.isCurrent ? ' (checked out)' : ''}`}
+          >
+            <svg className="ovp-branch-chip-icon" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+              <circle cx="4.5" cy="3.5" r="1.75" /><circle cx="4.5" cy="12.5" r="1.75" /><circle cx="11.5" cy="5" r="1.75" />
+              <path d="M4.5 5.25v5.5M11.5 6.75c0 3-7 2-7 4" />
+            </svg>
+            <span className="ovp-branch-chip-name">{b.name}</span>
+            <span className="ovp-branch-chip-hash">{b.head.slice(0, 7)}</span>
+            {b.isCurrent && <span className="sr-only"> (checked out)</span>}
+          </a>
+        </li>
+      ))}
+      {hidden > 0 && (
+        <li>
+          <button type="button" className="ovp-branch-more" aria-expanded={all} onClick={() => setAll((v) => !v)}>
+            {all ? 'Show fewer' : `+${hidden} more`}
+          </button>
+        </li>
+      )}
+    </ul>
+  );
+}
+
 export function OverviewView() {
   const [data, setData] = useState<OverviewData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -1229,18 +1269,7 @@ export function OverviewView() {
                 </div>
                 <div className="ovp-head-hash ovp-mono">{head ? head.shortHash : '-'}</div>
                 <div className="ovp-stat-sub" title={head?.subject}>{head?.subject ?? 'No commits'}</div>
-                {localBranches.length > 0 && (
-                  <div className="ovp-branches-inline">
-                    {localBranches.slice(0, 4).map((b) => (
-                      <span key={b.name} className="ovp-branch-inline">
-                        <span className="ovp-branch-name" title={b.name}>{b.name}</span>
-                        <span className="ovp-mono ovp-branch-hash">{b.head.slice(0, 7)}</span>
-                        {b.isCurrent && <span className="ovp-badge ovp-badge-current">current</span>}
-                      </span>
-                    ))}
-                    {localBranches.length > 4 && <span className="ovp-branch-more">+{localBranches.length - 4} more</span>}
-                  </div>
-                )}
+                <BranchLinks branches={localBranches} />
               </div>
 
               {/* Recent log - same rendering as the Browse git tree */}

@@ -1,4 +1,4 @@
-import { splitHash } from './query-state';
+import { formatQuery, splitHash } from './query-state';
 
 export interface Route {
   mode: 'overview' | 'browse' | 'diff' | 'delta' | 'findings' | 'features' | 'profile' | 'feature-detail' | 'finding-detail';
@@ -123,6 +123,11 @@ export function buildRoute(
   }
   if (path) return `#/browse/${path}`;
   return '#/browse';
+}
+
+/** Browse at a branch or commit: #/browse?at=fix/login. */
+export function browseAtHref(ref: string): string {
+  return `#/browse?${formatQuery(new URLSearchParams({ at: ref }))}`;
 }
 
 /**

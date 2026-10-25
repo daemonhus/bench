@@ -44,7 +44,7 @@ import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
 import { AnchorField } from './components/AnchorField';
 import { TagInput } from './components/TagInput';
 import { FINDING_CATEGORIES } from './core/types';
-import type { ViewMode, Severity, FindingStatus, CommentType, Finding, Feature, FeatureKind } from './core/types';
+import type { ViewMode, Severity, FindingStatus, CommentType, Finding, Feature, FeatureKind, CommitInfo } from './core/types';
 
 const FINDING_SOURCES = ['pentest', 'tool', 'manual'] as const;
 
@@ -70,8 +70,10 @@ import { COMMENT_TYPE_ICON, COMMENT_TYPE_LABEL } from './core/types';
 import { getDiffEmptyMessage } from './core/diff-utils';
 import './App.css';
 
-// Browse's options: blame, who last changed each line, is on unless ?blame=0 (kept for next time).
-const BROWSE_QUERY = { blame: qp.bool('blame', true).remembered() };
+// Browse's options: blame, who last changed each line, is on unless ?blame=0 (kept for next time);
+// at= names the branch or commit to browse (#/browse?at=fix/login), and is dropped once you move
+// to another commit, so the address never names one you've left.
+const BROWSE_QUERY = { blame: qp.bool('blame', true).remembered(), at: qp.string('at') };
 const BROWSE_URL = hashQuery('/browse');
 const BROWSE_REMEMBER = { key: 'bench-browse' };
 
@@ -628,8 +630,9 @@ export function App() {
   });
 
   // Load commits + reconciled HEAD + review state on mount
+  const [commitsReady, setCommitsReady] = useState(false);
   useEffect(() => {
-    loadCommits();
+    loadCommits().finally(() => setCommitsReady(true));
     fetchReconciledHead();
     useBaselineStore.getState().refreshAll();
     useProfileStore.getState().load();
@@ -839,9 +842,37 @@ export function App() {
   useEvents('annotations', refreshAnnotations);
   useEvents('git', refreshGitData);
 
-  // Default to reconciled HEAD on first load
+  // ?at=: browse that branch or commit. It may be outside the commits listed, so it's resolved
+  // (and kept, for the commit button's label) on its own.
+  const [browseAt, setBrowseAt] = useState<{ at: string; commit: CommitInfo } | null>(null);
+  // After the first load has picked its commit (HEAD), so that pick can't land after this one.
+  useEffect(() => {
+    const at = browseQ.at;
+    if (!at || !commitsReady) return;
+    let live = true;
+    gitApi.resolveCommit(at).then((commit) => {
+      if (!live) return;
+      if (!commit) { setBrowseQ({ at: '' }); return; }
+      initialCommitApplied.current = true;
+      setBrowseAt({ at, commit });
+      if (useRepoStore.getState().currentCommit !== commit.hash) {
+        clearNavHistory();
+        selectCommit(commit.hash);
+      }
+    });
+    return () => { live = false; };
+  }, [browseQ.at, commitsReady, setBrowseQ, clearNavHistory, selectCommit]);
+  // Moving to another commit (the commit list, a finding's anchor, …) drops ?at=.
+  useEffect(() => {
+    if (browseAt && browseAt.at === browseQ.at && currentCommit && currentCommit !== browseAt.commit.hash) {
+      setBrowseQ({ at: '' });
+    }
+  }, [browseAt, browseQ.at, currentCommit, setBrowseQ]);
+
+  // Default to reconciled HEAD on first load (unless ?at= names another commit)
   useEffect(() => {
     if (initialCommitApplied.current) return;
+    if (browseQ.at) return;
     if (commits.length === 0 || reconciledHead === null) return;
     initialCommitApplied.current = true;
     if (reconciledHead.reconciledHead) {
@@ -910,7 +941,8 @@ export function App() {
   const additions = changes.filter((c) => c.type === 'insert').length;
   const deletions = changes.filter((c) => c.type === 'delete').length;
 
-  const currentCommitInfo = commits.find((c) => c.hash === currentCommit);
+  const currentCommitInfo = commits.find((c) => c.hash === currentCommit)
+    ?? (browseAt?.commit.hash === currentCommit ? browseAt?.commit : undefined);
   const fromCommitInfo = commits.find((c) => c.hash === compareFrom);
   const toCommitInfo = commits.find((c) => c.hash === compareTo);
 
@@ -1126,21 +1158,13 @@ export function App() {
                     aria-label="Branch"
                     className="branch-select"
                     value={
-                      branches.find((b) => {
-                        const c = commits.find(c => c.shortHash === b.head || c.hash.startsWith(b.head));
-                        return c?.hash === currentCommit;
-                      })?.name ?? ''
+                      branches.find((b) => b.name === browseQ.at)?.name
+                      ?? branches.find((b) => !!currentCommit && currentCommit.startsWith(b.head))?.name
+                      ?? ''
                     }
                     onChange={(e) => {
-                      const branchName = e.target.value;
-                      if (!branchName) return;
-                      const branch = branches.find((b) => b.name === branchName);
-                      if (branch) {
-                        const commit = commits.find(
-                          (c) => c.shortHash === branch.head || c.hash.startsWith(branch.head)
-                        );
-                        if (commit) handleCommitChange(commit.hash);
-                      }
+                      // Browse the branch's head, wherever it is in history: ?at= resolves it.
+                      if (e.target.value) { setGitTreeOpen(false); setBrowseQ({ at: e.target.value }); }
                     }}
                   >
                     <option value="">Branch...</option>

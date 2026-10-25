@@ -348,23 +348,98 @@
   color: var(--text-primary);
 }
 
-.ovp-branches-inline {
+/* Local branches: code-like chips, each a link to browse that branch. */
+.ovp-branches {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 16px;
-  margin-top: 8px;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
 }
 
-.ovp-branch-inline {
+.ovp-branches > li {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.ovp-branch-chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   min-width: 0;
+  max-width: 100%;
+  padding: 3px 8px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xs);
+  background: var(--bg-surface);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-small);
+  line-height: 1.4;
+  color: var(--text-primary);
+  text-decoration: none;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.ovp-branch-chip:hover {
+  border-color: var(--accent-blue);
+  background: var(--accent-blue-subtle);
+}
+
+.ovp-branch-chip:focus-visible {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: 2px;
+}
+
+.ovp-branch-chip-icon {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.ovp-branch-chip-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ovp-branch-chip-hash {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+}
+
+/* The checked-out branch, in the green the history uses for branch labels. */
+.ovp-branch-chip--current {
+  border-color: color-mix(in srgb, var(--accent-green) 40%, transparent);
+  background: var(--accent-green-subtle);
+}
+
+.ovp-branch-chip--current .ovp-branch-chip-icon,
+.ovp-branch-chip--current .ovp-branch-chip-name {
+  color: var(--accent-green);
 }
 
 .ovp-branch-more {
+  padding: 3px 6px;
+  border: none;
+  border-radius: var(--radius-xs);
+  background: none;
+  font: inherit;
   font-size: var(--font-size-xs);
   color: var(--text-muted);
+  cursor: pointer;
+}
+
+.ovp-branch-more:hover {
+  color: var(--text-primary);
+}
+
+.ovp-branch-more:focus-visible {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: 1px;
 }
 
 .ovp-baseline-badge {
@@ -890,35 +965,6 @@
 
 .ovp-git-tree .git-tree-row {
   cursor: default;
-}
-
-.ovp-branch-name {
-  color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ovp-branch-hash {
-  color: var(--text-muted);
-  font-size: var(--font-size-xs);
-  flex-shrink: 0;
-}
-
-.ovp-badge {
-  font-size: 10px;
-  padding: 1px 7px;
-  border-radius: 999px;
-  border: 1px solid var(--border-default);
-  color: var(--text-muted);
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
-.ovp-badge-current {
-  color: var(--accent-green);
-  border-color: color-mix(in srgb, var(--accent-green) 40%, transparent);
-  background: var(--accent-green-subtle);
 }
 
 /* ----- Feature map (HTML nodes over an SVG edge layer) ----- */

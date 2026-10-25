@@ -25,3 +25,5 @@ Finding severity is shown as a coloured bar spanning the annotated line range in
 A column on the left shows who last changed each line and how long ago. Each run of lines from one commit is labelled once; hover the label for the commit's hash, subject and date, or click it to open that commit's change to the file. Drag the column's right edge to resize it.
 
 Blame is on by default. The blame button in the file header (the clock, or <kbd>B</kbd>) hides or shows it; the choice is kept in the address (`?blame=0`) and remembered for next time.
+
+To browse another branch, pick it from the branch list above the file tree, or click it on the [Overview](./overview). The address then names it (`#/browse?at=fix/login`), so the link opens that branch for anyone; moving to another commit drops it.
