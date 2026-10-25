@@ -3,7 +3,6 @@ package db
 import (
 	"database/sql"
 	"fmt"
-	"strings"
 
 	"bench/internal/model"
 )
@@ -62,28 +61,4 @@ func (d *DB) GetPositions(annotationID, annotationType string) ([]model.Annotati
 		positions = append(positions, p)
 	}
 	return positions, rows.Err()
-}
-
-// DeletePositions removes position entries for specific commits.
-// Used during rebase handling to invalidate stale positions.
-func (d *DB) DeletePositions(annotationID, annotationType string, commitIDs []string) error {
-	if len(commitIDs) == 0 {
-		return nil
-	}
-	placeholders := make([]string, len(commitIDs))
-	args := make([]any, 0, len(commitIDs)+3)
-	args = append(args, annotationID, annotationType, d.projectID)
-	for i, c := range commitIDs {
-		placeholders[i] = "?"
-		args = append(args, c)
-	}
-	query := fmt.Sprintf(
-		`DELETE FROM annotation_positions
-		WHERE annotation_id = ? AND annotation_type = ? AND project_id = ? AND commit_id IN (%s)`,
-		strings.Join(placeholders, ","),
-	)
-	return wq0(d.wq, func() error {
-		_, err := d.conn.Exec(query, args...)
-		return err
-	})
 }

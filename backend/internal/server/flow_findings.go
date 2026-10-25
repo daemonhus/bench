@@ -157,7 +157,7 @@ func (p *Platform) fetchProjectFindings(slug string) ([]rawBenchFinding, error) 
 		return nil, err
 	}
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/api/findings", nil)
+	req := httptest.NewRequest("GET", "/api/findings?all_branches=true", nil)
 	wb.Handler().ServeHTTP(rec, req)
 	if rec.Code != 200 {
 		return nil, nil

@@ -54,9 +54,14 @@ func (h *reconcileHandlers) start(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusAccepted, s)
 }
 
-// GET /api/reconcile/head → reconciled HEAD
+// GET /api/reconcile/head → how far annotations are reconciled towards the review branch's head
 func (h *reconcileHandlers) head(w http.ResponseWriter, r *http.Request) {
-	head, err := h.reconciler.GetReconciledHead()
+	b, err := reviewBranch(h.db, h.repo, r)
+	if err != nil {
+		writeInternalError(w, err)
+		return
+	}
+	head, err := h.reconciler.GetReconciledHeadAt(b.Tip)
 	if err != nil {
 		writeInternalError(w, err)
 		return

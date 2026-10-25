@@ -993,11 +993,11 @@ interface OverviewData {
 
 const BRANCHES_SHOWN = 4;
 
-/** The local branches, each a link to browse it; the checked-out one first. */
-function BranchLinks({ branches }: { branches: BranchInfo[] }) {
+/** The local branches, each a link to browse it; the review branch first. */
+function BranchLinks({ branches, reviewing }: { branches: BranchInfo[]; reviewing?: string }) {
   const [all, setAll] = useState(false);
   if (!branches.length) return null;
-  const sorted = [...branches.filter((b) => b.isCurrent), ...branches.filter((b) => !b.isCurrent)];
+  const sorted = [...branches.filter((b) => b.name === reviewing), ...branches.filter((b) => b.name !== reviewing)];
   const shown = all ? sorted : sorted.slice(0, BRANCHES_SHOWN);
   const hidden = sorted.length - BRANCHES_SHOWN;
   return (
@@ -1005,9 +1005,9 @@ function BranchLinks({ branches }: { branches: BranchInfo[] }) {
       {shown.map((b) => (
         <li key={b.name}>
           <a
-            className={`ovp-branch-chip${b.isCurrent ? ' ovp-branch-chip--current' : ''}`}
+            className={`ovp-branch-chip${b.name === reviewing ? ' ovp-branch-chip--review' : ''}`}
             href={browseAtHref(b.name)}
-            title={`Browse ${b.name} at ${b.head.slice(0, 7)}${b.isCurrent ? ' (checked out)' : ''}`}
+            title={`Browse ${b.name} at ${b.head.slice(0, 7)}${b.name === reviewing ? ' (the review branch)' : ''}`}
           >
             <svg className="ovp-branch-chip-icon" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
               <circle cx="4.5" cy="3.5" r="1.75" /><circle cx="4.5" cy="12.5" r="1.75" /><circle cx="11.5" cy="5" r="1.75" />
@@ -1015,7 +1015,7 @@ function BranchLinks({ branches }: { branches: BranchInfo[] }) {
             </svg>
             <span className="ovp-branch-chip-name">{b.name}</span>
             <span className="ovp-branch-chip-hash">{b.head.slice(0, 7)}</span>
-            {b.isCurrent && <span className="sr-only"> (checked out)</span>}
+            {b.name === reviewing && <span className="sr-only"> (the review branch)</span>}
           </a>
         </li>
       ))}
@@ -1037,6 +1037,7 @@ export function OverviewView() {
   const profileConfigured = useProfileStore((s) => s.configured);
   const loadProfile = useProfileStore((s) => s.load);
   const repoName = useRepoStore((s) => s.repoName);
+  const reviewBranch = useRepoStore((s) => s.reviewBranch);
 
   const loadAll = async () => {
     try {
@@ -1079,7 +1080,8 @@ export function OverviewView() {
     if (!data) return null;
     const { graph, findings } = data;
 
-    const head = graph[0] ?? null;
+    // The review branch's head (the graph spans every branch).
+    const head = graph.find((c) => c.hash === data.reconciled?.tip) ?? graph[0] ?? null;
 
     const isOpen = (f: Finding) => f.status !== 'closed' && !f.resolvedCommit;
     const open = findings.filter(isOpen);
@@ -1269,7 +1271,7 @@ export function OverviewView() {
                 </div>
                 <div className="ovp-head-hash ovp-mono">{head ? head.shortHash : '-'}</div>
                 <div className="ovp-stat-sub" title={head?.subject}>{head?.subject ?? 'No commits'}</div>
-                <BranchLinks branches={localBranches} />
+                <BranchLinks branches={localBranches} reviewing={reviewBranch?.name} />
               </div>
 
               {/* Recent log - same rendering as the Browse git tree */}

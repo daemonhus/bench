@@ -4,6 +4,8 @@ Per-project REST API served by `benchd` (default `:8080`). Every path below is r
 
 All endpoints return JSON. Error responses use standard HTTP status codes.
 
+Requests are answered on the project's [review branch](/concepts/review-branch): history ends at its head, and the findings, comments, features and baselines listed are those on it (the response's `X-Bench-Off-Branch` header counts the rest). `?branch=<name>` (or an `X-Bench-Branch` header) asks about another branch; `?all_branches=true` lists everything.
+
 ## Git
 
 | Method | Path | Description |
@@ -15,6 +17,8 @@ All endpoints return JSON. Error responses use standard HTTP status codes.
 | `GET` | `/git/diff` | Diff between two commits |
 | `GET` | `/git/diff-files` | Files changed between two commits |
 | `GET` | `/git/branches` | Branch list |
+| `GET` | `/review-branch` | The [review branch](/concepts/review-branch) in effect: `{name, tip, defaultBranch, saved, override, missing?}` |
+| `PUT` | `/review-branch` | `{branch}`: save it for the project (a local branch; `""` for the default branch) |
 | `GET` | `/git/graph` | Commit graph |
 | `GET` | `/git/activity` | Commits bucketed over time, with authors |
 | `GET` | `/git/range-stats` | Commit and merge counts between two refs |
@@ -33,7 +37,7 @@ Returns `ActivityBucket[]`, each bucket carrying its commit count, insertions an
 
 Query params:
 - `from` - base ref, exclusive (omit for the whole history)
-- `to` - target ref (default `HEAD`)
+- `to` - target ref (default: the review branch's head)
 
 ```json
 { "commits": 12, "merges": 3 }

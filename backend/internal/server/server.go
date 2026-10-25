@@ -1745,7 +1745,7 @@ func (p *Platform) featuresForProject(slug, name string) ([]CatalogFeature, erro
 		return nil, err
 	}
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/api/features", nil)
+	req := httptest.NewRequest("GET", "/api/features?all_branches=true", nil)
 	wb.Handler().ServeHTTP(rec, req)
 	if rec.Code != 200 {
 		return nil, fmt.Errorf("features fetch failed: %d", rec.Code)

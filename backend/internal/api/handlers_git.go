@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"bench/internal/db"
 	"bench/internal/git"
 	"bench/internal/model"
 )
@@ -27,6 +28,7 @@ func writeRefError(w http.ResponseWriter, err error) {
 
 type gitHandlers struct {
 	repo *git.Repo
+	db   *db.DB
 }
 
 func (h *gitHandlers) info(w http.ResponseWriter, r *http.Request) {
@@ -52,13 +54,16 @@ func (h *gitHandlers) listCommits(w http.ResponseWriter, r *http.Request) {
 	toCommit := r.URL.Query().Get("to_commit")
 	path := r.URL.Query().Get("path")
 
-	var commits []model.CommitInfo
-	var err error
-	if fromCommit != "" || toCommit != "" || path != "" {
-		commits, err = h.repo.LogRange(fromCommit, toCommit, path, limit)
-	} else {
-		commits, err = h.repo.Log(limit)
+	// History ends at the review branch's head unless asked for another.
+	if toCommit == "" {
+		b, err := reviewBranch(h.db, h.repo, r)
+		if err != nil {
+			writeInternalError(w, err)
+			return
+		}
+		toCommit = b.Tip
 	}
+	commits, err := h.repo.LogRange(fromCommit, toCommit, path, limit)
 	if err != nil {
 		writeInternalError(w, err)
 		return
@@ -205,6 +210,14 @@ func (h *gitHandlers) activity(w http.ResponseWriter, r *http.Request) {
 func (h *gitHandlers) rangeStats(w http.ResponseWriter, r *http.Request) {
 	from := r.URL.Query().Get("from")
 	to := r.URL.Query().Get("to")
+	if to == "" {
+		b, err := reviewBranch(h.db, h.repo, r)
+		if err != nil {
+			writeInternalError(w, err)
+			return
+		}
+		to = b.Tip
+	}
 	stats, err := h.repo.RangeStats(from, to)
 	if err != nil {
 		writeRefError(w, err)

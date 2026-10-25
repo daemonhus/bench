@@ -345,6 +345,7 @@ type ReconcileFileStatus struct {
 type ReconciledHead struct {
 	ReconciledHead    *string            `json:"reconciledHead"`
 	GitHead           string             `json:"gitHead"`
+	Tip               string             `json:"tip"` // what it's reconciled towards: the review branch's head
 	IsFullyReconciled bool               `json:"isFullyReconciled"`
 	Unreconciled      []UnreconciledFile `json:"unreconciled,omitempty"`
 }

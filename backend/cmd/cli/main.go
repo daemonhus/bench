@@ -129,11 +129,18 @@ var commands = []cmdDef{
 		Flags: []flagDef{
 			{Name: "limit", Param: "limit", Desc: "Max commits to return (default: 20, max: 500)", Type: "int"},
 			{Name: "from", Param: "from_commit", Desc: "Start of range (exclusive)"},
-			{Name: "to", Param: "to_commit", Desc: "End of range (inclusive, default: HEAD)"},
+			{Name: "to", Param: "to_commit", Desc: "End of range (inclusive, default: the review branch's head)"},
 			{Name: "path", Param: "path", Desc: "Only commits touching this file path"},
 		}},
 	{Cat: "git", Name: "branches", Desc: "List branches.",
 		EP: endpoint{"GET", "/api/git/branches"}},
+	{Cat: "git", Name: "review-branch", Desc: "Show the project's review branch: the branch findings, comments, features, baselines and history are looked at on. Lists show only what's anchored on it.",
+		EP: endpoint{"GET", "/api/review-branch"}},
+	{Cat: "git", Name: "set-review-branch", Desc: "Set the project's review branch, for everyone. It must be a local branch; pass --branch \"\" for the repo's default branch.",
+		EP: endpoint{"PUT", "/api/review-branch"},
+		Flags: []flagDef{
+			{Name: "branch", Param: "branch", Desc: "Local branch name, or \"\" for the default branch", Required: true},
+		}},
 
 	// ── findings ────────────────────────────────────────────────────────
 	{Cat: "findings", Name: "list", Desc: "List findings, optionally filtered by file. Pass --commit to enrich each finding with a 'confidence' field (exact|moved|orphaned); orphaned findings have no live anchor and need re-anchoring via `findings update --file ... --start ... --end ... --commit ...`.",

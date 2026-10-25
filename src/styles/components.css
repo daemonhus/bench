@@ -271,8 +271,7 @@ label:has(> input:focus-visible) {
 /* ── Light mode overrides ─────────────────────────────────────────── */
 
 /* Select hover border is more visible on light */
-[data-theme="light"] .select:hover,
-[data-theme="light"] .branch-select:hover {
+[data-theme="light"] .select:hover {
   border-color: rgba(0, 0, 0, 0.22);
 }
 

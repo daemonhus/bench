@@ -32,13 +32,15 @@ const KIND_LABELS: Record<FindingsKind, string> = { open: 'Open', closed: 'Close
 
 // The list's filters and search live in the address (#/findings?status=open,closed&severity=high
 // &source=mcp&q=xss; see query-state.ts). Status and search are remembered for this session.
-const FINDINGS_QUERY: QuerySchema<{ status: FindingsKind[]; severity: Severity[]; source: string[] | null; q: string; overdue: boolean }> = {
+const FINDINGS_QUERY: QuerySchema<{ status: FindingsKind[]; severity: Severity[]; source: string[] | null; q: string; overdue: boolean; others: boolean }> = {
   status: qp.set<FindingsKind>('status', ALL_FINDING_KINDS, ['open']).remembered('session'),
   severity: qp.set<Severity>('severity', ALL_SEVERITIES),
   source: qp.only('source'),
   q: qp.string('q').remembered('session'),
   // Only open findings past their fix-time SLA (core/sla.ts); the platform's Past SLA links set it.
   overdue: qp.bool('overdue'),
+  // Also the findings on other branches than the review branch.
+  others: qp.bool('others'),
 };
 const FINDINGS_URL = hashQuery('/findings');
 const FINDINGS_REMEMBER = { key: 'bench-findings-query' };
@@ -155,10 +157,19 @@ export const FindingsView: React.FC = () => {
 
   const loadFeatures = useAnnotationStore((s) => s.loadFeatures);
 
+  // The review branch's findings; how many are on other branches, and with ?others those too.
+  const reviewBranch = useRepoStore((s) => s.reviewBranch);
+  const [offBranchCount, setOffBranchCount] = useState(0);
+  const [offBranchIds, setOffBranchIds] = useState<Set<string>>(new Set());
   const refreshFindings = useCallback(() => {
     featuresApi.list().then((f) => loadFeatures(f as Feature[])).catch(() => {});
-    return findingsApi.list().then((f) => loadFindings(f as Finding[])).catch(() => {});
-  }, [loadFindings, loadFeatures]);
+    return Promise.all([findingsApi.listScoped(), fq.others ? findingsApi.listScoped(true) : null]).then(([scoped, all]) => {
+      setOffBranchCount(scoped.offBranch);
+      const onBranch = new Set(scoped.items.map((f) => f.id));
+      setOffBranchIds(new Set((all?.items ?? []).filter((f) => !onBranch.has(f.id)).map((f) => f.id)));
+      loadFindings((all ?? scoped).items);
+    }).catch(() => {});
+  }, [loadFindings, loadFeatures, fq.others]);
 
   useEffect(() => {
     setLoading(true);
@@ -309,6 +320,7 @@ export const FindingsView: React.FC = () => {
             return next;
           })}
           onScrollTo={() => navigateToFile(f.anchor.fileId, f.anchor.lineRange ?? undefined, f.anchor.commitId)}
+          notOnBranch={offBranchIds.has(f.id) ? reviewBranch?.name : undefined}
         />
       </div>
     ));
@@ -411,6 +423,17 @@ export const FindingsView: React.FC = () => {
             <SearchBox value={searchQuery} onChange={setSearchQuery} invalid={!isRegexValid} shortcut={['/']} expand />
           </div>
         </div>
+
+      {offBranchCount > 0 && reviewBranch && (
+        <p className="findings-branch-note" role="status" data-chrome>
+          <span>
+            {offBranchCount === 1 ? '1 finding is' : `${offBranchCount} findings are`} on other branches, not <code>{reviewBranch.name}</code>.
+          </span>
+          <button type="button" className="findings-branch-note-toggle" aria-pressed={fq.others} onClick={() => setFq({ others: !fq.others })}>
+            {fq.others ? 'Hide them' : 'Show them'}
+          </button>
+        </p>
+      )}
 
       {/* Collapsible metrics panel */}
       {displayedFindings.length > 0 && (

@@ -35,6 +35,12 @@ func (h *featuresHandlers) list(w http.ResponseWriter, r *http.Request) {
 		writeInternalError(w, err)
 		return
 	}
+	scope, err := branchScope(h.db, h.repo, r)
+	if err != nil {
+		writeInternalError(w, err)
+		return
+	}
+	features = keepOnBranch(w, scope, features, func(f model.Feature) string { return f.Anchor.CommitID })
 
 	// Filter by id/kind/status query params
 	id := r.URL.Query().Get("id")

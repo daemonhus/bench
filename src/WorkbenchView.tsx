@@ -1,6 +1,7 @@
 import { useLayoutEffect, useMemo } from 'react';
 import { setApiBase } from './core/api';
 import { App } from './App';
+import { useRepoStore } from './stores/repo-store';
 import { WorkbenchExtensionsProvider, type WorkbenchExtensions } from './core/extensions';
 
 /** Editor configuration that affects the code viewer. */
@@ -31,6 +32,8 @@ const NO_EXTENSIONS: WorkbenchExtensions = {};
  * Render as <WorkbenchView apiBase="/api/projects/project-slug" />.
  */
 export function WorkbenchView({ apiBase, className, editorConfig, extensions }: WorkbenchProps) {
+  // Another review branch: the pages start again on it.
+  const branchEpoch = useRepoStore((s) => s.branchEpoch);
   // useLayoutEffect fires before any regular useEffect (including App's
   // data-loading effects), so apiBase is always set before fetches start.
   // This also survives StrictMode's mount→cleanup→mount cycle.
@@ -60,7 +63,7 @@ export function WorkbenchView({ apiBase, className, editorConfig, extensions }: 
   return (
     <WorkbenchExtensionsProvider value={extensions ?? NO_EXTENSIONS}>
       <div className={className} style={style}>
-        <App />
+        <App key={branchEpoch} />
       </div>
     </WorkbenchExtensionsProvider>
   );

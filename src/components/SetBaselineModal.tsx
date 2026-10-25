@@ -9,12 +9,16 @@ interface Props {
   branches: BranchInfo[];
   headCommit: string | null;
   defaultToHead?: boolean;
+  /** The branch whose commits are listed at first (its head selected): the review branch. */
+  initialBranch?: string;
 }
 
-export const SetBaselineModal: React.FC<Props> = ({ onConfirm, onClose, branches, headCommit, defaultToHead = false }) => {
+export const SetBaselineModal: React.FC<Props> = ({ onConfirm, onClose, branches, headCommit, defaultToHead = false, initialBranch }) => {
   const modal = useModal<HTMLDivElement>({ label: 'Set baseline', onClose: onClose });
   const [graphCommits, setGraphCommits] = useState<GraphCommit[]>([]);
-  const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
+  const [selectedBranch, setSelectedBranch] = useState<string | null>(
+    initialBranch && branches.some((b) => b.name === initialBranch) ? initialBranch : null,
+  );
   const [selectedCommit, setSelectedCommit] = useState<string>('');
   const [loading, setLoading] = useState(true);
 
@@ -51,7 +55,7 @@ export const SetBaselineModal: React.FC<Props> = ({ onConfirm, onClose, branches
       reachable.add(hash);
       const commit = commitMap.get(hash);
       if (commit) {
-        for (const parent of commit.parents) {
+        for (const parent of commit.parents ?? []) { // a root commit has none (null)
           if (!reachable.has(parent)) queue.push(parent);
         }
       }

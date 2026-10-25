@@ -73,6 +73,16 @@ List recent commits.
 
 List branches in the repository. No parameters.
 
+### get_review_branch
+
+The project's [review branch](/concepts/review-branch): what findings, comments, features, baselines and history are looked at on. No parameters.
+
+### set_review_branch
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `branch` | string | yes | A local branch, or `""` for the default branch. Saved for the project. |
+
 ## findings
 
 ### list_findings

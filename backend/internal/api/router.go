@@ -33,7 +33,7 @@ func NewRouter(repo *git.Repo, database *db.DB, broker *events.Broker, opts ...R
 	// Create reconciler (shared across handlers)
 	reconciler := reconcile.NewReconciler(repo, database, database, database, reconcile.WithResolver(database))
 
-	gh := &gitHandlers{repo: repo}
+	gh := &gitHandlers{repo: repo, db: database}
 	mux.HandleFunc("GET /api/git/info", gh.info)
 	mux.HandleFunc("GET /api/git/commits", gh.listCommits)
 	mux.HandleFunc("GET /api/git/tree/{commitish}", gh.listTree)
@@ -111,6 +111,10 @@ func NewRouter(repo *git.Repo, database *db.DB, broker *events.Broker, opts ...R
 	mux.HandleFunc("POST /api/refs", rh.create)
 	mux.HandleFunc("PATCH /api/refs/{id}", rh.update)
 	mux.HandleFunc("DELETE /api/refs/{id}", rh.delete)
+
+	rbh := &reviewBranchHandlers{db: database, repo: repo, broker: broker}
+	mux.HandleFunc("GET /api/review-branch", rbh.get)
+	mux.HandleFunc("PUT /api/review-branch", rbh.put)
 
 	sh := &settingsHandlers{db: database}
 	mux.HandleFunc("GET /api/settings", sh.get)

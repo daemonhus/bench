@@ -178,6 +178,7 @@ func registerAllTools(deps *toolDeps) map[string]Tool {
 		registerFeatureTools(deps),
 		registerRefTools(deps),
 		registerProfileTools(deps),
+		registerReviewBranchTools(deps),
 	} {
 		for _, t := range list {
 			t.RequiresProfile = requiresProfile(t.Name)

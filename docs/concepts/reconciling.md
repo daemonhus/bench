@@ -59,7 +59,9 @@ An `orphaned` annotation can be restored by manually re-anchoring it (via `updat
 
 **File renamed** - `git diff` may produce an empty diff for the old path. The algorithm detects renames, updates the working path, and re-attempts content matching at the new path. Previously `exact` annotations become `moved`.
 
-**Rebase / non-ancestor branch** - if the last reconciled commit is not an ancestor of the target, the algorithm finds the merge base, discards positions recorded after it, and re-walks from the merge base along the new branch.
+**Another branch, or a rebase** - if the last reconciled commit is not an ancestor of the target (the [review branch](/concepts/review-branch) changed, or history was rewritten), the algorithm finds the merge base and re-walks from there along the target's history, starting each annotation from its latest position in that history. Positions recorded on the other branch are kept for when it is reviewed again.
+
+**Annotations from other branches** - an annotation anchored on a commit outside the target's history is left alone: it gets no position there and is never orphaned (or auto-closed) by a branch it isn't on. One made later on the target's own history moves only with the commits after its anchor.
 
 **File deleted** - after walking all commits, the algorithm checks whether the file exists at the target. If not, any remaining `exact` or `moved` annotations are orphaned.
 

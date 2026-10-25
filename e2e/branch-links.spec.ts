@@ -20,8 +20,8 @@ test('branch chips link to browsing that branch, and leaving its commit drops it
 
   await page.goto(appUrl('/#/overview'));
   const chips = page.locator('.ovp-branch-chip');
-  // The checked-out branch comes first, whatever order the server lists them in.
-  await expect(chips.first()).toHaveClass(/ovp-branch-chip--current/);
+  // The review branch comes first, whatever order the server lists them in.
+  await expect(chips.first()).toHaveClass(/ovp-branch-chip--review/);
   await expect(chips.first()).toContainText('main');
   await expect(chips).toHaveCount(4);
 
@@ -37,11 +37,11 @@ test('branch chips link to browsing that branch, and leaving its commit drops it
   await expect(old).toHaveAttribute('href', `#/browse?at=${OLD}`);
   await expect(old.locator('.ovp-branch-chip-hash')).toHaveText(first.shortHash);
 
-  // Browse opens at the branch's commit: the commit button and the branch picker say so.
+  // Browse opens at the branch's commit: the commit button says so.
   await old.click();
   await expect(page).toHaveURL(/#\/browse\?at=feature\/search$/);
   await expect(page.locator('.commit-button-hash')).toHaveText(first.shortHash);
-  await expect(page.locator('.branch-select')).toHaveValue(OLD);
+  await expect(page.locator('.commit-button')).toContainText(OLD);
 
   // The address is a link: loaded cold, it lands on the same commit.
   await page.reload();

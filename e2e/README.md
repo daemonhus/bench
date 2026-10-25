@@ -43,6 +43,7 @@ StrictMode double effects) - the way users run bench. Specs open `/p/e2e-N#/...`
 | `multi-select` | menu-button dropdown: open/move/toggle/only/Escape/Tab-away, ARIA |
 | `interaction-chains` | go-to-file, find-in-files, go-to-line, commit history, New feature, tag input, profile radios |
 | `a11y-scan` | axe-core (structure, names, landmarks; colour contrast excluded) over every view and dialog |
+| `review-branch` | the branch chip beside the project name (keyboard pick, saved for the project, focus back), Findings/Changes/Browse on the branch, `?branch=` links |
 | `selection-toolbar`, `comment-drag`, `diff-render`, `css-fixes-verify`, `profile`, `overview` | existing feature suites, brought up to date |
 
 Two tests skip on macOS only: native `<select>` arrow keys open a popup there (they run on Linux/CI).

@@ -36,7 +36,7 @@ A delta answers "what changed since baseline X?"
 ```
 BaselineDelta {
   sinceBaseline     Baseline        The reference baseline
-  headCommit        string          Current default branch tip
+  headCommit        string          The review branch's head
   newFindings       Finding[]       Findings that exist now but not in the baseline
   removedFindingIDs string[]        Finding IDs in the baseline but not in current state
   changedFiles      string[]        Files modified between baseline commit and HEAD
@@ -49,7 +49,7 @@ Delta computation:
 2. Load current findings from the database
 3. **New** = current findings whose IDs are not in the baseline set
 4. **Removed** = baseline IDs that no longer exist
-5. **Changed files** = `git diff baselineCommit..defaultBranchTip`
+5. **Changed files** = `git diff baselineCommit..reviewBranchHead`
 
 ### What the delta is actually measuring
 
@@ -59,7 +59,7 @@ Delta computation:
 
 **Changed files are commit-based.**
 
-`changedFiles` is the one exception: it uses `git diff` between the baseline's `commitId` and the current default branch tip. This tells you which files the codebase touched between those two points, which is useful context but independent of the findings delta.
+`changedFiles` is the one exception: it uses `git diff` between the baseline's `commitId` and the head of the [review branch](/concepts/review-branch). This tells you which files the codebase touched between those two points, which is useful context but independent of the findings delta.
 
 **Practical implication:** if you create a finding, then set a baseline, then delete the finding, then call `get_delta` - the finding appears as "removed" even though it was never in the codebase after the baseline. The delta reflects what changed in the *database*, not what changed in the *code*.
 
@@ -89,7 +89,7 @@ POST body (all fields optional):
 }
 ```
 
-If `commitId` is omitted, defaults to the tip of the default branch (main/master), falling back to HEAD.
+If `commitId` is omitted, defaults to the head of the [review branch](/concepts/review-branch) (the default branch unless one is chosen). The delta is measured from the review branch's latest baseline: the newest one whose commit is in its history.
 
 ## MCP tools
 
@@ -103,7 +103,7 @@ Create a new baseline snapshot.
 |-------------|--------|----------------|--------------------------------|
 | `reviewer`  | string | `"mcp-client"` | Who is setting the baseline    |
 | `summary`   | string | -              | Optional note                  |
-| `commit_id` | string | default branch | Git commit to snapshot at      |
+| `commit_id` | string | review branch head | Git commit to snapshot at |
 
 Returns a human-readable summary with the baseline seq number, commit, stats, and ID.
 

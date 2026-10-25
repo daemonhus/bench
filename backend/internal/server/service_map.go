@@ -151,8 +151,9 @@ func (p *Platform) buildServiceMap(includeArchived bool) (*ServiceMap, error) {
 			}
 			var feats []mapRawFeature
 			var findings []mapRawFinding
-			get("/api/features", &feats)
-			get("/api/findings", &findings)
+			// Every branch's, as the platform's pages don't follow a project's review branch.
+			get("/api/features?all_branches=true", &feats)
+			get("/api/findings?all_branches=true", &findings)
 			open := map[string]int{}
 			for _, f := range findings {
 				if isOpenStatus(f.Status) {

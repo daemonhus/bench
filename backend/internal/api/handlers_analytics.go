@@ -20,12 +20,12 @@ type analyticsHandlers struct {
 func (h *analyticsHandlers) summary(w http.ResponseWriter, r *http.Request) {
 	commit := r.URL.Query().Get("commit")
 	if commit == "" {
-		head, err := h.repo.Head()
+		b, err := reviewBranch(h.db, h.repo, r)
 		if err != nil {
-			writeInternalError(w, fmt.Errorf("resolve HEAD: %w", err))
+			writeInternalError(w, err)
 			return
 		}
-		commit = head
+		commit = b.Tip
 	}
 
 	summary, err := h.db.FindingSummary()
@@ -40,7 +40,7 @@ func (h *analyticsHandlers) summary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	reconHead, err := h.reconciler.GetReconciledHead()
+	reconHead, err := h.reconciler.GetReconciledHeadAt(commit)
 	if err != nil {
 		writeInternalError(w, err)
 		return
@@ -130,12 +130,12 @@ func (h *analyticsHandlers) markReviewed(w http.ResponseWriter, r *http.Request)
 func (h *analyticsHandlers) coverage(w http.ResponseWriter, r *http.Request) {
 	commit := r.URL.Query().Get("commit")
 	if commit == "" {
-		head, err := h.repo.Head()
+		b, err := reviewBranch(h.db, h.repo, r)
 		if err != nil {
-			writeInternalError(w, fmt.Errorf("resolve HEAD: %w", err))
+			writeInternalError(w, err)
 			return
 		}
-		commit = head
+		commit = b.Tip
 	}
 	pathPrefix := r.URL.Query().Get("path")
 	onlyUnreviewed := r.URL.Query().Get("only_unreviewed") == "true"

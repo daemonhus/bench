@@ -30,7 +30,7 @@ Tools are organized into nine groups matching the CLI categories:
 
 | Group | Tools |
 |-------|-------|
-| `git` | `search_code`, `get_blame`, `read_file`, `read_files`, `list_files`, `get_diff`, `list_changed_files`, `list_commits`, `list_branches` |
+| `git` | `search_code`, `get_blame`, `read_file`, `read_files`, `list_files`, `get_diff`, `list_changed_files`, `list_commits`, `list_branches`, `get_review_branch`, `set_review_branch` |
 | `findings` | `list_findings`, `get_finding`, `create_finding`, `update_finding`, `delete_finding`, `resolve_finding`, `search_findings`, `batch_create_findings`, `set_finding_origin`, `clear_finding_origin`, `suggest_finding_origin` |
 | `comments` | `list_comments`, `get_comment`, `create_comment`, `update_comment`, `delete_comment`, `resolve_comment`, `batch_create_comments` |
 | `features` | `list_features`, `get_feature`, `create_feature`, `update_feature`, `delete_feature`, `batch_create_features`, `list_feature_parameters`, `get_feature_parameter`, `create_feature_parameter`, `update_feature_parameter`, `delete_feature_parameter`, `set_feature_origin`, `clear_feature_origin`, `suggest_feature_origin` |
@@ -130,6 +130,10 @@ Read multiple files in a single call. Returns each file's content with line numb
 ### list_branches
 
 No parameters.
+
+### get_review_branch / set_review_branch
+
+The project's [review branch](/concepts/review-branch): the branch the lists, baselines and history are looked at on (the default branch until one is chosen). `set_review_branch` takes `branch` (a local branch, or `""` for the default) and saves it for everyone.
 
 ---
 

@@ -411,14 +411,14 @@
   font-size: var(--font-size-xs);
 }
 
-/* The checked-out branch, in the green the history uses for branch labels. */
-.ovp-branch-chip--current {
+/* The review branch, in the green the history uses for branch labels. */
+.ovp-branch-chip--review {
   border-color: color-mix(in srgb, var(--accent-green) 40%, transparent);
   background: var(--accent-green-subtle);
 }
 
-.ovp-branch-chip--current .ovp-branch-chip-icon,
-.ovp-branch-chip--current .ovp-branch-chip-name {
+.ovp-branch-chip--review .ovp-branch-chip-icon,
+.ovp-branch-chip--review .ovp-branch-chip-name {
   color: var(--accent-green);
 }
 

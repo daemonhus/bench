@@ -128,6 +128,11 @@ func (r *Repo) IsAncestor(ancestor, descendant string) (bool, error) {
 	return r.backend.IsAncestor(ancestor, descendant)
 }
 
+// Contains reports whether commit is in tip's history (tip itself included).
+// Unlike IsAncestor it remembers the walk, so asking about many commits on the
+// same tip is cheap.
+func (r *Repo) Contains(tip, commit string) (bool, error) { return r.backend.Contains(tip, commit) }
+
 func (r *Repo) MergeBase(a, b string) (string, error) { return r.backend.MergeBase(a, b) }
 
 func (r *Repo) RevList(from, to string) ([]string, error) { return r.backend.RevList(from, to) }

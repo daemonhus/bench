@@ -26,4 +26,4 @@ A column on the left shows who last changed each line and how long ago. Each run
 
 Blame is on by default. The blame button in the file header (the clock, or <kbd>B</kbd>) hides or shows it; the choice is kept in the address (`?blame=0`) and remembered for next time.
 
-To browse another branch, pick it from the branch list above the file tree, or click it on the [Overview](./overview). The address then names it (`#/browse?at=fix/login`), so the link opens that branch for anyone; moving to another commit drops it.
+Browse opens at the head of the project's [review branch](/concepts/review-branch), picked beside the project name. The card above the file tree shows the commit you're on (hash, subject, who and when, and the branch when it's that branch's head); click it for the history. **Compare** swaps it for two cards, From and To: pick each from the history, which offers only commits that keep From before To. To look at another branch without changing it, click the branch on the [Overview](./overview). The address then names it (`#/browse?at=fix/login`), so the link opens that branch for anyone; moving to another commit drops it.

@@ -19,6 +19,17 @@
   align-items: center;
 }
 
+/* The project name and its review branch, divided from the tabs. */
+.tab-bar-project {
+  display: flex;
+  align-items: center;
+  flex: none;
+  height: 100%;
+  padding-right: 16px;
+  margin-right: 4px;
+  border-right: 1px solid var(--border-default);
+}
+
 .tab-bar-project-name {
   display: inline-flex;
   align-items: center;
@@ -29,11 +40,9 @@
   font-size: var(--font-size-ui);
   /* The logo's colour: like the platform rail's mark, it is the way home (the Overview). */
   color: var(--accent-blue);
-  padding: 0 16px 0 4px;
-  margin-right: 4px;
+  padding: 0 10px 0 4px;
   background: none;
   border: none;
-  border-right: 1px solid var(--border-default);
   border-radius: 0;
   height: 100%;
   white-space: nowrap;
@@ -204,3 +213,168 @@
     padding-right: 8px;
   }
 }
+
+/* ----- Review branch (beside the project name) ----- */
+/* The branch the project is looked at on: a code-like chip, opening the branch list. */
+.review-branch {
+  display: inline-flex;
+  align-items: center;
+  flex: none; /* a phone's tab strip scrolls rather than squeezing it */
+}
+
+.review-branch-trigger,
+.review-branch--static {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 220px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xs);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-small);
+  white-space: nowrap;
+}
+
+.review-branch-trigger {
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+.review-branch-trigger:hover,
+.review-branch-trigger[aria-expanded="true"] {
+  border-color: var(--accent-blue);
+  background: var(--accent-blue-subtle);
+}
+.review-branch-trigger:focus-visible {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: 2px;
+}
+
+.review-branch-icon { flex-shrink: 0; color: var(--text-muted); }
+.review-branch-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.review-branch-chevron { flex-shrink: 0; opacity: 0.7; }
+
+/* Shown because the address named it, not the project. */
+.review-branch-trigger--link { border-style: dashed; }
+.review-branch-tag {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+/* Placed by the component (fixed, under the chip). */
+.review-branch-popover {
+  position: fixed;
+  z-index: 1000;
+  width: min(340px, calc(100vw - 32px));
+  padding: 6px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  box-shadow: var(--shadow-md);
+  font-family: var(--font-sans);
+}
+
+.review-branch-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px 10px;
+}
+.review-branch-heading { font-size: var(--font-size-small); font-weight: 600; color: var(--text-primary); }
+
+.review-branch-note {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 4px 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-base);
+  background: var(--bg-surface);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+.review-branch-note code { font-family: var(--font-mono); color: var(--text-primary); }
+.review-branch-note-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.review-branch-action {
+  padding: 4px 8px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xs);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font: inherit;
+  cursor: pointer;
+}
+.review-branch-action:hover { border-color: var(--accent-blue); background: var(--accent-blue-subtle); }
+.review-branch-action:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 1px; }
+
+.review-branch-filter {
+  width: calc(100% - 8px);
+  margin: 0 4px 6px;
+  padding: 7px 10px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-base);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-small);
+  outline: none;
+}
+.review-branch-filter:focus { border-color: var(--accent-blue); box-shadow: var(--shadow-focus-blue); }
+
+.review-branch-list {
+  max-height: min(320px, 50vh);
+  overflow-y: auto;
+  outline: none;
+  border-radius: var(--radius-base);
+}
+.review-branch-list:focus-visible { box-shadow: var(--shadow-focus-blue); }
+
+.review-branch-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-base);
+  color: var(--text-secondary);
+  font-size: var(--font-size-small);
+  cursor: pointer;
+}
+.review-branch-option--active { background: var(--bg-surface); }
+.review-branch-option--selected { color: var(--text-primary); }
+
+.review-branch-check { width: 14px; height: 14px; flex-shrink: 0; }
+.review-branch-option--selected .review-branch-check {
+  background: var(--accent-blue);
+  mask: no-repeat center / 14px url("data:image/svg+xml,%3Csvg viewBox='0 0 14 14' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M3 7.5l2.5 2.5L11 4.5' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+.review-branch-option-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+}
+.review-branch-meta {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: var(--radius-xs);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+.review-branch-hash {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+.review-branch-empty { padding: 10px; font-size: var(--font-size-small); color: var(--text-muted); }
+.review-branch-error { margin: 6px 4px 2px; font-size: var(--font-size-xs); color: var(--severity-critical); }

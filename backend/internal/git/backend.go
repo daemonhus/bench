@@ -28,6 +28,7 @@ type Backend interface {
 	DetectRename(from, to, path string) (string, error)
 
 	IsAncestor(ancestor, descendant string) (bool, error)
+	Contains(tip, commit string) (bool, error)
 	MergeBase(a, b string) (string, error)
 	RevList(from, to string) ([]string, error)
 

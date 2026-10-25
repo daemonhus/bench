@@ -1,4 +1,4 @@
-import type { Finding, Origin, OriginSuggestion, Comment, FindingWithPosition, CommentWithPosition, CommitInfo, FileEntry, BranchInfo, GraphCommit, ActivityBucket, ActivityScale, ReconciledHead, JobSnapshot, ReconcileFileStatus, AnnotationPosition, PaginatedResponse, GrepMatch, BlameLine, Baseline, BaselineDelta, Feature, FeatureWithPosition, FeatureKind, FeatureStatus, Ref, ServiceProfile } from './types';
+import type { ReviewBranch, Finding, Origin, OriginSuggestion, Comment, FindingWithPosition, CommentWithPosition, CommitInfo, FileEntry, BranchInfo, GraphCommit, ActivityBucket, ActivityScale, ReconciledHead, JobSnapshot, ReconcileFileStatus, AnnotationPosition, PaginatedResponse, GrepMatch, BlameLine, Baseline, BaselineDelta, Feature, FeatureWithPosition, FeatureKind, FeatureStatus, Ref, ServiceProfile } from './types';
 
 interface DiffResult {
   raw: string;
@@ -22,15 +22,54 @@ export function getApiBase(): string {
   return _baseUrl;
 }
 
-async function fetchJSON<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(_baseUrl + path, init);
+/** The branch the page's address names (?branch=, before the #), overriding the project's. */
+export function addressBranch(): string {
+  return new URLSearchParams(window.location.search).get('branch') ?? '';
+}
+
+/** Every request is looked at on the address's branch, when it names one. */
+function withBranch(init?: RequestInit): RequestInit | undefined {
+  const branch = addressBranch();
+  if (!branch) return init;
+  const headers = new Headers(init?.headers);
+  headers.set('X-Bench-Branch', branch);
+  return { ...init, headers };
+}
+
+async function fetchResponse(path: string, init?: RequestInit): Promise<Response> {
+  const res = await fetch(_baseUrl + path, withBranch(init));
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`${res.status}: ${body}`);
   }
+  return res;
+}
+
+async function fetchJSON<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetchResponse(path, init);
   if (res.status === 204) return undefined as T;
   return res.json();
 }
+
+/** A list scoped to the review branch, and how many items it left out as on other branches. */
+async function fetchScoped<T>(path: string): Promise<{ items: T[]; offBranch: number }> {
+  const res = await fetchResponse(path);
+  return { items: await res.json(), offBranch: Number(res.headers.get('X-Bench-Off-Branch') ?? 0) };
+}
+
+export const reviewBranchApi = {
+  get(): Promise<ReviewBranch> {
+    return fetchJSON('/review-branch');
+  },
+  /** Saves it for the project; '' goes back to the default branch. */
+  set(branch: string): Promise<ReviewBranch> {
+    return fetchJSON('/review-branch', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ branch }),
+    });
+  },
+};
 
 export const gitApi = {
   getInfo(): Promise<{ name: string; defaultBranch: string; remoteUrl: string }> {
@@ -66,9 +105,11 @@ export const gitApi = {
   activity(scale: ActivityScale = 'week', periods = 52): Promise<ActivityBucket[]> {
     return fetchJSON(`/git/activity?scale=${scale}&periods=${periods}`);
   },
-  /** Commits and merges in from..to (from exclusive). */
-  rangeStats(from: string, to = 'HEAD'): Promise<{ commits: number; merges: number }> {
-    return fetchJSON(`/git/range-stats?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+  /** Commits and merges in from..to (from exclusive; to defaults to the review branch's head). */
+  rangeStats(from: string, to?: string): Promise<{ commits: number; merges: number }> {
+    const params = new URLSearchParams({ from });
+    if (to) params.set('to', to);
+    return fetchJSON(`/git/range-stats?${params}`);
   },
   blame(commit: string, path: string): Promise<BlameLine[]> {
     return fetchJSON(`/git/blame?${new URLSearchParams({ commit, path })}`);
@@ -90,6 +131,12 @@ export const findingsApi = {
     if (id) params.set('id', id);
     params.set('include_resolved', 'true');
     return fetchJSON(`/findings?${params}`);
+  },
+  /** All findings on the review branch, and the number on other branches; with `allBranches`, every finding. */
+  listScoped(allBranches = false): Promise<{ items: Finding[]; offBranch: number }> {
+    const params = new URLSearchParams({ include_resolved: 'true' });
+    if (allBranches) params.set('all_branches', 'true');
+    return fetchScoped(`/findings?${params}`);
   },
   listPaginated(opts: { fileId?: string; commit?: string; id?: string; limit: number; offset?: number }): Promise<PaginatedResponse<Finding | FindingWithPosition>> {
     const params = new URLSearchParams();
@@ -317,6 +364,10 @@ export const settingsApi = {
 export const baselinesApi = {
   list(): Promise<Baseline[]> {
     return fetchJSON('/baselines');
+  },
+  /** The review branch's baselines, and the number on other branches. */
+  listScoped(): Promise<{ items: Baseline[]; offBranch: number }> {
+    return fetchScoped('/baselines');
   },
   latest(): Promise<Baseline | null> {
     return fetchJSON<Baseline>('/baselines/latest').catch(() => null);

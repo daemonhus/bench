@@ -32,6 +32,8 @@ interface FindingCardProps {
   onSnippetCollapsedChange?: (collapsed: boolean) => void;
   onToggle: () => void;
   onScrollTo: () => void;
+  /** Set when the finding isn't on the review branch: that branch's name. */
+  notOnBranch?: string;
 }
 
 const NO_IDS: string[] = [];
@@ -63,6 +65,7 @@ export const FindingCard: React.FC<FindingCardProps> = ({
   onSnippetCollapsedChange,
   onToggle,
   onScrollTo,
+  notOnBranch,
 }) => {
   const updateFinding = useAnnotationStore((s) => s.updateFinding);
   const deleteFinding = useAnnotationStore((s) => s.deleteFinding);
@@ -208,6 +211,7 @@ export const FindingCard: React.FC<FindingCardProps> = ({
             {!idCopied && <span className="finding-id-copy">&#x2398;</span>}
           </span>
           <ToneChip label={finding.source} title="Source" />
+          {notOnBranch && <ToneChip label={`Not on ${notOnBranch}`} title={`Anchored on a commit that isn't in ${notOnBranch}'s history`} />}
           <SelectDropdown<FindingStatus> appearance="tinted" size="sm" label="Status" className="finding-status-control"
             options={FINDING_STATUS_OPTIONS} value={finding.status}
             onChange={(status) => updateFinding(finding.id, { status })}

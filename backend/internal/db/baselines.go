@@ -75,6 +75,33 @@ func (d *DB) GetPreviousBaseline(baselineID string) (*model.Baseline, error) {
 	)
 }
 
+// BaselinesBefore returns up to limit baselines created before the given one,
+// most recent first (rowid order, as datetime has 1-second resolution).
+func (d *DB) BaselinesBefore(baselineID string, limit int) ([]model.Baseline, error) {
+	rows, err := d.conn.Query(
+		`SELECT `+baselineColumns+`
+		FROM baselines
+		WHERE project_id = ?
+			AND rowid < (SELECT rowid FROM baselines WHERE id = ? AND project_id = ?)
+		ORDER BY rowid DESC LIMIT ?`,
+		d.projectID, baselineID, d.projectID, limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list earlier baselines: %w", err)
+	}
+	defer rows.Close()
+
+	var baselines []model.Baseline
+	for rows.Next() {
+		b, err := d.scanBaselineRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		baselines = append(baselines, *b)
+	}
+	return baselines, rows.Err()
+}
+
 // ListBaselines returns all baselines for the project, most recent first.
 func (d *DB) ListBaselines(limit int) ([]model.Baseline, error) {
 	if limit <= 0 {
@@ -83,7 +110,7 @@ func (d *DB) ListBaselines(limit int) ([]model.Baseline, error) {
 	rows, err := d.conn.Query(
 		`SELECT `+baselineColumns+`
 		FROM baselines WHERE project_id = ?
-		ORDER BY created_at DESC LIMIT ?`,
+		ORDER BY created_at DESC, rowid DESC LIMIT ?`,
 		d.projectID, limit,
 	)
 	if err != nil {

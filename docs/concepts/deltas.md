@@ -9,7 +9,7 @@ Deltas are computed against [baselines](/baselines) - immutable snapshots of the
 ```typescript
 {
   sinceBaseline: Baseline     // the reference snapshot
-  headCommit: string          // current tip of the default branch
+  headCommit: string          // the review branch's head
   newFindings: Finding[]      // findings that exist now but weren't in the baseline
   removedFindingIds: string[] // findings that were in the baseline but no longer exist
   changedFiles: string[]      // files modified between baseline commit and HEAD
@@ -52,7 +52,7 @@ Baselines are cheap - create them liberally. The delta computation is where the 
 
 **removedFindingIds** is the inverse: IDs that were in the baseline but no longer exist in the database.
 
-**changedFiles** comes from `git diff <baselineCommit>..<HEAD>` - the files that the codebase itself has changed between the baseline commit and the current default branch tip. This is distinct from which files have new findings; it tells you where the code moved.
+**changedFiles** comes from `git diff <baselineCommit>..<head>` - the files that the codebase itself has changed between the baseline commit and the head of the [review branch](/concepts/review-branch). This is distinct from which files have new findings; it tells you where the code moved.
 
 ## Notes
 

@@ -184,6 +184,20 @@ export interface BranchInfo {
   isRemote: boolean;
 }
 
+/** The branch a project is reviewed on: saved for the project, or named by the page's address. */
+export interface ReviewBranch {
+  /** The branch, or 'HEAD' when the repo has no default branch to fall back on. */
+  name: string;
+  tip: string;
+  defaultBranch: string;
+  /** The project's saved branch; '' when it uses the default. */
+  saved: string;
+  /** Set when the address (?branch=) named it rather than the project. */
+  override: boolean;
+  /** A saved or addressed branch that no longer exists, which `name` stands in for. */
+  missing?: string;
+}
+
 export interface GraphCommit {
   hash: string;
   shortHash: string;
@@ -257,6 +271,8 @@ export interface UnreconciledFile {
 export interface ReconciledHead {
   reconciledHead: string | null;
   gitHead: string;
+  /** What the annotations are reconciled towards: the review branch's head. */
+  tip: string;
   isFullyReconciled: boolean;
   unreconciled: UnreconciledFile[];
 }

@@ -786,6 +786,32 @@ a.overview-pr-ref:hover {
   margin-bottom: 20px;
 }
 
+/* Findings left out because they're on other branches than the review branch. */
+.findings-branch-note {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-base);
+  background: var(--bg-surface);
+  font-size: var(--font-size-small);
+  color: var(--text-secondary);
+}
+.findings-branch-note code { font-family: var(--font-mono); color: var(--text-primary); }
+.findings-branch-note-toggle {
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--accent-blue);
+  font: inherit;
+  cursor: pointer;
+}
+.findings-branch-note-toggle:hover { text-decoration: underline; }
+.findings-branch-note-toggle:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; border-radius: 2px; }
+
 .findings-metrics-toggle {
   font-size: var(--font-size-ui);
   font-weight: 500;

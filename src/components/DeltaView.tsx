@@ -86,6 +86,9 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
   const [allFindings, setAllFindings] = useState<Finding[]>([]);
   const [allFeatures, setAllFeatures] = useState<Feature[]>([]);
   const [graphCommits, setGraphCommits] = useState<GraphCommit[]>([]);
+  // No baseline on the review branch, but some on others.
+  const [baselinesElsewhere, setBaselinesElsewhere] = useState(false);
+  const reviewBranch = useRepoStore((s) => s.reviewBranch);
   const [loading, setLoading] = useState(true);
   const [showBaselineModal, setShowBaselineModal] = useState(false);
 
@@ -142,11 +145,16 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
       setSpecificDelta(d);
     } else {
       await refreshBaseline();
-      // Auto-init: if still no baseline exists, create one at the oldest (init) commit
+      // Auto-init: the project's first baseline, at the oldest (init) commit. Not when other
+      // branches have baselines: one at the init commit would be the newest on theirs too.
       if (!useBaselineStore.getState().latestBaseline && (graph as GraphCommit[]).length > 0) {
-        const g = graph as GraphCommit[];
-        const initCommit = g.find(c => !c.parents || c.parents.length === 0) ?? g[g.length - 1];
-        await setBaseline(undefined, undefined, initCommit.hash);
+        const { items, offBranch } = await baselinesApi.listScoped().catch(() => ({ items: [], offBranch: 0 }));
+        setBaselinesElsewhere(offBranch > 0);
+        if (items.length === 0 && offBranch === 0) {
+          const g = graph as GraphCommit[];
+          const initCommit = g.find(c => !c.parents || c.parents.length === 0) ?? g[g.length - 1];
+          await setBaseline(undefined, undefined, initCommit.hash);
+        }
       }
     }
   }, [refreshBaseline, baselineId, isSpecificBaseline, setBaseline]);
@@ -192,20 +200,20 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
   // This avoids the mismatch where the anchored git commit predates when the review was done.
   const baselineActivityCutoff = baseline?.createdAt ?? null;
 
-  // Build the mainline set: commits reachable by following parents[0] from HEAD.
-  // Commits only reachable via parents[1+] (feature branch commits absorbed by a merge)
+  // Build the mainline set: commits reachable by following parents[0] from the review branch's
+  // head. Commits only reachable via parents[1+] (feature branch commits absorbed by a merge)
   // are excluded from the top-level activity stream - they live inside the merge card.
   const mainlineSet = useMemo(() => {
     if (!graphCommits.length) return new Set<string>();
     const byHash = new Map(graphCommits.map(g => [g.hash, g]));
     const mainline = new Set<string>();
-    let cur: string | undefined = gitHead ?? graphCommits[0]?.hash;
+    let cur: string | undefined = headCommit ?? gitHead ?? graphCommits[0]?.hash;
     while (cur && !mainline.has(cur)) {
       mainline.add(cur);
       cur = byHash.get(cur)?.parents?.[0];
     }
     return mainline;
-  }, [graphCommits, gitHead]);
+  }, [graphCommits, headCommit, gitHead]);
 
   // For each merge commit, collect the branch commits it absorbed: BFS from parents[1],
   // stopping at any commit already on the mainline.
@@ -524,8 +532,17 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
   if (!baseline || !delta) {
     return (
       <div className="delta-empty">
-        <p>No baselines yet.</p>
-        <p>Set an initial baseline to start tracking changes.</p>
+        {baselinesElsewhere && reviewBranch ? (
+          <>
+            <p>No baseline on <code>{reviewBranch.name}</code> yet.</p>
+            <p>The project's baselines are on other branches. Set one here to track this branch's changes.</p>
+          </>
+        ) : (
+          <>
+            <p>No baselines yet.</p>
+            <p>Set an initial baseline to start tracking changes.</p>
+          </>
+        )}
         <button
           className="baseline-action-btn baseline-action-btn-primary"
           onClick={() => setShowBaselineModal(true)}
@@ -535,7 +552,7 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
         {showBaselineModal && (
           <SetBaselineModal
             branches={branches}
-            headCommit={gitHead}
+            headCommit={reviewBranch?.tip ?? gitHead}
             defaultToHead={false}
             onClose={() => setShowBaselineModal(false)}
             onConfirm={async (commitHash) => {
@@ -1243,8 +1260,9 @@ export const DeltaView: React.FC<Props> = ({ baselineId }) => {
       {showBaselineModal && (
         <SetBaselineModal
           branches={branches}
-          headCommit={gitHead}
+          headCommit={reviewBranch?.tip ?? gitHead}
           defaultToHead={true}
+          initialBranch={reviewBranch?.name}
           onClose={() => setShowBaselineModal(false)}
           onConfirm={async (commitHash) => {
             await setBaseline(undefined, undefined, commitHash);

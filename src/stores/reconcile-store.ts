@@ -7,9 +7,8 @@ interface ReconcileState {
   activeJob: JobSnapshot | null;
   loading: boolean;
   error: string | null;
-  // Last commit for which we auto-triggered a reconcile. The auto-trigger
-  // effect skips when this matches the current commit. Cleared by retry()
-  // so a failed run can be re-armed without remounting.
+  // Last commit for which we auto-triggered a reconcile (see reconcileTarget).
+  // Cleared by retry() so a failed run can be re-armed without remounting.
   lastReconciledHead: string | null;
 
   fetchHead: () => Promise<void>;
@@ -20,6 +19,15 @@ interface ReconcileState {
 }
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+/**
+ * The commit to reconcile the annotations to, or null: the review branch's head, while they're
+ * behind it and it hasn't been tried yet (`lastTried`, so a failed run doesn't loop).
+ */
+export function reconcileTarget(head: ReconciledHead | null, lastTried: string | null): string | null {
+  if (!head?.tip || head.isFullyReconciled || lastTried === head.tip) return null;
+  return head.tip;
+}
 
 export const useReconcileStore = create<ReconcileState>((set, get) => ({
   head: null,

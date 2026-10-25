@@ -155,6 +155,8 @@ func TestMCPToolRequiredFields(t *testing.T) {
 		// profile (no required fields - entries exercise the valid-args path)
 		{"get_service_profile", map[string]any{}},
 		{"update_service_profile", map[string]any{}},
+		// review branch
+		{"set_review_branch", map[string]any{"branch": "nonexistent"}},
 	}
 
 	// Coverage check: every registered tool with declared required fields must have a case.

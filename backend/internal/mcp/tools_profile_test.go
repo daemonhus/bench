@@ -118,8 +118,8 @@ func TestMCPServiceProfile_RequiresProfileCoverage(t *testing.T) {
 		return false
 	}
 	for name, tool := range tools {
-		isProfileTool := name == "get_service_profile" || name == "update_service_profile"
-		wantGated := isWriteName(name) && !isProfileTool
+		exempt := name == "get_service_profile" || name == "update_service_profile" || name == "set_review_branch"
+		wantGated := isWriteName(name) && !exempt
 		if tool.RequiresProfile != wantGated {
 			t.Errorf("%s: RequiresProfile = %v, want %v", name, tool.RequiresProfile, wantGated)
 		}

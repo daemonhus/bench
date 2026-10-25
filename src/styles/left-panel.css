@@ -55,35 +55,6 @@
   flex-shrink: 0;
 }
 
-.branch-select {
-  width: 100%;
-  appearance: none;
-  -webkit-appearance: none;
-  background-color: var(--bg-tertiary);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2355606f'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 8px center;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-base);
-  color: var(--text-secondary);
-  font-family: var(--font-mono);
-  font-size: var(--font-size-small);
-  padding: 12px 36px 12px 12px;
-  margin-bottom: 6px;
-  outline: none;
-  cursor: pointer;
-  transition: border-color var(--transition-base), box-shadow var(--transition-base);
-}
-
-.branch-select:hover {
-  border-color: rgba(148, 163, 184, 0.28);
-}
-
-.branch-select:focus {
-  border-color: var(--accent-blue);
-  box-shadow: var(--shadow-focus-blue);
-}
-
 .commit-label-row {
   display: flex;
   align-items: center;
@@ -133,71 +104,135 @@
   color: var(--text-primary);
 }
 
-/* ----- Commit Button (replaces select for git tree) ----- */
+/* ----- Commit card: the commit a code view is on; opens the history ----- */
 .commit-button {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
   width: 100%;
+  min-width: 0;
   background: var(--bg-tertiary);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-base);
   color: var(--text-primary);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--font-size-small);
-  padding: 6px 8px;
+  padding: 8px 10px;
   cursor: pointer;
   text-align: left;
-  transition: border-color var(--transition-base);
+  transition: border-color var(--transition-base), background var(--transition-base);
 }
 
-.commit-button:hover {
+.commit-button:hover,
+.commit-button[aria-expanded="true"] {
   border-color: var(--accent-blue);
 }
 
+.commit-button:focus-visible {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: 2px;
+}
+
+/* The end Compare is choosing. */
 .commit-button-active {
   border-color: var(--accent-blue);
-  box-shadow: 0 0 0 1px var(--accent-blue);
+  background: var(--accent-blue-subtle);
+}
+
+.commit-button-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+
+.commit-button-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
 }
 
 .commit-button-hash {
-  color: var(--accent-blue);
   flex-shrink: 0;
+  font-family: var(--font-mono);
+  color: var(--accent-blue);
 }
 
 .commit-button-subject {
-  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.commit-button-chevron {
+.commit-button-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: var(--font-size-xs);
   color: var(--text-muted);
-  flex-shrink: 0;
-  font-size: 10px;
+  white-space: nowrap;
 }
 
-.commit-button-label {
-  color: var(--text-muted);
+.commit-button-who {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The branch it's the head of (the review branch, or the one the address names), in the branch green. */
+.commit-button-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   flex-shrink: 0;
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-  font-family: var(--font-sans);
+  max-width: 65%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 6px;
+  border-radius: var(--radius-xs);
+  background: var(--accent-green-subtle);
+  color: var(--accent-green);
+  font-family: var(--font-mono);
+}
+
+.commit-button-head-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.commit-button-empty {
+  color: var(--text-muted);
+}
+
+.commit-button-chevron {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+/* Compare's From / To: a fixed column, so the two cards line up. */
+.commit-button-label {
+  flex-shrink: 0;
+  width: 34px;
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
   font-weight: 600;
-  min-width: 28px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .commit-button-small {
-  padding: 4px 8px;
+  padding: 6px 10px;
 }
 
 .diff-commit-buttons {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 /* ----- Git Tree Panel ----- */
@@ -265,8 +300,9 @@
 }
 
 .git-tree-scroll {
-  /* Long commit messages run on; the history scrolls sideways to read them. */
-  overflow: auto;
+  /* Rows fit the panel: a long message is cut short (the row's tooltip has it all). */
+  overflow-x: hidden;
+  overflow-y: auto;
   flex: 1;
   min-height: 0;
   background: var(--bg-secondary);
@@ -286,11 +322,14 @@
   opacity: 0.5;
 }
 
-/* Rows are as wide as their longest message (at least the panel), so the hover and current-row
-   tints run the whole width when scrolled. */
+/* Rows are as wide as their longest message (at least their box), so the hover and current-row
+   tints run the whole width when scrolled (the Overview's log). The Browse panel's fit it. */
 .git-tree-graph {
   width: max-content;
   min-width: 100%;
+}
+.git-tree-panel .git-tree-graph {
+  width: 100%;
 }
 
 .git-tree-loading {
@@ -325,8 +364,9 @@
   background: color-mix(in srgb, var(--accent-blue) 18%, transparent);
 }
 
+/* Not a choice for this end of the comparison (From must come before To). */
 .git-tree-row-disabled {
-  opacity: 0.3;
+  opacity: 0.45;
   cursor: not-allowed;
 }
 
@@ -363,6 +403,42 @@
   flex-shrink: 0;
 }
 
+/* …except in the Browse panel, where the row fits: the message takes what the hash and the mark
+   (cut short at a fixed width) leave. */
+.git-tree-panel .git-tree-row > .git-tree-subject {
+  flex: 1 1 0;
+  min-width: 40px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-right: 6px;
+}
+
+.git-tree-marks {
+  display: flex;
+  align-items: center;
+}
+.git-tree-panel .git-tree-row > .git-tree-marks {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.git-tree-marks > :first-child {
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 84px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.git-tree-ref-more {
+  flex-shrink: 0;
+  margin-right: 6px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
 .git-tree-ref-badge {
   display: inline-block;
   padding: 1px 6px;
@@ -374,7 +450,7 @@
   background: var(--accent-green-subtle);
   color: var(--accent-green);
   border: 1px solid color-mix(in srgb, var(--accent-green) 30%, transparent);
-  max-width: 120px;
+  max-width: 96px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

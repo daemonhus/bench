@@ -227,7 +227,7 @@ export const GitTreePanel: React.FC<GitTreePanelProps> = ({
     >
       <div className="git-tree-header" role="toolbar" aria-label="History" data-chrome>
         <span className="git-tree-title">
-          {diffSelectTarget ? `Select ${diffSelectTarget} commit` : 'History'}
+          {diffSelectTarget === 'from' ? 'Compare from' : diffSelectTarget === 'to' ? 'Compare to' : 'History'}
         </span>
         <button className="git-tree-close-btn" aria-label="Close history" onClick={onClose}>&times;</button>
       </div>
@@ -278,6 +278,11 @@ export const GitTreePanel: React.FC<GitTreePanelProps> = ({
               const isDisabled = allowedHashes !== null && !allowedHashes.has(node.commit.hash);
               const isReconciledCommit = reconciledHead?.reconciledHead === node.commit.hash;
               const isAhead = aheadHashes !== null && aheadHashes.has(node.commit.hash);
+              const marks = [
+                ...(node.commit.refs ?? []).map((ref) => ({ text: ref, className: 'git-tree-ref-badge' })),
+                ...(reconciledHead?.gitHead === node.commit.hash ? [{ text: 'HEAD', className: 'commit-head-badge' }] : []),
+                ...(isReconciledCommit ? [{ text: 'RECONCILED', className: 'git-tree-diff-badge git-tree-reconciled' }] : []),
+              ];
 
               return (
                 <div
@@ -285,6 +290,7 @@ export const GitTreePanel: React.FC<GitTreePanelProps> = ({
                   ref={(el) => { if (el) rowEls.current.set(node.commit.hash, el); else rowEls.current.delete(node.commit.hash); }}
                   className={`git-tree-row ${isCurrent ? 'git-tree-row-current' : ''} ${isDisabled ? 'git-tree-row-disabled' : ''} ${isAhead ? 'git-tree-row-ahead' : ''}`}
                   style={{ height: ROW_HEIGHT, paddingLeft: graphWidth + 4 }}
+                  title={[node.commit.subject, ...marks.map((m) => m.text)].join('\n')}
                   aria-disabled={isDisabled || undefined}
                   aria-current={isCurrent || undefined}
                   {...buttonProps(() => handleRowClick(node.commit), `Commit ${node.commit.shortHash}${(node.commit.refs ?? []).length ? ` (${(node.commit.refs ?? []).join(', ')})` : ''}${isCurrent ? ', current' : ''}`)}
@@ -292,15 +298,6 @@ export const GitTreePanel: React.FC<GitTreePanelProps> = ({
                   onKeyDown={(e) => { onRowKeyDown(e, node.commit.hash); if (!e.defaultPrevented) buttonProps(() => handleRowClick(node.commit)).onKeyDown(e); }}
                 >
                   <span className="git-tree-hash">{node.commit.shortHash}</span>
-                  {reconciledHead?.gitHead === node.commit.hash && (
-                    <span className="commit-head-badge">HEAD</span>
-                  )}
-                  {(node.commit.refs ?? []).map((ref) => (
-                    <span key={ref} className="git-tree-ref-badge">{ref}</span>
-                  ))}
-                  {isReconciledCommit && (
-                    <span className="git-tree-diff-badge git-tree-reconciled">RECONCILED</span>
-                  )}
                   {viewMode === 'diff' && isFrom && (
                     <span className="git-tree-diff-badge git-tree-diff-from">FROM</span>
                   )}
@@ -308,6 +305,14 @@ export const GitTreePanel: React.FC<GitTreePanelProps> = ({
                     <span className="git-tree-diff-badge git-tree-diff-to">TO</span>
                   )}
                   <span className="git-tree-subject">{node.commit.subject}</span>
+                  {/* After the message, one mark (its first ref, else HEAD, else RECONCILED) and how many more;
+                      a From / To row has its badge instead (the marks are in the tooltip). */}
+                  {marks.length > 0 && !(viewMode === 'diff' && (isFrom || isTo)) && (
+                    <span className="git-tree-marks">
+                      <span className={marks[0].className}>{marks[0].text}</span>
+                      {marks.length > 1 && <span className="git-tree-ref-more">+{marks.length - 1}</span>}
+                    </span>
+                  )}
                 </div>
               );
             })}

@@ -32,7 +32,6 @@ type GitOps interface {
 type PositionStore interface {
 	InsertPosition(p *model.AnnotationPosition) error
 	GetPositions(annotationID, annotationType string) ([]model.AnnotationPosition, error)
-	DeletePositions(annotationID, annotationType string, commitIDs []string) error
 }
 
 // ReconcileStore persists per-file reconciliation progress.
@@ -165,7 +164,12 @@ func (r *Reconciler) GetReconciledHead() (*model.ReconciledHead, error) {
 	if err != nil {
 		return nil, err
 	}
+	return r.GetReconciledHeadAt(head)
+}
 
+// GetReconciledHeadAt computes how far the annotations are reconciled
+// towards head, a branch's tip. GitHead stays the checked-out HEAD.
+func (r *Reconciler) GetReconciledHeadAt(head string) (*model.ReconciledHead, error) {
 	files, err := r.rec.ListAnnotatedFiles()
 	if err != nil {
 		return nil, err
@@ -173,6 +177,10 @@ func (r *Reconciler) GetReconciledHead() (*model.ReconciledHead, error) {
 
 	result := &model.ReconciledHead{
 		GitHead: head,
+		Tip:     head,
+	}
+	if checkedOut, err := r.git.Head(); err == nil {
+		result.GitHead = checkedOut
 	}
 
 	if len(files) == 0 {
@@ -422,6 +430,11 @@ type annotationInfo struct {
 	confidence      string // current confidence
 	alreadyResolved bool   // true if the finding already has a resolvedCommit
 	anchorUpdatedAt string // set when anchor was manually updated via update_finding/comment/feature
+	anchorCommit    string // the commit it was anchored at
+	// startCommit is where its working position holds (a stored position's
+	// commit, or the anchor's); the walk moves it only after passing that.
+	startCommit string
+	active      bool
 }
 
 // reconcileFile walks commits for a single file, mapping all its annotations.
@@ -453,7 +466,7 @@ func (r *Reconciler) reconcileFile(job *Job, fileID, targetCommit string) (int, 
 	// Build working annotation list with current positions
 	var anns []annotationInfo
 	for _, f := range findings {
-		a := annotationInfo{id: f.ID, typ: "finding", lineHash: f.LineHash, confidence: "exact"}
+		a := annotationInfo{id: f.ID, typ: "finding", lineHash: f.LineHash, confidence: "exact", anchorCommit: f.Anchor.CommitID}
 		if f.Anchor.LineRange != nil {
 			a.lineStart = f.Anchor.LineRange.Start
 			a.lineEnd = f.Anchor.LineRange.End
@@ -466,7 +479,7 @@ func (r *Reconciler) reconcileFile(job *Job, fileID, targetCommit string) (int, 
 		anns = append(anns, a)
 	}
 	for _, c := range comments {
-		a := annotationInfo{id: c.ID, typ: "comment", lineHash: c.LineHash, confidence: "exact"}
+		a := annotationInfo{id: c.ID, typ: "comment", lineHash: c.LineHash, confidence: "exact", anchorCommit: c.Anchor.CommitID}
 		if c.Anchor.LineRange != nil {
 			a.lineStart = c.Anchor.LineRange.Start
 			a.lineEnd = c.Anchor.LineRange.End
@@ -478,7 +491,7 @@ func (r *Reconciler) reconcileFile(job *Job, fileID, targetCommit string) (int, 
 		anns = append(anns, a)
 	}
 	for _, feat := range features {
-		a := annotationInfo{id: feat.ID, typ: "feature", lineHash: feat.LineHash, confidence: "exact"}
+		a := annotationInfo{id: feat.ID, typ: "feature", lineHash: feat.LineHash, confidence: "exact", anchorCommit: feat.Anchor.CommitID}
 		if feat.Anchor.LineRange != nil {
 			a.lineStart = feat.Anchor.LineRange.Start
 			a.lineEnd = feat.Anchor.LineRange.End
@@ -491,78 +504,24 @@ func (r *Reconciler) reconcileFile(job *Job, fileID, targetCommit string) (int, 
 		anns = append(anns, a)
 	}
 
-	// Save anchor state before position loading overwrites it
-	type anchorState struct {
-		lineStart int
-		lineEnd   int
-		rangeSize int
-		lineHash  string
-	}
-	anchorStates := make([]anchorState, len(anns))
-	for i := range anns {
-		anchorStates[i] = anchorState{
-			lineStart: anns[i].lineStart,
-			lineEnd:   anns[i].lineEnd,
-			rangeSize: anns[i].rangeSize,
-			lineHash:  anns[i].lineHash,
+	// Only what is on the target's branch: an annotation made on another
+	// branch has no place here, and mustn't be orphaned (and closed) by it.
+	onTarget := anns[:0]
+	for _, a := range anns {
+		if r.inHistory(targetCommit, a.anchorCommit) {
+			onTarget = append(onTarget, a)
 		}
 	}
-
-	// If we have stored positions, use those as starting points
-	for i := range anns {
-		positions, err := r.pos.GetPositions(anns[i].id, anns[i].typ)
-		if err != nil || len(positions) == 0 {
-			continue
-		}
-		latest := positions[len(positions)-1]
-		if latest.LineStart != nil {
-			anns[i].lineStart = *latest.LineStart
-		}
-		if latest.LineEnd != nil {
-			anns[i].lineEnd = *latest.LineEnd
-		}
-		anns[i].confidence = latest.Confidence
-
-		// If orphaned but anchor was manually re-anchored after the position
-		// was recorded, trust the anchor values instead.
-		if latest.Confidence == "orphaned" && anns[i].anchorUpdatedAt != "" {
-			posTime, errP := time.Parse(time.RFC3339, latest.CreatedAt)
-			anchorTime, errA := time.Parse(time.RFC3339, anns[i].anchorUpdatedAt)
-			// Also try datetime format used by SQLite's datetime('now')
-			if errP != nil {
-				posTime, errP = time.Parse("2006-01-02 15:04:05", latest.CreatedAt)
-			}
-			if errA != nil {
-				anchorTime, errA = time.Parse("2006-01-02 15:04:05", anns[i].anchorUpdatedAt)
-			}
-			if errP == nil && errA == nil && anchorTime.After(posTime) {
-				as := anchorStates[i]
-				if as.lineStart > 0 && as.lineEnd > 0 {
-					anns[i].lineStart = as.lineStart
-					anns[i].lineEnd = as.lineEnd
-					anns[i].rangeSize = as.rangeSize
-					anns[i].lineHash = as.lineHash
-					anns[i].confidence = "exact"
-					log.Printf("[reconcile] restored anchor for %s %s (manually re-anchored at %s)",
-						anns[i].typ, anns[i].id, anns[i].anchorUpdatedAt)
-				}
-			}
-		}
+	anns = onTarget
+	if len(anns) == 0 {
+		return 0, ReconcileSummary{}, nil
 	}
 
 	// Determine the starting commit
 	fromCommit := lastCommit
 	if fromCommit == "" {
-		// No previous reconciliation - use the anchor commit
-		// Since all annotations for this file share the same anchor fileID,
-		// we use the first annotation's anchor commit as the starting point.
-		if len(findings) > 0 {
-			fromCommit = findings[0].Anchor.CommitID
-		} else if len(comments) > 0 {
-			fromCommit = comments[0].Anchor.CommitID
-		} else {
-			fromCommit = features[0].Anchor.CommitID
-		}
+		// No previous reconciliation: start at an annotation's anchor commit.
+		fromCommit = anns[0].anchorCommit
 	}
 
 	if fromCommit == targetCommit {
@@ -571,13 +530,14 @@ func (r *Reconciler) reconcileFile(job *Job, fileID, targetCommit string) (int, 
 		if err := r.rec.SetReconciliationState(fileID, targetCommit); err != nil {
 			return 0, ReconcileSummary{}, fmt.Errorf("update reconciliation state: %w", err)
 		}
+		r.loadStartPositions(anns, targetCommit)
 		return 0, countSummary(anns), nil
 	}
 
-	// Check ancestry (rebase detection). If the source commit no longer exists
-	// in the repo (force-push, history rewrite, branch dropped), we can't walk
-	// any diffs from it - mark all of this file's annotations orphaned and
-	// move on rather than failing the entire job.
+	// Check ancestry. If the source commit no longer exists in the repo
+	// (force-push, history rewrite, branch dropped), we can't walk any diffs
+	// from it - mark all of this file's annotations orphaned and move on
+	// rather than failing the entire job.
 	isAnc, err := r.git.IsAncestor(fromCommit, targetCommit)
 	if err != nil {
 		if errors.Is(err, git.ErrUnknownRef) {
@@ -587,7 +547,9 @@ func (r *Reconciler) reconcileFile(job *Job, fileID, targetCommit string) (int, 
 	}
 
 	if !isAnc {
-		// Rebase detected - find merge base and reset
+		// The last reconcile went to another branch (or history was
+		// rewritten): walk from where the two meet. Positions on the other
+		// branch stay, for when it's reviewed again.
 		mergeBase, err := r.git.MergeBase(fromCommit, targetCommit)
 		if err != nil {
 			if errors.Is(err, git.ErrUnknownRef) {
@@ -595,38 +557,9 @@ func (r *Reconciler) reconcileFile(job *Job, fileID, targetCommit string) (int, 
 			}
 			return 0, ReconcileSummary{}, fmt.Errorf("merge-base: %w", err)
 		}
-
-		// Invalidate positions after merge base:
-		// Get commits from mergeBase to fromCommit (the old branch)
-		oldCommits, err := r.git.RevList(mergeBase, fromCommit)
-		if err != nil {
-			return 0, ReconcileSummary{}, fmt.Errorf("rev-list old branch: %w", err)
-		}
-		if len(oldCommits) > 0 {
-			for i := range anns {
-				_ = r.pos.DeletePositions(anns[i].id, anns[i].typ, oldCommits)
-			}
-		}
-
 		fromCommit = mergeBase
-
-		// Re-load positions from merge base
-		for i := range anns {
-			positions, err := r.pos.GetPositions(anns[i].id, anns[i].typ)
-			if err != nil || len(positions) == 0 {
-				// Fall back to anchor position
-				continue
-			}
-			latest := positions[len(positions)-1]
-			if latest.LineStart != nil {
-				anns[i].lineStart = *latest.LineStart
-			}
-			if latest.LineEnd != nil {
-				anns[i].lineEnd = *latest.LineEnd
-			}
-			anns[i].confidence = latest.Confidence
-		}
 	}
+	r.loadStartPositions(anns, fromCommit)
 
 	// Get the commit path
 	commits, err := r.git.RevList(fromCommit, targetCommit)
@@ -656,6 +589,12 @@ func (r *Reconciler) reconcileFile(job *Job, fileID, targetCommit string) (int, 
 				r.mapAnnotations(anns, hunks, commit, currentPath)
 			}
 		}
+		// An annotation made at this commit moves with the commits after it.
+		for i := range anns {
+			if !anns[i].active && anns[i].startCommit == commit {
+				anns[i].active = true
+			}
+		}
 
 		// Check for file rename. If the file was renamed, update the working
 		// path so that subsequent diffs and content matching use the new name.
@@ -664,13 +603,13 @@ func (r *Reconciler) reconcileFile(job *Job, fileID, targetCommit string) (int, 
 			currentPath = newPath
 			// Re-attempt content match for annotations orphaned in this step
 			for i := range anns {
-				if anns[i].confidence == "orphaned" && anns[i].lineHash != "" {
+				if anns[i].active && anns[i].confidence == "orphaned" && anns[i].lineHash != "" {
 					r.contentMatch(&anns[i], commit, currentPath)
 				}
 			}
 			// Mark surviving exact annotations as "moved" (file path changed)
 			for i := range anns {
-				if anns[i].confidence == "exact" {
+				if anns[i].active && anns[i].confidence == "exact" {
 					anns[i].confidence = "moved"
 				}
 			}
@@ -811,9 +750,85 @@ func (r *Reconciler) orphanAllForFile(anns []annotationInfo, fileID, targetCommi
 	return 0, countSummary(anns), nil
 }
 
+// containsGit is a GitOps that answers history questions from a remembered
+// walk (git.Repo); IsAncestor is the fallback.
+type containsGit interface {
+	Contains(tip, commit string) (bool, error)
+}
+
+// inHistory reports whether commit is tip or one of its ancestors. A commit
+// that can't be placed counts as in it, so nothing is dropped for that alone.
+func (r *Reconciler) inHistory(tip, commit string) bool {
+	if commit == "" || commit == tip {
+		return true
+	}
+	var in bool
+	var err error
+	if c, ok := r.git.(containsGit); ok {
+		in, err = c.Contains(tip, commit)
+	} else {
+		in, err = r.git.IsAncestor(commit, tip)
+	}
+	return err != nil || in
+}
+
+// loadStartPositions sets each annotation's working position to where it
+// stands at from: its latest stored position in from's history, else its
+// anchor. One anchored after from (later on the target's branch) waits,
+// inactive, until the walk reaches its anchor commit.
+func (r *Reconciler) loadStartPositions(anns []annotationInfo, from string) {
+	for i := range anns {
+		a := &anns[i]
+		a.startCommit = a.anchorCommit
+		positions, _ := r.pos.GetPositions(a.id, a.typ)
+		for j := len(positions) - 1; j >= 0; j-- {
+			p := positions[j]
+			if !r.inHistory(from, p.CommitID) {
+				continue
+			}
+			// Orphaned, but re-anchored by hand since: the anchor holds.
+			if p.Confidence == "orphaned" && reanchoredSince(a.anchorUpdatedAt, p.CreatedAt) {
+				log.Printf("[reconcile] restored anchor for %s %s (manually re-anchored at %s)", a.typ, a.id, a.anchorUpdatedAt)
+				break
+			}
+			a.startCommit = p.CommitID
+			if p.LineStart != nil {
+				a.lineStart = *p.LineStart
+			}
+			if p.LineEnd != nil {
+				a.lineEnd = *p.LineEnd
+			}
+			a.confidence = p.Confidence
+			break
+		}
+		a.active = r.inHistory(from, a.startCommit)
+	}
+}
+
+// reanchoredSince reports whether an anchor update (anchorUpdatedAt) came
+// after a position was recorded (positionAt). Both are RFC 3339 or SQLite's
+// datetime('now') format.
+func reanchoredSince(anchorUpdatedAt, positionAt string) bool {
+	if anchorUpdatedAt == "" {
+		return false
+	}
+	parse := func(s string) (time.Time, error) {
+		if t, err := time.Parse(time.RFC3339, s); err == nil {
+			return t, nil
+		}
+		return time.Parse("2006-01-02 15:04:05", s)
+	}
+	posTime, errP := parse(positionAt)
+	anchorTime, errA := parse(anchorUpdatedAt)
+	return errP == nil && errA == nil && anchorTime.After(posTime)
+}
+
 // mapAnnotations maps all annotations through a set of diff hunks for a single commit step.
 func (r *Reconciler) mapAnnotations(anns []annotationInfo, hunks []DiffHunk, commit, fileID string) {
 	for i := range anns {
+		if !anns[i].active {
+			continue // made later on this branch
+		}
 		if anns[i].confidence == "orphaned" {
 			continue // once orphaned, stays orphaned
 		}

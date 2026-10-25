@@ -14,6 +14,7 @@ import (
 	"bench/internal/events"
 	"bench/internal/git"
 	"bench/internal/model"
+	"bench/internal/review"
 
 	"github.com/google/uuid"
 )
@@ -24,7 +25,7 @@ type baselineHandlers struct {
 	broker *events.Broker
 }
 
-// GET /api/baselines - list all baselines (most recent first)
+// GET /api/baselines - the review branch's baselines (most recent first)
 func (h *baselineHandlers) list(w http.ResponseWriter, r *http.Request) {
 	limit := 20
 	if s := r.URL.Query().Get("limit"); s != "" {
@@ -32,10 +33,24 @@ func (h *baselineHandlers) list(w http.ResponseWriter, r *http.Request) {
 			limit = n
 		}
 	}
-	baselines, err := h.db.ListBaselines(limit)
+	scope, err := branchScope(h.db, h.repo, r)
 	if err != nil {
 		writeInternalError(w, err)
 		return
+	}
+	// Read them all when filtering, so the limit counts the branch's.
+	read := limit
+	if scope != nil {
+		read = maxBaselines
+	}
+	baselines, err := h.db.ListBaselines(read)
+	if err != nil {
+		writeInternalError(w, err)
+		return
+	}
+	baselines = keepOnBranch(w, scope, baselines, func(b model.Baseline) string { return b.CommitID })
+	if len(baselines) > limit {
+		baselines = baselines[:limit]
 	}
 	if baselines == nil {
 		baselines = []model.Baseline{}
@@ -43,9 +58,31 @@ func (h *baselineHandlers) list(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, baselines)
 }
 
-// GET /api/baselines/latest - most recent baseline
+// maxBaselines bounds the baselines read to find a branch's.
+const maxBaselines = 1000
+
+// latestOn is the most recent baseline on the scope's branch, nil if none.
+func (h *baselineHandlers) latestOn(scope *review.Scope) (*model.Baseline, error) {
+	baselines, err := h.db.ListBaselines(maxBaselines)
+	if err != nil {
+		return nil, err
+	}
+	for i := range baselines {
+		if scope.Has(baselines[i].CommitID) {
+			return &baselines[i], nil
+		}
+	}
+	return nil, nil
+}
+
+// GET /api/baselines/latest - the review branch's most recent baseline
 func (h *baselineHandlers) latest(w http.ResponseWriter, r *http.Request) {
-	baseline, err := h.db.GetLatestBaseline()
+	b, err := reviewBranch(h.db, h.repo, r)
+	if err != nil {
+		writeInternalError(w, err)
+		return
+	}
+	baseline, err := h.latestOn(review.NewScope(h.repo, b.Tip))
 	if err != nil {
 		writeInternalError(w, err)
 		return
@@ -71,9 +108,15 @@ func (h *baselineHandlers) get(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, baseline)
 }
 
-// GET /api/baselines/delta - changes since latest baseline
+// GET /api/baselines/delta - changes on the review branch since its latest baseline
 func (h *baselineHandlers) delta(w http.ResponseWriter, r *http.Request) {
-	baseline, err := h.db.GetLatestBaseline()
+	b, err := reviewBranch(h.db, h.repo, r)
+	if err != nil {
+		writeInternalError(w, err)
+		return
+	}
+	scope := review.NewScope(h.repo, b.Tip)
+	baseline, err := h.latestOn(scope)
 	if err != nil {
 		writeInternalError(w, err)
 		return
@@ -83,7 +126,7 @@ func (h *baselineHandlers) delta(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	delta, err := h.computeDelta(baseline)
+	delta, err := h.computeDelta(baseline, b.Tip, scope)
 	if err != nil {
 		writeInternalError(w, err)
 		return
@@ -109,14 +152,22 @@ func (h *baselineHandlers) deltaFor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Find the previous baseline
-	prev, err := h.db.GetPreviousBaseline(baseline.ID)
+	// The previous baseline: the one before it in its own history.
+	scope := review.NewScope(h.repo, baseline.CommitID)
+	var prev *model.Baseline
+	earlier, err := h.db.BaselinesBefore(baseline.ID, maxBaselines)
 	if err != nil {
 		writeInternalError(w, err)
 		return
 	}
+	for i := range earlier {
+		if scope.Has(earlier[i].CommitID) {
+			prev = &earlier[i]
+			break
+		}
+	}
 
-	delta, err := h.computeDeltaBetween(baseline, prev)
+	delta, err := h.computeDeltaBetween(baseline, prev, scope)
 	if err != nil {
 		writeInternalError(w, err)
 		return
@@ -124,7 +175,7 @@ func (h *baselineHandlers) deltaFor(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, delta)
 }
 
-// POST /api/baselines - create a new baseline (defaults to default branch tip)
+// POST /api/baselines - create a new baseline (defaults to the review branch's tip)
 func (h *baselineHandlers) create(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Reviewer string `json:"reviewer"`
@@ -153,20 +204,16 @@ func (h *baselineHandlers) create(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		// Default to the tip of the default branch, not HEAD
-		defaultBranch := h.repo.DefaultBranch()
-		head, err = h.repo.BranchTip(defaultBranch)
+		b, err := reviewBranch(h.db, h.repo, r)
 		if err != nil {
-			// Fallback to HEAD if default branch can't be resolved
-			head, err = h.repo.Head()
-			if err != nil {
-				writeInternalError(w, fmt.Errorf("resolve HEAD: %w", err))
-				return
-			}
+			writeInternalError(w, err)
+			return
 		}
+		head = b.Tip
 	}
 
-	stats, err := h.buildStats()
+	// The snapshot counts what's on the baseline's commit.
+	stats, err := h.buildStats(review.NewScope(h.repo, head))
 	if err != nil {
 		writeInternalError(w, err)
 		return
@@ -314,9 +361,9 @@ func (h *baselineHandlers) delete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// computeDelta calculates delta since a baseline against the current state.
-// Git diff is computed against the tip of the default branch (not HEAD).
-func (h *baselineHandlers) computeDelta(baseline *model.Baseline) (*model.BaselineDelta, error) {
+// computeDelta calculates delta since a baseline against the current state of
+// the branch whose head is tip: its findings and features, and its files.
+func (h *baselineHandlers) computeDelta(baseline *model.Baseline, tip string, scope *review.Scope) (*model.BaselineDelta, error) {
 	// Build set of finding IDs from baseline
 	baselineIDs := make(map[string]bool, len(baseline.FindingIDs))
 	for _, id := range baseline.FindingIDs {
@@ -329,11 +376,12 @@ func (h *baselineHandlers) computeDelta(baseline *model.Baseline) (*model.Baseli
 		return nil, err
 	}
 
+	// A finding on another branch is neither new here nor removed.
 	currentIDs := make(map[string]bool)
 	var newFindings []model.Finding
 	for _, f := range currentFindings {
 		currentIDs[f.ID] = true
-		if !baselineIDs[f.ID] {
+		if !baselineIDs[f.ID] && scope.Has(f.Anchor.CommitID) {
 			newFindings = append(newFindings, f)
 		}
 	}
@@ -345,20 +393,12 @@ func (h *baselineHandlers) computeDelta(baseline *model.Baseline) (*model.Baseli
 		}
 	}
 
-	// Resolve the default branch tip (not HEAD) for git diff
-	defaultBranch := h.repo.DefaultBranch()
-	var headCommit string
 	var changedFiles []model.FileStat
-	tip, err := h.repo.BranchTip(defaultBranch)
-	if err == nil {
-		headCommit = tip
-		stats, err := h.repo.DiffStat(baseline.CommitID, tip)
-		if err == nil {
-			changedFiles = stats
-		}
+	if stats, err := h.repo.DiffStat(baseline.CommitID, tip); err == nil {
+		changedFiles = stats
 	}
 
-	projStats, err := h.buildStats()
+	projStats, err := h.buildStats(scope)
 	if err != nil {
 		return nil, err
 	}
@@ -373,7 +413,7 @@ func (h *baselineHandlers) computeDelta(baseline *model.Baseline) (*model.Baseli
 	var newFeatures []model.Feature
 	for _, f := range currentFeatures {
 		currentFeatureIDs[f.ID] = true
-		if !baselineFeatureIDs[f.ID] {
+		if !baselineFeatureIDs[f.ID] && scope.Has(f.Anchor.CommitID) {
 			newFeatures = append(newFeatures, f)
 		}
 	}
@@ -408,7 +448,7 @@ func (h *baselineHandlers) computeDelta(baseline *model.Baseline) (*model.Baseli
 	return &model.BaselineDelta{
 		ServiceProfile:    profile,
 		SinceBaseline:     baseline,
-		HeadCommit:        headCommit,
+		HeadCommit:        tip,
 		NewFindings:       newFindings,
 		RemovedFindingIDs: removedIDs,
 		ChangedFiles:      changedFiles,
@@ -418,8 +458,9 @@ func (h *baselineHandlers) computeDelta(baseline *model.Baseline) (*model.Baseli
 	}, nil
 }
 
-// computeDeltaBetween calculates delta between two baselines (current vs previous).
-func (h *baselineHandlers) computeDeltaBetween(current, prev *model.Baseline) (*model.BaselineDelta, error) {
+// computeDeltaBetween calculates delta between two baselines (current vs
+// previous); scope is current's history, which its stats count.
+func (h *baselineHandlers) computeDeltaBetween(current, prev *model.Baseline, scope *review.Scope) (*model.BaselineDelta, error) {
 	// Build previous finding ID set
 	prevIDs := make(map[string]bool)
 	if prev != nil {
@@ -517,7 +558,7 @@ func (h *baselineHandlers) computeDeltaBetween(current, prev *model.Baseline) (*
 		removedFeatureIDs = []string{}
 	}
 
-	stats, err := h.buildStats()
+	stats, err := h.buildStats(scope)
 	if err != nil {
 		return nil, err
 	}
@@ -540,55 +581,62 @@ func (h *baselineHandlers) computeDeltaBetween(current, prev *model.Baseline) (*
 	}, nil
 }
 
-// buildStats computes current ProjectStats.
-func (h *baselineHandlers) buildStats() (model.ProjectStats, error) {
-	summary, err := h.db.FindingSummary()
-	if err != nil {
-		return model.ProjectStats{}, err
-	}
-	openComments, err := h.db.UnresolvedCommentCount()
-	if err != nil {
-		return model.ProjectStats{}, err
-	}
-
+// buildStats counts the findings, comments and features on the scope's branch.
+func (h *baselineHandlers) buildStats(scope *review.Scope) (model.ProjectStats, error) {
 	stats := model.ProjectStats{
 		BySeverity: make(map[string]int),
 		ByStatus:   make(map[string]int),
 		ByCategory: make(map[string]int),
-	}
-	for _, row := range summary {
-		stats.FindingsTotal += row.Count
-		stats.BySeverity[row.Severity] += row.Count
-		stats.ByStatus[row.Status] += row.Count
-		if row.Status == "draft" || row.Status == "open" || row.Status == "in-progress" {
-			stats.FindingsOpen += row.Count
-		}
+		ByKind:     make(map[string]int),
 	}
 
-	cats, err := h.db.FindingCategorySummary()
+	findings, _, err := h.db.ListFindings("", 0, 0)
 	if err != nil {
 		return model.ProjectStats{}, err
 	}
-	stats.ByCategory = cats
+	for _, f := range findings {
+		if !scope.Has(f.Anchor.CommitID) {
+			continue
+		}
+		stats.FindingsTotal++
+		stats.BySeverity[f.Severity]++
+		stats.ByStatus[f.Status]++
+		if f.Category != "" {
+			stats.ByCategory[f.Category]++
+		}
+		if f.Status == "draft" || f.Status == "open" || f.Status == "in-progress" {
+			stats.FindingsOpen++
+		}
+	}
 
 	comments, _, err := h.db.ListComments("", "", 0, 0)
 	if err != nil {
 		return model.ProjectStats{}, err
 	}
-	stats.CommentsTotal = len(comments)
-	stats.CommentsOpen = openComments
+	for _, c := range comments {
+		if !scope.Has(c.Anchor.CommitID) {
+			continue
+		}
+		stats.CommentsTotal++
+		if c.ResolvedCommit == nil {
+			stats.CommentsOpen++
+		}
+	}
 
-	// Add features stats
-	allFeatures, _, _ := h.db.ListFeatures("", "", 0, 0)
-	byKind := make(map[string]int)
-	for _, f := range allFeatures {
+	features, _, err := h.db.ListFeatures("", "", 0, 0)
+	if err != nil {
+		return model.ProjectStats{}, err
+	}
+	for _, f := range features {
+		if !scope.Has(f.Anchor.CommitID) {
+			continue
+		}
 		stats.FeaturesTotal++
 		if f.Status == "draft" || f.Status == "active" {
 			stats.FeaturesActive++
 		}
-		byKind[f.Kind]++
+		stats.ByKind[f.Kind]++
 	}
-	stats.ByKind = byKind
 
 	return stats, nil
 }

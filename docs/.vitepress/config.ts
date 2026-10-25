@@ -31,6 +31,7 @@ export default defineConfig({
           { text: "References", link: "/concepts/references" },
           { text: "Deltas", link: "/concepts/deltas" },
           { text: "Reconciling", link: "/concepts/reconciling" },
+          { text: "Review branch", link: "/concepts/review-branch" },
           { text: "Projects & flows", link: "/concepts/multi-project" },
         ],
       },

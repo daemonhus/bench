@@ -57,6 +57,12 @@ type GoGitBackend struct {
 	// projects page doesn't re-walk a year of history until someone pushes.
 	branchActivityMu sync.Mutex
 	branchActivity   map[string]model.BranchActivity
+
+	// reach holds the reach index of the last few branch tips asked about
+	// (Contains); reachClock orders them by use.
+	reachMu    sync.Mutex
+	reach      map[plumbing.Hash]*reachIndex
+	reachClock uint64
 }
 
 // lineStat is a commit's total added and deleted lines across all files.

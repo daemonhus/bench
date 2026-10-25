@@ -11,12 +11,11 @@ import { useDiffStore } from './stores/diff-store';
 import { useAnnotationStore } from './stores/annotation-store';
 import { useUIStore } from './stores/ui-store';
 import { useNavigationStore } from './stores/navigation-store';
-import { useReconcileStore } from './stores/reconcile-store';
+import { useReconcileStore, reconcileTarget } from './stores/reconcile-store';
 import { useBaselineStore } from './stores/baseline-store';
 import { useProfileStore } from './stores/profile-store';
 import { findingsApi, commentsApi, gitApi, featuresApi } from './core/api';
 import { useEvents } from './core/use-events';
-import { useBranchMap } from './core/use-branch-map';
 import { parseRoute, buildRoute, onRouteChange } from './core/router';
 import { splitHash, qp, hashQuery, useQueryState } from './core/query-state';
 import { useWorkbenchExtensions } from './core/extensions';
@@ -41,6 +40,8 @@ import { PageSkeleton } from './components/Skeleton';
 import { FeatureDetailView } from './components/FeatureDetailView';
 import { FolderView } from './components/FolderView';
 import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
+import { ReviewBranchPicker } from './components/ReviewBranchPicker';
+import { CommitButton } from './components/CommitButton';
 import { AnchorField } from './components/AnchorField';
 import { TagInput } from './components/TagInput';
 import { FINDING_CATEGORIES } from './core/types';
@@ -81,7 +82,6 @@ export function App() {
   const extensions = useWorkbenchExtensions();
   const repoName = useRepoStore((s) => s.repoName);
   const commits = useRepoStore((s) => s.commits);
-  const branches = useRepoStore((s) => s.branches);
   const currentCommit = useRepoStore((s) => s.currentCommit);
   const files = useRepoStore((s) => s.files);
   const selectedFilePath = useRepoStore((s) => s.selectedFilePath);
@@ -799,16 +799,13 @@ export function App() {
     return map;
   }, [allFindings]);
 
-  // Trigger background reconciliation when switching commits (once per commit).
-  // The guard lives in reconcile-store as `lastReconciledHead` so retry() can
-  // clear it and re-arm this effect after a failed run.
+  // Reconcile the annotations to the review branch's head in the background when they're behind
+  // it. The guard lives in reconcile-store as `lastReconciledHead` so retry() can clear it and
+  // re-arm this effect after a failed run.
   useEffect(() => {
-    if (!currentCommit) return;
-    if (lastReconciledHead === currentCommit) return;
-    if (reconciledHead && !reconciledHead.isFullyReconciled) {
-      startReconcile(currentCommit);
-    }
-  }, [currentCommit, reconciledHead, lastReconciledHead, startReconcile]);
+    const target = reconcileTarget(reconciledHead, lastReconciledHead);
+    if (target) startReconcile(target);
+  }, [reconciledHead, lastReconciledHead, startReconcile]);
 
   // Re-fetch annotations when reconciliation job completes (live transition)
   useEffect(() => {
@@ -840,7 +837,8 @@ export function App() {
   }, [loadFindings, loadComments, loadFeatures]);
 
   useEvents('annotations', refreshAnnotations);
-  useEvents('git', refreshGitData);
+  // New commits (or another review branch): the history, and how far behind the annotations are.
+  useEvents('git', useCallback(() => { refreshGitData(); fetchReconciledHead(); }, [refreshGitData, fetchReconciledHead]));
 
   // ?at=: browse that branch or commit. It may be outside the commits listed, so it's resolved
   // (and kept, for the commit button's label) on its own.
@@ -946,21 +944,15 @@ export function App() {
   const fromCommitInfo = commits.find((c) => c.hash === compareFrom);
   const toCommitInfo = commits.find((c) => c.hash === compareTo);
 
-  const branchMap = useBranchMap();
-  const gitHead = reconciledHead?.gitHead ?? null;
+  const branches = useRepoStore((s) => s.branches);
 
-  const renderCommitBadges = (hash: string | undefined | null) => {
-    if (!hash) return null;
-    const isHead = gitHead === hash;
-    const branchNames = branchMap.get(hash);
-    return (
-      <>
-        {isHead && <span className="commit-head-badge">HEAD</span>}
-        {branchNames?.map((name) => (
-          <span key={name} className="commit-branch-badge">{name}</span>
-        ))}
-      </>
-    );
+  // A commit card's "head of" mark: the review branch's head, or that of the branch ?at= names.
+  const reviewBranch = useRepoStore((s) => s.reviewBranch);
+  const headOf = (hash: string | null | undefined) => {
+    if (!hash) return undefined;
+    const atBranch = browseAt?.commit.hash === hash ? branches.find((b) => b.name === browseAt.at && !b.isRemote) : undefined;
+    if (atBranch && hash.startsWith(atBranch.head)) return atBranch.name;
+    return reviewBranch && reviewBranch.tip === hash ? reviewBranch.name : undefined;
   };
 
   // In diff mode, show only changed files; in browse mode, show full tree
@@ -992,14 +984,18 @@ export function App() {
       <h1 className="sr-only">{repoName ? `${repoName} - security review workbench` : 'Security review workbench'}</h1>
       <div className="tab-bar" role="toolbar" aria-label="Workbench" data-chrome>
         <div className="tab-bar-tabs">
-          {/* The project name is the way to its Overview (key 0), as the platform's logo is to its home page. */}
-          <button
-            type="button"
-            className="tab-bar-project-name"
-            aria-current={viewMode === 'overview' ? 'page' : undefined}
-            title="Project overview (0)"
-            onClick={() => { setViewMode('overview'); setPendingNavFocus(null); }}
-          >{repoName || 'Overview'}</button>
+          {/* The project and the branch it's reviewed on, then the divider. */}
+          <div className="tab-bar-project">
+            {/* The project name is the way to its Overview (key 0), as the platform's logo is to its home page. */}
+            <button
+              type="button"
+              className="tab-bar-project-name"
+              aria-current={viewMode === 'overview' ? 'page' : undefined}
+              title="Project overview (0)"
+              onClick={() => { setViewMode('overview'); setPendingNavFocus(null); }}
+            >{repoName || 'Overview'}</button>
+            <ReviewBranchPicker />
+          </div>
           {([
             { mode: 'browse' as ViewMode, label: 'Browse', shortcut: '1', icon: <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 2h5l1 2h6v9H2V2z" /></svg> },
             { mode: 'delta' as ViewMode, label: 'Changes', shortcut: '2', icon: <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 8H3M8 3v10M3 5l5-4 5 4" /></svg> },
@@ -1118,7 +1114,8 @@ export function App() {
 
       <div className="app-layout" style={{ gridTemplateColumns: gridColumns }}>
       {/* Mobile backdrops for drawers */}
-      {isMobile && leftPanelOpen && (
+      {/* Only where the file drawer is: the code views. */}
+      {isMobile && isCodeView && leftPanelOpen && (
         <div className="mobile-drawer-backdrop" onClick={toggleLeftPanel} />
       )}
       {isMobile && sidebarOpen && (
@@ -1153,40 +1150,15 @@ export function App() {
                     </svg>
                   </button>
                 </div>
-                {branches.length > 1 && (
-                  <select
-                    aria-label="Branch"
-                    className="branch-select"
-                    value={
-                      branches.find((b) => b.name === browseQ.at)?.name
-                      ?? branches.find((b) => !!currentCommit && currentCommit.startsWith(b.head))?.name
-                      ?? ''
-                    }
-                    onChange={(e) => {
-                      // Browse the branch's head, wherever it is in history: ?at= resolves it.
-                      if (e.target.value) { setGitTreeOpen(false); setBrowseQ({ at: e.target.value }); }
-                    }}
-                  >
-                    <option value="">Branch...</option>
-                    {branches.map((b) => (
-                      <option key={b.name} value={b.name}>
-                        {b.name}{b.isCurrent ? ' \u2713' : ''}
-                      </option>
-                    ))}
-                  </select>
-                )}
-                <button
-                  className="commit-button"
+                <CommitButton
+                  commit={currentCommitInfo}
+                  headOf={headOf(currentCommit)}
+                  expanded={gitTreeOpen}
                   onClick={() => {
                     setDiffSelectTarget(null);
                     setGitTreeOpen((prev) => !prev);
                   }}
-                >
-                  <span className="commit-button-hash">{currentCommitInfo?.shortHash ?? '...'}</span>
-                  {renderCommitBadges(currentCommit)}
-                  <span className="commit-button-subject">{currentCommitInfo?.subject ?? 'Select commit'}</span>
-                  <span className="commit-button-chevron">{gitTreeOpen ? '\u25B4' : '\u25BE'}</span>
-                </button>
+                />
               </>
             ) : (
               <>
@@ -1208,30 +1180,24 @@ export function App() {
                   </button>
                 </div>
                 <div className="diff-commit-buttons">
-                  <button
-                    className={`commit-button commit-button-small ${diffSelectTarget === 'to' ? 'commit-button-active' : ''}`}
-                    onClick={() => {
-                      setDiffSelectTarget('to');
-                      setGitTreeOpen(true);
-                    }}
-                  >
-                    <span className="commit-button-label">To</span>
-                    <span className="commit-button-hash">{toCommitInfo?.shortHash ?? '...'}</span>
-                    {renderCommitBadges(compareTo)}
-                    <span className="commit-button-subject">{toCommitInfo?.subject ?? 'Select'}</span>
-                  </button>
-                  <button
-                    className={`commit-button commit-button-small ${diffSelectTarget === 'from' ? 'commit-button-active' : ''}`}
-                    onClick={() => {
-                      setDiffSelectTarget('from');
-                      setGitTreeOpen(true);
-                    }}
-                  >
-                    <span className="commit-button-label">From</span>
-                    <span className="commit-button-hash">{fromCommitInfo?.shortHash ?? '...'}</span>
-                    {renderCommitBadges(compareFrom)}
-                    <span className="commit-button-subject">{fromCommitInfo?.subject ?? 'Select'}</span>
-                  </button>
+                  <CommitButton
+                    small
+                    label="From"
+                    commit={fromCommitInfo}
+                    headOf={headOf(compareFrom)}
+                    active={diffSelectTarget === 'from'}
+                    expanded={gitTreeOpen && diffSelectTarget === 'from'}
+                    onClick={() => { setDiffSelectTarget('from'); setGitTreeOpen(true); }}
+                  />
+                  <CommitButton
+                    small
+                    label="To"
+                    commit={toCommitInfo}
+                    headOf={headOf(compareTo)}
+                    active={diffSelectTarget === 'to'}
+                    expanded={gitTreeOpen && diffSelectTarget === 'to'}
+                    onClick={() => { setDiffSelectTarget('to'); setGitTreeOpen(true); }}
+                  />
                 </div>
               </>
             )}

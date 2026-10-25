@@ -43,6 +43,18 @@ func (h *commentsHandlers) list(w http.ResponseWriter, r *http.Request) {
 		writeInternalError(w, err)
 		return
 	}
+	// A finding's or feature's thread is shown wherever the finding is.
+	if findingID == "" && featureID == "" {
+		scope, err := branchScope(h.db, h.repo, r)
+		if err != nil {
+			writeInternalError(w, err)
+			return
+		}
+		if scope != nil {
+			comments = keepOnBranch(w, scope, comments, func(c model.Comment) string { return c.Anchor.CommitID })
+			total = len(comments)
+		}
+	}
 
 	// Post-filter resolved comments
 	if !includeResolved {

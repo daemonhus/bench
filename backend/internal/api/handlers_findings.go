@@ -45,6 +45,15 @@ func (h *findingsHandlers) list(w http.ResponseWriter, r *http.Request) {
 		writeInternalError(w, err)
 		return
 	}
+	scope, err := branchScope(h.db, h.repo, r)
+	if err != nil {
+		writeInternalError(w, err)
+		return
+	}
+	if scope != nil {
+		findings = keepOnBranch(w, scope, findings, func(f model.Finding) string { return f.Anchor.CommitID })
+		total = len(findings)
+	}
 
 	// Post-filter by id/severity/status/category/resolved
 	if id != "" || severity != "" || status != "" || category != "" || !includeResolved {

@@ -67,6 +67,11 @@
     text-overflow: ellipsis;
     padding-left: 0;
   }
+  .review-branch-trigger,
+  .review-branch--static {
+    max-width: 140px;
+    min-height: 32px;
+  }
   .tab-bar-actions {
     flex: none;
     display: flex;

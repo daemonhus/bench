@@ -190,7 +190,8 @@ const profileGateMessage = "service profile not configured - call get_service_pr
 // write tools are gated by default; the profile tools themselves are the
 // bootstrap path and stay exempt.
 func requiresProfile(name string) bool {
-	if name == "update_service_profile" || name == "get_service_profile" {
+	// Choosing the branch to look at isn't review judgment.
+	if name == "update_service_profile" || name == "get_service_profile" || name == "set_review_branch" {
 		return false
 	}
 	for _, prefix := range []string{"create_", "update_", "delete_", "clear_", "batch_", "resolve_", "set_", "mark_"} {

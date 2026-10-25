@@ -116,22 +116,6 @@ func (m *mockPositionStore) GetPositions(annotationID, annotationType string) ([
 	return result, nil
 }
 
-func (m *mockPositionStore) DeletePositions(annotationID, annotationType string, commitIDs []string) error {
-	idSet := make(map[string]bool, len(commitIDs))
-	for _, c := range commitIDs {
-		idSet[c] = true
-	}
-	var kept []model.AnnotationPosition
-	for _, p := range m.positions {
-		if p.AnnotationID == annotationID && p.AnnotationType == annotationType && idSet[p.CommitID] {
-			continue // delete
-		}
-		kept = append(kept, p)
-	}
-	m.positions = kept
-	return nil
-}
-
 type mockAnnotationResolver struct {
 	resolved []struct{ ID, Commit string }
 	comments []model.Comment
@@ -488,7 +472,7 @@ func TestReconcile_IncrementalFromLastReconciled(t *testing.T) {
 	git := &mockGit{
 		headCommit: "C",
 		revLists:   map[string][]string{"B..C": {"C"}},
-		ancestors:  map[string]bool{"B:C": true},
+		ancestors:  map[string]bool{"A:B": true, "A:C": true, "B:C": true},
 		diffs: map[string]string{
 			"B:C:src/auth.py": "@@ -5,2 +5,3 @@\n line 5\n+new line\n line 6",
 		},
@@ -1524,6 +1508,7 @@ func TestReconcile_OrphanedWithoutReAnchor_StaysOrphaned(t *testing.T) {
 			"B..C": {"C"},
 		},
 		ancestors: map[string]bool{
+			"A:C": true,
 			"B:C": true,
 		},
 		diffs: map[string]string{},

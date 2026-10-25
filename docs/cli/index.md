@@ -132,6 +132,10 @@ bench git commits --limit 20
 
 # Branches
 bench git branches
+
+# The review branch (what the lists and history are looked at on), and choosing another
+bench git review-branch
+bench git set-review-branch --branch fix/login
 ```
 
 ## findings

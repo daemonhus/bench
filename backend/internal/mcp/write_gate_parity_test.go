@@ -52,6 +52,7 @@ var toolRoutes = map[string]gateRoute{
 	"mark_reviewed":            {"POST", "/api/coverage/mark"},
 	"reconcile":                {"POST", "/api/reconcile"},
 	"update_service_profile":   {"PATCH", "/api/profile"},
+	"set_review_branch":        {"PUT", "/api/review-branch"},
 }
 
 // REST write routes with no MCP tool, and whether they are gated.

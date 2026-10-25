@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import type { CommitInfo, FileEntry, BranchInfo } from '../core/types';
-import { gitApi } from '../core/api';
+import type { CommitInfo, FileEntry, BranchInfo, ReviewBranch } from '../core/types';
+import { gitApi, reviewBranchApi, getApiBase, addressBranch } from '../core/api';
 import { detectLanguage, ensureLanguageRegistered } from '../core/language-map';
 
 interface RepoState {
@@ -15,11 +15,40 @@ interface RepoState {
   fileLanguage: string | null;
   isLoading: boolean;
   error: string | null;
+  /** The branch the project is looked at on (see ReviewBranch). */
+  reviewBranch: ReviewBranch | null;
+  /** Bumped when the review branch becomes another one: the workbench remounts to load on it. */
+  branchEpoch: number;
 
   loadCommits: () => Promise<void>;
   refreshGitData: () => Promise<void>;
+  /** Make `name` the project's review branch ('' for the default), for everyone. */
+  setReviewBranch: (name: string) => Promise<void>;
+  /** Stop following the address's ?branch= and go back to the project's branch. */
+  followProjectBranch: () => Promise<void>;
   selectCommit: (hash: string) => Promise<void>;
   selectFile: (path: string) => Promise<void>;
+}
+
+// Which project the review branch was loaded for: a branch change counts only within one.
+let reviewBranchBase = '';
+
+/** Drop ?branch= from the address, keeping the rest (the route after #). */
+function dropAddressBranch() {
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has('branch')) return;
+  url.searchParams.delete('branch');
+  window.history.replaceState(window.history.state, '', url);
+}
+
+function applyReviewBranch(b: ReviewBranch) {
+  const { reviewBranch: prev, branchEpoch } = useRepoStore.getState();
+  const sameProject = reviewBranchBase === getApiBase();
+  reviewBranchBase = getApiBase();
+  useRepoStore.setState({
+    reviewBranch: b,
+    branchEpoch: branchEpoch + (prev && sameProject && prev.name !== b.name ? 1 : 0),
+  });
 }
 
 export const useRepoStore = create<RepoState>((set, get) => ({
@@ -34,16 +63,20 @@ export const useRepoStore = create<RepoState>((set, get) => ({
   fileLanguage: null,
   isLoading: false,
   error: null,
+  reviewBranch: null,
+  branchEpoch: 0,
 
   loadCommits: async () => {
     set({ isLoading: true, error: null });
     try {
-      const [commits, info, branches] = await Promise.all([
+      const [commits, info, branches, reviewBranch] = await Promise.all([
         gitApi.listCommits(50),
         gitApi.getInfo().catch(() => ({ name: '', defaultBranch: '', remoteUrl: '' })),
         gitApi.listBranches().catch(() => [] as BranchInfo[]),
+        reviewBranchApi.get().catch(() => null),
       ]);
       set({ commits, branches, repoName: info.name || null, remoteUrl: info.remoteUrl || null });
+      if (reviewBranch) applyReviewBranch(reviewBranch);
       if (commits.length > 0) {
         await get().selectCommit(commits[0].hash);
       }
@@ -54,14 +87,27 @@ export const useRepoStore = create<RepoState>((set, get) => ({
 
   refreshGitData: async () => {
     try {
-      const [commits, branches] = await Promise.all([
+      const [commits, branches, reviewBranch] = await Promise.all([
         gitApi.listCommits(50),
         gitApi.listBranches().catch(() => [] as BranchInfo[]),
+        reviewBranchApi.get().catch(() => null),
       ]);
       set({ commits, branches });
+      if (reviewBranch) applyReviewBranch(reviewBranch);
     } catch {
       // Silent - polling failure shouldn't show errors
     }
+  },
+
+  setReviewBranch: async (name) => {
+    dropAddressBranch();
+    applyReviewBranch(await reviewBranchApi.set(name));
+  },
+
+  followProjectBranch: async () => {
+    if (!addressBranch()) return;
+    dropAddressBranch();
+    applyReviewBranch(await reviewBranchApi.get());
   },
 
   // While an open file reloads (another commit, or the same file again) it stays on screen:
