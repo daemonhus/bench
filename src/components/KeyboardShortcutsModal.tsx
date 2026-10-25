@@ -33,10 +33,12 @@ const GROUPS: ShortcutGroup[] = [
   {
     title: 'Tabs',
     shortcuts: [
+      { keys: ['0'], description: 'Overview' },
       { keys: ['1'], description: 'Browse' },
       { keys: ['2'], description: 'Changes' },
       { keys: ['3'], description: 'Findings' },
       { keys: ['4'], description: 'Features' },
+      { keys: ['5'], description: 'Profile' },
     ],
   },
   {
@@ -60,7 +62,7 @@ const GROUPS: ShortcutGroup[] = [
   {
     title: 'Panel Navigation',
     shortcuts: [
-      { keys: ['F6'], description: 'Focus the toolbar (tabs, quick add); \u2190 \u2192 move, Esc / F6 back' },
+      { keys: ['F6'], description: 'Focus the toolbar (tabs, branch chip, quick add); \u2190 \u2192 move, Esc / F6 back' },
       { keys: ['\u21E5'], description: 'Focus next panel area' },
       { keys: [SHIFT, '\u21E5'], description: 'Focus previous panel area' },
       { keys: ['\u2191', '\u2193'], description: 'Move between items in list' },

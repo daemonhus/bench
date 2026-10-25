@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-
-	"bench/internal/model"
 )
 
 func registerGitTools(deps *toolDeps) []Tool {
@@ -29,9 +27,9 @@ func toolSearchCode(deps *toolDeps) Tool {
 		Description: "Search for a pattern across all files in the repository at a given commit. Returns matching lines with file paths and line numbers. Uses extended regular expressions (ERE) by default, so alternation (foo|bar) works. Set fixed=true to treat the pattern as a literal string. Essential for finding vulnerability patterns (eval, innerHTML, exec, SQL concatenation, hardcoded secrets, etc.).",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
-			"properties": {
+			"properties": {` + branchProp + `
 				"pattern": {"type": "string", "description": "Search pattern (regular expression)"},
-				"commit": {"type": "string", "description": "Commit hash or ref (default: HEAD)"},
+				"commit": {"type": "string", "description": "Commit hash or ref (default: the review branch's head)"},
 				"path": {"type": "string", "description": "Limit search to files under this directory prefix"},
 				"limit": {"type": "integer", "description": "Maximum matches to return (default: 100, max: 500)"},
 				"ignore_case": {"type": "boolean", "description": "Case-insensitive matching (default: false)"},
@@ -43,6 +41,7 @@ func toolSearchCode(deps *toolDeps) Tool {
 			var p struct {
 				Pattern         string `json:"pattern"`
 				Commit          string `json:"commit"`
+				Branch          string `json:"branch"`
 				Path            string `json:"path"`
 				MaxResults      int    `json:"limit"`
 				CaseInsensitive bool   `json:"ignore_case"`
@@ -55,11 +54,11 @@ func toolSearchCode(deps *toolDeps) Tool {
 				return "", fmt.Errorf("pattern is required")
 			}
 			if p.Commit == "" {
-				head, err := deps.repo.Head()
+				tip, err := deps.tip(p.Branch)
 				if err != nil {
-					return "", fmt.Errorf("resolve HEAD: %w", err)
+					return "", err
 				}
-				p.Commit = head
+				p.Commit = tip
 			}
 			if p.MaxResults <= 0 {
 				p.MaxResults = 100
@@ -92,9 +91,9 @@ func toolGetBlame(deps *toolDeps) Tool {
 		Description: "Get git blame for a file, showing who last modified each line and when. Optionally scope to a line range. Useful for understanding code history, identifying recent changes, and assessing risk (old stable code vs. freshly rewritten).",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
-			"properties": {
+			"properties": {` + branchProp + `
 				"path": {"type": "string", "description": "File path relative to repo root"},
-				"commit": {"type": "string", "description": "Commit hash or ref (default: HEAD)"},
+				"commit": {"type": "string", "description": "Commit hash or ref (default: the review branch's head)"},
 				"start": {"type": "integer", "description": "Start of line range (optional)"},
 				"end": {"type": "integer", "description": "End of line range (optional)"}
 			},
@@ -104,6 +103,7 @@ func toolGetBlame(deps *toolDeps) Tool {
 			var p struct {
 				Path      string `json:"path"`
 				Commit    string `json:"commit"`
+				Branch    string `json:"branch"`
 				LineStart int    `json:"start"`
 				LineEnd   int    `json:"end"`
 			}
@@ -114,6 +114,13 @@ func toolGetBlame(deps *toolDeps) Tool {
 				return "", fmt.Errorf("path is required")
 			}
 
+			if p.Commit == "" {
+				tip, err := deps.tip(p.Branch)
+				if err != nil {
+					return "", err
+				}
+				p.Commit = tip
+			}
 			lines, err := deps.repo.Blame(p.Commit, p.Path, p.LineStart, p.LineEnd)
 			if err != nil {
 				return "", err
@@ -138,9 +145,9 @@ func toolReadFile(deps *toolDeps) Tool {
 		Description: "Read file content at a specific git commit. Returns the file text with line numbers prefixed (format: `LINE\tCONTENT`). Optionally scope to a line range with start and end. Always set start and end when creating findings to ensure accurate line anchoring.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
-			"properties": {
+			"properties": {` + branchProp + `
 				"path": {"type": "string", "description": "File path relative to repo root"},
-				"commit": {"type": "string", "description": "Commit hash or ref (default: HEAD)"},
+				"commit": {"type": "string", "description": "Commit hash or ref (default: the review branch's head)"},
 				"start": {"type": "integer", "description": "First line to return, 1-indexed (optional)"},
 				"end": {"type": "integer", "description": "Last line to return, inclusive (optional)"}
 			},
@@ -150,6 +157,7 @@ func toolReadFile(deps *toolDeps) Tool {
 			var p struct {
 				Path      string `json:"path"`
 				Commit    string `json:"commit"`
+				Branch    string `json:"branch"`
 				LineStart int    `json:"start"`
 				LineEnd   int    `json:"end"`
 			}
@@ -160,11 +168,11 @@ func toolReadFile(deps *toolDeps) Tool {
 				return "", fmt.Errorf("path is required")
 			}
 			if p.Commit == "" {
-				head, err := deps.repo.Head()
+				tip, err := deps.tip(p.Branch)
 				if err != nil {
-					return "", fmt.Errorf("resolve HEAD: %w", err)
+					return "", err
 				}
-				p.Commit = head
+				p.Commit = tip
 			}
 			content, err := deps.repo.Show(p.Commit, p.Path)
 			if err != nil {
@@ -197,13 +205,13 @@ func toolReadFiles(deps *toolDeps) Tool {
 		Description: "Read multiple files in a single call. Returns each file's content with line numbers prefixed (format: `LINE\\tCONTENT`), separated by a header. Prefer this over repeated read_file calls when reading 2 or more files at once. Max 20 files per call.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
-			"properties": {
+			"properties": {` + branchProp + `
 				"paths": {
 					"type": "array",
 					"items": {"type": "string"},
 					"description": "File paths relative to repo root (max 20)"
 				},
-				"commit": {"type": "string", "description": "Commit hash or ref (default: HEAD)"}
+				"commit": {"type": "string", "description": "Commit hash or ref (default: the review branch's head)"}
 			},
 			"required": ["paths"]
 		}`),
@@ -211,6 +219,7 @@ func toolReadFiles(deps *toolDeps) Tool {
 			var p struct {
 				Paths  []string `json:"paths"`
 				Commit string   `json:"commit"`
+				Branch string   `json:"branch"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {
 				return "", fmt.Errorf("invalid params: %w", err)
@@ -222,11 +231,11 @@ func toolReadFiles(deps *toolDeps) Tool {
 				return "", fmt.Errorf("maximum 20 files per call")
 			}
 			if p.Commit == "" {
-				head, err := deps.repo.Head()
+				tip, err := deps.tip(p.Branch)
 				if err != nil {
-					return "", fmt.Errorf("resolve HEAD: %w", err)
+					return "", err
 				}
-				p.Commit = head
+				p.Commit = tip
 			}
 
 			var sb strings.Builder
@@ -254,25 +263,26 @@ func toolListFiles(deps *toolDeps) Tool {
 		Description: "List all files in the repository tree at a given commit. Returns file paths, one per line.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
-			"properties": {
-				"commit": {"type": "string", "description": "Commit hash or ref (default: HEAD)"},
+			"properties": {` + branchProp + `
+				"commit": {"type": "string", "description": "Commit hash or ref (default: the review branch's head)"},
 				"prefix": {"type": "string", "description": "Filter to paths under this directory prefix"}
 			}
 		}`),
 		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
 			var p struct {
 				Commit string `json:"commit"`
+				Branch string `json:"branch"`
 				Prefix string `json:"prefix"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {
 				return "", fmt.Errorf("invalid params: %w", err)
 			}
 			if p.Commit == "" {
-				head, err := deps.repo.Head()
+				tip, err := deps.tip(p.Branch)
 				if err != nil {
-					return "", fmt.Errorf("resolve HEAD: %w", err)
+					return "", err
 				}
-				p.Commit = head
+				p.Commit = tip
 			}
 			entries, err := deps.repo.Tree(p.Commit)
 			if err != nil {
@@ -369,13 +379,13 @@ func toolListChangedFiles(deps *toolDeps) Tool {
 func toolListCommits(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "list_commits",
-		Description: "List commits with hash, author, date, and subject line. Without from/to returns recent repo-wide commits. With a commit range and/or path, returns commits that match - ideal for answering 'which commits changed this file between A and B?'.",
+		Description: "List commits with hash, author, date, and subject line. Without from/to returns recent commits on the review branch. With a commit range and/or path, returns commits that match - ideal for answering 'which commits changed this file between A and B?'.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
-			"properties": {
+			"properties": {` + branchProp + `
 				"limit": {"type": "integer", "description": "Max commits to return (default: 20, max: 500)"},
 				"from": {"type": "string", "description": "Start of range (exclusive). Commits after this one."},
-				"to": {"type": "string", "description": "End of range (inclusive, default: HEAD)"},
+				"to": {"type": "string", "description": "End of range (inclusive, default: the review branch's head)"},
 				"path": {"type": "string", "description": "Only commits touching this file path"}
 			}
 		}`),
@@ -384,6 +394,7 @@ func toolListCommits(deps *toolDeps) Tool {
 				Limit      int    `json:"limit"`
 				FromCommit string `json:"from"`
 				ToCommit   string `json:"to"`
+				Branch     string `json:"branch"`
 				Path       string `json:"path"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {
@@ -396,14 +407,14 @@ func toolListCommits(deps *toolDeps) Tool {
 				p.Limit = 500
 			}
 
-			var commits []model.CommitInfo
-			var err error
-
-			if p.FromCommit != "" || p.ToCommit != "" || p.Path != "" {
-				commits, err = deps.repo.LogRange(p.FromCommit, p.ToCommit, p.Path, p.Limit)
-			} else {
-				commits, err = deps.repo.Log(p.Limit)
+			if p.ToCommit == "" {
+				tip, err := deps.tip(p.Branch)
+				if err != nil {
+					return "", err
+				}
+				p.ToCommit = tip
 			}
+			commits, err := deps.repo.LogRange(p.FromCommit, p.ToCommit, p.Path, p.Limit)
 			if err != nil {
 				return "", err
 			}

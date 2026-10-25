@@ -24,24 +24,25 @@ func toolGetSummary(deps *toolDeps) Tool {
 		Description: "Get a summary of the current state: total findings by severity and status, total comments, unresolved items, reconciliation coverage. The response embeds the service profile (deployment context that determines which finding classes are moot or amplified).",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
-			"properties": {
-				"commit": {"type": "string", "description": "Summarize at this commit (default: HEAD)"}
+			"properties": {` + branchProp + `
+				"commit": {"type": "string", "description": "Summarize at this commit (default: the review branch's head)"}
 			}
 		}`),
 		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
 			var p struct {
 				Commit string `json:"commit"`
+				Branch string `json:"branch"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {
 				return "", fmt.Errorf("invalid params: %w", err)
 			}
 
-			head, err := deps.repo.Head()
-			if err != nil {
-				return "", fmt.Errorf("resolve HEAD: %w", err)
-			}
 			if p.Commit == "" {
-				p.Commit = head
+				tip, err := deps.tip(p.Branch)
+				if err != nil {
+					return "", err
+				}
+				p.Commit = tip
 			}
 
 			summary, err := deps.db.FindingSummary()
@@ -54,7 +55,7 @@ func toolGetSummary(deps *toolDeps) Tool {
 				return "", err
 			}
 
-			reconHead, err := deps.reconciler.GetReconciledHead()
+			reconHead, err := deps.reconciler.GetReconciledHeadAt(p.Commit)
 			if err != nil {
 				return "", err
 			}
@@ -209,8 +210,8 @@ func toolGetCoverage(deps *toolDeps) Tool {
 		Description: "Get file-level review coverage: which files have been reviewed, which haven't, and whether reviews are stale (file changed since last review).",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
-			"properties": {
-				"commit": {"type": "string", "description": "Target commit to check coverage against (default: HEAD)"},
+			"properties": {` + branchProp + `
+				"commit": {"type": "string", "description": "Target commit to check coverage against (default: the review branch's head)"},
 				"path": {"type": "string", "description": "Scope to files under this directory prefix"},
 				"only_unreviewed": {"type": "boolean", "description": "Only return unreviewed files (default: false)"}
 			}
@@ -218,6 +219,7 @@ func toolGetCoverage(deps *toolDeps) Tool {
 		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
 			var p struct {
 				Commit         string `json:"commit"`
+				Branch         string `json:"branch"`
 				Path           string `json:"path"`
 				OnlyUnreviewed bool   `json:"only_unreviewed"`
 			}
@@ -225,11 +227,11 @@ func toolGetCoverage(deps *toolDeps) Tool {
 				return "", fmt.Errorf("invalid params: %w", err)
 			}
 			if p.Commit == "" {
-				head, err := deps.repo.Head()
+				tip, err := deps.tip(p.Branch)
 				if err != nil {
-					return "", fmt.Errorf("resolve HEAD: %w", err)
+					return "", err
 				}
-				p.Commit = head
+				p.Commit = tip
 			}
 
 			// Get all files at commit

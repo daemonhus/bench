@@ -35,14 +35,14 @@ func toolListFindings(deps *toolDeps) Tool {
 		Description: "List security findings (summary view). Returns id, severity, status, title, file, lines, category, and comment count for each finding. Use get_finding for full details including description. Note: resolved defaults to false - set it to true when checking for duplicates before creating new findings. Baseline snapshots include all findings (including resolved), so delta counts may differ from this tool's output unless resolved is true. Pass commit (or set orphaned_only=true) to enrich each row with a 'confidence' field (exact|moved|orphaned); use this to find findings that need re-anchoring after a reconcile.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
-			"properties": {
+			"properties": {` + branchProp + allBranchesProp + `
 				"file": {"type": "string", "description": "Filter by file path"},
 				"status": {"type": "string", "enum": ["draft", "open", "in-progress", "false-positive", "accepted", "closed"], "description": "Filter by status"},
 				"severity": {"type": "string", "enum": ["critical", "high", "medium", "low", "info"], "description": "Filter by severity"},
 				"resolved": {"type": "boolean", "description": "Include resolved findings (default: false)"},
 				"category": {"type": "string", "description": "Filter by category"},
 				"commit": {"type": "string", "description": "Commit (or ref like HEAD) to compute effective positions against. When set, each finding gains a 'confidence' field. Required for orphaned_only."},
-				"orphaned_only": {"type": "boolean", "description": "Return only findings whose effective position at commit is 'orphaned'. Defaults commit to HEAD if omitted."}
+				"orphaned_only": {"type": "boolean", "description": "Return only findings whose effective position at commit is 'orphaned'. Defaults commit to the review branch's head if omitted."}
 			}
 		}`),
 		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
@@ -54,20 +54,29 @@ func toolListFindings(deps *toolDeps) Tool {
 				Category        string `json:"category"`
 				Commit          string `json:"commit"`
 				OrphanedOnly    bool   `json:"orphaned_only"`
+				Branch          string `json:"branch"`
+				AllBranches     bool   `json:"all_branches"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {
 				return "", fmt.Errorf("invalid params: %w", err)
 			}
 			if p.OrphanedOnly && p.Commit == "" {
-				if head, err := deps.repo.Head(); err == nil {
-					p.Commit = head
+				tip, err := deps.tip(p.Branch)
+				if err != nil {
+					return "", err
 				}
+				p.Commit = tip
 			}
 
 			findings, _, err := deps.db.ListFindings(p.File, 0, 0)
 			if err != nil {
 				return "", err
 			}
+			scope, err := deps.scope(p.Branch, p.AllBranches)
+			if err != nil {
+				return "", err
+			}
+			findings, off := keepOnBranch(scope, findings, func(f model.Finding) string { return f.Anchor.CommitID })
 
 			// Build a confidence map when commit is set
 			confidence := map[string]string{}
@@ -102,7 +111,7 @@ func toolListFindings(deps *toolDeps) Tool {
 			}
 
 			if len(filtered) == 0 {
-				return "No findings found.", nil
+				return "No findings found." + offBranchNote(scope, off), nil
 			}
 
 			// Enrich with comment counts
@@ -155,7 +164,7 @@ func toolListFindings(deps *toolDeps) Tool {
 			if err != nil {
 				return "", err
 			}
-			return fmt.Sprintf("%d finding(s):\n%s", len(summaries), string(b)), nil
+			return fmt.Sprintf("%d finding(s):\n%s%s", len(summaries), string(b), offBranchNote(scope, off)), nil
 		},
 	}
 }
@@ -209,7 +218,7 @@ func toolCreateFinding(deps *toolDeps) Tool {
 			"type": "object",
 			"properties": {
 				"file": {"type": "string", "description": "File path"},
-				"commit": {"type": "string", "description": "Commit hash or ref where the finding was identified (e.g. HEAD, branch name, or full SHA)"},
+				"commit": {"type": "string", "description": "Commit hash or ref where the finding was identified (e.g. HEAD, branch name, or full SHA; default: the review branch's head)"},
 				"start": {"type": "integer", "description": "Start line number"},
 				"end": {"type": "integer", "description": "End line number"},
 				"severity": {"type": "string", "enum": ["critical", "high", "medium", "low", "info"]},
@@ -253,7 +262,11 @@ func toolCreateFinding(deps *toolDeps) Tool {
 				return "", fmt.Errorf("title and severity are required")
 			}
 			if p.Commit == "" {
-				p.Commit = "HEAD" // as on REST; stored as the commit it names
+				tip, err := deps.tip("")
+				if err != nil {
+					return "", err
+				}
+				p.Commit = tip // the review branch's head
 			}
 			if p.Status == "" {
 				p.Status = "draft"
@@ -499,7 +512,7 @@ func toolBatchCreateFindings(deps *toolDeps) Tool {
 						"type": "object",
 						"properties": {
 							"file": {"type": "string", "description": "File path"},
-							"commit": {"type": "string", "description": "Commit hash or ref where the finding was identified (e.g. HEAD, branch name, or full SHA)"},
+							"commit": {"type": "string", "description": "Commit hash or ref where the finding was identified (e.g. HEAD, branch name, or full SHA; default: the review branch's head)"},
 							"start": {"type": "integer", "description": "Start line number"},
 							"end": {"type": "integer", "description": "End line number"},
 							"severity": {"type": "string", "enum": ["critical", "high", "medium", "low", "info"]},
@@ -560,7 +573,11 @@ func toolBatchCreateFindings(deps *toolDeps) Tool {
 					return "", fmt.Errorf("finding %d: title and severity are required", i)
 				}
 				if pf.Commit == "" {
-					pf.Commit = "HEAD"
+					tip, err := deps.tip("")
+					if err != nil {
+						return "", err
+					}
+					pf.Commit = tip // the review branch's head
 				}
 				status := pf.Status
 				if status == "" {

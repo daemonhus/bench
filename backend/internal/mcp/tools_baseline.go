@@ -9,6 +9,7 @@ import (
 
 	"bench/internal/events"
 	"bench/internal/model"
+	"bench/internal/review"
 
 	"github.com/google/uuid"
 )
@@ -25,13 +26,13 @@ func registerBaselineTools(deps *toolDeps) []Tool {
 func toolSetBaseline(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "set_baseline",
-		Description: "Set a baseline - snapshot the current state of all findings and comments. Creates an atomic checkpoint that can be compared against future state to see what changed. Defaults to the tip of the default branch (e.g. main) if no commit specified. Configure the service profile (update_service_profile) before a project's first baseline.",
+		Description: "Set a baseline - snapshot the current state of all findings and comments. Creates an atomic checkpoint that can be compared against future state to see what changed. Defaults to the head of the review branch if no commit specified. Configure the service profile (update_service_profile) before a project's first baseline.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
-			"properties": {
+			"properties": {` + branchProp + `
 				"reviewer": {"type": "string", "description": "Reviewer identifier (default: 'mcp-client')"},
 				"summary": {"type": "string", "description": "Optional summary note for this baseline"},
-				"commit": {"type": "string", "description": "Commit hash or ref to set baseline at (default: tip of default branch)"}
+				"commit": {"type": "string", "description": "Commit hash or ref to set baseline at (default: the review branch's head)"}
 			}
 		}`),
 		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
@@ -39,6 +40,7 @@ func toolSetBaseline(deps *toolDeps) Tool {
 				Reviewer string `json:"reviewer"`
 				Summary  string `json:"summary"`
 				CommitID string `json:"commit"`
+				Branch   string `json:"branch"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {
 				return "", fmt.Errorf("invalid params: %w", err)
@@ -55,19 +57,13 @@ func toolSetBaseline(deps *toolDeps) Tool {
 					return "", fmt.Errorf("invalid commit: %w", err)
 				}
 			} else {
-				// Default to the tip of the default branch, not HEAD
-				defaultBranch := deps.repo.DefaultBranch()
-				head, err = deps.repo.BranchTip(defaultBranch)
+				head, err = deps.tip(p.Branch)
 				if err != nil {
-					// Fallback to HEAD
-					head, err = deps.repo.Head()
-					if err != nil {
-						return "", fmt.Errorf("resolve HEAD: %w", err)
-					}
+					return "", err
 				}
 			}
 
-			stats, err := buildBaselineStats(deps)
+			stats, err := buildBaselineStats(deps, review.NewScope(deps.repo, head))
 			if err != nil {
 				return "", err
 			}
@@ -80,19 +76,31 @@ func toolSetBaseline(deps *toolDeps) Tool {
 				findingIDs = []string{}
 			}
 
+			featureIDs, err := deps.db.AllFeatureIDs()
+			if err != nil {
+				return "", fmt.Errorf("list feature ids: %w", err)
+			}
+			if featureIDs == nil {
+				featureIDs = []string{}
+			}
+
 			baseline := &model.Baseline{
-				ID:            uuid.New().String(),
-				CommitID:      head,
-				Reviewer:      p.Reviewer,
-				Summary:       p.Summary,
-				FindingsTotal: stats.FindingsTotal,
-				FindingsOpen:  stats.FindingsOpen,
-				BySeverity:    stats.BySeverity,
-				ByStatus:      stats.ByStatus,
-				ByCategory:    stats.ByCategory,
-				CommentsTotal: stats.CommentsTotal,
-				CommentsOpen:  stats.CommentsOpen,
-				FindingIDs:    findingIDs,
+				ID:             uuid.New().String(),
+				CommitID:       head,
+				Reviewer:       p.Reviewer,
+				Summary:        p.Summary,
+				FindingsTotal:  stats.FindingsTotal,
+				FindingsOpen:   stats.FindingsOpen,
+				BySeverity:     stats.BySeverity,
+				ByStatus:       stats.ByStatus,
+				ByCategory:     stats.ByCategory,
+				CommentsTotal:  stats.CommentsTotal,
+				CommentsOpen:   stats.CommentsOpen,
+				FindingIDs:     findingIDs,
+				FeaturesTotal:  stats.FeaturesTotal,
+				FeaturesActive: stats.FeaturesActive,
+				ByKind:         stats.ByKind,
+				FeatureIDs:     featureIDs,
 			}
 
 			if err := deps.db.CreateBaseline(baseline); err != nil {
@@ -191,16 +199,17 @@ func toolDeleteBaseline(deps *toolDeps) Tool {
 func toolGetDelta(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "get_delta",
-		Description: "Get changes since the last baseline: new findings, removed findings, and changed files. Without baseline, compares the latest baseline against the current state. With baseline, compares that baseline against its predecessor (what that baseline introduced). The response embeds the service profile.",
+		Description: "Get changes on the review branch since its latest baseline: new findings and features, removed findings, and changed files. Without baseline, compares the branch's latest baseline against the branch's current state. With baseline, compares that baseline against its predecessor in its own history (what that baseline introduced). The response embeds the service profile.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
-			"properties": {
+			"properties": {` + branchProp + `
 				"baseline": {"type": "string", "description": "Specific baseline ID. Shows what this baseline introduced compared to the previous baseline. If omitted, shows what changed since the latest baseline."}
 			}
 		}`),
 		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
 			var p struct {
 				BaselineID string `json:"baseline"`
+				Branch     string `json:"branch"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {
 				return "", fmt.Errorf("invalid params: %w", err)
@@ -211,19 +220,42 @@ func toolGetDelta(deps *toolDeps) Tool {
 			if p.BaselineID != "" {
 				return deltaForBaseline(deps, p.BaselineID)
 			}
-			return deltaSinceLatest(deps)
+			return deltaSinceLatest(deps, p.Branch)
 		},
 	}
 }
 
-// deltaSinceLatest compares the latest baseline against the current live state.
-func deltaSinceLatest(deps *toolDeps) (string, error) {
-	baseline, err := deps.db.GetLatestBaseline()
+// maxBaselines bounds the baselines read to find a branch's.
+const maxBaselines = 1000
+
+// latestOn is the most recent baseline on the scope's branch, nil if none.
+func latestOn(deps *toolDeps, scope *review.Scope) (*model.Baseline, error) {
+	baselines, err := deps.db.ListBaselines(maxBaselines)
+	if err != nil {
+		return nil, err
+	}
+	for i := range baselines {
+		if scope.Has(baselines[i].CommitID) {
+			return &baselines[i], nil
+		}
+	}
+	return nil, nil
+}
+
+// deltaSinceLatest compares the review branch's latest baseline against the
+// branch's current state.
+func deltaSinceLatest(deps *toolDeps, branch string) (string, error) {
+	b, err := deps.reviewBranch(branch)
+	if err != nil {
+		return "", err
+	}
+	scope := review.NewScope(deps.repo, b.Tip)
+	baseline, err := latestOn(deps, scope)
 	if err != nil {
 		return "", err
 	}
 	if baseline == nil {
-		return "No baselines yet.", nil
+		return fmt.Sprintf("No baselines yet on %s.", b.Name), nil
 	}
 
 	baselineIDs := make(map[string]bool, len(baseline.FindingIDs))
@@ -236,12 +268,28 @@ func deltaSinceLatest(deps *toolDeps) (string, error) {
 		return "", err
 	}
 
+	// A finding on another branch is neither new here nor removed.
 	currentIDs := make(map[string]bool)
 	var newFindings []model.Finding
 	for _, f := range currentFindings {
 		currentIDs[f.ID] = true
-		if !baselineIDs[f.ID] {
+		if !baselineIDs[f.ID] && scope.Has(f.Anchor.CommitID) {
 			newFindings = append(newFindings, f)
+		}
+	}
+
+	baselineFeatureIDs := make(map[string]bool, len(baseline.FeatureIDs))
+	for _, id := range baseline.FeatureIDs {
+		baselineFeatureIDs[id] = true
+	}
+	currentFeatures, _, err := deps.db.ListFeatures("", "", 0, 0)
+	if err != nil {
+		return "", err
+	}
+	var newFeatures []model.Feature
+	for _, f := range currentFeatures {
+		if !baselineFeatureIDs[f.ID] && scope.Has(f.Anchor.CommitID) {
+			newFeatures = append(newFeatures, f)
 		}
 	}
 
@@ -252,19 +300,14 @@ func deltaSinceLatest(deps *toolDeps) (string, error) {
 		}
 	}
 
-	// Diff against the default branch tip
+	// Diff against the review branch's head
 	var changedFiles []model.FileStat
-	defaultBranch := deps.repo.DefaultBranch()
-	tip, err := deps.repo.BranchTip(defaultBranch)
-	if err == nil {
-		stats, err := deps.repo.DiffStat(baseline.CommitID, tip)
-		if err == nil {
-			changedFiles = stats
-		}
+	if stats, err := deps.repo.DiffStat(baseline.CommitID, b.Tip); err == nil {
+		changedFiles = stats
 	}
 
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "## Changes since baseline\n\n")
+	fmt.Fprintf(&sb, "## Changes since baseline (%s)\n\n", describeBranch(b))
 	fmt.Fprintf(&sb, "Baseline: BL-%d %s (at %s by %s)\n", baseline.Seq, baseline.CreatedAt, baseline.CommitID[:minInt(7, len(baseline.CommitID))], baseline.Reviewer)
 	if baseline.Summary != "" {
 		fmt.Fprintf(&sb, "Summary: %s\n", baseline.Summary)
@@ -274,6 +317,10 @@ func deltaSinceLatest(deps *toolDeps) (string, error) {
 		fmt.Fprintf(&sb, "- [%s] %s (%s) in %s\n", f.Severity, f.Title, f.Status, f.Anchor.FileID)
 	}
 	fmt.Fprintf(&sb, "\n### Removed findings: %d\n", removedCount)
+	fmt.Fprintf(&sb, "\n### New features: %d\n", len(newFeatures))
+	for _, f := range newFeatures {
+		fmt.Fprintf(&sb, "- [%s] %s (%s) in %s\n", f.Kind, f.Title, f.Status, f.Anchor.FileID)
+	}
 	fmt.Fprintf(&sb, "\n### Changed files: %d\n", len(changedFiles))
 	for _, f := range changedFiles {
 		fmt.Fprintf(&sb, "- %s (+%d/-%d)\n", f.Path, f.Added, f.Deleted)
@@ -294,9 +341,18 @@ func deltaForBaseline(deps *toolDeps, baselineID string) (string, error) {
 		return "", fmt.Errorf("baseline not found")
 	}
 
-	prev, err := deps.db.GetPreviousBaseline(baseline.ID)
+	// The previous baseline: the one before it in its own history.
+	scope := review.NewScope(deps.repo, baseline.CommitID)
+	var prev *model.Baseline
+	earlier, err := deps.db.BaselinesBefore(baseline.ID, maxBaselines)
 	if err != nil {
 		return "", err
+	}
+	for i := range earlier {
+		if scope.Has(earlier[i].CommitID) {
+			prev = &earlier[i]
+			break
+		}
 	}
 
 	// Build previous finding ID set
@@ -387,16 +443,18 @@ func deltaForBaseline(deps *toolDeps, baselineID string) (string, error) {
 func toolListBaselines(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "list_baselines",
-		Description: "List all baselines for this project, newest first. Shows commit, reviewer, findings/comments counts for each.",
+		Description: "List the review branch's baselines, newest first. Shows commit, reviewer, findings/comments counts for each.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
-			"properties": {
+			"properties": {` + branchProp + allBranchesProp + `
 				"limit": {"type": "integer", "description": "Maximum number of baselines to return (default: 20)"}
 			}
 		}`),
 		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
 			var p struct {
-				Limit int `json:"limit"`
+				Limit       int    `json:"limit"`
+				Branch      string `json:"branch"`
+				AllBranches bool   `json:"all_branches"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {
 				return "", fmt.Errorf("invalid params: %w", err)
@@ -405,12 +463,25 @@ func toolListBaselines(deps *toolDeps) Tool {
 				p.Limit = 20
 			}
 
-			baselines, err := deps.db.ListBaselines(p.Limit)
+			scope, err := deps.scope(p.Branch, p.AllBranches)
 			if err != nil {
 				return "", err
 			}
+			// Read them all when filtering, so the limit counts the branch's.
+			read := p.Limit
+			if scope != nil {
+				read = maxBaselines
+			}
+			baselines, err := deps.db.ListBaselines(read)
+			if err != nil {
+				return "", err
+			}
+			baselines, off := keepOnBranch(scope, baselines, func(b model.Baseline) string { return b.CommitID })
+			if len(baselines) > p.Limit {
+				baselines = baselines[:p.Limit]
+			}
 			if len(baselines) == 0 {
-				return "No baselines found.", nil
+				return "No baselines found." + offBranchNote(scope, off), nil
 			}
 
 			var sb strings.Builder
@@ -425,48 +496,69 @@ func toolListBaselines(deps *toolDeps) Tool {
 				}
 				fmt.Fprintf(&sb, "\n  ID: %s\n\n", b.ID)
 			}
+			sb.WriteString(offBranchNote(scope, off))
 			return sb.String(), nil
 		},
 	}
 }
 
-// buildBaselineStats computes current ProjectStats for a baseline snapshot.
-func buildBaselineStats(deps *toolDeps) (model.ProjectStats, error) {
-	summaryRows, err := deps.db.FindingSummary()
-	if err != nil {
-		return model.ProjectStats{}, fmt.Errorf("finding summary: %w", err)
-	}
-	openComments, err := deps.db.UnresolvedCommentCount()
-	if err != nil {
-		return model.ProjectStats{}, fmt.Errorf("comment count: %w", err)
-	}
-
+// buildBaselineStats computes ProjectStats for a baseline snapshot: what is
+// anchored on the scope's branch.
+func buildBaselineStats(deps *toolDeps, scope *review.Scope) (model.ProjectStats, error) {
 	stats := model.ProjectStats{
 		BySeverity: make(map[string]int),
 		ByStatus:   make(map[string]int),
 		ByCategory: make(map[string]int),
-	}
-	for _, row := range summaryRows {
-		stats.FindingsTotal += row.Count
-		stats.BySeverity[row.Severity] += row.Count
-		stats.ByStatus[row.Status] += row.Count
-		if row.Status == "draft" || row.Status == "open" || row.Status == "in-progress" {
-			stats.FindingsOpen += row.Count
-		}
+		ByKind:     make(map[string]int),
 	}
 
-	cats, err := deps.db.FindingCategorySummary()
+	findings, _, err := deps.db.ListFindings("", 0, 0)
 	if err != nil {
-		return model.ProjectStats{}, fmt.Errorf("category summary: %w", err)
+		return model.ProjectStats{}, fmt.Errorf("list findings: %w", err)
 	}
-	stats.ByCategory = cats
+	for _, f := range findings {
+		if !scope.Has(f.Anchor.CommitID) {
+			continue
+		}
+		stats.FindingsTotal++
+		stats.BySeverity[f.Severity]++
+		stats.ByStatus[f.Status]++
+		if f.Category != "" {
+			stats.ByCategory[f.Category]++
+		}
+		if f.Status == "draft" || f.Status == "open" || f.Status == "in-progress" {
+			stats.FindingsOpen++
+		}
+	}
 
 	comments, _, err := deps.db.ListComments("", "", 0, 0)
 	if err != nil {
 		return model.ProjectStats{}, fmt.Errorf("list comments: %w", err)
 	}
-	stats.CommentsTotal = len(comments)
-	stats.CommentsOpen = openComments
+	for _, c := range comments {
+		if !scope.Has(c.Anchor.CommitID) {
+			continue
+		}
+		stats.CommentsTotal++
+		if c.ResolvedCommit == nil {
+			stats.CommentsOpen++
+		}
+	}
+
+	features, _, err := deps.db.ListFeatures("", "", 0, 0)
+	if err != nil {
+		return model.ProjectStats{}, fmt.Errorf("list features: %w", err)
+	}
+	for _, f := range features {
+		if !scope.Has(f.Anchor.CommitID) {
+			continue
+		}
+		stats.FeaturesTotal++
+		if f.Status == "draft" || f.Status == "active" {
+			stats.FeaturesActive++
+		}
+		stats.ByKind[f.Kind]++
+	}
 
 	return stats, nil
 }

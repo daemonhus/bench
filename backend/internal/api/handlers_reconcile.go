@@ -19,7 +19,7 @@ type reconcileHandlers struct {
 	db         *db.DB    // for annotation history lookups
 }
 
-// POST /api/reconcile → 202 with job ID
+// POST /api/reconcile → 202 with job ID; targetCommit defaults to the review branch's head
 func (h *reconcileHandlers) start(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		TargetCommit string   `json:"targetCommit"`
@@ -29,8 +29,13 @@ func (h *reconcileHandlers) start(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.TargetCommit == "" {
-		writeError(w, http.StatusBadRequest, "targetCommit is required")
-		return
+		// The review branch's head, as the UI reconciles to.
+		b, err := reviewBranch(h.db, h.repo, r)
+		if err != nil {
+			writeInternalError(w, err)
+			return
+		}
+		req.TargetCommit = b.Tip
 	}
 
 	// Validate the target commit actually exists in this project's repo before

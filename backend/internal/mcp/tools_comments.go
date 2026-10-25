@@ -10,6 +10,7 @@ import (
 	"bench/internal/anchor"
 	"bench/internal/events"
 	"bench/internal/model"
+	"bench/internal/review"
 
 	"github.com/google/uuid"
 )
@@ -32,14 +33,14 @@ func toolListComments(deps *toolDeps) Tool {
 		Description: "List review comments. Filter by file, finding, or feature to scope results. Set full=true to return complete comment bodies in one call - use this instead of repeated get_comment calls when you need to read a thread. Pass commit (or set orphaned_only=true) to enrich each row with a 'confidence' field (exact|moved|orphaned); use this to find comments whose anchor no longer points to live code.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
-			"properties": {
+			"properties": {` + branchProp + allBranchesProp + `
 				"file": {"type": "string", "description": "Filter by file path"},
 				"finding": {"type": "string", "description": "Filter to comments linked to this finding"},
 				"feature": {"type": "string", "description": "Filter to comments linked to this feature"},
 				"resolved": {"type": "boolean", "description": "Include resolved comments (default: false)"},
 				"full": {"type": "boolean", "description": "Return complete comment body instead of truncated preview (default: false)"},
 				"commit": {"type": "string", "description": "Commit (or ref like HEAD) to compute effective positions against. When set, each comment gains a 'confidence' field. Required for orphaned_only."},
-				"orphaned_only": {"type": "boolean", "description": "Return only comments whose effective position at commit is 'orphaned'. Defaults commit to HEAD if omitted."}
+				"orphaned_only": {"type": "boolean", "description": "Return only comments whose effective position at commit is 'orphaned'. Defaults commit to the review branch's head if omitted."}
 			}
 		}`),
 		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
@@ -51,19 +52,33 @@ func toolListComments(deps *toolDeps) Tool {
 				FullText        bool   `json:"full"`
 				Commit          string `json:"commit"`
 				OrphanedOnly    bool   `json:"orphaned_only"`
+				Branch          string `json:"branch"`
+				AllBranches     bool   `json:"all_branches"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {
 				return "", fmt.Errorf("invalid params: %w", err)
 			}
 			if p.OrphanedOnly && p.Commit == "" {
-				if head, err := deps.repo.Head(); err == nil {
-					p.Commit = head
+				tip, err := deps.tip(p.Branch)
+				if err != nil {
+					return "", err
 				}
+				p.Commit = tip
 			}
 
 			comments, _, err := deps.db.ListComments(p.File, p.FindingID, 0, 0, p.FeatureID)
 			if err != nil {
 				return "", err
+			}
+			// A finding's or feature's thread is shown wherever the finding is.
+			var scope *review.Scope
+			off := 0
+			if p.FindingID == "" && p.FeatureID == "" {
+				scope, err = deps.scope(p.Branch, p.AllBranches)
+				if err != nil {
+					return "", err
+				}
+				comments, off = keepOnBranch(scope, comments, func(c model.Comment) string { return c.Anchor.CommitID })
 			}
 
 			// Post-filter resolved
@@ -99,7 +114,7 @@ func toolListComments(deps *toolDeps) Tool {
 			}
 
 			if len(comments) == 0 {
-				return "No comments found.", nil
+				return "No comments found." + offBranchNote(scope, off), nil
 			}
 
 			type commentSummary struct {
@@ -147,7 +162,7 @@ func toolListComments(deps *toolDeps) Tool {
 			if err != nil {
 				return "", err
 			}
-			return fmt.Sprintf("%d comment(s):\n%s", len(summaries), string(b)), nil
+			return fmt.Sprintf("%d comment(s):\n%s%s", len(summaries), string(b), offBranchNote(scope, off)), nil
 		},
 	}
 }
@@ -196,7 +211,7 @@ func toolCreateComment(deps *toolDeps) Tool {
 			"type": "object",
 			"properties": {
 				"file": {"type": "string", "description": "File path"},
-				"commit": {"type": "string", "description": "Commit hash or ref (e.g. HEAD, branch name, or full SHA)"},
+				"commit": {"type": "string", "description": "Commit hash or ref (e.g. HEAD, branch name, or full SHA; default: the review branch's head)"},
 				"start": {"type": "integer", "description": "Start line number"},
 				"end": {"type": "integer", "description": "End line number"},
 				"text": {"type": "string", "description": "Comment text (markdown supported)"},
@@ -228,7 +243,11 @@ func toolCreateComment(deps *toolDeps) Tool {
 				return "", fmt.Errorf("author and text are required")
 			}
 			if p.Commit == "" {
-				p.Commit = "HEAD" // as on REST; stored as the commit it names
+				tip, err := deps.tip("")
+				if err != nil {
+					return "", err
+				}
+				p.Commit = tip // the review branch's head
 			}
 
 			c := &model.Comment{
@@ -504,7 +523,11 @@ func toolBatchCreateComments(deps *toolDeps) Tool {
 					return "", fmt.Errorf("comment %d: author and text are required", i)
 				}
 				if pc.Commit == "" {
-					pc.Commit = "HEAD"
+					tip, err := deps.tip("")
+					if err != nil {
+						return "", err
+					}
+					pc.Commit = tip // the review branch's head
 				}
 				author := pc.Author
 

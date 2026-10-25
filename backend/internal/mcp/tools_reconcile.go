@@ -20,25 +20,26 @@ func toolReconcile(deps *toolDeps) Tool {
 		Description: "Start a reconciliation job to update annotation positions to a target commit. This traces diffs from the last reconciled point to the target, updating line positions for all findings and comments. Returns a job ID for status polling via get_reconciliation_status.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
-			"properties": {
-				"target": {"type": "string", "description": "Commit to reconcile to (default: HEAD)"},
+			"properties": {` + branchProp + `
+				"target": {"type": "string", "description": "Commit to reconcile to (default: the review branch's head)"},
 				"files": {"type": "array", "items": {"type": "string"}, "description": "Limit to specific file paths (default: all annotated files)"}
 			}
 		}`),
 		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
 			var p struct {
 				TargetCommit string   `json:"target"`
+				Branch       string   `json:"branch"`
 				Files        []string `json:"files"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {
 				return "", fmt.Errorf("invalid params: %w", err)
 			}
 			if p.TargetCommit == "" {
-				head, err := deps.repo.Head()
+				tip, err := deps.tip(p.Branch)
 				if err != nil {
-					return "", fmt.Errorf("resolve HEAD: %w", err)
+					return "", err
 				}
-				p.TargetCommit = head
+				p.TargetCommit = tip
 			}
 
 			jobID := deps.reconciler.StartJob(p.TargetCommit, p.Files)
@@ -50,10 +51,10 @@ func toolReconcile(deps *toolDeps) Tool {
 func toolGetReconciliationStatus(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "get_reconciliation_status",
-		Description: "Get the reconciliation status. Without arguments, returns whether all annotated files are reconciled to the current HEAD. With a job, returns progress of a specific reconciliation job.",
+		Description: "Get the reconciliation status. Without arguments, returns whether all annotated files are reconciled to the review branch's head. With a job, returns progress of a specific reconciliation job.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
-			"properties": {
+			"properties": {` + branchProp + `
 				"job": {"type": "string", "description": "Specific job ID to check"},
 				"file": {"type": "string", "description": "Check reconciliation status for a specific file"},
 				"commit": {"type": "string", "description": "Check against this commit (used with file)"}
@@ -64,6 +65,7 @@ func toolGetReconciliationStatus(deps *toolDeps) Tool {
 				JobID  string `json:"job"`
 				File   string `json:"file"`
 				Commit string `json:"commit"`
+				Branch string `json:"branch"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {
 				return "", fmt.Errorf("invalid params: %w", err)
@@ -86,11 +88,11 @@ func toolGetReconciliationStatus(deps *toolDeps) Tool {
 			if p.File != "" {
 				commit := p.Commit
 				if commit == "" {
-					head, err := deps.repo.Head()
+					tip, err := deps.tip(p.Branch)
 					if err != nil {
-						return "", fmt.Errorf("resolve HEAD: %w", err)
+						return "", err
 					}
-					commit = head
+					commit = tip
 				}
 				status, err := deps.reconciler.GetFileStatus(p.File, commit)
 				if err != nil {
@@ -104,7 +106,11 @@ func toolGetReconciliationStatus(deps *toolDeps) Tool {
 			}
 
 			// Project-wide status
-			head, err := deps.reconciler.GetReconciledHead()
+			tip, err := deps.tip(p.Branch)
+			if err != nil {
+				return "", err
+			}
+			head, err := deps.reconciler.GetReconciledHeadAt(tip)
 			if err != nil {
 				return "", err
 			}

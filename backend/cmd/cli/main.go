@@ -370,12 +370,12 @@ var commands = []cmdDef{
 	{Cat: "analytics", Name: "summary", Desc: "Get a summary of findings, comments, and reconciliation state.",
 		EP: endpoint{"GET", "/api/summary"},
 		Flags: []flagDef{
-			{Name: "commit", Param: "commit", Desc: "Summarize at this commit (default: HEAD)"},
+			{Name: "commit", Param: "commit", Desc: "Summarize at this commit (default: the review branch's head)"},
 		}},
 	{Cat: "analytics", Name: "coverage", Desc: "Get file-level review coverage.",
 		EP: endpoint{"GET", "/api/coverage"},
 		Flags: []flagDef{
-			{Name: "commit", Param: "commit", Desc: "Target commit (default: HEAD)"},
+			{Name: "commit", Param: "commit", Desc: "Target commit (default: the review branch's head)"},
 			{Name: "path", Param: "path", Desc: "Scope to files under this directory"},
 			{Name: "only-unreviewed", Param: "only_unreviewed", Desc: "Only show unreviewed files", Type: "bool"},
 		}},
@@ -407,8 +407,8 @@ var commands = []cmdDef{
 		Flags: []flagDef{
 			{Name: "file", Param: "fileId", Desc: "Anchor file path"},
 			{Name: "commit", Param: "commitId", Desc: "Anchor commit (default: HEAD)"},
-			{Name: "kind", Param: "kind", Desc: "Feature kind [interface|source|sink|dependency|externality]", Required: true},
-			{Name: "title", Param: "title", Desc: "Feature title - do not prefix with HTTP method (e.g. 'Login endpoint', not 'POST /login'); use --operation for that", Required: true},
+			{Name: "kind", Param: "kind", Desc: "Feature kind: interface (endpoint the service exposes), source (reads data), sink (writes data or calls an external third party), dependency (call to another internal service, not a library), externality (background job or hook) [interface|source|sink|dependency|externality]", Required: true},
+			{Name: "title", Param: "title", Desc: "Feature title: interface = the bare path (e.g. '/login', not 'POST /login'; use --operation for the method); source/sink = a resource URI (postgresql://users_db (read)); dependency = '<Caller> to <service hostname> (<domain>)'; externality = what it is", Required: true},
 			{Name: "start", Param: "lineStart", Desc: "Anchor line range start", Type: "int"},
 			{Name: "end", Param: "lineEnd", Desc: "Anchor line range end", Type: "int"},
 			{Name: "description", Param: "description", Desc: "Detailed description"},
@@ -513,7 +513,7 @@ var commands = []cmdDef{
 	{Cat: "reconcile", Name: "start", Desc: "Start reconciling annotations to a target commit.",
 		EP: endpoint{"POST", "/api/reconcile"},
 		Flags: []flagDef{
-			{Name: "target", Param: "targetCommit", Desc: "Target commit (default: HEAD)"},
+			{Name: "target", Param: "targetCommit", Desc: "Target commit (default: the review branch's head)"},
 			{Name: "file-paths", Param: "filePaths", Desc: "Comma-separated file paths (default: all)", Type: "list"},
 		}},
 	{Cat: "reconcile", Name: "head", Desc: "Show reconciled HEAD status.",

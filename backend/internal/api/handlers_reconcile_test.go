@@ -41,8 +41,8 @@ func TestReconcileAPI_AcceptsValidTargetCommit(t *testing.T) {
 	}
 }
 
-// An empty targetCommit is still rejected with 400.
-func TestReconcileAPI_RejectsEmptyTargetCommit(t *testing.T) {
+// An omitted targetCommit defaults to the review branch's head.
+func TestReconcileAPI_DefaultsTargetToReviewBranchHead(t *testing.T) {
 	router, _ := setupBaselineEnv(t)
 
 	req := httptest.NewRequest("POST", "/api/reconcile", strings.NewReader(`{}`))
@@ -50,7 +50,7 @@ func TestReconcileAPI_RejectsEmptyTargetCommit(t *testing.T) {
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400 (body: %s)", w.Code, w.Body.String())
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202 (body: %s)", w.Code, w.Body.String())
 	}
 }

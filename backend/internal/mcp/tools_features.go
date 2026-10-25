@@ -78,7 +78,7 @@ func toolListFeatures(deps *toolDeps) Tool {
 		Description: "List architectural features (API interfaces, data sources/sinks, dependencies, externalities) annotated on the codebase. To surface features whose anchor no longer points to live code, filter with status='orphaned' - the reconciler marks features that way when their original location is gone, and the recovery path is update_feature with new file/start/end/commit.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
-			"properties": {
+			"properties": {` + branchProp + allBranchesProp + `
 				"file": {"type": "string", "description": "Filter by file path"},
 				"kind": {"type": "string", "enum": ["interface","source","sink","dependency","externality"], "description": "Filter by feature kind"},
 				"status": {"type": "string", "enum": ["draft","active","deprecated","removed","orphaned"], "description": "Filter by status"},
@@ -87,10 +87,12 @@ func toolListFeatures(deps *toolDeps) Tool {
 		}`),
 		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
 			var p struct {
-				File     string `json:"file"`
-				Kind     string `json:"kind"`
-				Status   string `json:"status"`
-				LinkedTo string `json:"linked_to"`
+				File        string `json:"file"`
+				Kind        string `json:"kind"`
+				Status      string `json:"status"`
+				LinkedTo    string `json:"linked_to"`
+				Branch      string `json:"branch"`
+				AllBranches bool   `json:"all_branches"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {
 				return "", fmt.Errorf("invalid params: %w", err)
@@ -100,6 +102,11 @@ func toolListFeatures(deps *toolDeps) Tool {
 			if err != nil {
 				return "", err
 			}
+			scope, err := deps.scope(p.Branch, p.AllBranches)
+			if err != nil {
+				return "", err
+			}
+			features, off := keepOnBranch(scope, features, func(f model.Feature) string { return f.Anchor.CommitID })
 
 			// Post-filter
 			filtered := features[:0]
@@ -114,7 +121,7 @@ func toolListFeatures(deps *toolDeps) Tool {
 			}
 
 			if len(filtered) == 0 {
-				return "No features found.", nil
+				return "No features found." + offBranchNote(scope, off), nil
 			}
 
 			type featureSummary struct {
@@ -150,7 +157,7 @@ func toolListFeatures(deps *toolDeps) Tool {
 			if err != nil {
 				return "", err
 			}
-			return fmt.Sprintf("%d feature(s):\n%s", len(summaries), string(b)), nil
+			return fmt.Sprintf("%d feature(s):\n%s%s", len(summaries), string(b), offBranchNote(scope, off)), nil
 		},
 	}
 }
@@ -194,16 +201,16 @@ func toolGetFeature(deps *toolDeps) Tool {
 func toolCreateFeature(deps *toolDeps) Tool {
 	return Tool{
 		Name:        "create_feature",
-		Description: "Annotate an architectural feature: an API interface, data source/sink, dependency injection point, or externality (background worker, side-effect). Use this to map the security-relevant architecture of the codebase. After creating, record the feature's historical context while the anchor is fresh: suggest_feature_origin derives the introducing commit, date, actor, and branch flow from blame and merge history; confirm with set_feature_origin. When a route or surface was introduced, and on what merge request, is review context in itself.",
+		Description: "Annotate an architectural feature: an interface (inbound endpoint), source or sink (data read or written), dependency (call to another internal service) or externality (background job, hook). Use this to map the security-relevant architecture of the codebase. After creating, record the feature's historical context while the anchor is fresh: suggest_feature_origin derives the introducing commit, date, actor, and branch flow from blame and merge history; confirm with set_feature_origin. When a route or surface was introduced, and on what merge request, is review context in itself.",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
 			"properties": {
 				"file": {"type": "string", "description": "File path"},
-				"commit": {"type": "string", "description": "Commit hash or ref where the feature was identified (e.g. HEAD, branch name, or full SHA)"},
+				"commit": {"type": "string", "description": "Commit hash or ref where the feature was identified (e.g. HEAD, branch name, or full SHA; default: the review branch's head)"},
 				"start": {"type": "integer", "description": "Start line number"},
 				"end": {"type": "integer", "description": "End line number"},
-				"kind": {"type": "string", "enum": ["interface","source","sink","dependency","externality"], "description": "Feature kind: 'interface'=API endpoint or protocol handler (HTTP, gRPC, WebSocket), 'source'=data input (DB read, file read, inbound queue), 'sink'=data output (DB write, outbound API call, file write), 'dependency'=third-party library or external service, 'externality'=background job, scheduler, event handler, or side-effect"},
-				"title": {"type": "string", "description": "Short label for the feature - do NOT include the HTTP method or protocol prefix here (e.g. 'Login endpoint', not 'POST /login'). Use operation for the HTTP method."},
+				"kind": {"type": "string", "enum": ["interface","source","sink","dependency","externality"], "description": "Feature kind: 'interface'=an endpoint, RPC method, WebSocket handler or message consumer the service exposes (one per verb+path), 'source'=where the service reads data (DB query, cache read, file read, queue poll, config fetch), 'sink'=where it writes data or calls an external third party (DB write, cache set, queue publish, file write, Stripe or other SaaS), 'dependency'=a call to another internal service (one per client class; not a library: vulnerable libraries are findings), 'externality'=a background job, periodic task, startup/shutdown hook or async side effect with no inbound request"},
+				"title": {"type": "string", "description": "Interface: the bare path, no method (e.g. '/login' or '/orders/{id}', not 'POST /login'; the method goes in operation). Source/sink: a resource URI (e.g. 'postgresql://users_db (read)', 's3://audit-logs', 'https://api.acmepay.example.com'). Dependency: '<Caller> to <service hostname> (<domain>)' (e.g. 'Order API to billing-svc.cluster.local (charges)'). Externality: what it is (e.g. 'Cache prune periodic task')."},
 				"description": {"type": "string", "description": "Detailed description"},
 				"operation": {"type": "string", "description": "HTTP method (GET/POST/…), gRPC method name, GraphQL operation type (query/mutation/subscription), or other protocol operation"},
 				"direction": {"type": "string", "enum": ["in","out"], "description": "Data flow direction relative to the service: 'in'=data entering the service (inbound request, consumed message), 'out'=data leaving the service (outbound call, produced message, write to store)"},
@@ -247,7 +254,11 @@ func toolCreateFeature(deps *toolDeps) Tool {
 				return "", fmt.Errorf("title and kind are required")
 			}
 			if p.Commit == "" {
-				p.Commit = "HEAD" // as on REST; stored as the commit it names
+				tip, err := deps.tip("")
+				if err != nil {
+					return "", err
+				}
+				p.Commit = tip // the review branch's head
 			}
 			if p.Status == "" {
 				p.Status = "active"
@@ -348,8 +359,8 @@ func toolUpdateFeature(deps *toolDeps) Tool {
 				"id": {"type": "string", "description": "Feature ID"},
 				"file": {"type": "string", "description": "New anchor file path"},
 				"commit": {"type": "string", "description": "New anchor commit"},
-				"kind": {"type": "string", "enum": ["interface","source","sink","dependency","externality"]},
-				"title": {"type": "string"},
+				"kind": {"type": "string", "enum": ["interface","source","sink","dependency","externality"], "description": "'interface'=an endpoint, RPC method, WebSocket handler or message consumer the service exposes (one per verb+path), 'source'=where the service reads data (DB query, cache read, file read, queue poll, config fetch), 'sink'=where it writes data or calls an external third party (DB write, cache set, queue publish, file write, Stripe or other SaaS), 'dependency'=a call to another internal service (one per client class; not a library: vulnerable libraries are findings), 'externality'=a background job, periodic task, startup/shutdown hook or async side effect with no inbound request"},
+				"title": {"type": "string", "description": "Interface: the bare path, no method (e.g. '/login' or '/orders/{id}', not 'POST /login'; the method goes in operation). Source/sink: a resource URI (e.g. 'postgresql://users_db (read)', 's3://audit-logs', 'https://api.acmepay.example.com'). Dependency: '<Caller> to <service hostname> (<domain>)' (e.g. 'Order API to billing-svc.cluster.local (charges)'). Externality: what it is (e.g. 'Cache prune periodic task')."},
 				"description": {"type": "string"},
 				"operation": {"type": "string"},
 				"direction": {"type": "string", "enum": ["in","out",""]},
@@ -559,11 +570,11 @@ func toolBatchCreateFeatures(deps *toolDeps) Tool {
 						"type": "object",
 						"properties": {
 							"file": {"type": "string", "description": "File path"},
-							"commit": {"type": "string", "description": "Commit hash or ref where the feature was identified (e.g. HEAD, branch name, or full SHA)"},
+							"commit": {"type": "string", "description": "Commit hash or ref where the feature was identified (e.g. HEAD, branch name, or full SHA; default: the review branch's head)"},
 							"start": {"type": "integer", "description": "Start line number"},
 							"end": {"type": "integer", "description": "End line number"},
-							"kind": {"type": "string", "enum": ["interface","source","sink","dependency","externality"], "description": "Feature kind: 'interface'=API endpoint or protocol handler (HTTP, gRPC, WebSocket), 'source'=data input (DB read, file read, inbound queue), 'sink'=data output (DB write, outbound API call, file write), 'dependency'=third-party library or external service, 'externality'=background job, scheduler, event handler, or side-effect"},
-							"title": {"type": "string", "description": "Short label for the feature - do NOT include the HTTP method or protocol prefix here (e.g. 'Login endpoint', not 'POST /login'). Use operation for the HTTP method."},
+							"kind": {"type": "string", "enum": ["interface","source","sink","dependency","externality"], "description": "Feature kind: 'interface'=an endpoint, RPC method, WebSocket handler or message consumer the service exposes (one per verb+path), 'source'=where the service reads data (DB query, cache read, file read, queue poll, config fetch), 'sink'=where it writes data or calls an external third party (DB write, cache set, queue publish, file write, Stripe or other SaaS), 'dependency'=a call to another internal service (one per client class; not a library: vulnerable libraries are findings), 'externality'=a background job, periodic task, startup/shutdown hook or async side effect with no inbound request"},
+							"title": {"type": "string", "description": "Interface: the bare path, no method (e.g. '/login' or '/orders/{id}', not 'POST /login'; the method goes in operation). Source/sink: a resource URI (e.g. 'postgresql://users_db (read)', 's3://audit-logs', 'https://api.acmepay.example.com'). Dependency: '<Caller> to <service hostname> (<domain>)' (e.g. 'Order API to billing-svc.cluster.local (charges)'). Externality: what it is (e.g. 'Cache prune periodic task')."},
 							"description": {"type": "string", "description": "Detailed description"},
 							"operation": {"type": "string", "description": "HTTP method (GET/POST/…), gRPC method name, GraphQL operation type (query/mutation/subscription), or other protocol operation"},
 							"direction": {"type": "string", "description": "Data flow direction relative to the service: 'in'=data entering the service (inbound request, consumed message), 'out'=data leaving the service (outbound call, produced message, write to store)"},
@@ -624,7 +635,11 @@ func toolBatchCreateFeatures(deps *toolDeps) Tool {
 					return "", fmt.Errorf("feature %d: title and kind are required", i)
 				}
 				if pf.Commit == "" {
-					pf.Commit = "HEAD"
+					tip, err := deps.tip("")
+					if err != nil {
+						return "", err
+					}
+					pf.Commit = tip // the review branch's head
 				}
 				status := pf.Status
 				if status == "" {
