@@ -1,595 +1,176 @@
-# Bench - Agent Guide
+# Bench: agent guide
 
-> Working on this repository's code? See [DEVELOPMENT.md](DEVELOPMENT.md). This file is about *using* bench.
+Bench is a code review workbench. It records findings, comments and features against the code they describe, tracks them across commits, and uses baselines to measure the progress of a review. This guide describes how to use bench through the `bench` CLI and the MCP endpoint.
 
-Bench is a code review workbench. This guide covers how to use it as a tool: connecting via MCP, using the CLI, and working with findings, features, comments, baselines, and reconciliation.
+## Setup
 
-## Starting Bench
-
-Always verify bench is running before any operations:
+Check that bench is running. The following command lists the registered projects:
 
 ```bash
-bench projects list          # health check - returns the registered projects if up
+bench projects list
 ```
 
-Start if not running (mounts the current git repo read-only, registers it as a project):
+If bench is not running, start the server with the repository mounted read-only, and register the repository as a project:
 
 ```bash
-docker run -d -p 8080:8080 \
-  -v $(pwd):/repo:ro \
-  -v bench:/data \
-  <bench-image>
+docker run -d -p 8080:8080 -v $(pwd):/repo:ro -v bench:/data ghcr.io/daemonhus/bench:latest
 bench projects create --name my-repo --repo-path /repo
 ```
 
-Every per-project command needs `--project <slug>` (or `BENCH_PROJECT`); `bench projects list` shows the slugs. MCP at `/mcp` takes a `project` param instead; `/api/projects/<slug>/mcp` is scoped to one project.
+- **CLI.** Project commands require `--project <slug>` or the `BENCH_PROJECT` variable. `--url` or `BENCH_URL` gives the server address, which defaults to `http://localhost:8080`. `bench <category> --help` describes every command and flag.
+- **MCP.** `http://localhost:8080/mcp` serves every project, and its project tools take a `project` argument. `http://localhost:8080/api/projects/<slug>/mcp` serves one project, and its tools do not take that argument. Each tool's schema describes its parameters.
+- **Code access.** Read the repository through bench (`bench git read-file`, `search-code`, `list-files`, `blame`, `diff`, `changed-files` and `commits`), not through the file system.
 
-## Data Model
+## Review branch
 
-### Anchor
-
-Every annotation (finding or comment) is pinned to a specific location:
-
-```typescript
-{
-  fileId: string      // file path, e.g. "src/api/auth.go"
-  commitId: string    // git commit hash
-  lineRange?: { start: number, end: number }
-}
-```
-
-The commit makes annotations stable. When code moves, reconciliation updates the line numbers.
-
-### Finding
-
-A discovered vulnerability or security issue.
-
-```typescript
-{
-  id: string
-  anchor: Anchor
-  severity: 'critical' | 'high' | 'medium' | 'low' | 'info'
-  status: 'draft' | 'open' | 'in-progress' | 'false-positive' | 'accepted' | 'closed'
-  title: string
-  description?: string
-  cwe?: string        // e.g. "CWE-89"
-  cve?: string
-  vector?: string     // CVSS vector
-  score?: number      // CVSS score
-  source?: string     // tool or scanner that found it
-  category?: string
-  features?: string[]  // associated Feature IDs (each must exist); "<project>:<id>" for another project's feature on the server
-  refs?: Ref[]           // external references (enriched inline)
-  origin?: FindingOrigin // historical context (enriched inline)
-  createdAt: string
-  resolvedCommit?: string
-}
-```
-
-### Origin (findings and features)
-
-Historical context of a finding or feature: how it came to be and the git
-coordinates of its introduction. 1:1 with its parent entity, no anchor, never
-reconciled. For features this records when a route or surface was introduced.
-
-```typescript
-{
-  explanation?: string        // free text: the change or MR that introduced it
-  introducedCommit?: string   // resolvable refs are normalised to the full sha and pinned
-  introducedDate?: string     // ISO date
-  actor?: string              // author who introduced it
-  branch?: string             // flow convention: "feature-x -> main" (source -> merge target)
-  updatedAt: string
-}
-```
-
-Access (same shape for both entities): `PUT /api/findings/{id}/origin` and
-`PUT /api/features/{id}/origin` (merge semantics: only provided fields
-overwrite), `DELETE .../origin`, `GET .../origin/suggest`. CLI:
-`bench findings|features set-origin / clear-origin / suggest-origin`. MCP:
-`set_finding_origin` / `clear_finding_origin` / `suggest_finding_origin` /
-`set_feature_origin` / `clear_feature_origin` / `suggest_feature_origin`. An unresolvable `introducedCommit` is stored as-is
-without a pin, since the introducing commit may have been rewritten out of
-history. Writes are gated by the service profile like all review-judgment
-writes.
-
-The suggest endpoint derives more than blame: `introducedCommit/date/actor`
-from the newest blamed anchor line, `mergeCommit` and `mergeSubject` from the
-first-parent merge that brought the change into the mainline (the merge
-request message is usually the best explanation source), `branch` pre-composed
-as the "source -> target" flow, and `context` listing recent commits touching
-the anchor file. Nothing is written; confirm what matters with a set call.
-
-**Record the origin when you create a finding or feature**, not later: the
-introducing change is one suggest call away while the anchor is fresh, and
-the explanation is sharpest while the surrounding code is still in context.
-An annotation without an origin answers "what is here" but not "why does this
-exist", and the second question is what makes systemic patterns visible.
-
-### Comment
-
-A code review note.
-
-```typescript
-{
-  id: string
-  anchor: Anchor
-  author: string
-  text: string
-  timestamp: string
-  threadId?: string   // groups comments into a thread
-  parentId?: string   // reply to a specific comment
-  findingId?: string  // link to a related finding
-  featureId?: string  // link to a related feature
-  refs?: Ref[]        // external references (enriched inline)
-  resolvedCommit?: string
-}
-```
-
-### Feature
-
-An architectural annotation marking a security-relevant surface: API endpoint, data flow, dependency, or background externality.
-
-```typescript
-{
-  id: string
-  anchor: Anchor
-  kind: 'interface' | 'source' | 'sink' | 'dependency' | 'externality'
-  title: string
-  description?: string
-  status: 'draft' | 'active'
-  direction?: 'in' | 'out'   // data flow relative to the service
-  operation?: string          // HTTP method, gRPC method, GraphQL op, etc.
-  protocol?: string           // e.g. rest, grpc, graphql, websocket
-  source?: string
-  tags?: string[]
-  linkedFeatures?: { id: string; description?: string }[]  // bidirectional; includes links from either direction; "<project>:<id>" for another project's
-  crossProjectFindings?: string[]  // other projects' findings affecting this feature, "<project>:<id>"
-  refs?: Ref[]                // external references (enriched inline)
-  parameters?: FeatureParameter[]  // only meaningful for kind: 'interface'
-  createdAt: string
-}
-```
-
-### FeatureParameter
-
-A structured input/output descriptor attached to an `interface` feature.
-
-```typescript
-{
-  id: string
-  featureId: string
-  name: string              // e.g. "user_id", "Authorization"
-  description?: string      // what it carries / security notes
-  type?: string             // string | integer | boolean | object | array | file
-  pattern?: string          // freeform constraint: regex, enum list, min/max, format hint
-  required: boolean
-  createdAt: string
-}
-```
-
-Parameters are ordered by `name` ascending in list responses. By convention, parameters are used on `interface` features to document the expected inputs (auth headers, path vars, query params, body fields).
-
-### Ref
-
-An external reference linking an annotation to a ticket, thread, or URL in an external system.
-
-```typescript
-{
-  id: string
-  entityType: 'finding' | 'feature' | 'comment'
-  entityId: string        // ID of the parent annotation
-  provider: string        // 'github' | 'gitlab' | 'jira' | 'confluence' | 'linear' | 'notion' | 'slack' | 'url' - inferred from URL if omitted
-  url: string
-  title?: string          // optional display label
-  createdAt: string
-}
-```
-
-Many refs per entity. Refs have no anchor and are not reconciled - they are pure metadata. Deleting an entity cascade-deletes its refs.
-
-### Baseline
-
-An immutable snapshot of review state at a point in time. Records every finding ID and aggregate stats. Never changes once created.
-
-```typescript
-{
-  id: string
-  seq: number         // auto-incrementing (1, 2, 3…)
-  commitId: string
-  reviewer: string
-  summary?: string
-  createdAt: string
-  findingsTotal: number
-  findingsOpen: number
-  bySeverity: { critical, high, medium, low, info }
-  byStatus: { draft, open, 'in-progress', 'false-positive', accepted, closed }
-  byCategory: Record<string, number>
-  commentsTotal: number
-  commentsOpen: number
-  featuresTotal: number
-  featuresActive: number
-  byKind: Record<string, number>   // e.g. { interface: 3, sink: 2 }
-  findings: string[]  // every finding ID at snapshot time - core of delta computation
-  features: string[]  // every feature ID at snapshot time
-}
-```
-
-### BaselineDelta
-
-What changed since a baseline.
-
-```typescript
-{
-  sinceBaseline: Baseline
-  headCommit: string
-  newFindings: Finding[]        // exist now but not in the baseline
-  removedFindingIds: string[]   // in the baseline but no longer exist
-  changedFiles: string[]        // files modified between baseline commit and HEAD
-  currentStats: ProjectStats
-}
-```
-
-### ServiceProfile
-
-A singleton per-project record of reviewer-configured meta-attributes: deployment
-context that application code cannot reveal, used to contextualise findings and
-risk scores.
-
-```typescript
-{
-  description: string
-  owner: string
-  externallyFacing: '' | 'full' | 'partial' | 'none'   // internet reachability
-  compute: '' | 'vps' | 'kubernetes' | 'serverless' | 'bare-metal'
-  dataSensitivity: '' | 'public' | 'internal' | 'pii' | 'payment' | 'phi' | 'credentials'
-  criticality: '' | 'low' | 'medium' | 'high' | 'critical'
-  tenancy: '' | 'single-tenant' | 'multi-tenant'
-  lifecycle: '' | 'active' | 'maintenance' | 'deprecated' | 'decommissioning'
-  edgeProtections: string[]       // waf | api-gateway | rate-limiting | ddos-protection | none
-  complianceScope: string[]       // pci-dss | hipaa | soc2 | gdpr | none
-  authenticationModel: string[]   // none | api-key | oauth-oidc | mtls | session | gateway-terminated
-  consumerType: string[]          // first-party-frontend | internal-services | third-party-partners | general-public
-  trustZone: string               // free text: public-edge, core, pci, third-party...; flow hops between zones are trust boundaries
-  updatedAt: string
-}
-```
-
-Semantics:
-
-- **Unset ≠ none.** Empty string / empty array means "not configured". In the
-  multi-selects, `none` is an explicit positive claim (control confirmed absent)
-  and cannot be combined with other values. Only an explicit `none` may downgrade
-  a finding - never absence of data.
-- **Write gate.** All review-judgment writes (findings, comments, features, refs,
-  baselines, mark-reviewed) are rejected - HTTP 412 / MCP tool error - until the
-  profile has been set at least once. `bench profile set` / `update_service_profile`
-  is the bootstrap path and is always allowed. Server flag `-require-profile=false`
-  disables the gate.
-- **Embedded for free.** `get_summary` and `get_delta` responses include the
-  profile, so a session that starts with either has the context without an
-  extra call.
-- **Factor it into severity.** A missing-rate-limit finding on a service with
-  `edgeProtections: [rate-limiting]` is likely moot; any authz finding on
-  `tenancy: multi-tenant` is amplified; `authenticationModel: [gateway-terminated]`
-  makes missing-auth-in-code findings a question, not a critical.
-
-Access: `GET /api/profile`, `PATCH /api/profile` (partial update; arrays replace
-wholesale, `[]` clears); `bench profile get` / `bench profile set`; MCP
-`get_service_profile` / `update_service_profile`.
+Each project is reviewed on one branch, its review branch, which is the repository's default branch unless another branch has been set. Through the CLI and MCP, the commit history ends at the head of the review branch, and commits default to that head. Lists of findings, comments, features and baselines include only the items anchored on a commit in the branch's history, together with a count of the items left out. Baselines, deltas and summary counts are computed against the branch, and an annotation created without a commit is anchored at its head. MCP tools that depend on the branch take an optional `branch` argument to use another branch, and the list tools take `all_branches: true` to include every branch.
 
 ```bash
-bench profile set --owner platform-team --externally-facing full \
-    --data-sensitivity pii --criticality high --tenancy multi-tenant \
-    --edge-protections waf,rate-limiting \
-    --authentication-model oauth-oidc,gateway-terminated
+bench git review-branch                          # show the review branch
+bench git set-review-branch --branch fix/login   # change it for everyone; "" selects the default branch
 ```
 
-## Classification Guide
+The MCP tools are `get_review_branch` and `set_review_branch`.
 
-### Feature kinds
+## Data model
 
-| Kind | What it represents | Direction |
-|------|--------------------|-----------|
-| `interface` | An HTTP endpoint, gRPC method, WebSocket handler, or message consumer the service **exposes**. One feature per verb+path combination. | `in` |
-| `source` | A place the service **reads data from**: DB query, cache lookup, file read, queue poll, config fetch. | `in` |
-| `sink` | A place the service **writes data to**: DB write, cache set, queue publish, file write, outbound HTTP to **external** third parties. | `out` |
-| `dependency` | A synchronous call between **internal platform services**. One feature per client class or distinct integration point. Anchored to the client code. | `out` |
-| `externality` | A background job, periodic task, startup/shutdown hook, or async side-effect that runs **without an inbound request** triggering it. | n/a |
+**Anchor.** An anchor records where an annotation is: `{fileId, commitId, lineRange?: {start, end}}`. Always give the commit, because reconciliation follows the code from that commit.
 
-### Hard rules
+**Finding.** A finding records a vulnerability or another security issue.
 
-1. **One endpoint per feature.** Never combine `GET` and `POST` on the same path into one feature. Each verb+path gets its own entry with the method in `operation`.
-2. **Dependencies are inter-service, not libraries.** Do not create dependency features for third-party packages (fastapi, cryptography, boto3). Library version concerns belong in **findings**, not features. A `dependency` feature tracks where Service A calls Service B over the network.
-3. **Rich descriptions.** Always name the concrete class or function making the call, the target service/endpoints, and what flows use it. Bad: "Calls billing service". Good: "BillingServiceClient. Order API calls billing-svc /internal/* endpoints for charge, refund, and invoice operations. Used by all checkout handlers."
-4. **Tags encode service context.** For dependencies, tag both source and target service plus the domain. For interfaces, tag the owning service and the functional domain.
-5. **Anchor to the code.** Features are pinned to the file and line where the behaviour is defined: the router decorator for interfaces, the client class for dependencies, the query/write call for sources/sinks, the task function for externalities.
+| Field | Values |
+|---|---|
+| `severity` | `critical`, `high`, `medium`, `low`, `info` |
+| `status` | `draft`, `open`, `in-progress`, `false-positive`, `accepted`, `closed` |
+| `source` | `pentest`, `tool`, `manual`, `mcp` |
+| Other fields | `title`, `description`, `cwe` (for example `CWE-89`), `cve`, `vector` (CVSS), `score` (a number), `category`, `features` (linked feature IDs), `refs`, `origin`, `resolvedCommit` |
 
-### Resolving ambiguous cases
+**Comment.** A comment is a review note with an `author`, `text` and `type`. It can be linked to a finding or a feature, and replies form a thread through `parent`. The types are `concern` (an issue that needs attention but is not a confirmed vulnerability, which would be a finding), `question`, `improvement`, `feature` (a feature request) and the empty type.
 
-- **`interface` vs `source`:** Who initiates? External actor sends a request → `interface`. The service itself initiates a read → `source`. An HTTP handler is `interface`; a DB query inside that handler is `source`.
-- **`sink` vs `dependency`:** `sink` is for writes to data stores or calls to **external** third-party APIs (payment processors, SaaS). `dependency` is for calls to **internal** platform services. If ServiceA calls ServiceB (both yours) → `dependency`. If ServiceA calls Stripe → `sink`.
-- **Same system, two roles:** A database is both `source` (reads) and `sink` (writes). Annotate each at its specific code location.
-- **`externality` vs `interface`:** Triggered by a scheduler, timer, or startup event → `externality`. Triggered by an inbound request or webhook → `interface`.
+**Feature.** A feature records part of the security-relevant surface. It has a `kind` (described below), `title`, `description`, `status` (`draft`, `active`, `deprecated`, `removed` or `orphaned`), `direction` (`in` or `out`), `operation` (an HTTP or RPC method), `protocol`, `tags`, `linkedFeatures` (links in both directions, each `{id, description?}`) and `parameters` (the inputs of an `interface`, each with `name`, `type`, `pattern`, `required` and `description`).
 
-### Title conventions
+**Origin.** Findings and features can record how they came about: `explanation`, `introducedCommit`, `introducedDate`, `actor` and `branch` (for example `"feature-x -> main"`). An origin is never reconciled.
 
-**`interface`:** Bare URL path, no method prefix. Use `operation` for the HTTP method.
-```
-/orders/{id}
-/internal/verify
-/livez
-```
+**Ref.** A ref is a link from a finding, feature or comment to another system. It has a `url`, an optional `title`, and a `provider` (`github`, `gitlab`, `jira`, `confluence`, `linear`, `notion`, `slack` or `url`), which is derived from the URL.
 
-**`source` and `sink`:** Resource URI using a scheme prefix.
-```
-dynamodb://orders-table
-postgresql://users_db (read)
-redis://session-cache (write)
-s3://audit-logs (read)
-sqs://app-events (consumer)
-kafka://app-events
-https://api.acmepay.example.com   # external processor (sink)
-postmark://email                  # email send (sink)
+**Baseline.** A baseline records the state of a review at a commit. It holds the IDs of every finding and feature, and counts by severity, status, category and kind on the review branch. A baseline cannot be changed.
+
+**Delta.** A delta lists what has changed since a baseline: `newFindings` and `newFeatures` on the review branch, `removedFindingIds`, and `changedFiles` (each `{path, added, deleted}`) between the baseline's commit and the head of the branch.
+
+**References between projects.** On a server with several projects, a feature in another project is referred to as `<project>:<id>`, for example `api:feat-abc123`.
+
+## Service profile
+
+The service profile records information that the code does not show: exposure, compute, data sensitivity, criticality, tenancy, lifecycle, edge protections, compliance scope, the authentication model, the consumers and the trust zone.
+
+- Read the profile before reviewing. It determines which classes of finding are irrelevant (for example, rate limiting enforced at the gateway, or authentication terminated upstream) and which are more serious (for example, multi-tenancy, personal data, or exposure to the internet). `get_summary` and `get_delta` include the profile.
+- An empty field means that the attribute is not configured. It is never evidence that a control is missing. In the multiple-choice fields, `none` states that the control is known to be absent, and it cannot be combined with other values.
+- Until the profile has been set once, every create, update and delete of findings, comments, features, refs, baselines and coverage is rejected, with HTTP 412 or an MCP error. Set the attributes that are known; an empty update is sufficient.
+
+```bash
+bench profile set --owner platform-team --externally-facing full --data-sensitivity pii \
+  --criticality high --tenancy multi-tenant --edge-protections waf,rate-limiting \
+  --authentication-model oauth-oidc,gateway-terminated
 ```
 
-**`dependency`:** `<CallerService> to <k8s-hostname> (<domain>)`. Use the Kubernetes DNS hostname of the target service.
-```
-Order API to billing-svc.cluster.local (charges)
-Billing API to order-svc.cluster.local (order status)
-```
+## Classifying features
 
-**`externality`:** Descriptive name of the task or hook.
-```
-Cache prune periodic task
-App startup hook
-DB migrations (Alembic)
-```
+| Kind | Meaning | Direction |
+|---|---|---|
+| `interface` | An endpoint, RPC method, WebSocket handler or message consumer that the service exposes. Each method and path is a separate feature. | `in` |
+| `source` | A place where the service reads data, such as a database query, cache read, file read, queue poll or configuration fetch. | `in` |
+| `sink` | A place where the service writes data, such as a database write, cache write, queue publish, file write or call to an external third party. | `out` |
+| `dependency` | A call to another internal service. Each client class or integration point is a separate feature, anchored to the client code. | `out` |
+| `externality` | A background job, periodic task, start-up or shutdown hook, or asynchronous side effect that is not triggered by an inbound request. | none |
 
-### Comment types
+Apply the following rules:
 
-| Type | Use when… |
-|------|-----------|
-| `concern` | Something warrants attention but isn't a confirmed vulnerability - a smell, a weak pattern, a missing control. Use a **Finding** for confirmed issues. |
-| `question` | You need clarification before making a judgment. |
-| `improvement` | A non-critical suggestion - cleaner, safer, or more robust code, not a security issue. |
-| `feature` | The comment is about a feature annotation itself (link via `featureId`). |
-| *(empty)* | A general note that doesn't fit the above. |
+1. Record each endpoint as a separate feature. `GET` and `POST` on the same path are two features, and the method is recorded in `operation`.
+2. Record services, not libraries, as dependencies. Do not create features for packages such as boto3 or fastapi; a concern about a library is a finding.
+3. Write specific descriptions that name the class or function, the target, and the code that uses it, for example: "BillingServiceClient. The Order API calls billing-svc /internal/* for charges, refunds and invoices; every checkout handler uses it."
+4. Tag interfaces with the owning service and the domain, and tag dependencies with both services and the domain. The tag `zone:<name>` places a feature in a different trust zone from its project.
+5. Anchor each feature at its definition: the route decorator, the client class, the query or write call, or the task function.
 
-## Linking Findings to Features
+When the kind is unclear, apply the following distinctions. If an external actor initiates the call, the feature is an `interface`; if the service initiates a read, it is a `source`. A handler is therefore an `interface`, and the database query inside it is a `source`. A call to one of your own services is a `dependency`, and a call to a third party, such as Stripe or another hosted service, is a `sink`. A data store that is both read and written has a `source` and a `sink`, each anchored to its own code. Work triggered by a scheduler or at start-up is an `externality`, and work triggered by an inbound request or webhook is an `interface`.
 
-Every finding that exploits or directly relates to a feature annotation **should** link to it via `features`. This connects the vulnerability to the architectural surface where it lives and makes the relationship queryable.
+Use the following titles:
 
-**When to link:**
-- A finding in an HTTP handler → link to the `interface` feature for that endpoint
-- A SQL injection in a DB query → link to the `source` or `sink` feature for that query
-- A vulnerable dependency → link to the `dependency` feature
-- A finding spanning multiple surfaces → link all relevant features
+- `interface`: the path without the method, such as `/orders/{id}` or `/livez`.
+- `source` and `sink`: a resource URI, such as `postgresql://users_db (read)`, `redis://session-cache (write)`, `s3://audit-logs`, `kafka://app-events` or `https://api.acmepay.example.com`.
+- `dependency`: `<Caller> to <service hostname> (<domain>)`, such as `Order API to billing-svc.cluster.local (charges)`.
+- `externality`: a description of the task, such as `Cache prune periodic task` or `DB migrations (Alembic)`.
 
-**How to link at creation (MCP):**
-```
-create_finding(
-  title: "SQL injection in user lookup",
-  feature_ids: ["feat-abc123"]   // must be an array, not a comma-separated string
-)
+## Linking
+
+Link every finding to the features that it affects, such as the `interface` of an endpoint, the `source` or `sink` of a query, or a `dependency`. An update replaces the existing list of links, and deleting either the finding or the feature removes the link.
+
+```bash
+bench findings create --title "SQL injection in user lookup" --severity high --features feat-abc,feat-def
+bench findings update --id <id> --features feat-abc
+bench features update --id <id> --features "feat-abc|validates the JWT,feat-def"   # links between features, with descriptions
 ```
 
-**How to link at creation (CLI):**
-```
-bench findings create --title "SQL injection" --severity high --features feat-abc123,feat-def456
-```
+Over MCP, `create_finding` and `update_finding` take `features: ["feat-abc"]`, and `create_feature` and `update_feature` take `linked_feature_ids`, which accepts IDs or `{id, description}` objects.
 
-**How to update existing links:**
-```
-# MCP - replaces the full list
-update_finding(id: "f-xyz", feature_ids: ["feat-abc123", "feat-def456"])
+## Workflows
 
-# CLI - also replaces the full list
-bench findings update --id f-xyz --features feat-abc123,feat-def456
-```
-
-Deleting a feature or finding automatically removes the join-table rows - no manual cleanup needed.
-
-## Typical Review Workflow
+**A review** follows these steps:
 
 ```
-0. get_service_profile      ← ALWAYS do this first - load the service's deployment context
-                               before reading any code. The profile tells you which finding
-                               classes are moot (e.g. rate limiting at the gateway, auth
-                               terminated upstream) and which are amplified (multi-tenant,
-                               PII, internet-facing). Empty fields mean "not configured" -
-                               never treat absence as evidence a control is missing.
-                               If unconfigured: update_service_profile with what you know
-                               (or ask the user) - ALL create/update/delete calls are
-                               rejected until the profile has been set at least once.
-   list_baselines           ← check whether a meaningful baseline already exists. If seq=1
-                               is empty, set a baseline before importing anything. An empty
-                               predecessor makes every delta useless - all findings appear
-                               "new".
-1. set_baseline             ← checkpoint before starting (captures current state as reference)
-2. search code, read files  ← use bench git tools to explore
-3. create_finding (×N)      ← record vulnerabilities as you find them
-   └─ then record how each came to be: suggest_finding_origin derives the
-      introducing commit/date/actor from blame; confirm with set_finding_origin
-      and add the free-text explanation and branch. Origin context is cheapest
-      to capture while the code is in front of you.
-4. create_feature (×N)      ← record new endpoints, data sources/sinks, or long-lived annotations
-   └─ for interface features: add parameters to capture the contract (auth headers, path vars, query params, body fields)
-   └─ then suggest_feature_origin → set_feature_origin: when the surface was
-      introduced, by whom, and on what branch is review context in itself
-5. get_delta                ← check progress: how many new findings since baseline?
-6. set_baseline             ← checkpoint at milestones (e.g. "auth module complete")
-7. get_delta(baseline_id)   ← what did this round produce?
-8. set_baseline             ← final snapshot - this is the deliverable
+get_service_profile        read the deployment context; if it is not set, call update_service_profile with what is known
+list_baselines             check for a meaningful baseline; if there is none, set one before recording anything
+search_code, read_file     read the code through bench
+create_finding             record each finding, then call suggest_finding_origin and set_finding_origin
+create_feature             record new surfaces, with parameters for interfaces, and their origins
+get_delta                  check the progress since the baseline
+set_baseline               at each milestone and at the end; ask the user first, because a baseline cannot be changed
 ```
 
-Baselines are cheap - create them liberally. The delta is where the interesting analysis happens.
+Record the origin while the code is still being read. The suggestion derives the commit, date, author and merge that introduced the code from blame, and the explanation is most accurate at that point.
 
-**Before setting any baseline**, confirm with the user that they are done with the current session and have no further findings or comments to add. Baselines are immutable - setting one prematurely makes delta analysis less useful.
-
-**After code changes under you:**
-```
-reconcile               ← update annotation positions to current code
-get_delta               ← changedFiles shows what moved
-set_baseline            ← checkpoint the updated state
-```
-
-**After a large refactor or directory restructure:** the reconciler will orphan annotations whose files moved. Run `bench reconcile start --target HEAD`, check the job result's `orphanedCount`, then re-anchor each one - see the "Un-orphaning Annotations" workflow below.
-
-## Workflow: Feature Analysis (Attack Surface Mapping)
-
-Map features in this order - each kind builds on the previous:
-
-1. **Interfaces first.** Enumerate every HTTP endpoint, one per verb+path. Use router/route files as the source of truth.
-2. **Sources.** Find every data read point: DB clients, cache reads, queue consumers, config fetches.
-3. **Sinks.** Find every data write point: DB writes, cache sets, queue publishes, external API calls (processors, SaaS).
-4. **Dependencies.** Find every inter-service client class. One feature per client, anchored to the class definition. Do NOT create features for third-party libraries.
-5. **Externalities.** Find background tasks, periodic jobs, startup/shutdown hooks.
-
-**Batch-create, never loop.** Write JSON to `/tmp/` split by kind and use `bench features batch-create --input <file>`. Never create features one at a time in a loop.
+**Mapping the attack surface.** Record the interfaces first, from the router, then the sources, the sinks, the dependencies (client classes, not libraries) and the externalities. Write the features of each kind to a JSON file and create them in one batch, rather than creating them one at a time in a loop:
 
 ```bash
 bench features batch-create --input /tmp/features-interfaces.json
-bench features batch-create --input /tmp/features-sources.json
-bench features batch-create --input /tmp/features-sinks.json
-bench features batch-create --input /tmp/features-deps.json
-bench features batch-create --input /tmp/features-externalities.json
 ```
 
-## Workflow: Un-orphaning Annotations
+**After the code changes.** Run `bench reconcile start`, or the MCP tool `reconcile`, to move the annotations to their new lines. `get_delta` then shows the changed files, after which a baseline can be set.
 
-Annotations become orphaned when reconciliation can no longer locate their original code. The two common causes are (a) the file moved or its contents changed enough that the line-hash fallback misses, and (b) the anchor's commit is no longer in the repo (force push, `git filter-branch`, history GC). The recovery shape is the same either way.
-
-### 1. Run reconciliation
+**Re-anchoring orphaned annotations.** An annotation is orphaned when its code cannot be found, because the code was deleted, changed beyond recognition, or its commit was removed by rewriting history.
 
 ```bash
-bench reconcile start --target HEAD
-bench reconcile status --job <id>     # check orphanedCount in summary
-```
-
-### 2. Identify orphaned annotations
-
-Filter the list calls by confidence at HEAD. Findings and comments expose their orphan state through the `confidence` field (set by `--commit`); features expose it through `status`.
-
-```bash
-bench findings list --commit HEAD | jq '.[] | select(.confidence == "orphaned")'
-bench comments list --commit HEAD | jq '.[] | select(.confidence == "orphaned")'
+bench findings list --commit HEAD | jq '.[] | select(.confidence == "orphaned")'   # the same for comments
 bench features list --status orphaned
+bench findings update --id <id> --file <path> --start <n> --end <n> --commit HEAD  # the same for comments and features
+bench features update --id <id> --status active                                   # required for features
 ```
 
-From MCP, the equivalent calls are `list_findings(commit: "HEAD", orphaned_only: true)`, `list_comments(commit: "HEAD", orphaned_only: true)`, and `list_features(status: "orphaned")`.
+Over MCP, use `list_findings` or `list_comments` with `commit` and `orphaned_only: true`, and `list_features(status: "orphaned")`. A re-anchored annotation has its new position immediately. If the code no longer exists, anchor the annotation to the closest representative code and add a comment that explains the change. `bench reconcile history --type finding --id <id>` shows the positions of an annotation over time.
 
-### 3. Re-anchor
+## Conventions
 
-Pass the full new anchor (file, start, end, commit). The update handlers recompute `line_hash`, stamp `anchor_updated_at`, and immediately record an `exact` position - so the change takes effect without waiting for the next reconcile.
-
-```bash
-bench findings update --id <id> --file <new-path> --start <n> --end <n> --commit HEAD
-bench comments update --id <id> --file <new-path> --start <n> --end <n> --commit HEAD
-bench features update --id <id> --file <new-path> --start <n> --end <n> --commit HEAD
-```
-
-For features, also clear the orphan status after re-anchoring:
-
-```bash
-bench features update --id <id> --status active
-```
-
-If the code at the old location was deleted entirely, map the anchor to the nearest representative location and add a comment explaining the remap.
-
-### 4. Verify and baseline
-
-```bash
-bench reconcile start --target HEAD                # re-run to confirm zero orphans
-bench baselines set --reviewer <name> --summary "Re-anchored"
-```
-
-Notes:
-- Reconciliation confidence can only decrease (`exact` → `moved` → `orphaned`).
-- Check `bench reconcile history --type finding --id <id>` (or `--type comment`) to see the full reconciliation trail.
-- If reconciliation completes with a warning like `N of M files failed`, the job's `result` is still populated - the failures are reported in the job's `error` field. Files whose anchor commits no longer exist are auto-orphaned and the job continues; you'll find them via step 2 above.
-
-## Interfaces
-
-Bench exposes MCP tools and a CLI. Tool schemas and CLI `--help` are the source of truth for parameters.
-
-- Both MCP and CLI use the same field names: `file`, `commit`, `start`, `end`
-- All `commit` parameters accept a hash, ref, or `HEAD`
-- For CLI `batch-create`, provide `--input <file>` (not piped stdin)
-
-**Tool groups:** git, findings, comments, features, refs, baselines, analytics, reconcile, profile.
-
-**Multi-project only:** projects, baselines-all, catalog (cross-project feature search), flows (steps and typed edges, export/import, folders, baselines, views), map (the service map). See `bench <category> --help`.
-
-**Always use `bench git` for code access** - do not reach around the CLI to the filesystem (`cat`, `grep`, `git -C`, etc.). Use:
-- `bench git commits` - HEAD commit and recent history
-- `bench git search-code` - regex search across the repo
-- `bench git read-file` - read a file at a specific commit
-- `bench git list-files` - list files in the repo tree
-- `bench git blame` / `diff` / `changed-files` as needed
-
-**Feature titles:** Use bare URL paths (`/v1/login`, not `"Login endpoint"`). Use the `operation` field for the HTTP method.
-
-## Known Constraints
-
-| Field | Wrong | Correct |
-|-------|-------|---------|
-| `score` | `"5.3"` (string) | `5.3` (number) |
-| `severity` | `"informational"` | `"info"` |
-| `source` (findings) | any string | `pentest`, `tool`, `manual`, or `mcp` (SQLite CHECK) |
-| `tags` (features) | `"http,rest"` | `["http", "rest"]` (JSON array) |
-| `feature_ids` (MCP) | `"feat-1,feat-2"` | `["feat-1", "feat-2"]` (JSON array); CLI uses `--features feat-1,feat-2` |
-| `linked_feature_ids` (MCP/input) | `"feat-1,feat-2"` | `["feat-1", "feat-2"]` (JSON array); CLI uses `--features feat-1,feat-2` on features commands |
-| `linkedFeatures` (response) | flat string array | array of `{id, description}` objects; use `linkedFeatures[].id` to get the ID |
-| `features` (CLI update) | appends | replaces the full list (same semantic as `tags`) |
-| `parameters` on non-interface features | technically allowed | by convention interface-only |
-| `commit` | omitted | always set - empty `commitId` breaks reconciliation |
-| `id` (updates) | truncated prefix | always use the **full UUID** - short prefixes return "not found" |
-| `provider` (refs) | any string | `github`, `gitlab`, `jira`, `confluence`, `linear`, `notion`, `slack`, or `url` - inferred from URL hostname if omitted |
-| profile multi-selects (MCP) | `"waf,rate-limiting"` | `["waf", "rate-limiting"]` (JSON array); CLI uses `--edge-protections waf,rate-limiting` |
-| profile `none` (multi-selects) | `["none", "waf"]` | `none` is exclusive - it means "control confirmed absent" and cannot be combined |
-
-**Default differences by interface:**
-
-| Field | MCP | CLI / API |
-|-------|-----|-----------|
-| findings `source` | `mcp` | `manual` |
-| features `status` | `active` | `active` |
-| features `source` | `mcp` | (empty) |
-
-**Valid `comment_type` values:** `feature`, `improvement`, `question`, `concern`, or empty string.
-
-**Write queueing:** DB writes are internally queued, so parallel CLI/MCP calls no longer cause `SQLITE_BUSY` errors. Batch endpoints are still preferred for bulk imports (fewer round trips).
-
-**Baseline deletion is dry-run by default.** `delete_baseline` previews what would be removed. Pass `confirm: true` (MCP) or `--confirm` (CLI) to actually delete.
-
-## Important Notes
-
-**Resolved findings are included in baseline snapshots.** A baseline's `findings` list captures all findings including closed/resolved ones. `list_findings` excludes resolved by default, so delta counts may appear higher. Use `include_resolved=true` (MCP) or `--include-resolved` (CLI) when cross-referencing.
-
-**Baselines snapshot the database, not the commit.** Setting a baseline at commit X records all findings currently in the database - regardless of which commit each finding was anchored to. `commitId` is used for git diffs (`changedFiles`), not for scoping which findings are included.
-
-**`get_delta` has two modes:**
-- No `baseline_id` → current state vs. latest baseline
-- With `baseline_id` → that baseline vs. its predecessor
-
-**Reconciliation confidence levels:** `exact` (line-mapped through diff) → `moved` (placed by content match) → `orphaned` (code deleted). Confidence can only decrease.
-
-## Diagnosing Errors
-
-When batch operations return `Error: invalid JSON` or `Error: internal error`, check Docker logs:
-
-```bash
-docker logs $(docker ps -q --filter ancestor=bench) 2>&1 | tail -20
-```
-
-| Log message | Fix |
+| Field | Usage |
 |---|---|
-| `CHECK constraint failed: status IN (...)` | Add `"status": "open"` to payload |
-| `CHECK constraint failed: severity IN (...)` | Use `info` not `informational` |
-| `CHECK constraint failed: source IN (...)` | Use `manual`, `pentest`, `tool`, or `mcp` |
-| `invalid JSON` (CLI, not server) | Wrong field type - `score` must be a number, `tags` must be an array |
-| `ancestry check: invalid git ref: ""` (reconcile) | Annotations have empty `commitId`. The PATCH handlers now reject empty commit strings, so this state can only persist on existing rows - patch with `bench findings update --id <id> --commit <sha>` and re-run reconcile. |
-| `ancestry check: unknown git ref` or `reference not found` (reconcile) | The anchor's commit is no longer in the repo (force push, `git filter-branch`, GC). The reconciler now auto-orphans these annotations and continues - find them via `bench findings list --commit HEAD \| jq '.[] \| select(.confidence == "orphaned")'` and re-anchor with `bench findings update ... --commit HEAD`. |
-| `commitId must be a non-empty string` (PATCH) | Don't pass `commit: ""` to update tools. Omit the field to leave the anchor commit unchanged. |
-| `service profile not configured` (412 / MCP tool error) | The write gate: no annotations can be recorded until the service profile is set. Run `bench profile get` to see fields, then `bench profile set` (or `update_service_profile`) with what you know - an empty set call also satisfies the gate ("reviewed, nothing known"). |
+| `id` | The full ID, or a prefix that matches exactly one item. |
+| `commit` | A hash, a ref or `HEAD`. Never send an empty string; omit the field to keep the anchor's commit. |
+| `score` | A number, such as `5.3`, not a string. |
+| `severity` | `info`, not `informational`. |
+| Lists over MCP | JSON arrays, such as `["waf", "rate-limiting"]`. The CLI takes comma-separated values. |
+| `linkedFeatures` in responses | Objects; the ID is `linkedFeatures[].id`. |
+| `--features` and `--tags` in CLI updates | The given list replaces the existing list. |
+| `parameters` | Used on interface features only. |
+| Batch input to the CLI | A JSON array, given with `--input <file>` or on standard input. |
+
+Findings created over MCP have `source: mcp` by default, and findings created with the CLI have `source: manual`. Features are created as `active`. Resolved findings are excluded from lists unless requested, with `--resolved` or the MCP argument `resolved: true`, but they are counted in baselines. `get_delta` without a baseline compares the current state with the latest baseline; with a baseline, it compares that baseline with the previous one. Deleting a baseline returns a preview unless `--confirm` or `confirm: true` is given.
+
+## Errors
+
+| Error | Resolution |
+|---|---|
+| `service profile not configured` | Set the service profile. An empty update is sufficient. |
+| `CHECK constraint failed: severity/status/source IN (...)` | Use one of the listed values. |
+| `invalid JSON` from the CLI | A field has the wrong type, for example `score` given as a string or `tags` not given as an array. |
+| `commitId must be a non-empty string` | Omit `commit` rather than sending `""`. |
+| `ancestry check: invalid git ref: ""` during reconciliation | An annotation has no commit. Update it with `--commit <sha>` and reconcile again. |
+| `unknown git ref` during reconciliation | The anchor's commit has been removed by rewriting history, and the annotation is orphaned. Re-anchor it. |
+| A reconciliation job reports `N of M files failed` | The job's result is valid for the other files, and the failures are listed in its `error`. |

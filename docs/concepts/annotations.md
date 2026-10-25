@@ -1,65 +1,65 @@
 # Annotations
 
-Annotations are the things you attach to code: findings (vulnerabilities) and comments (review notes). Both share the same anchor model - a file, a commit, and an optional line range.
+Findings and comments are annotations: records attached to a place in the code. [Features](/concepts/features) are annotations of the same kind.
 
 ## Anchor
 
-Every annotation is pinned to a specific location in the repository:
+Every annotation has an anchor:
 
 ```typescript
 {
-  fileId: string         // file path, e.g. "src/api/auth.go"
-  commitId: string       // git commit hash
-  lineRange?: {
-    start: number
-    end: number
-  }
+  fileId: string                       // path, e.g. "src/api/auth.go"
+  commitId: string                     // the commit at which it was made
+  lineRange?: { start: number, end: number }
 }
 ```
 
-Anchoring to a commit makes annotations stable. When code moves, [reconciliation](/concepts/reconciling) updates line numbers to follow it.
+The commit makes the anchor stable. When the code changes, [reconciliation](/concepts/reconciling) determines where the anchored lines have moved. An annotation belongs to a [branch](/concepts/review-branch) when its commit is in that branch's history.
 
 ## Findings
 
-A finding represents a discovered vulnerability or security issue.
+A finding records a vulnerability or another security issue.
 
 ```typescript
 {
   id: string
   anchor: Anchor
-  severity: 'critical' | 'high' | 'medium' | 'low' | 'info'
   title: string
-  description?: string
-  cwe?: string           // e.g. "CWE-89"
-  cve?: string
-  vector?: string        // CVSS vector
-  score?: number         // CVSS score
+  severity: 'critical' | 'high' | 'medium' | 'low' | 'info'
   status: 'draft' | 'open' | 'in-progress' | 'false-positive' | 'accepted' | 'closed'
-  source?: string        // tool or scanner that created it
+  source: 'pentest' | 'tool' | 'manual' | 'mcp'
+  description?: string
+  cwe?: string                         // "CWE-89"
+  cve?: string
+  vector?: string                      // CVSS vector
+  score?: number                       // CVSS score
   category?: string
-  features?: string[]  // features this finding is linked to
-  refs?: Ref[]           // external links (enriched inline)
+  features?: string[]                  // linked features
+  refs?: Ref[]                         // web links
+  origin?: Origin
   createdAt: string
   resolvedCommit?: string
 }
 ```
 
-### Lifecycle
+The statuses are `draft` (not yet confirmed), `open`, `in-progress` (a fix is under way), `false-positive`, `accepted` (a known and accepted risk) and `closed`. Resolving a finding at the commit that fixed it records `resolvedCommit` and sets the status to `closed`:
 
-Findings move through statuses as a review progresses:
+```bash
+bench findings resolve --id <id> --commit <sha>
+```
 
-- **draft** - work in progress, not yet confirmed
-- **open** - confirmed, needs attention
-- **in-progress** - being actively remediated
-- **false-positive** - reviewed and dismissed
-- **accepted** - acknowledged risk, won't fix
-- **closed** - resolved
+Reconciliation also closes a finding when its code is deleted on the review branch.
 
-When a finding is fixed, call `resolve` with the commit where the fix landed. This records `resolvedCommit` and sets the status to `closed`.
+Each open finding has a deadline that depends on its severity: 7 days for critical, 30 for high, 90 for medium and 180 for low. A finding past its deadline appears in the Activity feed and under **Past SLA** on the Findings page.
+
+```bash
+bench findings create --file src/api/auth.go --commit HEAD --start 42 --end 48 \
+  --severity high --title "SQL injection" --features feat-abc123
+```
 
 ## Comments
 
-A comment is a code review note - free-form text attached to a location.
+A comment is a review note. Comments can form threads, and a comment can be linked to a finding or a feature.
 
 ```typescript
 {
@@ -67,128 +67,86 @@ A comment is a code review note - free-form text attached to a location.
   anchor: Anchor
   author: string
   text: string
+  type: 'concern' | 'question' | 'improvement' | 'feature' | ''
+  threadId: string
+  parentId?: string                    // the comment it replies to
+  findingId?: string
+  featureId?: string
+  refs?: Ref[]
   timestamp: string
-  threadId?: string      // groups related comments into a thread
-  parentId?: string      // reply to a specific comment
-  findingId?: string     // link to a related finding
-  featureId?: string     // link to a related feature
-  refs?: Ref[]           // external links (enriched inline)
   resolvedCommit?: string
 }
 ```
 
-Comments can form threads (`threadId`), have replies (`parentId`), and be linked to findings (`findingId`). Like findings, they can be resolved at a specific commit.
+| Type | Use |
+|---|---|
+| `concern` | Something that needs attention but is not a confirmed vulnerability, such as a weak pattern or a missing control. A confirmed issue is recorded as a finding. |
+| `question` | A question that must be answered before a judgement can be made. |
+| `improvement` | A suggestion that is not a security issue. |
+| `feature` | A feature request or suggestion. |
+| *(empty)* | Any other note. |
 
-### Comment types
-
-The comment `type` field signals intent. Use it consistently so reviewers can filter and prioritize.
-
-| Type | Use when… |
-|------|-----------|
-| `concern` | Something warrants attention but isn't a confirmed vulnerability: a weak pattern, missing control, or smell. Use a **finding** for confirmed issues. |
-| `question` | You need clarification before making a judgment. |
-| `improvement` | A suggestion for cleaner, safer, or more robust code. Not a security issue. |
-| `feature` | The comment is about a [feature](/concepts/features) annotation (link via `featureId`). |
-| *(empty)* | A general note that doesn't fit the above. |
+```bash
+bench comments create --author alice --text "Use a prepared statement" \
+  --file src/api/auth.go --commit HEAD --start 42 --type concern
+```
 
 ## Origin
 
-An anchor says *where* an annotation lives. An origin says *how it got there*: the change that introduced it, and the git coordinates of that change. Findings and features can each carry one.
+The anchor records where an annotation is. The origin records how the code came to be there, as the change that introduced it and that change's position in git. Findings and features can each have an origin:
 
 ```json
 {
-  "explanation": "Added in the rush to ship SSO; the token check was never wired up.",
+  "explanation": "Added with the SSO work; the token check was not connected.",
   "introducedCommit": "4f2a1c9e…",
   "introducedDate": "2026-03-11",
   "actor": "erin",
-  "branch": "feature-sso -> main",
-  "updatedAt": "2026-03-14T09:12:00Z"
+  "branch": "feature-sso -> main"
 }
 ```
 
-An origin has no anchor and is never reconciled - it records history, which doesn't move when code does. `branch` follows a flow convention, `source -> merge target`. A commit that can be resolved is normalised to its full SHA and pinned; one that can't (rewritten out of history by a force push or a filter-branch) is stored as-is rather than rejected.
+An origin describes history and is never reconciled. `branch` has the form `source -> merge target`. A commit that git can resolve is stored as its full SHA and kept reachable in the repository. A commit that cannot be resolved, for example because history has been rewritten, is stored as given.
 
-### Suggesting an origin
-
-Bench can derive a candidate from the repository. It blames the anchor's lines and walks the first-parent history to find the merge that brought the change into the mainline:
+Bench can suggest an origin. It runs blame over the anchored lines and follows the mainline history to the merge that brought them in. The suggestion contains the commit, date and author of the most recent of those lines, the commit and subject of the merge, the branch, and the recent commits to the file. Nothing is saved until the origin is set:
 
 ```bash
 bench findings suggest-origin --id <id>
-bench features suggest-origin --id <id>
+bench findings set-origin --id <id> --commit 4f2a1c9e --date 2026-03-11 --actor erin \
+  --branch "feature-sso -> main" --explanation "Added with the SSO work."
 ```
 
-The suggestion carries `introducedCommit`, `introducedDate` and `actor` from the newest blamed line; `mergeCommit` and `mergeSubject` for the merge that landed it (the merge request message is usually the best explanation source); `branch` pre-composed as the source-to-target flow (just the default branch when the change was committed straight onto it, as in a squash-merge history); and `context`, the recent commits touching the anchor's file. Nothing is written - confirm what matters:
+`set-origin` changes only the fields that are given, and `clear-origin` removes the origin. Features have the same commands. The origin is best recorded when the annotation is created, while the relevant code and change are still at hand. Origins make it possible to see where and why issues are introduced.
+
+## Links to features
+
+A finding should be linked to each [feature](/concepts/features) that it affects: the `interface` of an affected handler, the `source` or `sink` of an affected query, or an affected `dependency`. Links are shown on both the finding and the feature. Setting the links replaces the existing list, and deleting the finding or the feature removes the link.
 
 ```bash
-bench findings set-origin --id <id> \
-  --commit 4f2a1c9e --date 2026-03-11 --actor erin \
-  --branch "feature-sso -> main" \
-  --explanation "Added in the rush to ship SSO; the token check was never wired up."
+bench findings update --id <id> --features feat-abc123,feat-def456
 ```
 
-`set-origin` merges: only the flags you pass overwrite. `clear-origin` removes the record. The MCP equivalents are `suggest_finding_origin` / `set_finding_origin` / `clear_finding_origin`, and the same trio for features.
+Over MCP, the equivalent is `update_finding(id, features: ["feat-abc123"])`. A finding can also affect a feature in another project, written as `api:feat-abc123`.
 
-**Record the origin when you create the annotation**, not later. The introducing change is one suggest call away while the anchor is fresh, and the explanation is sharpest while the surrounding code is still in front of you. An annotation without an origin answers "what is here" but not "why does this exist" - and the second question is the one that makes systemic patterns visible.
+## Web links
 
-## Linking findings to features
+A web link connects a finding, feature or comment to a ticket, discussion or page in another system:
 
-A finding can be linked to one or more [feature](/concepts/features) annotations via `features`. This connects a vulnerability to the surface it affects. For example, link a SQL injection finding to the `source` feature for the query where it occurs.
+```typescript
+{ id, entityType: 'finding' | 'feature' | 'comment', entityId, url, title?, provider, createdAt }
+```
 
-Link whenever a finding is directly associated with a known feature. Links make findings easier to triage and show which surfaces have confirmed issues.
-
-Via CLI:
+`provider` determines the icon and is derived from the URL: `github`, `gitlab`, `jira` (`*.atlassian.net`, `jira.*`), `confluence`, `linear`, `notion`, `slack`, and otherwise `url`. Web links are returned with their annotation as `refs`, and are deleted with it.
 
 ```bash
-bench findings create \
-  --severity high --title "SQL injection" \
-  --features feat-abc123,feat-def456
+bench refs create --entity-type finding --entity <id> \
+  --url https://acme.atlassian.net/browse/SEC-99 --title "SEC-99"
 ```
 
-Via MCP:
+## Batches
 
-```
-create_finding(severity="high", title="SQL injection", features=["feat-abc123"])
-```
-
-To update links on an existing finding (replaces the full list):
+Findings, comments, features and web links can be created in a batch from a JSON array, read from a file with `--input` or from standard input. This is useful for importing the output of a scanner:
 
 ```bash
-bench findings update --id f-xyz --features feat-abc123
-```
-
-```
-update_finding(id="f-xyz", features=["feat-abc123"])
-```
-
-Deleting a feature or finding automatically removes its links.
-
-## Creating annotations
-
-Via CLI:
-
-```bash
-bench findings create \
-  --file src/api/auth.go --commit HEAD \
-  --start 42 --end 48 \
-  --severity high --title "SQL injection"
-
-bench comments create \
-  --author alice --text "Needs a prepared statement" \
-  --file src/api/auth.go --commit HEAD --start 42
-```
-
-Via MCP:
-
-```
-create_finding(file="src/api/auth.go", commit="HEAD", start=42, severity="high", title="SQL injection")
-create_comment(author="alice", text="Needs a prepared statement", file="src/api/auth.go", commit="HEAD", start=42)
-```
-
-## Batch import
-
-Both findings and comments support batch creation from a JSON array - useful for importing output from scanners or other tools:
-
-```bash
-jq '[.[] | {file, commit: "HEAD", severity: "medium", title: .msg}]' \
-  scanner-output.json | bench findings batch-create
+jq '[.[] | {file, commit: "HEAD", severity: "medium", title: .msg}]' scanner.json \
+  | bench findings batch-create
 ```

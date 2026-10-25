@@ -1,35 +1,37 @@
 # Review branch
 
-Each project is reviewed on one branch: its **review branch**. Browse, Changes, Findings, Features and the Overview look at the project as it stands on that branch, and so do the CLI and MCP tools. It starts as the repo's default branch (`main` or `master`, from `origin/HEAD` when there is one), whatever happens to be checked out.
+Each project is reviewed on one branch, called its review branch. Browse, Changes, Findings, Features and the Overview show the project as it is on that branch, and the API, the CLI and MCP use the same branch. A request that names no commit uses the head of the branch, and lists, baselines and summaries cover only what is on it. Over MCP, `get_review_branch` and `set_review_branch` read and set the review branch; the other tools take an optional `branch` argument to use another branch, and the list tools take `all_branches` to include every branch. A new project's review branch is the repository's default branch (`main` or `master`, or the branch that `origin/HEAD` points to), regardless of which branch is checked out.
 
-## Choosing it
+## Choosing the review branch
 
-The branch chip beside the project name, top left, shows the review branch. Open it to pick another local branch: the choice is saved for the project, so everyone working on it (and every agent) follows. The pages start again on the new branch. Picking the default branch saves "the default", so the project follows the default branch if it changes.
+The branch selector beside the project name, at the top left of the workbench, shows the review branch. Selecting another local branch saves it for the project, so that every user and agent uses that branch. The workbench then reloads on the new branch. Selecting the default branch saves the default rather than the branch name, so that the project follows the default branch if it changes.
 
 ```bash
-bench git review-branch                          # show it
-bench git set-review-branch --branch fix/login   # review fix/login, for everyone
-bench git set-review-branch --branch ""          # back to the default branch
+bench git review-branch                          # show the review branch
+bench git set-review-branch --branch fix/login   # make fix/login the review branch for everyone
+bench git set-review-branch --branch ""          # return to the default branch
 ```
 
-The MCP tools are `get_review_branch` and `set_review_branch`. Over REST, `GET /review-branch` and `PUT /review-branch {branch}`.
+Over REST, the review branch is read with `GET /review-branch` and set with `PUT /review-branch {branch}`.
 
-## Links to another branch
+## Linking to another branch
 
-A page address can name a branch of its own: `/p/api?branch=fix/login#/findings` shows `fix/login` to whoever opens it, without changing the project's. The chip says so (`fix/login link`) and offers to review that branch for everyone, or to go back to the project's. Any API request can do the same with `?branch=` (or the `X-Bench-Branch` header).
+The address of a page can name a branch, for example `/p/api?branch=fix/login#/findings`. Anyone who opens the address sees `fix/login`, and the project's review branch is not changed. The branch selector is then marked `link`, and offers to make the linked branch the review branch or to return to the project's review branch. An API request can name a branch in the same way, with `?branch=` or the `X-Bench-Branch` header.
 
-If a saved or linked branch no longer exists, the default branch stands in for it and the chip says which one is missing.
+If a saved or linked branch does not exist, the default branch is used in its place, and the branch selector names the missing branch.
 
-## What follows the branch
+## What depends on the review branch
 
-| | On the review branch |
+| Area | Behaviour |
 |---|---|
-| **Browse** | Opens at the branch's head; the history starts there. ([`?at=`](/panel/browse) still looks at any other branch or commit without changing the review branch.) |
-| **Changes** | Since the branch's latest baseline (one whose commit is in its history) up to its head. Baselines on other branches don't apply. |
-| **Findings, comments, features** | Those anchored on a commit in the branch's history. The rest are counted, not listed: the Findings page says how many are on other branches and shows them, marked, on asking. A finding's own page and thread are always reachable. |
-| **Baselines** | A new baseline is taken at the branch's head by default, and its counts are the branch's. |
-| **Reconciling** | Annotations are [reconciled](/concepts/reconciling) to the branch's head. |
+| Browse | Opens at the head of the branch, and the commit history starts there. The `?at=` parameter of [Browse](/ui#browse) shows another branch or commit without changing the review branch. |
+| Changes | Compares the head of the branch with its latest baseline, which is the most recent baseline whose commit is in the branch's history. Baselines on other branches are not used. |
+| Findings, comments and features | Lists include only the items whose commit is in the branch's history. Other items are counted but not listed; the Findings page shows the number on other branches and can list them, marked. The page and comment thread of every finding remain available. |
+| Baselines | A new baseline is taken at the head of the branch by default, and its counts cover the branch. |
+| Reconciliation | Annotations are [reconciled](/concepts/reconciling) to the head of the branch. |
+| Commits | A request that names no commit, such as creating a finding or searching the code, uses the head of the branch. |
+| Summary | The counts of findings and comments cover the branch. |
 
-An annotation anchored on a commit that can't be found (a rewritten history, or a database carried over from another checkout) counts as on every branch, so nothing disappears just because its commit did.
+An annotation whose commit cannot be found, because history has been rewritten or because the database was copied from another repository, is treated as being on every branch. An annotation is therefore never hidden only because its commit is missing.
 
-The cross-project pages (home, flows, the service map, project cards) still count every branch's findings.
+The pages that cover all projects (the home page, flows, the service map and the project cards) count the findings on every branch.

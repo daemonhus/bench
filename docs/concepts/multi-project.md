@@ -1,43 +1,47 @@
 # Projects & flows
 
-The server (`benchd`) hosts several repositories at once and adds flows on top.
+The server, `benchd`, hosts several repositories at once. Flows describe a request as it passes through several of them.
 
 ## Projects
 
-A project is a registered git repository with its own review database. Every project gets the full bench API, UI and tool set, scoped by its slug (derived from the name: `Auth Service` → `auth-service`).
+A project is a registered git repository with its own review database. Each project has the complete bench API, UI and set of tools, identified by its slug. The slug is derived from the name; for example, `Auth Service` becomes `auth-service`.
 
-Removing a project drops the registration only. The repository and its database stay on disk, so registering it again under the same name brings its findings back.
+Removing a project removes only its registration. The repository and its database remain on disk, so registering the same repository under the same name restores its review.
 
 ## Activity
 
-**Activity** (rail → Activity) is a feed of what happened across every project, newest first and grouped by day: each finding and feature as it is recorded, and each open finding when it passes its fix deadline (critical 7 days, high 30, medium 90, low 180). An item shows what you need at a glance: severity and status, a few lines of the description, the features a finding affects or the flows a feature is on, and the last comment. Filter by kind, project, severity and period, or search the feed; the filters are part of the address (`/activity?kinds=finding,sla&severity=critical,high&since=7d`), so a filtered feed can be linked.
+**Activity**, in the side rail, lists what has happened in every project, most recent first and grouped by day. It lists each finding and feature when it is recorded, and each open finding when it passes its deadline (7 days for critical, 30 for high, 90 for medium and 180 for low). Each item shows the severity and status, the start of the description, the features that a finding affects or the flows that include a feature, and the most recent comment. The feed can be filtered by kind, project, severity and period, and searched. The filters are stored in the address, for example `/activity?kinds=finding,sla&severity=critical,high&since=7d`, so that a filtered feed can be linked to.
 
 ## Flows
 
-A flow follows a request through [features](/concepts/features) across any number of projects: a request entering one service, calling another, landing in a datastore. It is a graph:
+A flow follows a request through [features](/concepts/features) in any number of projects, for example a request that enters one service, calls another, and is written to a data store. A flow is a graph of steps and edges.
 
-- **Steps** each point at one feature on one project, with a note, the **actor** at that point (`anonymous`, `user`, `service:billing`) and the **controls** applied there (`authn:jwt`, `authz:rbac`, `validation`). A step can instead be a **subflow**: another flow slotted in as one block, so a path that several flows share (authenticate and forward, say) is defined once.
-- **Edges** join steps. Each is one hop: its **kind** (`next`, `call`, `async`, `read`, `write`, `response`), protocol, the **condition** under which it is taken, the identity it carries (**auth**), whether it crosses a **trust boundary**, the **data** it carries and whether that is attacker-controlled (**tainted**), plus a label, comment and tags.
-- A step with no edge into it is an **entry point**; several edges out of a step are **branches**, in order; several into one are a **join**; edges back are **loops**.
+- A **step** refers to one feature in one project. It has a note, the **actor** at that point (such as `anonymous`, `user` or `service:billing`) and the **controls** applied there (such as `authn:jwt`, `authz:rbac` or `validation`). A step can instead be a **subflow**, which includes another flow as a single step, so that a path shared by several flows is defined once.
+- An **edge** joins two steps and describes one hop. It has a **kind** (`next`, `call`, `async`, `read`, `write` or `response`), a protocol, the **condition** under which it is taken, the identity that it carries (**auth**), whether it crosses a **trust boundary**, the **data** that it carries and whether that data is attacker-controlled (**tainted**), and a label, comment and tags.
+- A step with no incoming edge is an **entry point**. Several edges leaving one step are **branches**, in order. Several edges arriving at one step form a **join**, and an edge back to an earlier step forms a **loop**.
 
-The flow page shows the graph as an outline (a path continues down the page, branches indent under the step they leave, joins and loops are listed under their step) and as a map. You can insert a step between two others, remove one from the middle (the steps around it are joined up), move a step along its path or to another branch, point a step at a different feature, and connect any two steps. When you add a step after another, the features [linked](/concepts/features) to that step's feature are offered first: the links already say what it calls.
+The flow page shows the graph as an outline and as a map. In the outline, a path continues down the page, branches are indented under the step that they leave, and joins and loops are listed under their step. A step can be inserted between two others, removed from the middle of a path (in which case the steps on either side are joined), moved along its path or to another branch, or pointed at a different feature, and any two steps can be connected. When a step is added after another, the features [linked](/concepts/features) to that step's feature are offered first, because the links record what the feature calls.
 
 ### Subflows
 
-Pick **Flows** in the step picker to add a whole flow as one step. The step shows the flow's name and size, stacked like a deck, and opens that flow; the flow lists the flows it is **used in**. Its steps stay in their own flow, with their own edges and baselines, so changing the shared path changes it everywhere it is used. A flow can't contain itself, directly or through its subflows: such a step is refused. If the flow a step stands for is deleted, the step is tombstoned (`flow_not_found`).
+Selecting **Flows** in the step picker adds a whole flow as one step. The step shows the flow's name and number of steps, and opens that flow, and the flow lists the flows that use it. The steps of a subflow remain in their own flow, with their own edges and baselines, so a change to the shared path applies everywhere the subflow is used. A flow cannot contain itself, directly or through its subflows, and such a step is rejected. If the flow that a step refers to is deleted, the step is marked as tombstoned (`flow_not_found`).
 
 ### Trust zones
 
-Set a **trust zone** on each project's service profile (`public-edge`, `core`, `pci`, `third-party`: whatever your threat model calls them). A hop between two features in different zones crosses a trust boundary without anyone marking it (`zoneBoundary` on the edge), on the flow page, the connection panel and the service map. A feature tagged `zone:<name>` sits in that zone instead of its project's, for the gateway or the one handler that runs elsewhere. The hand-set `trustBoundary` flag stays, for boundaries the zones don't show.
+Each project's service profile can name a trust zone, such as `public-edge`, `core`, `pci` or `third-party`. A hop between two features in different zones crosses a trust boundary without being marked by hand; this is shown as `zoneBoundary` on the edge, on the flow page, in the connection panel and on the service map. A feature tagged `zone:<name>` belongs to that zone instead of its project's zone, which is useful for a gateway or for a handler that runs elsewhere. The `trustBoundary` field remains available for boundaries that the zones do not show.
 
 ### Feature links on flows
 
-Flow edges and [feature links](/concepts/features) describe the same calls, so each is checked against the other. An edge between two features that aren't linked (either way) reads `linked: false`; on the flow page a hop between projects says **unlinked**, and its connection panel links the two features in one click. The service map draws the links no flow covers yet as dashed lines, so the dependencies the flows haven't mapped are visible.
+Flow edges and [feature links](/concepts/features) describe the same calls, so each is checked against the other. An edge between two features that are not linked in either direction has `linked: false`. On the flow page, such a hop between projects is marked **unlinked**, and its connection panel can link the two features. The service map draws feature links that no flow covers as dashed lines, so that dependencies not yet described by a flow are visible.
 
-- **Folders** organise flows into a nested tree. A flow lives in at most one folder.
-- **Views** are saved, optionally shared, flow list queries (`status:active tag:auth login`).
-- **Baselines** snapshot a flow. The delta since a baseline lists added, removed and changed steps and edges, and moved anchors.
+Flows can also be organised and tracked:
 
-A flow also aggregates the open findings on its steps' features. A step whose project or feature can no longer be resolved is shown as tombstoned (`project_not_registered`, `feature_not_found` or `fetch_error`) rather than dropped.
+- **Folders** organise flows in a tree. A flow is in at most one folder.
+- **Views** are saved queries over the list of flows, such as `status:active tag:auth login`, and can be shared.
+- **Baselines** record the state of a flow. The delta since a baseline lists the steps and edges added, removed and changed, and the anchors that have moved.
 
-The **service map** (rail → Map) draws every project as a service with its features and trust zone, the connections between them that flows record (each edge whose two steps are on different projects), and the feature links no flow covers yet. Services joined by connections are laid out together, left to right in the direction their connections run; the rest are packed in a grid around them. A card lists a dozen features (connected ones, search matches and those with open findings first) and folds the rest into **+N more**. Filter it by service, connection kind and feature kind; choose which features and fields each service shows. Click a feature, service or connection for a preview: its badges, description and place in the code, its open findings, connections and flows, each a link onward.
+A flow lists the open findings on the features of its steps. A step whose project or feature cannot be found is marked as tombstoned (`project_not_registered`, `feature_not_found` or `fetch_error`) and is not removed.
+
+## Service map
+
+The **service map**, in the side rail, draws each project as a service with its features and trust zone. It shows the connections between services that flows record (each edge whose two steps are in different projects) and the feature links that no flow covers. Connected services are placed together, ordered from left to right in the direction of their connections, and the remaining services are placed in a grid around them. Each service lists up to twelve features, with connected features, search matches and features with open findings first, and the remainder are summarised as **+N more**. The map can be filtered by service, connection kind and feature kind, and the features and fields shown for each service can be chosen. Selecting a feature, service or connection shows a preview with its details, place in the code, open findings, connections and flows, each of which links to its page.

@@ -2,58 +2,40 @@ import { defineConfig } from "vitepress";
 
 export default defineConfig({
   title: "Bench",
-  description: "A review workbench designed for people who work with code.",
+  description: "A workbench for code review.",
   base: "/bench/",
   cleanUrls: true,
-  ignoreDeadLinks: true,
+  // Pages show the local server's address; every other link must resolve.
+  ignoreDeadLinks: "localhostLinks",
 
   themeConfig: {
     nav: [
-      { text: "Guide", link: "/guide/quickstart" },
+      { text: "Get started", link: "/start" },
       { text: "Concepts", link: "/concepts/annotations" },
-      { text: "Reference", link: "/cli/" },
+      { text: "Reference", link: "/reference/cli" },
     ],
 
     sidebar: [
       { text: "<em>Philosophy</em>", link: "/philosophy" },
-      {
-        text: "Getting Started",
-        items: [
-          { text: "Quickstart", link: "/guide/quickstart" },
-          { text: "Docker", link: "/guide/docker" },
-        ],
-      },
+      { text: "Getting started", link: "/start" },
+      { text: "Using the UI", link: "/ui" },
       {
         text: "Concepts",
         items: [
           { text: "Annotations", link: "/concepts/annotations" },
           { text: "Features", link: "/concepts/features" },
-          { text: "References", link: "/concepts/references" },
-          { text: "Deltas", link: "/concepts/deltas" },
+          { text: "Baselines & deltas", link: "/concepts/baselines" },
           { text: "Reconciling", link: "/concepts/reconciling" },
           { text: "Review branch", link: "/concepts/review-branch" },
           { text: "Projects & flows", link: "/concepts/multi-project" },
         ],
       },
       {
-        text: "Usage",
-        items: [
-          { text: "Overview", link: "/panel/overview" },
-          { text: "Browse", link: "/panel/browse" },
-          { text: "Changes & Baselines", link: "/panel/changes" },
-          { text: "Findings", link: "/panel/findings" },
-          { text: "Profile", link: "/panel/profile" },
-        ],
-      },
-      {
         text: "Reference",
         items: [
-          { text: "CLI", link: "/cli/" },
-          { text: "CLI (projects & flows)", link: "/cli/platform" },
-          { text: "API", link: "/api/bench" },
-          { text: "API (server)", link: "/api/platform" },
-          { text: "MCP", link: "/mcp/" },
-          { text: "MCP tool reference", link: "/mcp/tools" },
+          { text: "CLI", link: "/reference/cli" },
+          { text: "API", link: "/reference/api" },
+          { text: "MCP", link: "/reference/mcp" },
         ],
       },
     ],

@@ -18,74 +18,36 @@
 </p>
 
 <div align="center">
-  <strong>A devilishy good workbench for code reviews and long-lived annotations</strong><br/></br>
+  <strong>A workbench for code review and long-lived annotations</strong><br/><br/>
 </div>
 
-The workspace for findings, comments, and features: anchored to their positions and tracked across commits, so they stay accurate as code evolves.
+Bench records findings, comments and features against the code they describe and tracks them across commits, so that they remain accurate as the code changes. Baselines record the state of a review at a commit and show what has changed since. One server hosts many repositories, and flows describe a request as it passes through several of them. The CLI and the MCP server provide the same operations as the UI.
 
-Point-in-time baselines snapshot the state of code and measure progress over time, or since you (or your agent) last looked at the codebase.
+## Quick start
 
-Ships with a full-parity CLI and MCP to supercharge reviews.
-
-
-## Quick Start
+Run the server:
 
 ```bash
 docker run -p 8080:8080 -v /path/to/repos:/repos:ro -v bench-data:/data ghcr.io/daemonhus/bench:latest
 ```
 
-Open **http://localhost:8080** and add a project (a git repository on the server, e.g. `/repos/api`), or with the CLI below:
+Open http://localhost:8080 and add a project by giving the path of a git repository inside the container, for example `/repos/api`.
+
+The CLI is available for each platform from [Releases](https://github.com/daemonhus/bench/releases):
 
 ```bash
 bench projects create --name api --repo-path /repos/api
-```
-
-## CLI
-To install the CLI (Mac, see Releases for all platforms):
-
-```bash
-curl -L https://github.com/daemonhus/bench/releases/latest/download/bench_<version>_darwin_arm64.tar.gz | tar xz
-sudo mv bench /usr/local/bin/
-```
-
-Project commands take `--project <slug>` (or `BENCH_PROJECT`); `bench projects list` shows the slugs.
-
-```bash
 bench --project api findings list --severity high
 ```
 
-## MCP
-
-All tools are available over Streamable HTTP (JSON-RPC 2.0). `/mcp` covers every project (bench tools take a `project` argument); `/api/projects/<slug>/mcp` serves one project without it:
+To connect an MCP client:
 
 ```bash
 claude mcp add --transport http bench http://localhost:8080/mcp
 ```
 
-## Docker
+The documentation is at https://daemonhus.github.io/bench/. [DEVELOPMENT.md](DEVELOPMENT.md) describes how to work on bench itself.
 
-```bash
-docker build -t bench .
-docker run -p 8080:8080 -v /path/to/repos:/repos:ro -v bench-data:/data bench
-```
+## Licence
 
-The container's entrypoint is `benchd`; the default flags are `-data /data -addr :8080`. Databases (`default.db` plus one `<slug>-<hash>.db` per project, the hash taken from its repository path) live in `/data`. Repositories are mounted wherever you like and registered by their path inside the container.
-
-## Flows
-
-Flows are feature walkthroughs that span projects: ordered steps that each point at a feature in some project. They live next to the projects in the same UI, and the CLI drives them with `bench flows ...`.
-
-## Development
-
-Install dependencies, and start the server and UI with:
-
-```bash
-npm install && (cd platform/ui && npm install)
-./platform/dev.sh              # Vite (3000) + benchd (8080)
-```
-
-`bin/build.sh` builds `bench` and `benchd`.
-
-## License
-
-[Elastic License 2.0](LICENSE) - free to use personally or within your organisation; you may not offer it as a hosted or managed service to third parties.
+Bench is licensed under the [Elastic License 2.0](LICENSE). It may be used personally or within an organisation, but it may not be offered to third parties as a hosted or managed service.

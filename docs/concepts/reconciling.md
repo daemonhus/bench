@@ -1,129 +1,80 @@
 # Reconciling
 
-Annotations are anchored to a file path, a commit, and a line range. When code changes - functions move, lines are inserted, files are renamed - the anchors become stale. Reconciliation updates them to reflect the current state of the codebase.
+An annotation is anchored to a file, a commit and a line range. When the code changes, the anchored lines can move: lines are inserted above them, functions are moved, and files are renamed. Reconciliation determines where the anchored lines are at a later commit.
 
-## The problem
-
-You create a finding at `src/api/auth.go` line 42, commit `abc123`. A week later, someone refactors the file: the vulnerable function is now at line 67. The finding still points to line 42, which is now a different line entirely.
-
-Reconciliation uses `git diff` to trace how each annotated line moved between commits, then updates the stored anchor to the new position.
+For example, a finding is created at line 42 of `src/api/auth.go` at commit `abc123`. The file is later refactored, and the vulnerable function moves to line 67. Reconciliation uses the diffs between the commits to find that line 42 has become line 67, and records the new position.
 
 ## Algorithm
 
-Reconciliation walks the commit sequence from the annotation's anchor commit to the target commit, applying each diff in turn.
+Reconciliation applies the diff of each commit in turn, from the annotation's commit to the target commit.
 
-### 1. Diff parsing
+### 1. Parsing the diff
 
-Each diff is parsed into hunks. Every line in a hunk is classified as context (unchanged), deleted, or inserted, with its old and new line numbers recorded. Context lines are the anchor points - they appear in both versions and carry a precise old→new mapping.
+Each diff is parsed into hunks. Every line in a hunk is classified as unchanged (context), deleted or inserted, together with its old and new line numbers. Context lines appear in both versions and give an exact mapping from the old line number to the new one.
 
-### 2. Line mapping
+### 2. Mapping lines
 
-For each annotated line number, the algorithm scans through the hunks:
+Each annotated line is mapped through the hunks as follows:
 
-- **Before a hunk** - the line is unaffected; apply the cumulative offset from all prior hunks and return.
-- **Inside a hunk** - search for an exact match in the hunk's parsed lines:
-  - Found as a context line → return its new line number.
-  - Found as a deleted line → mapping fails for this line.
-  - Not found → treat as deleted (malformed diff edge case).
-- **After all hunks** - apply the total offset (sum of `newCount - oldCount` across all hunks).
+- A line before a hunk is unaffected, apart from the offset accumulated from earlier hunks.
+- A line inside a hunk is looked up in the hunk. If it is a context line, its new line number is used. If it is a deleted line, or if it is not found, the mapping fails.
+- A line after all the hunks is moved by the total offset, the sum of `newCount - oldCount` over all hunks.
 
-The range is mapped all-or-nothing: if any single line in the annotated range was deleted, the entire mapping fails and falls through to content matching.
+The line range is mapped as a whole. If any line in the range has been deleted, the mapping fails and reconciliation falls back to matching the content.
 
-### 3. Content hash fallback
+### 3. Matching content
 
-When line mapping fails, reconciliation attempts to find the annotated code by content:
+When line mapping fails, reconciliation searches for the annotated code by its content:
 
-1. Normalise each line (trim whitespace, collapse internal whitespace to single spaces).
-2. SHA-256 hash the normalised block.
-3. Slide a window of the same size across the file at the target commit.
-4. If a matching window is found, update the position with confidence `moved`.
-5. If no match, the annotation is `orphaned`.
+1. Each line is normalised by trimming whitespace and replacing runs of internal whitespace with a single space.
+2. The normalised lines are hashed with SHA-256.
+3. A window of the same number of lines is moved through the file at the target commit, and the hash of each window is compared.
+4. If a window matches, the annotation is placed there with confidence `moved`.
+5. If no window matches, the annotation is `orphaned`.
 
-Whitespace normalisation makes the hash resilient to formatting changes while remaining specific enough to avoid false matches on real code.
+Normalising whitespace means that formatting changes do not prevent a match, while the hash remains specific enough to avoid matching unrelated code.
 
-### 4. Confidence levels
+### 4. Confidence
 
-Every position record carries a confidence level that reflects how it was determined:
+Each recorded position has a confidence:
 
 | Confidence | Meaning |
-|------------|---------|
-| `exact` | Line mapping succeeded through the diff |
-| `moved` | Placed by content match or file rename |
-| `orphaned` | Code not found; no reliable position |
+|---|---|
+| `exact` | The lines were mapped through the diffs. |
+| `moved` | The lines were found by content, or the file was renamed. |
+| `orphaned` | The code was not found, and there is no reliable position. |
 
-Confidence can only decrease through reconciliation. An `exact` annotation that survives a rename becomes `moved`. An annotation whose code is deleted becomes `orphaned`.
+Reconciliation can only lower the confidence. An `exact` annotation in a renamed file becomes `moved`, and an annotation whose code is deleted becomes `orphaned`.
 
-An `orphaned` annotation can be restored by manually re-anchoring it (via `update_finding`, `update_comment`, or `update_feature` with new anchor fields). When the reconciler sees that `anchor_updated_at` is newer than the orphaned position, it treats the annotation's anchor as a fresh `exact` position and resumes tracking from there.
+An orphaned annotation is restored by re-anchoring it, that is, by updating it with a new file, line range and commit, for example with `bench findings update --id <id> --file … --start … --end … --commit HEAD` or with the MCP tools `update_finding`, `update_comment` and `update_feature`. The new position has confidence `exact` immediately, and later reconciliation continues from it.
 
-### 5. Edge cases
+### 5. Special cases
 
-**File renamed** - `git diff` may produce an empty diff for the old path. The algorithm detects renames, updates the working path, and re-attempts content matching at the new path. Previously `exact` annotations become `moved`.
+**Renamed files.** The diff of a renamed file can be empty for the old path. Reconciliation detects the rename, continues with the new path, and repeats the content match there. Annotations that were `exact` become `moved`.
 
-**Another branch, or a rebase** - if the last reconciled commit is not an ancestor of the target (the [review branch](/concepts/review-branch) changed, or history was rewritten), the algorithm finds the merge base and re-walks from there along the target's history, starting each annotation from its latest position in that history. Positions recorded on the other branch are kept for when it is reviewed again.
+**Another branch, or rewritten history.** If the commit that the annotations were last reconciled to is not an ancestor of the target, either because the [review branch](/concepts/review-branch) has changed or because history has been rewritten, reconciliation finds the merge base of the two commits and continues from there along the target's history. Each annotation starts from its most recent position in that history. Positions recorded on the other branch are kept, so that they can be used if that branch is reviewed again.
 
-**Annotations from other branches** - an annotation anchored on a commit outside the target's history is left alone: it gets no position there and is never orphaned (or auto-closed) by a branch it isn't on. One made later on the target's own history moves only with the commits after its anchor.
+**Annotations on other branches.** An annotation whose commit is not in the target's history is not reconciled to the target. It has no position there, and it is not orphaned or closed because of a branch that does not contain it. An annotation created later on the target's history is moved only by the commits that follow its own commit.
 
-**File deleted** - after walking all commits, the algorithm checks whether the file exists at the target. If not, any remaining `exact` or `moved` annotations are orphaned.
+**Deleted files.** After applying the diffs, reconciliation checks that the file exists at the target commit. If it does not, any annotation in it that is still `exact` or `moved` becomes `orphaned`.
 
-**Whitespace-only changes** - line mapping succeeds because the diff still records the line as context; positions stay `exact`.
+**Whitespace changes.** A line whose whitespace has changed remains a context line in the diff, so the mapping succeeds and the position remains `exact`.
+
+## What reconciliation records
+
+Reconciliation does not change an annotation's anchor. It records a position for each annotation at the commit that it reconciled to, consisting of the file, the line range and the confidence. When the findings, comments or features of a file are requested at a commit, each one includes its `effectiveAnchor` and `confidence` at that commit, taken from its most recent position in that commit's history.
+
+When the code of a finding is deleted, reconciliation closes the finding and adds a comment that gives the reason. When the code of a feature is deleted, reconciliation sets its status to `orphaned`. Either can be re-anchored afterwards, as described above.
 
 ## Running reconciliation
 
-```bash
-# Reconcile all annotations to HEAD
-bench reconcile start
-
-# Scope to specific files
-bench reconcile start --file-paths src/api/auth.go,src/api/session.go
-```
-
-Via MCP:
-
-```
-reconcile(target="HEAD")
-```
-
-Reconciliation runs as a background job. Check progress with:
+The UI reconciles the annotations to the head of the [review branch](/concepts/review-branch) automatically whenever they are behind it. The CLI and MCP start reconciliation explicitly:
 
 ```bash
-bench reconcile status --job <job-id>
+bench reconcile start                              # to the review branch's head; --target <commit>, --file-paths a.go,b.go
+bench reconcile status --job <id>
+bench reconcile head                               # how far the annotations are reconciled
+bench reconcile history --type finding --id <id>   # an annotation's positions over time
 ```
 
-## What gets updated
-
-- **Finding, comment, and feature line ranges** - `anchor.lineRange.start` and `end` are updated to their new positions
-- The `anchor.commitId` is updated to the target commit
-
-If a line was deleted and cannot be mapped forward, the annotation retains its last known position and is marked `orphaned`.
-
-## History
-
-You can see exactly how an annotation's position has moved over time:
-
-```bash
-bench reconcile history --type finding --id <finding-id>
-bench reconcile history --type comment --id <comment-id>
-```
-
-This returns the full position history - useful for understanding whether a finding survived a refactor or was introduced after one.
-
-## Reconcile head
-
-```bash
-bench reconcile head
-```
-
-Returns the current reconciliation state: which commit all annotations are currently reconciled to, and whether any are pending.
-
-## Relationship to baselines
-
-Reconciliation and baselines are complementary. Baselines track *what* findings exist. Reconciliation tracks *where* they are.
-
-After a large code change, the recommended sequence is:
-
-```
-reconcile              ← update positions to current code
-get_delta              ← changedFiles shows what moved
-                          newFindings / removedFindingIds show review changes
-set_baseline           ← checkpoint the updated state
-```
+The MCP tools are `reconcile`, `get_reconciliation_status` and `get_annotation_history`. A reconciliation job runs in the background. If a file fails, the failure is reported in the job's `error`, and the other files are still reconciled.

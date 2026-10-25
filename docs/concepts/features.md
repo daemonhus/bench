@@ -1,8 +1,6 @@
 # Features
 
-Features are architectural annotations that map the security-relevant surface of a codebase: API endpoints, data flows, third-party dependencies, and background processes. Unlike findings (which flag problems), features describe structure: what the system does and where data moves.
-
-## Data model
+Features describe the security-relevant surface of a codebase: the endpoints that it exposes, the places where it reads and writes data, the services that it calls, and the work that runs in the background. Findings record problems; features record structure. Each feature is [anchored](/concepts/annotations#anchor) to the code that defines it.
 
 ```typescript
 {
@@ -10,164 +8,86 @@ Features are architectural annotations that map the security-relevant surface of
   anchor: Anchor
   kind: 'interface' | 'source' | 'sink' | 'dependency' | 'externality'
   title: string
+  status: 'draft' | 'active' | 'deprecated' | 'removed' | 'orphaned'
   description?: string
-  status: 'draft' | 'active'
-  direction?: 'in' | 'out'   // data flow relative to the service
-  operation?: string          // HTTP method, gRPC method, GraphQL op, etc.
-  protocol?: string           // e.g. rest, grpc, graphql, websocket
+  direction?: 'in' | 'out'             // direction of data flow relative to the service
+  operation?: string                   // HTTP method, RPC method or GraphQL operation
+  protocol?: string                    // rest, grpc, graphql, websocket, …
   source?: string
   tags?: string[]
-  linkedFeatures?: { id: string; description?: string }[]  // bidirectional; populated in both directions; "<project>:<id>" for another project's
-  crossProjectFindings?: string[]  // other projects' findings affecting it, as "<project>:<id>"
-  refs?: Ref[]                // external links (enriched inline)
-  parameters?: FeatureParameter[]  // structured inputs/outputs; meaningful for kind: 'interface'
+  parameters?: Parameter[]             // the inputs of an interface
+  linkedFeatures?: { id: string, description?: string }[]
+  crossProjectFindings?: string[]      // findings in other projects that affect it
+  refs?: Ref[]
+  origin?: Origin
   createdAt: string
 }
 ```
 
-Do not include the HTTP method or protocol in `title`. Use `operation` for that. Write `"Login endpoint"`, not `"POST /login"`.
+When the code of a feature is deleted, [reconciliation](/concepts/reconciling) sets its status to `orphaned`. After the feature has been re-anchored, its status can be set back to `active`.
 
 ## Kinds
 
-| Kind | Use when… |
-|------|-----------|
-| `interface` | The service **exposes** this entry point: an HTTP handler, gRPC method, WebSocket endpoint, or message consumer. External actors call or send to it. |
-| `source` | The service **reads** from this: a DB query, file read, cache lookup, or inbound queue. Data enters your processing pipeline at this point. |
-| `sink` | The service **writes** to this: a DB write, outbound HTTP call, file write, or message publish. Data leaves your processing pipeline here. |
-| `dependency` | A third-party library or external service **as a whole**, when the concern is about the integration itself (trust, version, supply chain), not a specific call. |
-| `externality` | A background job, cron task, event handler, or async side-effect that runs **without an inbound request** triggering it. |
+| Kind | Meaning | Direction |
+|---|---|---|
+| `interface` | An endpoint, RPC method, WebSocket handler or message consumer that the service exposes. Each method and path is a separate feature. | `in` |
+| `source` | A place where the service reads data, such as a database query, cache read, file read, queue poll or configuration fetch. | `in` |
+| `sink` | A place where the service writes data, such as a database write, cache write, queue publish, file write or call to an external third party. | `out` |
+| `dependency` | A call to another internal service. Each client class or integration point is a separate feature, anchored to the client code. | `out` |
+| `externality` | A background job, periodic task, start-up or shutdown hook, or asynchronous side effect that is not triggered by an inbound request. | none |
 
-### Ambiguous cases
+The following rules apply:
 
-**`interface` vs `source`:** Ask who initiates. If an external actor triggers it → `interface`, even though it produces input data. If the service itself initiates a read → `source`. An HTTP handler is `interface`; the DB query inside that handler is `source`.
+- Each endpoint is a separate feature. `GET` and `POST` on the same path are two features, and the method is recorded in `operation`.
+- A dependency is a service, not a library. A vulnerable package is recorded as a finding.
+- The description names the class or function, the target, and the code that uses it.
+- The anchor is the definition: the route, the client class, the query or write, or the task function.
 
-**`sink` vs `dependency`:** Use `sink` for a specific outbound data flow (sending email, writing to S3). Use `dependency` for the library or service itself when the concern is the integration, not a specific call. A codebase can have one `dependency` for the AWS SDK and many `sink` annotations for individual S3 writes.
+Where the kind is unclear, the following distinctions apply. If an external actor initiates the call, the feature is an `interface`; if the service initiates a read, it is a `source`. A handler is therefore an `interface`, and the query inside it is a `source`. A call to one of your own services is a `dependency`, and a call to a third party is a `sink`. A data store that is both read and written has a `source` and a `sink`, each anchored to its own code.
 
-**Same system, two roles:** A database often appears as both `source` (reads) and `sink` (writes). Annotate each at its specific code location rather than trying to pick one.
+Titles follow these conventions:
 
-**`externality` vs `interface`:** If triggered by a scheduler or internal event → `externality`. If triggered by an inbound webhook or external message → `interface` with `direction: in`.
+| Kind | Title |
+|---|---|
+| `interface` | The path without the method, for example `/orders/{id}`. |
+| `source`, `sink` | A resource URI, for example `postgresql://users_db (read)`, `s3://audit-logs` or `https://api.acmepay.example.com`. |
+| `dependency` | `<Caller> to <service host> (<domain>)`, for example `Order API to billing-svc.cluster.local (charges)`. |
+| `externality` | A description of the task, for example `Cache prune periodic task`. |
 
 ## Parameters
 
-Parameters document the expected inputs and outputs of an `interface` feature - auth headers, path variables, query params, body fields.
+Parameters describe the inputs of an interface, such as authentication headers, path variables, query parameters and body fields:
 
 ```typescript
-{
-  id: string
-  featureId: string
-  name: string          // e.g. "Authorization", "user_id"
-  description?: string  // what it carries, security notes
-  type?: string         // string | integer | boolean | object | array | file
-  pattern?: string      // constraint: regex, enum list, format hint
-  required: boolean
-  createdAt: string
-}
+{ id, featureId, name, type?, pattern?, required: boolean, description?, createdAt }
 ```
 
-Parameters are ordered by `name` alphabetically in list responses.
-
-Via CLI:
+`type` is one of `string`, `integer`, `boolean`, `object`, `array` and `file`. `pattern` is any constraint, such as a regular expression, a list of values or a range. Parameters are listed in order of name.
 
 ```bash
-bench features params-create \
-  --feature feat-abc123 \
-  --name Authorization --type string --required \
+bench features params-create --feature <id> --name Authorization --type string --required \
   --description "Bearer token"
-
-bench features params-list --feature feat-abc123
-bench features params-get --id param-xyz
-bench features params-update --id param-xyz --description "JWT bearer token"
-bench features params-delete --id param-xyz
 ```
 
-Via MCP:
+## Links between features
 
-```
-create_feature_parameter(feature="feat-abc123", name="Authorization", type="string", required=true)
-list_feature_parameters(feature="feat-abc123")
-get_feature_parameter(id="param-xyz")
-update_feature_parameter(id="param-xyz", description="JWT bearer token")
-delete_feature_parameter(id="param-xyz")
-```
-
-## Linking features to features
-
-Features can be linked to other features. Links are bidirectional - adding feature B to feature A's links makes A appear in B's `linkedFeatures` too. Each link can carry an optional `description` to explain the relationship. Use this to connect related surfaces: an interface to its backing source/sink, a dependency to the externality that polls it, etc.
-
-**Constraints:** Self-links (linking a feature to itself) are rejected with 400. Linking to a non-existent feature ID returns 404. Updating links replaces the full list - omit the field to leave links unchanged.
-
-Via CLI:
+Links between features record which features call or depend on which others, such as an interface and the source behind it, or a dependency and the service that it calls. A link appears on both features and can have a description. Setting the links replaces the existing list. A link from a feature to itself, or to a feature that does not exist, is rejected.
 
 ```bash
-# Link two features at create time (IDs only)
-bench features create --file src/api/auth.go --commit HEAD --kind interface --title "/login" \
-  --features feat-abc123,feat-def456
-
-# Link with descriptions (use | to separate ID from description)
-bench features update --id feat-xyz --features "feat-abc123|validates JWT,feat-def456|writes audit log"
-
-# Clear all links
-bench features update --id feat-xyz --features ""
-
-# Filter: features linked to a specific feature (either direction)
-bench features list --linked-to feat-abc123
+bench features update --id <id> --features "feat-abc|validates the JWT,feat-def|writes the audit log"
+bench features update --id <id> --features ""          # remove all links
+bench features list --linked-to feat-abc               # features linked to feat-abc in either direction
 ```
 
-Via MCP:
+Over MCP, `linked_feature_ids` takes IDs or `{id, description}` objects.
 
-```
-# ID strings only
-create_feature(file="...", commit="HEAD", kind="interface", title="/login",
-  linked_feature_ids=["feat-abc123", "feat-def456"])
-
-# With descriptions - pass {id, description} objects
-update_feature(id="feat-xyz", linked_feature_ids=[
-  {"id": "feat-abc123", "description": "validates JWT"},
-  {"id": "feat-def456", "description": "writes audit log"}
-])
-
-list_features(linked_to="feat-abc123")
-```
-
-### Across projects
-
-On a server hosting several projects, a feature can link to another project's feature, and a finding can affect one: write `<project>:<id>` where an id goes (`billing:feat-9f3c`). Ids and project slugs never contain a colon, so a bare id is always this project's. The link reads from both ends, like any other: the other feature lists `<this-project>:<id>` in its `linkedFeatures`, and a feature lists the other projects' findings affecting it in `crossProjectFindings`. The target must exist (an unknown project or feature is a 400), and deleting either end drops the link. A standalone workbench has no other projects and refuses such references.
-
-```bash
-bench --project web features update --id feat-xyz --features "api:feat-abc123|calls the login endpoint"
-bench --project web findings update --id find-1 --features feat-xyz,api:feat-abc123
-```
-
-```
-update_feature(project="web", id="feat-xyz", linked_feature_ids=[{"project": "api", "id": "feat-abc123"}])
-update_finding(project="web", id="find-1", features=["feat-xyz", "api:feat-abc123"])
-```
-
-In the UI the link picker searches every project; another project's feature or finding is labelled with its project and opens there.
-
-## Linking findings to features
-
-Findings can reference features via `features`. See [Linking findings to features](/concepts/annotations#linking-findings-to-features).
+On a server with several projects, a feature can be linked to a feature in another project, and a finding can affect a feature in another project. The reference is written `<project>:<id>`, for example `api:feat-abc123`, or as `{id, project}` over MCP. The other feature lists the link in return, and a feature lists the findings from other projects that affect it in `crossProjectFindings`. [Flows](/concepts/multi-project#flows) and the service map use these links.
 
 ## Creating features
 
-Via CLI:
-
 ```bash
-bench features create \
-  --file src/api/auth.go --commit HEAD \
-  --start 12 --end 28 \
-  --kind interface --title "Login endpoint" \
-  --operation POST --protocol rest
+bench features create --file src/api/auth.go --commit HEAD --start 12 --end 28 \
+  --kind interface --title /login --operation POST --protocol rest
 ```
 
-Via MCP:
-
-```
-create_feature(
-  file="src/api/auth.go", commit="HEAD",
-  start=12, end=28,
-  kind="interface", title="Login endpoint",
-  operation="POST", protocol="rest"
-)
-```
+To map a whole service, write the features of each kind to a JSON file and create them with `bench features batch-create --input <file>`.
