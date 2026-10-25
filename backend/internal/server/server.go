@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	workbench "bench"
 
@@ -29,6 +30,16 @@ type Platform struct {
 	mu          sync.RWMutex
 	// flowMu serialises flow graph edits (each reads the graph, then rewrites edges).
 	flowMu sync.Mutex
+	// sinceBaseline remembers each project's commit and file counts from its latest baseline to
+	// HEAD, which only change when one of the two does (see changesSince).
+	sinceBaseline   map[string]changeCounts
+	sinceBaselineMu sync.Mutex
+}
+
+// changeCounts are the commits and changed files between two commits.
+type changeCounts struct {
+	from, to       string
+	commits, files int
 }
 
 type RiskData struct {
@@ -87,6 +98,9 @@ func NewPlatform(dataDir string) (*Platform, error) {
 	if err != nil {
 		return nil, err
 	}
+	// As for a project's database (db.Open): every project's requests read this one too.
+	conn.SetMaxIdleConns(4)
+	conn.SetConnMaxIdleTime(time.Minute)
 	if _, err := conn.Exec(`CREATE TABLE IF NOT EXISTS projects (
 		id         TEXT PRIMARY KEY,
 		name       TEXT NOT NULL,
@@ -198,9 +212,10 @@ func NewPlatform(dataDir string) (*Platform, error) {
 		return nil, err
 	}
 	return &Platform{
-		dataDir:     dataDir,
-		db:          conn,
-		workbenches: make(map[string]*workbench.Workbench),
+		dataDir:       dataDir,
+		db:            conn,
+		workbenches:   make(map[string]*workbench.Workbench),
+		sinceBaseline: make(map[string]changeCounts),
 	}, nil
 }
 
@@ -290,6 +305,22 @@ func (p *Platform) getWorkbench(identifier string) (*workbench.Workbench, error)
 	return wb, nil
 }
 
+// enrichProjects enriches several projects at once, a few at a time: each one's work is mostly
+// its own repository and database, so they overlap well.
+func (p *Platform) enrichProjects(projects []Project) {
+	var wg sync.WaitGroup
+	slots := make(chan struct{}, 8)
+	for i := range projects {
+		wg.Add(1)
+		slots <- struct{}{}
+		go func(proj *Project) {
+			defer func() { <-slots; wg.Done() }()
+			p.enrichProject(proj)
+		}(&projects[i])
+	}
+	wg.Wait()
+}
+
 // enrichProject adds the live data (remote, activity, stats, risk) read from the project's workbench.
 func (p *Platform) enrichProject(proj *Project) {
 	if wb, err := p.getWorkbench(proj.Slug); err == nil {
@@ -311,17 +342,41 @@ func (p *Platform) enrichProject(proj *Project) {
 					DeltaNewFindings: delta,
 				}
 				if head, err := wb.Repo.Head(); err == nil {
-					if commits, err := wb.Repo.RevList(latest.CommitID, head); err == nil {
-						rd.CommitsSince = len(commits)
-					}
-					if files, err := wb.Repo.DiffFiles(latest.CommitID, head); err == nil {
-						rd.FilesChangedSince = len(files)
-					}
+					c := p.changesSince(proj.Slug, wb, latest.CommitID, head)
+					rd.CommitsSince, rd.FilesChangedSince = c.commits, c.files
 				}
 				proj.RiskData = rd
 			}
 		}
 	}
+}
+
+// changesSince counts the commits and changed files from a project's baseline commit to its
+// HEAD. A diff of two trees is the slowest part of listing projects, and its answer is fixed
+// for a pair of commits, so it is worked out again only when the baseline or HEAD moves. A
+// count that fails is left at zero and not remembered.
+func (p *Platform) changesSince(slug string, wb *workbench.Workbench, from, to string) changeCounts {
+	p.sinceBaselineMu.Lock()
+	c, ok := p.sinceBaseline[slug]
+	p.sinceBaselineMu.Unlock()
+	if ok && c.from == from && c.to == to {
+		return c
+	}
+	c = changeCounts{from: from, to: to}
+	commits, err := wb.Repo.RevList(from, to)
+	if err == nil {
+		c.commits = len(commits)
+	}
+	files, err2 := wb.Repo.DiffFiles(from, to)
+	if err2 == nil {
+		c.files = len(files)
+	}
+	if err == nil && err2 == nil {
+		p.sinceBaselineMu.Lock()
+		p.sinceBaseline[slug] = c
+		p.sinceBaselineMu.Unlock()
+	}
+	return c
 }
 
 func (p *Platform) getProject(w http.ResponseWriter, r *http.Request) {
@@ -351,9 +406,14 @@ func (p *Platform) listProjects(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), 500)
 			return
 		}
-		p.enrichProject(&proj)
 		projects = append(projects, proj)
 	}
+	if err := rows.Err(); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	rows.Close()
+	p.enrichProjects(projects)
 	if projects == nil {
 		projects = []Project{}
 	}

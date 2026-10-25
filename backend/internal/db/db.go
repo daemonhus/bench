@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"bench/internal/model"
 
@@ -54,6 +55,11 @@ func Open(path, projectID string) (*DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
+	// A few connections, and their page caches, outlive a request: database/sql keeps two by
+	// default, so a burst of parallel reads (the platform asking every project at once) opened
+	// and closed a connection per query. They close after a minute unused.
+	conn.SetMaxIdleConns(4)
+	conn.SetConnMaxIdleTime(time.Minute)
 	d := &DB{conn: conn, projectID: projectID, ownsConn: true, wq: newWriteQueue()}
 	if err := d.migrate(); err != nil {
 		d.wq.close()

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"path/filepath"
@@ -75,6 +76,7 @@ func (b *GoGitBackend) open() (*gogit.Repository, error) {
 			b.openErr = fmt.Errorf("gogit open %s: %w", b.path, err)
 			return
 		}
+		r.Storer = withObjectCache(r.Storer)
 		b.repo = r
 	})
 	return b.repo, b.openErr
@@ -107,11 +109,16 @@ func (b *GoGitBackend) openWalk() (*gogit.Repository, func(), error) {
 func openKeepDescriptors(path string) (*gogit.Repository, error) {
 	dot := filepath.Join(path, ".git")
 	if info, err := os.Stat(dot); err != nil || !info.IsDir() {
-		return gogit.PlainOpen(path)
+		r, err := gogit.PlainOpen(path)
+		if err != nil {
+			return nil, err
+		}
+		r.Storer = withObjectCache(r.Storer)
+		return r, nil
 	}
 	st := filesystem.NewStorageWithOptions(osfs.New(dot), cache.NewObjectLRUDefault(),
 		filesystem.Options{KeepDescriptors: true})
-	return gogit.Open(st, osfs.New(path))
+	return gogit.Open(withObjectCache(st), osfs.New(path))
 }
 
 // commitLineStat returns c's diffstat totals, computing them once per commit.
@@ -837,15 +844,22 @@ func (b *GoGitBackend) Tree(commitish string) ([]model.FileEntry, error) {
 	if err != nil {
 		return nil, classifyGoGitErr(err)
 	}
+	// A walk of the tree objects alone: tree.Files() would also read every file's contents.
 	entries := []model.FileEntry{}
-	err = tree.Files().ForEach(func(f *object.File) error {
-		entries = append(entries, model.FileEntry{Path: f.Name, Type: "blob"})
-		return nil
-	})
-	if err != nil {
-		return nil, err
+	w := object.NewTreeWalker(tree, true, nil)
+	defer w.Close()
+	for {
+		name, entry, err := w.Next()
+		if err == io.EOF {
+			return entries, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		if entry.Mode.IsFile() {
+			entries = append(entries, model.FileEntry{Path: name, Type: "blob"})
+		}
 	}
-	return entries, nil
 }
 
 func (b *GoGitBackend) Show(commitish, path string) (string, error) {
