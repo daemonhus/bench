@@ -130,7 +130,8 @@ func (h *commentsHandlers) create(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "commitId is required")
 			return
 		}
-		head, err := h.repo.ResolveRef("HEAD")
+		// The review branch's head, as over MCP.
+		head, err := defaultCommit(h.db, h.repo, r)
 		if err != nil {
 			writeError(w, http.StatusBadRequest, "commitId is required: "+err.Error())
 			return

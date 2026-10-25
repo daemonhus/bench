@@ -42,28 +42,10 @@ func (d *toolDeps) scope(branch string, all bool) (*review.Scope, error) {
 	return review.NewScope(d.repo, b.Tip), nil
 }
 
-// keepOnBranch filters items to those whose anchor commit is on the scope's
-// branch and counts the rest. A nil scope keeps everything.
-func keepOnBranch[T any](scope *review.Scope, items []T, commitOf func(T) string) ([]T, int) {
-	if scope == nil {
-		return items, 0
-	}
-	kept := items[:0]
-	off := 0
-	for _, it := range items {
-		if scope.Has(commitOf(it)) {
-			kept = append(kept, it)
-		} else {
-			off++
-		}
-	}
-	return kept, off
-}
-
 // offBranchNote closes a scoped list with how many items it left out; empty
-// for an unscoped one.
+// when it left none out, or wasn't scoped.
 func offBranchNote(scope *review.Scope, off int) string {
-	if scope == nil {
+	if scope == nil || off == 0 {
 		return ""
 	}
 	return fmt.Sprintf("\n(%d on other branches, not shown; all_branches=true includes them)", off)

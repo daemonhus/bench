@@ -146,6 +146,14 @@ func (h *gitHandlers) blame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	commit := r.URL.Query().Get("commit")
+	if commit == "" {
+		tip, err := defaultCommit(h.db, h.repo, r)
+		if err != nil {
+			writeInternalError(w, err)
+			return
+		}
+		commit = tip
+	}
 	lineStart, _ := strconv.Atoi(r.URL.Query().Get("line_start"))
 	lineEnd, _ := strconv.Atoi(r.URL.Query().Get("line_end"))
 
@@ -255,6 +263,14 @@ func (h *gitHandlers) search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	commit := r.URL.Query().Get("commit")
+	if commit == "" {
+		tip, err := defaultCommit(h.db, h.repo, r)
+		if err != nil {
+			writeInternalError(w, err)
+			return
+		}
+		commit = tip
+	}
 	path := r.URL.Query().Get("path")
 	caseInsensitive := r.URL.Query().Get("case_insensitive") == "true"
 	fixed := r.URL.Query().Get("fixed") == "true"

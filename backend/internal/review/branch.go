@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"bench/internal/git"
+	"bench/internal/model"
 )
 
 // settingKey is the project setting holding the saved review branch; absent
@@ -115,4 +116,51 @@ func (s *Scope) Has(commit string) bool {
 	v := err != nil || on
 	s.memo[commit] = v
 	return v
+}
+
+// KeepOnBranch filters items to those anchored on the scope's branch, and
+// returns how many it left out. A nil scope keeps everything.
+func KeepOnBranch[T any](scope *Scope, items []T, commitOf func(T) string) ([]T, int) {
+	if scope == nil {
+		return items, 0
+	}
+	kept := items[:0]
+	off := 0
+	for _, it := range items {
+		if scope.Has(commitOf(it)) {
+			kept = append(kept, it)
+		} else {
+			off++
+		}
+	}
+	return kept, off
+}
+
+// Summary counts the findings, by severity and status, and the unresolved
+// comments on a scope's branch (every branch for a nil scope).
+type Summary struct {
+	Findings           int
+	BySeverity         map[string]map[string]int // severity → status → count
+	UnresolvedComments int
+}
+
+// Summarise counts findings and comments on the scope's branch.
+func Summarise(scope *Scope, findings []model.Finding, comments []model.Comment) Summary {
+	s := Summary{BySeverity: map[string]map[string]int{}}
+	for _, f := range findings {
+		if !scope.Has(f.Anchor.CommitID) {
+			continue
+		}
+		if s.BySeverity[f.Severity] == nil {
+			s.BySeverity[f.Severity] = map[string]int{}
+		}
+		s.BySeverity[f.Severity][f.Status]++
+		s.Findings++
+	}
+	for _, c := range comments {
+		if c.ResolvedCommit == nil && scope.Has(c.Anchor.CommitID) {
+			s.UnresolvedComments++
+		}
+	}
+	return s
 }

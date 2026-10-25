@@ -544,7 +544,7 @@ func TestMultiProject_HelpListsEveryCommand(t *testing.T) {
 // A nested file path keeps its slashes; only characters inside a segment are escaped.
 func TestReadFile_KeepsPathSlashes(t *testing.T) {
 	r := newRecorder(t)
-	code, _, stderr := runCLI(t, r, nil, "--project", "alpha", "git", "read-file", "--path", "src/a b/c.go")
+	code, _, stderr := runCLI(t, r, nil, "--project", "alpha", "git", "read-file", "--commit", "HEAD", "--path", "src/a b/c.go")
 	if code != 0 {
 		t.Fatalf("exit %d: %s", code, stderr)
 	}

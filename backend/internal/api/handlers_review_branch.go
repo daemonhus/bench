@@ -32,6 +32,16 @@ func reviewBranch(d *db.DB, repo *git.Repo, r *http.Request) (review.Branch, err
 	return review.Resolve(d, repo, requestedBranch(r))
 }
 
+// defaultCommit is the commit a request means when it names none: the head of
+// the review branch in effect.
+func defaultCommit(d *db.DB, repo *git.Repo, r *http.Request) (string, error) {
+	b, err := reviewBranch(d, repo, r)
+	if err != nil {
+		return "", err
+	}
+	return b.Tip, nil
+}
+
 // branchScope is what a list of findings, comments or features is filtered
 // to: the review branch, or nil (everything) for ?all_branches=true.
 func branchScope(d *db.DB, repo *git.Repo, r *http.Request) (*review.Scope, error) {
@@ -45,21 +55,13 @@ func branchScope(d *db.DB, repo *git.Repo, r *http.Request) (*review.Scope, erro
 	return review.NewScope(repo, b.Tip), nil
 }
 
-// keepOnBranch filters items to those whose anchor commit is on the scope's
-// branch and counts the rest in the response's offBranchHeader.
+// keepOnBranch filters items to those on the scope's branch and counts the
+// rest in the response's offBranchHeader.
 func keepOnBranch[T any](w http.ResponseWriter, scope *review.Scope, items []T, commitOf func(T) string) []T {
 	if scope == nil {
 		return items
 	}
-	kept := items[:0]
-	off := 0
-	for _, it := range items {
-		if scope.Has(commitOf(it)) {
-			kept = append(kept, it)
-		} else {
-			off++
-		}
-	}
+	kept, off := review.KeepOnBranch(scope, items, commitOf)
 	w.Header().Set(offBranchHeader, strconv.Itoa(off))
 	return kept
 }

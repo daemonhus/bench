@@ -284,3 +284,49 @@ func TestReviewBranch_HistoryAndChanges(t *testing.T) {
 		t.Errorf("new baseline at %.7s, want feature's tip", created.CommitID)
 	}
 }
+
+// Requests that name no commit use the review branch's head, not the checked-out
+// HEAD; the summary counts what's on the branch.
+func TestReviewBranch_DefaultCommitAndSummary(t *testing.T) {
+	e := setupBranchEnv(t)
+	if w := e.do(t, "PUT", "/api/review-branch", `{"branch":"feature"}`); w.Code != 200 {
+		t.Fatal(w.Code)
+	}
+
+	// Created without a commit: anchored at feature's head.
+	w := e.do(t, "POST", "/api/findings", `{"title":"t","severity":"high","source":"manual","anchor":{"fileId":"b.txt"}}`)
+	if w.Code != 201 {
+		t.Fatalf("create: %d %s", w.Code, w.Body.String())
+	}
+	var f model.Finding
+	json.Unmarshal(w.Body.Bytes(), &f) //nolint:errcheck
+	if f.Anchor.CommitID != e.featTip {
+		t.Errorf("anchored at %.7s, want feature's head", f.Anchor.CommitID)
+	}
+
+	// b.txt exists only on feature.
+	if w := e.do(t, "GET", "/api/git/search?pattern=feature", ""); w.Code != 200 || !strings.Contains(w.Body.String(), "b.txt") {
+		t.Errorf("search: %d %s, want a hit in b.txt", w.Code, w.Body.String())
+	}
+	if w := e.do(t, "GET", "/api/git/blame?path=b.txt", ""); w.Code != 200 {
+		t.Errorf("blame: %d %s", w.Code, w.Body.String())
+	}
+
+	// A finding on main isn't counted on feature.
+	e.finding(t, "on-main", e.mainTip)
+	summary := func(path string) float64 {
+		t.Helper()
+		w := e.do(t, "GET", path, "")
+		var s struct {
+			TotalFindings float64 `json:"totalFindings"`
+		}
+		json.Unmarshal(w.Body.Bytes(), &s) //nolint:errcheck
+		return s.TotalFindings
+	}
+	if n := summary("/api/summary"); n != 1 {
+		t.Errorf("summary on feature counts %v findings, want 1", n)
+	}
+	if n := summary("/api/summary?all_branches=true"); n != 2 {
+		t.Errorf("summary over all branches counts %v findings, want 2", n)
+	}
+}

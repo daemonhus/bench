@@ -8,6 +8,7 @@ import (
 	"bench/internal/db"
 	"bench/internal/git"
 	"bench/internal/reconcile"
+	"bench/internal/review"
 )
 
 type analyticsHandlers struct {
@@ -16,7 +17,7 @@ type analyticsHandlers struct {
 	reconciler *reconcile.Reconciler
 }
 
-// GET /api/summary?commit=
+// GET /api/summary?commit= - counts on the commit's history (all_branches=true for every branch)
 func (h *analyticsHandlers) summary(w http.ResponseWriter, r *http.Request) {
 	commit := r.URL.Query().Get("commit")
 	if commit == "" {
@@ -28,17 +29,22 @@ func (h *analyticsHandlers) summary(w http.ResponseWriter, r *http.Request) {
 		commit = b.Tip
 	}
 
-	summary, err := h.db.FindingSummary()
+	// What's on the commit's history, unless all_branches=true.
+	var scope *review.Scope
+	if r.URL.Query().Get("all_branches") != "true" {
+		scope = review.NewScope(h.repo, commit)
+	}
+	findings, _, err := h.db.ListFindings("", 0, 0)
 	if err != nil {
 		writeInternalError(w, err)
 		return
 	}
-
-	unresolvedComments, err := h.db.UnresolvedCommentCount()
+	comments, _, err := h.db.ListComments("", "", 0, 0)
 	if err != nil {
 		writeInternalError(w, err)
 		return
 	}
+	counts := review.Summarise(scope, findings, comments)
 
 	reconHead, err := h.reconciler.GetReconciledHeadAt(commit)
 	if err != nil {
@@ -46,22 +52,17 @@ func (h *analyticsHandlers) summary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Build severity breakdown.
 	type sevGroup struct {
 		Counts map[string]int `json:"counts"`
 		Total  int            `json:"total"`
 	}
 	bySeverity := make(map[string]*sevGroup)
-	totalFindings := 0
-	for _, row := range summary {
-		g, ok := bySeverity[row.Severity]
-		if !ok {
-			g = &sevGroup{Counts: make(map[string]int)}
-			bySeverity[row.Severity] = g
+	for sev, byStatus := range counts.BySeverity {
+		g := &sevGroup{Counts: byStatus}
+		for _, n := range byStatus {
+			g.Total += n
 		}
-		g.Counts[row.Status] = row.Count
-		g.Total += row.Count
-		totalFindings += row.Count
+		bySeverity[sev] = g
 	}
 
 	// Embed the service profile so agents entering via the summary absorb
@@ -74,9 +75,9 @@ func (h *analyticsHandlers) summary(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"commit":             commit,
-		"totalFindings":      totalFindings,
+		"totalFindings":      counts.Findings,
 		"bySeverity":         bySeverity,
-		"unresolvedComments": unresolvedComments,
+		"unresolvedComments": counts.UnresolvedComments,
 		"reconciliation":     reconHead,
 		"serviceProfile":     profile,
 	})

@@ -10,6 +10,7 @@ import (
 	"bench/internal/anchor"
 	"bench/internal/events"
 	"bench/internal/model"
+	"bench/internal/review"
 
 	"github.com/google/uuid"
 )
@@ -106,7 +107,7 @@ func toolListFeatures(deps *toolDeps) Tool {
 			if err != nil {
 				return "", err
 			}
-			features, off := keepOnBranch(scope, features, func(f model.Feature) string { return f.Anchor.CommitID })
+			features, off := review.KeepOnBranch(scope, features, func(f model.Feature) string { return f.Anchor.CommitID })
 
 			// Post-filter
 			filtered := features[:0]

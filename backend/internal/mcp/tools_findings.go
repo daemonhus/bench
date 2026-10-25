@@ -10,6 +10,7 @@ import (
 	"bench/internal/anchor"
 	"bench/internal/events"
 	"bench/internal/model"
+	"bench/internal/review"
 
 	"github.com/google/uuid"
 )
@@ -76,7 +77,7 @@ func toolListFindings(deps *toolDeps) Tool {
 			if err != nil {
 				return "", err
 			}
-			findings, off := keepOnBranch(scope, findings, func(f model.Finding) string { return f.Anchor.CommitID })
+			findings, off := review.KeepOnBranch(scope, findings, func(f model.Finding) string { return f.Anchor.CommitID })
 
 			// Build a confidence map when commit is set
 			confidence := map[string]string{}

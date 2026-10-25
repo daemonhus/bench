@@ -244,7 +244,7 @@ describe('attributeBranches', () => {
 
   it('handles GitHub pull request merge subjects', () => {
     const commits = [
-      commit('m1', ['c1', 'b1'], { refs: ['main'], subject: 'Merge pull request #42 from psedge/fix/rate-limit' }),
+      commit('m1', ['c1', 'b1'], { refs: ['main'], subject: 'Merge pull request #42 from octo/fix/rate-limit' }),
       commit('b1', ['c1']),
       commit('c1', []),
     ];

@@ -291,4 +291,24 @@ func TestMCPReviewBranch_SummaryReconcilesAgainstBranchHead(t *testing.T) {
 	if !strings.Contains(out, "at "+b.featTip[:7]) {
 		t.Errorf("summary branch=feature:\n%s", out)
 	}
+	// The count is the branch's: main's finding isn't on feature.
+	if !strings.Contains(out, "Total: 0 findings") {
+		t.Errorf("summary on feature counts main's finding:\n%s", out)
+	}
+	out = b.call(t, "get_summary", map[string]any{"branch": "feature", "all_branches": true})
+	if !strings.Contains(out, "Total: 1 findings") {
+		t.Errorf("summary over all branches:\n%s", out)
+	}
+}
+
+// A scoped list that left nothing out says nothing about other branches.
+func TestMCPReviewBranch_NoNoteWhenNothingLeftOut(t *testing.T) {
+	b := setupBranchDeps(t)
+	b.finding(t, "on-main", b.mainTip)
+	if out := b.call(t, "list_findings", map[string]any{}); strings.Contains(out, "other branches") {
+		t.Errorf("note with nothing left out:\n%s", out)
+	}
+	if out := b.call(t, "list_findings", map[string]any{"branch": "feature"}); !strings.Contains(out, "1 on other branches") {
+		t.Errorf("no note with one left out:\n%s", out)
+	}
 }

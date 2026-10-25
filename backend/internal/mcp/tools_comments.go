@@ -78,7 +78,7 @@ func toolListComments(deps *toolDeps) Tool {
 				if err != nil {
 					return "", err
 				}
-				comments, off = keepOnBranch(scope, comments, func(c model.Comment) string { return c.Anchor.CommitID })
+				comments, off = review.KeepOnBranch(scope, comments, func(c model.Comment) string { return c.Anchor.CommitID })
 			}
 
 			// Post-filter resolved

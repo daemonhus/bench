@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"bench/internal/db"
+	"bench/internal/review"
 )
 
 func registerAnalyticsTools(deps *toolDeps) []Tool {
@@ -24,14 +25,15 @@ func toolGetSummary(deps *toolDeps) Tool {
 		Description: "Get a summary of the current state: total findings by severity and status, total comments, unresolved items, reconciliation coverage. The response embeds the service profile (deployment context that determines which finding classes are moot or amplified).",
 		InputSchema: json.RawMessage(`{
 			"type": "object",
-			"properties": {` + branchProp + `
-				"commit": {"type": "string", "description": "Summarize at this commit (default: the review branch's head)"}
+			"properties": {` + branchProp + allBranchesProp + `
+				"commit": {"type": "string", "description": "Summarize at this commit (default: the review branch's head); counts cover its history"}
 			}
 		}`),
 		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
 			var p struct {
-				Commit string `json:"commit"`
-				Branch string `json:"branch"`
+				Commit      string `json:"commit"`
+				Branch      string `json:"branch"`
+				AllBranches bool   `json:"all_branches"`
 			}
 			if err := json.Unmarshal(params, &p); err != nil {
 				return "", fmt.Errorf("invalid params: %w", err)
@@ -45,15 +47,20 @@ func toolGetSummary(deps *toolDeps) Tool {
 				p.Commit = tip
 			}
 
-			summary, err := deps.db.FindingSummary()
+			// What's on the commit's history, unless all_branches.
+			var scope *review.Scope
+			if !p.AllBranches {
+				scope = review.NewScope(deps.repo, p.Commit)
+			}
+			findings, _, err := deps.db.ListFindings("", 0, 0)
 			if err != nil {
 				return "", err
 			}
-
-			unresolvedComments, err := deps.db.UnresolvedCommentCount()
+			comments, _, err := deps.db.ListComments("", "", 0, 0)
 			if err != nil {
 				return "", err
 			}
+			counts := review.Summarise(scope, findings, comments)
 
 			reconHead, err := deps.reconciler.GetReconciledHeadAt(p.Commit)
 			if err != nil {
@@ -66,40 +73,24 @@ func toolGetSummary(deps *toolDeps) Tool {
 
 			// Group by severity
 			fmt.Fprintf(&sb, "### Findings\n")
-			type sevGroup struct {
-				counts map[string]int
-				total  int
-			}
 			sevOrder := []string{"critical", "high", "medium", "low", "info"}
-			groups := make(map[string]*sevGroup)
-			totalFindings := 0
-			for _, row := range summary {
-				g, ok := groups[row.Severity]
-				if !ok {
-					g = &sevGroup{counts: make(map[string]int)}
-					groups[row.Severity] = g
-				}
-				g.counts[row.Status] = row.Count
-				g.total += row.Count
-				totalFindings += row.Count
-			}
 			for _, sev := range sevOrder {
-				g, ok := groups[sev]
+				byStatus, ok := counts.BySeverity[sev]
 				if !ok {
 					continue
 				}
 				var parts []string
 				for _, status := range []string{"draft", "open", "in-progress", "false-positive", "accepted", "closed"} {
-					if c, ok := g.counts[status]; ok {
+					if c, ok := byStatus[status]; ok {
 						parts = append(parts, fmt.Sprintf("%d %s", c, status))
 					}
 				}
 				fmt.Fprintf(&sb, "%s: %s\n", sev, strings.Join(parts, ", "))
 			}
-			fmt.Fprintf(&sb, "\nTotal: %d findings\n", totalFindings)
+			fmt.Fprintf(&sb, "\nTotal: %d findings\n", counts.Findings)
 
 			fmt.Fprintf(&sb, "\n### Comments\n")
-			fmt.Fprintf(&sb, "%d unresolved comments\n", unresolvedComments)
+			fmt.Fprintf(&sb, "%d unresolved comments\n", counts.UnresolvedComments)
 
 			fmt.Fprintf(&sb, "\n### Reconciliation\n")
 			if reconHead.IsFullyReconciled {

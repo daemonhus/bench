@@ -252,8 +252,8 @@ func TestBuildRequest_PathSubstitution_Commitish_Default(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildRequest: %v", err)
 	}
-	if !strings.Contains(path, "HEAD") {
-		t.Errorf("path = %q, want HEAD default for commitish", path)
+	if !strings.Contains(path, reviewHeadMarker) {
+		t.Errorf("path = %q, want the review branch's head (%s) for the commitish", path, reviewHeadMarker)
 	}
 }
 

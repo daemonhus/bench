@@ -83,7 +83,7 @@ var commands = []cmdDef{
 		EP: endpoint{"GET", "/api/git/search"},
 		Flags: []flagDef{
 			{Name: "pattern", Param: "pattern", Desc: "Regex search pattern", Required: true},
-			{Name: "commit", Param: "commit", Desc: "Search at this commit (default: HEAD)"},
+			{Name: "commit", Param: "commit", Desc: "Search at this commit (default: the review branch's head)"},
 			{Name: "path", Param: "path", Desc: "Limit search to files under this path"},
 			{Name: "ignore-case", Param: "case_insensitive", Desc: "Case-insensitive search", Type: "bool"},
 			{Name: "fixed", Param: "fixed", Desc: "Treat pattern as a fixed string, not a regex", Type: "bool"},
@@ -93,14 +93,14 @@ var commands = []cmdDef{
 		EP: endpoint{"GET", "/api/git/blame"},
 		Flags: []flagDef{
 			{Name: "path", Param: "path", Desc: "File path", Required: true},
-			{Name: "commit", Param: "commit", Desc: "Commit (default: HEAD)"},
+			{Name: "commit", Param: "commit", Desc: "Commit (default: the review branch's head)"},
 			{Name: "start", Param: "line_start", Desc: "Start of line range", Type: "int"},
 			{Name: "end", Param: "line_end", Desc: "End of line range", Type: "int"},
 		}},
 	{Cat: "git", Name: "read-file", Desc: "Read file contents at a specific commit.",
 		EP: endpoint{"GET", "/api/git/show/{commitish}/{path}"},
 		Flags: []flagDef{
-			{Name: "commit", Param: "commitish", Desc: "Commit (default: HEAD)"},
+			{Name: "commit", Param: "commitish", Desc: "Commit (default: the review branch's head)"},
 			{Name: "path", Param: "path", Desc: "File path", Required: true},
 			{Name: "start", Param: "line_start", Desc: "First line to return (1-indexed)", Type: "int"},
 			{Name: "end", Param: "line_end", Desc: "Last line to return (inclusive)", Type: "int"},
@@ -108,7 +108,7 @@ var commands = []cmdDef{
 	{Cat: "git", Name: "list-files", Desc: "List files in the repository tree.",
 		EP: endpoint{"GET", "/api/git/tree/{commitish}"},
 		Flags: []flagDef{
-			{Name: "commit", Param: "commitish", Desc: "Commit (default: HEAD)"},
+			{Name: "commit", Param: "commitish", Desc: "Commit (default: the review branch's head)"},
 			{Name: "prefix", Param: "prefix", Desc: "Filter to paths under this directory prefix"},
 		}},
 	{Cat: "git", Name: "diff", Desc: "Show diff between two commits for a file.",
@@ -239,7 +239,7 @@ var commands = []cmdDef{
 			{Name: "status", Param: "status", Desc: "Filter by status"},
 			{Name: "severity", Param: "severity", Desc: "Filter by severity"},
 		}},
-	{Cat: "findings", Name: "batch-create", Desc: "Create multiple findings from JSON input. Required per item: title, severity [critical|high|medium|low|info]. Optional: file, commit (default: HEAD), status [draft|open|in-progress|false-positive|accepted|closed] (default: draft), source [pentest|tool|manual|mcp] (default: manual), score (float), cwe, cve, category. Afterwards, record each finding's historical context via `findings suggest-origin` and `findings set-origin`.",
+	{Cat: "findings", Name: "batch-create", Desc: "Create multiple findings from JSON input. Required per item: title, severity [critical|high|medium|low|info]. Optional: file, commit (default: the review branch's head), status [draft|open|in-progress|false-positive|accepted|closed] (default: draft), source [pentest|tool|manual|mcp] (default: manual), score (float), cwe, cve, category. Afterwards, record each finding's historical context via `findings suggest-origin` and `findings set-origin`.",
 		EP:    endpoint{"POST", "/api/findings"},
 		Flags: []flagDef{{Name: "input", Param: "_input", Desc: "JSON file (default: stdin)", Type: "batch"}}},
 
@@ -347,7 +347,7 @@ var commands = []cmdDef{
 		Flags: []flagDef{
 			{Name: "reviewer", Param: "reviewer", Desc: "Reviewer name"},
 			{Name: "summary", Param: "summary", Desc: "Baseline summary"},
-			{Name: "commit", Param: "commitId", Desc: "Commit ID (default: HEAD)"},
+			{Name: "commit", Param: "commitId", Desc: "Commit ID (default: the review branch's head)"},
 		}},
 	{Cat: "baselines", Name: "list", Desc: "List baselines.",
 		EP: endpoint{"GET", "/api/baselines"},
@@ -406,7 +406,7 @@ var commands = []cmdDef{
 		EP: endpoint{"POST", "/api/features"},
 		Flags: []flagDef{
 			{Name: "file", Param: "fileId", Desc: "Anchor file path"},
-			{Name: "commit", Param: "commitId", Desc: "Anchor commit (default: HEAD)"},
+			{Name: "commit", Param: "commitId", Desc: "Anchor commit (default: the review branch's head)"},
 			{Name: "kind", Param: "kind", Desc: "Feature kind: interface (endpoint the service exposes), source (reads data), sink (writes data or calls an external third party), dependency (call to another internal service, not a library), externality (background job or hook) [interface|source|sink|dependency|externality]", Required: true},
 			{Name: "title", Param: "title", Desc: "Feature title: interface = the bare path (e.g. '/login', not 'POST /login'; use --operation for the method); source/sink = a resource URI (postgresql://users_db (read)); dependency = '<Caller> to <service hostname> (<domain>)'; externality = what it is", Required: true},
 			{Name: "start", Param: "lineStart", Desc: "Anchor line range start", Type: "int"},
@@ -516,7 +516,7 @@ var commands = []cmdDef{
 			{Name: "target", Param: "targetCommit", Desc: "Target commit (default: the review branch's head)"},
 			{Name: "file-paths", Param: "filePaths", Desc: "Comma-separated file paths (default: all)", Type: "list"},
 		}},
-	{Cat: "reconcile", Name: "head", Desc: "Show reconciled HEAD status.",
+	{Cat: "reconcile", Name: "head", Desc: "Show how far annotations are reconciled towards the review branch's head.",
 		EP: endpoint{"GET", "/api/reconcile/head"}},
 	{Cat: "reconcile", Name: "status", Desc: "Get reconciliation job or file status.",
 		EP: endpoint{"GET", "/api/reconcile/status"},
@@ -739,9 +739,10 @@ func buildRequest(cmd *cmdDef, pf *parsedFlags) (method, path string, body io.Re
 		if strings.Contains(path, placeholder) {
 			val, ok := pf.values[fd.Name]
 			if !ok || val == "" {
-				// Use default for optional path params.
+				// Use default for optional path params: the commit defaults to the
+				// review branch's head, which run resolves (reviewHeadMarker).
 				if fd.Param == "commitish" {
-					val = "HEAD"
+					val = reviewHeadMarker
 				} else {
 					continue
 				}
@@ -1328,6 +1329,32 @@ func main() {
 
 // projectPath turns a command's workbench endpoint (/api/findings) into the
 // server's per-project route (/api/projects/{slug}/findings).
+// reviewHeadMarker stands in a request path for the review branch's head,
+// until run asks the server for it.
+const reviewHeadMarker = "@review-head"
+
+// resolveReviewHead replaces reviewHeadMarker in path with the head of the
+// project's review branch.
+func resolveReviewHead(client *apiClient, project, path string) (string, error) {
+	if !strings.Contains(path, reviewHeadMarker) {
+		return path, nil
+	}
+	data, status, err := client.do("GET", projectPath(project, "/api/review-branch"), nil)
+	if err != nil {
+		return "", err
+	}
+	if status >= 400 {
+		return "", fmt.Errorf("review branch: %s", formatOutput(data, status))
+	}
+	var b struct {
+		Tip string `json:"tip"`
+	}
+	if err := json.Unmarshal(data, &b); err != nil || b.Tip == "" {
+		return "", fmt.Errorf("review branch: no head in %s", data)
+	}
+	return strings.ReplaceAll(path, reviewHeadMarker, url.PathEscape(b.Tip)), nil
+}
+
 func projectPath(project, path string) string {
 	return "/api/projects/" + url.PathEscape(project) + strings.TrimPrefix(path, "/api")
 }
@@ -1459,6 +1486,10 @@ func run(args []string, getenv func(string) string, stdout, stderr io.Writer) in
 		return missingProject(client, matched, stderr)
 	}
 	path = projectPath(project, path)
+	if path, err = resolveReviewHead(client, project, path); err != nil {
+		fmt.Fprintf(stderr, "Error: %v\n", err)
+		return 1
+	}
 
 	// Batch mode: POST each item individually. stdout gets the created IDs as JSON
 	// ([{"index":0,"id":"…"}], failed items left out) for scripts to pipe on;

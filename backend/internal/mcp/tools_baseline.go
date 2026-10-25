@@ -476,7 +476,7 @@ func toolListBaselines(deps *toolDeps) Tool {
 			if err != nil {
 				return "", err
 			}
-			baselines, off := keepOnBranch(scope, baselines, func(b model.Baseline) string { return b.CommitID })
+			baselines, off := review.KeepOnBranch(scope, baselines, func(b model.Baseline) string { return b.CommitID })
 			if len(baselines) > p.Limit {
 				baselines = baselines[:p.Limit]
 			}
